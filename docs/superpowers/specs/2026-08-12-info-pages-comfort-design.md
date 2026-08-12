@@ -77,3 +77,60 @@ other structural/visual changes — this is a comfort pass, not a redesign.
 - No changes to page copy/translations beyond what already exists (only new
   strings: nothing — `common.back` already exists in all 4 locales).
 - No new footer links beyond Privacy/Terms/Help on the login page.
+
+## Addendum: sidebar/header height, and app-wide soft shadows
+
+Added after initial approval, same session:
+
+### Sidebar brand block vs. header height
+
+`AppSidebar.jsx`'s brand block (`px-4 py-4`, title + subtitle) was ~80px tall
+against `AppHeader.jsx`'s fixed `h-14` (56px) — visibly jagged where they meet.
+Fixed by making the brand block `h-14` too (`flex flex-col justify-center`
+instead of `py-4`), so both align exactly.
+
+### Header action container heights
+
+`Bell` and the theme toggle already shared `min-w-[44px] min-h-[44px]`. The
+language switcher only had `px-3 py-1.5` with no min-height, so it rendered
+shorter. Added `min-h-[44px]` to match.
+
+### App-wide border softening + card shadows
+
+Scope: all of `zuuchmap_web` (not the mobile app). `border-border` appeared
+94 times across 36 files at full opacity — the "hard/sharp" look. 6 of those
+(table-row dividers) were already softened to `border-border/50` by a prior
+author; that established value was adopted as the standard rather than
+inventing a new one.
+
+- Added `--shadow-card` to `index.css`, theme-aware (`@theme` for dark,
+  `html[data-theme="light"]` override) — a shadow tuned for light mode is
+  invisible against the dark palette's `#1F2124` surface, so dark mode uses a
+  more opaque shadow.
+- Softened all bare `border-border` → `border-border/50` app-wide (skipping
+  the 6 already-correct spots).
+- Added `shadow-card` to genuine "card" containers (the
+  `bg-surface border border-border rounded-card` pattern, ~26 occurrences)
+  — skipped `Modal.jsx` and `AppHeader.jsx`'s two dropdowns, which already
+  use `shadow-xl`/`shadow-lg` and don't need a second shadow.
+  `CollapsibleSection.jsx`'s "boxed" variant got the same treatment; its
+  "bare" variant (nests inside an existing card) deliberately did not.
+  `CustomerMap.jsx`'s map container and post-list cards got it too (matching
+  `PostCard.jsx`, which was already in the bulk set).
+- `AppSidebar.jsx` (aside + brand block) and `AppHeader.jsx` also got
+  `shadow-card` on top of their softened borders, since they're the two most
+  persistent "chrome" elements in the app.
+- Did not touch semantic-color borders (`border-danger/30`,
+  `border-success/20`, etc.) or focus-state borders — only the neutral
+  `border-border` token was in scope.
+
+### Verified
+
+- `npm run build` succeeds, no console errors on any of the 4 info pages.
+- Screenshots taken of `/login` (new footer), `/privacy`, `/help` (back
+  button, icon, softened+shadowed cards) and an authenticated dashboard via
+  a scripted login (sidebar brand block now aligns exactly with the header).
+- Found and flagged (not fixed, out of scope) a pre-existing bug:
+  `LoginPage.jsx`'s dev-mode OTP hint reads `res.data?.code`, but the axios
+  client's response interceptor doesn't unwrap `.data`, so it should be
+  `res.data?.data?.code`. The hint has silently never displayed in dev.

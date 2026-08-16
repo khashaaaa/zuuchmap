@@ -1,0 +1,185 @@
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
+import { Plus, Pencil, Trash2, FileText, Timer } from 'lucide-react'
+import { postsApi } from '@/lib/api'
+import { getPostCategory, getPostTitle, getImageUrl } from '@/lib/utils'
+import PageHeader from '@/components/PageHeader'
+import CategoryBadge from '@/components/CategoryBadge'
+import StatusBadge from '@/components/StatusBadge'
+import EmptyState from '@/components/EmptyState'
+import ConfirmModal from '@/components/ConfirmModal'
+import TabBar from '@/components/TabBar'
+import Button from '@/components/Button'
+import { toast } from 'sonner'
+
+const TAB_STATUSES = {
+  ALL: null,
+  PENDING: ['PENDING'],
+  APPROVED: ['APPROVED'],
+  REJECTED: ['REJECTED'],
+}
+
+export default function ProviderPosts() {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [tab, setTab] = useState('ALL')
+
+  function expiryLabel(post) {
+    if (!post.expires_at) return null
+    const days = Math.ceil((new Date(post.expires_at) - Date.now()) / 86400000)
+    if (days < 0) return { text: t('posts.expired'), cls: 'text-danger' }
+    if (days === 0) return { text: t('posts.expiresToday'), cls: 'text-warning' }
+    if (days <= 5) return { text: t('posts.expiresIn', { days }), cls: 'text-warning' }
+    return { text: t('posts.expiresIn', { days }), cls: 'text-muted' }
+  }
+
+  const { data: posts = [], isLoading } = useQuery({
+    queryKey: ['my-posts'],
+    queryFn: postsApi.getMine,
+  })
+
+  const deleteMut = useMutation({
+    mutationFn: postsApi.remove,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['my-posts'] }); toast.success(t('posts.deleted')) },
+    onError: (e) => toast.error(e.response?.data?.message || t('common.error')),
+  })
+
+  const counts = {
+    ALL: posts.length,
+    PENDING: posts.filter((p) => p.approval_status === 'PENDING').length,
+    APPROVED: posts.filter((p) => p.approval_status === 'APPROVED').length,
+    REJECTED: posts.filter((p) => p.approval_status === 'REJECTED').length,
+  }
+  const statuses = TAB_STATUSES[tab]
+  const filtered = statuses ? posts.filter((p) => statuses.includes(p.approval_status)) : posts
+
+  return (
+    <div>
+      <PageHeader
+        title={t('posts.myPosts')}
+        description={t('posts.total', { count: posts.length })}
+        action={
+          <Button to="/provider/posts/new">
+            <Plus size={15} /> {t('posts.add')}
+          </Button>
+        }
+      />
+
+      {posts.length > 0 && (
+        <TabBar
+          tabs={[
+            { key: 'ALL', label: `${t('status.all')} (${counts.ALL})` },
+            { key: 'PENDING', label: `${t('status.pending')} (${counts.PENDING})` },
+            { key: 'APPROVED', label: `${t('status.approved')} (${counts.APPROVED})` },
+            { key: 'REJECTED', label: `${t('status.rejected')} (${counts.REJECTED})` },
+          ]}
+          value={tab}
+          onChange={setTab}
+          className="mb-5"
+        />
+      )}
+
+      {isLoading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-16 bg-surface2 rounded-card animate-pulse" />)}
+        </div>
+      ) : posts.length === 0 ? (
+        <EmptyState
+          icon={FileText}
+          title={t('posts.noMyPosts')}
+          action={
+            <Button to="/provider/posts/new">
+              {t('posts.createFirst')}
+            </Button>
+          }
+        />
+      ) : filtered.length === 0 ? (
+        <EmptyState icon={FileText} title={t('common.noData')} />
+      ) : (
+        <div className="bg-surface border border-border/20 shadow-card rounded-card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[640px]">
+              <thead>
+                <tr className="border-b border-border/50">
+                  <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('nav.posts')}</th>
+                  <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('posts.category')}</th>
+                  <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('common.status')}</th>
+                  <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('posts.expires')}</th>
+                  <th className="px-4 py-3" />
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((post) => {
+                  const expiry = expiryLabel(post)
+                  return (
+                    <tr key={post.id} className="border-b border-border/50 last:border-b-0 hover:bg-surface2 transition-colors">
+                      <td className="px-4 py-3">
+                        <Link to={`/provider/posts/${post.id}`} className="flex items-center gap-3 group">
+                          {post.images?.[0] ? (
+                            <img src={getImageUrl(post.images[0])} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" />
+                          ) : (
+                            <div className="w-10 h-10 rounded-lg bg-surface2 shrink-0" />
+                          )}
+                          <div className="min-w-0">
+                            <p className="text-text group-hover:text-primary transition-colors font-medium line-clamp-1">
+                              {getPostTitle(post, t)}
+                            </p>
+                            {post.approval_status === 'REJECTED' && post.rejection_reason && (
+                              <p className="text-xs text-danger line-clamp-1">{post.rejection_reason}</p>
+                            )}
+                          </div>
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3"><CategoryBadge category={getPostCategory(post)} /></td>
+                      <td className="px-4 py-3"><StatusBadge status={post.approval_status} /></td>
+                      <td className="px-4 py-3">
+                        {expiry ? (
+                          <span className={`flex items-center gap-1 text-xs ${expiry.cls}`}>
+                            <Timer size={11} /> {expiry.text}
+                          </span>
+                        ) : <span className="text-muted text-xs">—</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5 justify-end">
+                          <Link
+                            to={`/provider/posts/${post.id}/edit`}
+                            title={t('posts.edit')}
+                            className="min-w-9 min-h-9 flex items-center justify-center rounded-btn text-muted hover:text-primary hover:bg-primary/10 transition-colors"
+                          >
+                            <Pencil size={14} />
+                          </Link>
+                          <button
+                            onClick={() => setDeleteTarget(post)}
+                            title={t('common.delete')}
+                            aria-label={t('common.delete')}
+                            className="min-w-9 min-h-9 flex items-center justify-center rounded-btn text-muted hover:text-danger hover:bg-danger/10 transition-colors"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      <ConfirmModal
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        title={t('posts.deleteConfirmTitle')}
+        message={t('posts.deleteConfirmMessage')}
+        confirmLabel={t('common.delete')}
+        cancelLabel={t('common.cancel')}
+        onConfirm={() => { deleteMut.mutate(deleteTarget.id); setDeleteTarget(null) }}
+        isPending={deleteMut.isPending}
+      />
+    </div>
+  )
+}

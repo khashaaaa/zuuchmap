@@ -1,0 +1,93 @@
+{
+  "expo": {
+    "name": "Zuuchmap",
+    "slug": "zuuchmap_app",
+    "version": "1.0.1",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.khashaa.zuuchmap",
+      "buildNumber": "1.0.8",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Энэ апп нь нүүр таних Face ID-г аюулгүй нэвтрэлтэд ашигладаг.",
+        "NSCameraUsageDescription": "Энэ апп нь профайл зураг болон нийтлэл оруулах зураг авахын тулд камерыг ашигладаг.",
+        "NSPhotoLibraryUsageDescription": "Энэ апп нь профайл зураг болон нийтлэл оруулахын тулд таны зургийн санг ашигладаг.",
+        "NSLocationWhenInUseUsageDescription": "Энэ апп нь таны байршлыг ашиглан ойр орчмын зүйлс болон үйлчилгээ үзүүлдэг.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "config": {
+        "googleMapsApiKey": "AIzaSyA1YieYXcm92foRmwZB7C-aj_YDNTXTzJg"
+      }
+    },
+    "android": {
+      "softwareKeyboardLayoutMode": "pan",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.yourcompany.zuuchmap",
+      "versionCode": 1,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyA1YieYXcm92foRmwZB7C-aj_YDNTXTzJg"
+        }
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Энэ апп таны зургийг сонгож найзуудтайгаа хуваалцахын тулд ашиглана.",
+          "cameraPermission": "Энэ апп зураг авч найзуудтайгаа хуваалцахын тулд таны камерыг ашиглана."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Zuuchmap апп таны байршлыг ойр орчмын үйлчилгээ олоход ашиглана."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#FFA726",
+          "sounds": []
+        }
+      ]
+    ],
+    "runtimeVersion": "1.0.1",
+    "owner": "khashaa",
+    "extra": {
+      "eas": {
+        "projectId": "40d1a5b1-f537-4097-88f7-ffad9545f7d0"
+      }
+    }
+  }
+}

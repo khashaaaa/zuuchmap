@@ -1,0 +1,1013 @@
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import {
+    View,
+    Text,
+    TouchableOpacity,
+    FlatList,
+    ScrollView,
+    Image,
+    RefreshControl,
+    TextInput,
+    Platform,
+    StyleSheet,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { spacing, typography, shadows, safeAreaHelpers, radius, interactions, isTablet } from '../../design/theme';
+import { useAppTheme } from '../../hooks/useAppTheme';
+import { useTranslation } from 'react-i18next';
+import postService from '../../services/api/postService';
+import categoryService from '../../services/api/categoryService';
+import { getPostImageUrl } from '../../config/api.config';
+import CustomSafeAreaView from '../../components/CustomSafeAreaView';
+import ScreenHeader from '../../components/ScreenHeader';
+import LikeButton from '../../components/LikeButton';
+import { CategoryBadge, StatusBadge, SkeletonItem, EmptyState, LocationRow, FadeSlideIn, Button } from '../../components';
+import SearchInput from '../../components/SearchInput';
+import BottomSheetModal from '../../components/BottomSheetModal';
+import { getFixedImageUrl, getPostPrice, getPostImage, getPostTitle as getPostTitleUtil, getSearchableText, categoryToPostType } from '../../utils/postUtils';
+import { useQuery } from '@tanstack/react-query';
+import { useDebounce } from '../../hooks/useDebounce';
+import { useMinDisplayTime } from '../../hooks/useMinDisplayTime';
+import { showErrorAlert, getErrorMessage } from '../../utils/errorManager';
+import { logger } from '../../utils/logger';
+import likeService from '../../services/api/likeService';
+import userService from '../../services/api/userService';
+import NotificationBell from '../../components/NotificationBell';
+
+const CATEGORIES = [
+    { value: '' },
+    { value: 'vehiclerent' },
+    { value: 'toolrent' },
+    { value: 'machineryrent' },
+    { value: 'materialstore' },
+    { value: 'construction' },
+    { value: 'factory' },
+    { value: 'jobvacancy' },
+    { value: 'sos' },
+];
+
+const PRICE_RANGES = [
+    { value: '' },
+    { value: '0-50000', label: '0 - 50,000₮' },
+    { value: '50000-100000', label: '50,000 - 100,000₮' },
+    { value: '100000-500000', label: '100,000 - 500,000₮' },
+    { value: '500000-1000000', label: '500,000 - 1,000,000₮' },
+    { value: '1000000+', label: '1,000,000₮+' },
+];
+
+const STATUS_OPTIONS = [
+    { value: '' },
+    { value: 'active' },
+    { value: 'paused' },
+    { value: 'rented' },
+];
+
+const PostItem = React.memo(({
+    item,
+    onPress,
+    getPostTitle,
+    getPostPrice,
+    getPostImage,
+    getFixedImageUrl,
+    is_liked = false,
+    is_authenticated = false,
+    onLikeChange,
+    colors,
+    showLike = true,
+}) => {
+    const styles = useMemo(() => createStyles(colors), [colors]);
+    const [imageError, setImageError] = useState(false);
+
+    const title = getPostTitle(item);
+    const price = getPostPrice(item);
+    const imageUri = getPostImage(item);
+    const isSos = (item.post_type || '').toLowerCase() === 'sos';
+
+    const handleImageError = useCallback(() => setImageError(true), []);
+    const handlePress = useCallback(() => onPress(item), [item, onPress]);
+
+    return (
+        <TouchableOpacity
+            style={[styles.postCard, { backgroundColor: colors.surface }, isSos && styles.sosCard]}
+            onPress={handlePress}
+            activeOpacity={interactions.activeOpacity}
+        >
+            <View style={[styles.imageContainer, { backgroundColor: colors.border.light }]}>
+                {imageUri && !imageError ? (
+                    <Image
+                        source={{ uri: getFixedImageUrl(imageUri) }}
+                        style={styles.postImage}
+                        onError={handleImageError}
+                        fadeDuration={200}
+                    />
+                ) : (
+                    <View style={styles.noImageContainer}>
+                        <Ionicons name="image-outline" size={28} color={colors.primary} />
+                    </View>
+                )}
+                {item.status && (
+                    <StatusBadge
+                        status={item.status}
+                        variant="default"
+                        position="absolute"
+                        showIndicator={false}
+                    />
+                )}
+                {isSos && (
+                    <View style={styles.sosBadge}>
+                        <Text style={styles.sosBadgeText}>SOS</Text>
+                    </View>
+                )}
+            </View>
+
+            <View style={styles.postContent}>
+                <View style={styles.postHeader}>
+                    <Text style={styles.postTitle} numberOfLines={2}>{title}</Text>
+                    {showLike && (
+                        <LikeButton
+                            post_type={item.post_type || 'construction'}
+                            post_id={item.id}
+                            initial_liked={is_liked}
+                            skip_check={true}
+                            is_authenticated={is_authenticated}
+                            show_count={false}
+                            size="small"
+                            onLikeChange={onLikeChange}
+                        />
+                    )}
+                </View>
+
+                <CategoryBadge
+                    postType={item.post_type || 'construction'}
+                    backgroundColor={colors.opacity.background.primary}
+                    showIcon={true}
+                />
+
+                {price && (
+                    <Text style={styles.postPrice}>{price}</Text>
+                )}
+
+                <View style={styles.postFooter}>
+                    <LocationRow
+                        location={item.location}
+                        address={item.address}
+                        province={item.province}
+                        district={item.district}
+                        containerStyle={styles.locationRow}
+                    />
+                    {item.date_created && (
+                        <Text style={styles.postDate}>
+                            {new Date(item.date_created).toLocaleDateString('mn-MN')}
+                        </Text>
+                    )}
+                </View>
+            </View>
+        </TouchableOpacity>
+    );
+}, (prevProps, nextProps) => {
+    return (
+        prevProps.item.id === nextProps.item.id &&
+        prevProps.item.status === nextProps.item.status &&
+        prevProps.item.date_created === nextProps.item.date_created &&
+        prevProps.is_liked === nextProps.is_liked &&
+        prevProps.is_authenticated === nextProps.is_authenticated &&
+        prevProps.showLike === nextProps.showLike &&
+        prevProps.colors === nextProps.colors
+    );
+});
+
+const CustomerPostList = ({ route, navigation }) => {
+    const { colors, isDark, styles: gStyles } = useAppTheme();
+    const styles = useMemo(() => createStyles(colors), [colors]);
+    const { t } = useTranslation();
+    const insets = useSafeAreaInsets();
+
+    // Route params are optional — when used as a tab component (CustomerDashboard),
+    // route.params may be undefined. When navigated to from SubcategorySelectScreen,
+    // category/subcategory are provided.
+    const {
+        category: routeCategory,
+        subcategory: routeSubcategory,
+        categoryDisplayName,
+        subcategoryDisplayName,
+    } = route?.params || {};
+
+    // isFilterMode: navigated to with a category (from SubcategorySelectScreen)
+    // isBrowseMode: used as a tab, show all posts with filter modal
+    const isFilterMode = Boolean(routeCategory);
+
+    const [refreshing, setRefreshing] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const debouncedSearchQuery = useDebounce(searchQuery, 300);
+    const [likedPostsStatus, setLikedPostsStatus] = useState({});
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [isCustomer, setIsCustomer] = useState(false);
+    const [showFilters, setShowFilters] = useState(false);
+    const [filters, setFilters] = useState({
+        category: routeCategory || '',
+        subcategory: routeSubcategory || '',
+        priceRange: '',
+        location: '',
+        status: isFilterMode ? '' : 'active',
+    });
+
+    const bottomPadding = useMemo(() => {
+        const tabBarHeight = Platform.OS === 'ios' ? 88 : 65;
+        const safeAreaBottom = safeAreaHelpers.getBottomSafeArea(insets);
+        return Math.max(tabBarHeight + safeAreaBottom, spacing.xl + 80);
+    }, [insets]);
+
+    // --- Data fetching ---
+
+    // Filter mode: fetch by specific post type
+    const getPostType = useMemo(() => (isFilterMode ? categoryToPostType(routeCategory) : null), [isFilterMode, routeCategory]);
+
+    const { data: categoryPosts = [], isLoading: categoryLoading, isError: categoryError, error: categoryErrorObj, refetch: refetchCategory } = useQuery({
+        queryKey: ['posts', 'list', getPostType, routeSubcategory || 'all'],
+        queryFn: async () => {
+            const response = await postService.getList({ category: getPostType, approval_status: 'APPROVED' });
+            const postsData = Array.isArray(response.data) ? response.data : [];
+            let filteredData = postsData;
+            if (routeSubcategory) {
+                filteredData = postsData.filter(post =>
+                    post.subcategory === routeSubcategory
+                );
+            }
+            return filteredData.map(post => {
+                getSearchableText(post);
+                return { ...post, post_type: post.category };
+            });
+        },
+        staleTime: 10 * 60 * 1000,
+        enabled: isFilterMode,
+    });
+
+    // Browse mode: fetch all posts (with optional server-side full-text search)
+    const { data: allPosts = [], isLoading: allLoading, isError: allError, error: allErrorObj, refetch: refetchAll } = useQuery({
+        queryKey: ['posts', 'all', 'approved', debouncedSearchQuery],
+        queryFn: async () => {
+            const response = await postService.getList({
+                approval_status: 'APPROVED',
+                q: debouncedSearchQuery.trim() || undefined,
+            });
+            const combinedPosts = (Array.isArray(response?.data) ? response.data : []).map(post => {
+                const processedPost = {
+                    ...post,
+                    post_type: post.category,
+                    imageUrl: getPostImageUrl(post.images?.[0]),
+                };
+                getSearchableText(processedPost);
+                return processedPost;
+            });
+            combinedPosts.sort((a, b) => new Date(b.date_created || b.created_at) - new Date(a.date_created || a.created_at));
+            return combinedPosts;
+        },
+        staleTime: 30_000,
+        enabled: !isFilterMode,
+    });
+
+    const posts = isFilterMode ? categoryPosts : allPosts;
+    const loadingRaw = isFilterMode ? categoryLoading : allLoading;
+    const loading = useMinDisplayTime(loadingRaw);
+    const isError = isFilterMode ? categoryError : allError;
+    const errorObj = isFilterMode ? categoryErrorObj : allErrorObj;
+
+    // Browse mode: fetch live category list for the pill row
+    const { data: categorySchemas = [] } = useQuery({
+        queryKey: ['categories', 'all'],
+        queryFn: () => categoryService.getCategories(),
+        staleTime: 10 * 60 * 1000,
+        enabled: !isFilterMode,
+    });
+
+    useEffect(() => {
+        if (isError) {
+            logger.warn('Could not load posts');
+            showErrorAlert(t('common.error'), errorObj);
+        }
+    }, [isError, errorObj, t]);
+
+    useEffect(() => {
+        userService.isAuthenticated().then(authStatus => {
+            const authenticated = authStatus?.authenticated ?? false;
+            setIsAuthenticated(authenticated);
+            setIsCustomer(authenticated && !authStatus?.is_admin && authStatus?.userType === 'CUSTOMER');
+        }).catch(() => {});
+    }, []);
+
+    useFocusEffect(
+        useCallback(() => {
+            if (posts.length === 0 || !isAuthenticated) return;
+            likeService.batchCheckLiked(posts).then(setLikedPostsStatus).catch(() => {});
+        }, [posts, isAuthenticated])
+    );
+
+    // --- Filtering ---
+
+    const filteredPosts = useMemo(() => {
+        const query = debouncedSearchQuery.trim().toLowerCase();
+
+        if (isFilterMode) {
+            // Filter mode: text search is client-side (category/subcategory already baked in)
+            if (!query) return posts;
+            return posts.filter(post => getSearchableText(post).includes(query));
+        }
+
+        // Browse mode: text search is server-side (?q=); apply remaining local filters only
+        const locationQuery = filters.location?.toLowerCase();
+        const statusUpper = filters.status?.toUpperCase();
+
+        return posts.filter(post => {
+            if (filters.category && post.post_type !== filters.category) return false;
+            if (filters.priceRange) {
+                const price = post.price_amount;
+                if (!price) return false;
+                if (filters.priceRange === '0-50000' && price > 50000) return false;
+                if (filters.priceRange === '50000-100000' && (price <= 50000 || price > 100000)) return false;
+                if (filters.priceRange === '100000-500000' && (price <= 100000 || price > 500000)) return false;
+                if (filters.priceRange === '500000-1000000' && (price <= 500000 || price > 1000000)) return false;
+                if (filters.priceRange === '1000000+' && price <= 1000000) return false;
+            }
+            if (locationQuery) {
+                const loc = [post.location, post.address, post.province, post.district]
+                    .filter(Boolean).join(' ').toLowerCase();
+                if (!loc.includes(locationQuery)) return false;
+            }
+            if (statusUpper) {
+                const postStatus = post.status?.toUpperCase() ?? 'ACTIVE';
+                if (statusUpper === 'ACTIVE' ? postStatus !== 'ACTIVE' : postStatus !== statusUpper) return false;
+            }
+            return true;
+        });
+    }, [isFilterMode, posts, debouncedSearchQuery, filters]);
+
+    // --- Callbacks ---
+
+    const onRefresh = useCallback(async () => {
+        setRefreshing(true);
+        if (isFilterMode) {
+            await refetchCategory();
+        } else {
+            await refetchAll();
+        }
+        setRefreshing(false);
+    }, [isFilterMode, refetchCategory, refetchAll]);
+
+    const handlePostPress = useCallback((post) => {
+        navigation.navigate('PostDetailScreen', {
+            postId: post.id,
+            postType: post.post_type || getPostType,
+            post,
+            role: 'customer',
+            shouldIncrementViews: true,
+        });
+    }, [navigation, getPostType]);
+
+    const getPostTitleMemo = useCallback((post) => getPostTitleUtil(post, post.post_type), []);
+
+    const getPostPriceMemo = useCallback((post) => getPostPrice(post), []);
+
+    const getPostImageMemo = useCallback((post) => getPostImage(post), []);
+
+    const clearFilters = useCallback(() => {
+        setFilters({
+            category: isFilterMode ? (routeCategory || '') : '',
+            subcategory: isFilterMode ? (routeSubcategory || '') : '',
+            priceRange: '',
+            location: '',
+            status: '',
+        });
+        setSearchQuery('');
+    }, [isFilterMode, routeCategory, routeSubcategory]);
+
+    const activeFiltersCount = useMemo(() => {
+        if (isFilterMode) return searchQuery ? 1 : 0;
+        const nonDefaultFilters = {
+            ...filters,
+            status: filters.status === 'active' ? '' : filters.status,
+        };
+        return Object.values(nonDefaultFilters).filter(v => v && v !== '').length + (searchQuery ? 1 : 0);
+    }, [isFilterMode, filters, searchQuery]);
+
+    // --- Render helpers ---
+
+    const handleLikeChange = useCallback((post_key, liked) => {
+        setLikedPostsStatus(prev => ({ ...prev, [post_key]: liked }));
+    }, []);
+
+    const renderPostItem = useCallback(({ item, index }) => {
+        const post_key = `${item.post_type || 'construction'}-${item.id}`;
+        return (
+            <FadeSlideIn index={index}>
+                <PostItem
+                    item={item}
+                    onPress={handlePostPress}
+                    getPostTitle={getPostTitleMemo}
+                    getPostPrice={getPostPriceMemo}
+                    getPostImage={getPostImageMemo}
+                    getFixedImageUrl={getFixedImageUrl}
+                    is_liked={likedPostsStatus[post_key] || false}
+                    is_authenticated={isCustomer}
+                    onLikeChange={(liked) => handleLikeChange(post_key, liked)}
+                    showLike={isCustomer}
+                    colors={colors}
+                />
+            </FadeSlideIn>
+        );
+    }, [handlePostPress, getPostTitleMemo, getPostPriceMemo, getPostImageMemo, likedPostsStatus, isAuthenticated, handleLikeChange, colors]);
+
+    const keyExtractor = useCallback((item) => item.id.toString(), []);
+
+    const renderHeader = useCallback(() => {
+        if (!isFilterMode) return null;
+        return (
+            <View style={styles.headerInfo}>
+                <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+                <View style={styles.headerTextContainer}>
+                    <Text style={styles.categoryText}>
+                        {categoryDisplayName} → {subcategoryDisplayName}
+                    </Text>
+                    <Text style={styles.resultCount}>
+                        {t('filter.resultsFound', { count: filteredPosts.length })}
+                        {searchQuery && ` "${searchQuery}"`}
+                    </Text>
+                </View>
+            </View>
+        );
+    }, [isFilterMode, categoryDisplayName, subcategoryDisplayName, filteredPosts.length, searchQuery, t]);
+
+    const refetchActive = isFilterMode ? refetchCategory : refetchAll;
+
+    const renderEmptyState = useCallback(() => {
+        if (isError) {
+            return (
+                <EmptyState
+                    icon="cloud-offline-outline"
+                    title={t('common.error')}
+                    subtitle={getErrorMessage(errorObj)}
+                    variant="default"
+                    actionButton={{
+                        text: t('common.retry'),
+                        icon: 'refresh',
+                        onPress: refetchActive,
+                    }}
+                />
+            );
+        }
+        return (
+            <EmptyState
+                icon={searchQuery || activeFiltersCount > 0 ? 'search' : 'document-outline'}
+                title={searchQuery || activeFiltersCount > 0 ? t('filter.searchNoResults') : t('posts.notFound')}
+                subtitle={searchQuery || activeFiltersCount > 0
+                    ? t('filter.searchNoResultsDesc')
+                    : t('posts.browseEmpty')}
+                variant={searchQuery || activeFiltersCount > 0 ? 'search' : 'default'}
+                actionButton={(searchQuery || activeFiltersCount > 0) ? {
+                    text: t('filter.clearAll'),
+                    icon: 'close-circle',
+                    onPress: clearFilters,
+                } : undefined}
+            />
+        );
+    }, [isError, errorObj, refetchActive, searchQuery, activeFiltersCount, clearFilters, t]);
+
+    const renderFilterModal = () => {
+        if (isFilterMode) return null;
+        return (
+            <BottomSheetModal
+                visible={showFilters}
+                onClose={() => setShowFilters(false)}
+                title={t('filter.title')}
+                footer={
+                    <View style={styles.modalFooterButtons}>
+                        <Button
+                            title={t('common.clear')}
+                            onPress={clearFilters}
+                            variant="outline"
+                            size="medium"
+                            style={styles.modalFooterButton}
+                        />
+                        <Button
+                            title={t('common.apply')}
+                            onPress={() => setShowFilters(false)}
+                            variant="primary"
+                            size="medium"
+                            style={styles.modalFooterButton}
+                        />
+                    </View>
+                }
+            >
+                <View style={styles.filterSection}>
+                    <Text style={[styles.filterLabel, { color: colors.text.secondary }]}>{t('filter.category')}</Text>
+                    <View style={styles.filterOptionsContainer}>
+                        {CATEGORIES.map((cat) => (
+                            <TouchableOpacity
+                                key={cat.value}
+                                style={[
+                                    styles.filterOption,
+                                    filters.category === cat.value && styles.filterOptionActive,
+                                ]}
+                                onPress={() => setFilters(prev => ({ ...prev, category: cat.value }))}
+                            >
+                                <Text style={[
+                                    styles.filterOptionText,
+                                    filters.category === cat.value && styles.filterOptionTextActive,
+                                ]}>
+                                    {cat.value ? t(`category.${cat.value}`) : t('filter.allCategories')}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
+
+                <View style={styles.filterSection}>
+                    <Text style={[styles.filterLabel, { color: colors.text.secondary }]}>{t('filter.priceRange')}</Text>
+                    <View style={styles.filterOptionsContainer}>
+                        {PRICE_RANGES.map((range) => (
+                            <TouchableOpacity
+                                key={range.value}
+                                style={[
+                                    styles.filterOption,
+                                    filters.priceRange === range.value && styles.filterOptionActive,
+                                ]}
+                                onPress={() => setFilters(prev => ({ ...prev, priceRange: range.value }))}
+                            >
+                                <Text style={[
+                                    styles.filterOptionText,
+                                    filters.priceRange === range.value && styles.filterOptionTextActive,
+                                ]}>
+                                    {range.value ? range.label : t('filter.allPrices')}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
+
+                <View style={styles.filterSection}>
+                    <Text style={[styles.filterLabel, { color: colors.text.secondary }]}>{t('filter.status')}</Text>
+                    <View style={styles.filterOptionsContainer}>
+                        {STATUS_OPTIONS.map((status) => (
+                            <TouchableOpacity
+                                key={status.value}
+                                style={[
+                                    styles.filterOption,
+                                    filters.status === status.value && styles.filterOptionActive,
+                                ]}
+                                onPress={() => setFilters(prev => ({ ...prev, status: status.value }))}
+                            >
+                                <Text style={[
+                                    styles.filterOptionText,
+                                    filters.status === status.value && styles.filterOptionTextActive,
+                                ]}>
+                                    {status.value ? t(`status.${status.value}`) : t('filter.allStatuses')}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
+
+                <View style={styles.filterSection}>
+                    <Text style={[styles.filterLabel, { color: colors.text.secondary }]}>{t('filter.location')}</Text>
+                    <TextInput
+                        style={[styles.locationInput, {
+                            backgroundColor: colors.background,
+                            borderColor: colors.border.light,
+                            color: colors.text.inverse,
+                        }]}
+                        value={filters.location}
+                        onChangeText={(text) => setFilters(prev => ({ ...prev, location: text }))}
+                        placeholder={t('common.locationSearch')}
+                        placeholderTextColor={colors.text.placeholder}
+                    />
+                </View>
+            </BottomSheetModal>
+        );
+    };
+
+    // --- Category pills (browse mode only) ---
+
+    const renderCategoryPills = useCallback(() => {
+        if (isFilterMode || categorySchemas.length === 0) return null;
+        return (
+            <View style={[styles.pillsWrapper, { backgroundColor: colors.surface, borderBottomColor: colors.border.light }]}>
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.pillsContainer}
+                >
+                    <TouchableOpacity
+                        style={[
+                            styles.pill,
+                            { borderColor: colors.border.medium, backgroundColor: colors.background },
+                            !filters.category && { backgroundColor: colors.primary, borderColor: colors.primary },
+                        ]}
+                        onPress={() => setFilters(prev => ({ ...prev, category: '' }))}
+                        activeOpacity={interactions.activeOpacity}
+                    >
+                        <Text style={[
+                            styles.pillText,
+                            { color: colors.text.primary },
+                            !filters.category && { color: colors.onPrimary, fontWeight: '600' },
+                        ]}>
+                            {t('filter.allCategories')}
+                        </Text>
+                    </TouchableOpacity>
+                    {categorySchemas.map((cat) => {
+                        const isActive = filters.category === cat.key;
+                        return (
+                            <TouchableOpacity
+                                key={cat.key}
+                                style={[
+                                    styles.pill,
+                                    { borderColor: colors.border.medium, backgroundColor: colors.background },
+                                    isActive && { backgroundColor: colors.primary, borderColor: colors.primary },
+                                ]}
+                                onPress={() => setFilters(prev => ({ ...prev, category: isActive ? '' : cat.key }))}
+                                activeOpacity={interactions.activeOpacity}
+                            >
+                                <Text style={[
+                                    styles.pillText,
+                                    { color: colors.text.primary },
+                                    isActive && { color: colors.onPrimary, fontWeight: '600' },
+                                ]}>
+                                    {t(`category.${cat.key}`, { defaultValue: cat.label || cat.key })}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </ScrollView>
+            </View>
+        );
+    }, [isFilterMode, categorySchemas, filters.category, colors, t]);
+
+    // --- Header config ---
+
+    const headerRight = <NotificationBell />;
+
+    // --- Loading skeleton ---
+
+    if (loading && posts.length === 0) {
+        return (
+            <CustomSafeAreaView backgroundColor={colors.background} statusBarColor={colors.surface} statusBarStyle={isDark ? 'light-content' : 'dark-content'}>
+                <ScreenHeader
+                    title={t('posts.browseTitle')}
+                    showBack={isFilterMode}
+                    onBack={isFilterMode ? () => navigation.goBack() : undefined}
+                    rightComponent={headerRight}
+                />
+                <View style={styles.searchRow}>
+                    <View style={styles.searchFlex}>
+                        <SearchInput
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                            placeholder={t('filter.searchPlaceholder')}
+                            containerStyle={{ padding: 0 }}
+                        />
+                    </View>
+                    {!isFilterMode && (
+                        <TouchableOpacity
+                            onPress={() => setShowFilters(true)}
+                            style={[
+                                styles.filterRowBtn,
+                                {
+                                    backgroundColor: activeFiltersCount > 0 ? colors.opacity.background.primary : colors.surface,
+                                    borderColor: activeFiltersCount > 0 ? colors.primary : colors.border.light,
+                                },
+                            ]}
+                            activeOpacity={interactions.activeOpacity}
+                        >
+                            <Ionicons name="options-outline" size={20} color={activeFiltersCount > 0 ? colors.primary : colors.text.secondary} />
+                            {activeFiltersCount > 0 && (
+                                <View style={styles.filterBadge}>
+                                    <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
+                                </View>
+                            )}
+                        </TouchableOpacity>
+                    )}
+                </View>
+                {renderCategoryPills()}
+                <FlatList
+                    data={Array(12).fill({})}
+                    renderItem={() => <SkeletonItem />}
+                    keyExtractor={(_, index) => `skeleton-${index}`}
+                    contentContainerStyle={[
+                        styles.listContainer,
+                        isFilterMode
+                            ? gStyles.scrollViewContentWithBottomInset(safeAreaHelpers.getBottomSafeArea(insets))
+                            : { paddingBottom: bottomPadding, paddingTop: spacing.md },
+                    ]}
+                    showsVerticalScrollIndicator={false}
+                />
+            </CustomSafeAreaView>
+        );
+    }
+
+    // --- Main render ---
+
+    return (
+        <CustomSafeAreaView backgroundColor={colors.background} statusBarColor={colors.surface} statusBarStyle={isDark ? 'light-content' : 'dark-content'}>
+            <ScreenHeader
+                title={t('posts.browseTitle')}
+                showBack={isFilterMode}
+                onBack={isFilterMode ? () => navigation.goBack() : undefined}
+                rightComponent={headerRight}
+            />
+
+            <View style={styles.searchRow}>
+                <View style={styles.searchFlex}>
+                    <SearchInput
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                        placeholder={t('filter.searchPlaceholder')}
+                        containerStyle={{ padding: 0 }}
+                    />
+                </View>
+                {!isFilterMode && (
+                    <TouchableOpacity
+                        onPress={() => setShowFilters(true)}
+                        style={[
+                            styles.filterRowBtn,
+                            {
+                                backgroundColor: activeFiltersCount > 0 ? colors.opacity.background.primary : colors.surface,
+                                borderColor: activeFiltersCount > 0 ? colors.primary : colors.border.light,
+                            },
+                        ]}
+                        activeOpacity={interactions.activeOpacity}
+                    >
+                        <Ionicons name="options-outline" size={20} color={activeFiltersCount > 0 ? colors.primary : colors.text.secondary} />
+                        {activeFiltersCount > 0 && (
+                            <View style={styles.filterBadge}>
+                                <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
+                            </View>
+                        )}
+                    </TouchableOpacity>
+                )}
+            </View>
+
+            {renderCategoryPills()}
+
+            <FlatList
+                data={filteredPosts}
+                renderItem={renderPostItem}
+                keyExtractor={keyExtractor}
+                numColumns={isTablet ? 2 : 1}
+                key={isTablet ? 'tablet' : 'phone'}
+                columnWrapperStyle={isTablet ? { gap: spacing.md } : undefined}
+                contentContainerStyle={[
+                    styles.listContainer,
+                    isFilterMode
+                        ? gStyles.scrollViewContentWithBottomInset(safeAreaHelpers.getBottomSafeArea(insets))
+                        : { paddingBottom: bottomPadding, paddingTop: spacing.md },
+                ]}
+                ListHeaderComponent={renderHeader}
+                ListEmptyComponent={renderEmptyState}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        colors={[colors.primary]}
+                        tintColor={colors.primary}
+                    />
+                }
+                showsVerticalScrollIndicator={false}
+                initialNumToRender={10}
+                maxToRenderPerBatch={5}
+                windowSize={10}
+                removeClippedSubviews={true}
+                updateCellsBatchingPeriod={100}
+            />
+
+            {renderFilterModal()}
+        </CustomSafeAreaView>
+    );
+};
+
+const createStyles = (colors) => StyleSheet.create({
+    listContainer: {
+        padding: spacing.lg,
+    },
+    headerInfo: {
+        marginBottom: spacing.lg,
+        padding: spacing.lg,
+        backgroundColor: colors.opacity.background.success,
+        borderRadius: radius.lg,
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: colors.opacity.background.success,
+        ...shadows.small,
+    },
+    headerTextContainer: {
+        marginLeft: spacing.sm,
+        flex: 1,
+    },
+    categoryText: {
+        fontSize: typography.md,
+        color: colors.success,
+        fontWeight: '600',
+        marginBottom: spacing.xs,
+    },
+    resultCount: {
+        fontSize: typography.sm,
+        color: colors.text.secondary,
+    },
+    searchRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: spacing.lg,
+        paddingTop: spacing.md,
+        paddingBottom: spacing.md,
+        gap: spacing.sm,
+    },
+    searchFlex: {
+        flex: 1,
+    },
+    filterRowBtn: {
+        width: 52,
+        height: 52,
+        borderRadius: radius.input,
+        borderWidth: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        position: 'relative',
+        ...shadows.small,
+    },
+    filterBadge: {
+        position: 'absolute',
+        top: spacing.xs,
+        right: spacing.xs,
+        backgroundColor: colors.danger,
+        borderRadius: radius.md,
+        minWidth: 16,
+        height: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    filterBadgeText: {
+        color: colors.text.onColor,
+        fontSize: typography.xs,
+        fontWeight: 'bold',
+    },
+    postCard: {
+        backgroundColor: colors.surface,
+        borderRadius: radius.card,
+        marginBottom: spacing.md,
+        overflow: 'hidden',
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        borderWidth: 1,
+        borderColor: colors.border.light,
+        ...shadows.small,
+    },
+    sosCard: {
+        borderColor: colors.danger,
+    },
+    imageContainer: {
+        width: 96,
+        alignSelf: 'stretch',
+        backgroundColor: colors.border.light,
+    },
+    sosBadge: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: colors.danger,
+        paddingVertical: 2,
+        alignItems: 'center',
+    },
+    sosBadgeText: {
+        color: colors.text.onColor,
+        fontSize: typography.xs,
+        fontWeight: 'bold',
+        letterSpacing: 1,
+    },
+    postImage: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+    },
+    noImageContainer: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    postContent: {
+        flex: 1,
+        padding: spacing.md,
+        gap: spacing.xs,
+    },
+    postHeader: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: spacing.xs,
+    },
+    postTitle: {
+        flex: 1,
+        fontSize: typography.md,
+        fontWeight: '700',
+        color: colors.text.primary,
+        lineHeight: 20,
+    },
+    postPrice: {
+        fontSize: typography.sm,
+        fontWeight: '700',
+        color: colors.primary,
+    },
+    postFooter: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: spacing.xs,
+        marginTop: spacing.xxs,
+    },
+    locationRow: {
+        flexShrink: 1,
+    },
+    postDate: {
+        fontSize: typography.xs,
+        color: colors.text.tertiary,
+    },
+    pillsWrapper: {
+        borderBottomWidth: 1,
+        paddingVertical: spacing.xs,
+    },
+    pillsContainer: {
+        paddingHorizontal: spacing.lg,
+        gap: spacing.sm,
+        alignItems: 'center',
+    },
+    pill: {
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.xs,
+        borderRadius: radius.xxl,
+        borderWidth: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    pillText: {
+        fontSize: typography.sm,
+    },
+    filterSection: {
+        marginBottom: spacing.xl,
+    },
+    filterLabel: {
+        fontSize: typography.md,
+        fontWeight: '600',
+        color: colors.text.inverse,
+        marginBottom: spacing.md,
+    },
+    filterOptionsContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: spacing.sm,
+    },
+    filterOption: {
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+        borderRadius: radius.xxl,
+        borderWidth: 1,
+        borderColor: colors.border.medium,
+        backgroundColor: colors.background,
+    },
+    filterOptionActive: {
+        backgroundColor: colors.primary,
+        borderColor: colors.primary,
+    },
+    filterOptionText: {
+        fontSize: typography.sm,
+        color: colors.text.primary,
+    },
+    filterOptionTextActive: {
+        color: colors.onPrimary,
+        fontWeight: '600',
+    },
+    locationInput: {
+        borderWidth: 1,
+        borderColor: colors.border.medium,
+        borderRadius: radius.input,
+        padding: spacing.md,
+        fontSize: typography.md,
+        color: colors.text.primary,
+        backgroundColor: colors.background,
+    },
+    modalFooterButtons: {
+        flexDirection: 'row',
+        gap: spacing.md,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
+    },
+    modalFooterButton: {
+        flex: 1,
+    },
+});
+
+export default CustomerPostList;

@@ -27,6 +27,11 @@ async function ensureUploadDirs() {
 
 process.on('uncaughtException', (err) => {
   Logger.error(`Uncaught exception: ${err.message}`, err.stack, 'Process');
+  // Node makes no promise about process state after this point — continuing
+  // risks serving corrupt data. In production pm2 brings back a clean process
+  // (min_uptime/max_restarts in ecosystem.config.js stop a crash loop); in dev
+  // we stay up so watch-mode keeps the feedback loop alive.
+  if (process.env.NODE_ENV === 'production') process.exit(1);
 });
 
 process.on('unhandledRejection', (reason) => {
@@ -44,6 +49,10 @@ async function bootstrap() {
   const port = configService.get<number>('PROG_PORT', 8282);
 
   await ensureUploadDirs();
+
+  // Behind nginx: without this the throttler keys every request on the
+  // proxy's IP, giving the whole site one shared rate-limit bucket.
+  app.set('trust proxy', 1);
 
   app.enableCors({
     origin: '*',

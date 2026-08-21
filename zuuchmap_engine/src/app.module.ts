@@ -11,12 +11,11 @@ import { CompanyModule } from './company/company.module';
 import { AuthModule } from './auth/auth.module';
 import { PostModule } from './post/post.module';
 import { LikedpostModule } from './likedpost/likedpost.module';
-import { ViewedpostModule } from './viewedpost/viewedpost.module';
 import { AdminModule } from './admin/admin.module';
-import { ContentPageModule } from './content-page/content-page.module';
 import { EventsModule } from './events/events.module';
 import { BookingModule } from './booking/booking.module';
 import { ReviewModule } from './review/review.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 @Module({
   imports: [
@@ -60,12 +59,11 @@ import { ReviewModule } from './review/review.module';
     CompanyModule,
     PostModule,
     LikedpostModule,
-    ViewedpostModule,
     AdminModule,
-    ContentPageModule,
     EventsModule,
     BookingModule,
     ReviewModule,
+    AnalyticsModule,
   ],
   controllers: [],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

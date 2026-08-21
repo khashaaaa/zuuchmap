@@ -4,19 +4,20 @@ import {
     Text,
     TouchableOpacity,
     Dimensions,
-    ActivityIndicator,
     StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing, typography, shadows, safeAreaHelpers, radius, interactions } from '../../design/theme';
+import { spacing, typography, safeAreaHelpers, radius, interactions } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import Button from '../../components/Button';
 import ScreenHeader from '../../components/ScreenHeader';
+import ScreenLoading from '../../components/ScreenLoading';
+import ScreenError from '../../components/ScreenError';
 import { showErrorModal, showWarningModal } from '../../utils/errorManager';
 
 const { width, height } = Dimensions.get('window');
@@ -203,23 +204,14 @@ const ProviderLocationSelection = ({ route, navigation }) => {
             <ScreenHeader title={t('provider.locationTitle')} onBack={() => navigation.goBack()} />
 
             {isLoading ? (
-                <View style={[gStyles.loadingContainer, { backgroundColor: colors.background }]}>
-                    <ActivityIndicator size="large" color={colors.primary} />
-                    <Text style={[gStyles.loadingText, { color: colors.text.secondary }]}>{t('provider.locationLoading')}</Text>
-                </View>
+                <ScreenLoading message={t('provider.locationLoading')} />
             ) : errorMsg ? (
-                <View style={styles.errorContainer}>
-                    <View style={styles.errorIconContainer}>
-                        <Ionicons name="warning-outline" size={48} color={colors.primary} />
-                    </View>
-                    <Text style={styles.errorTitle}>{t('provider.locationNotFound')}</Text>
-                    <Text style={styles.errorText}>{errorMsg}</Text>
-                    <Button
-                        title={t('common.retry')}
-                        onPress={handleRetryLocation}
-                        fullWidth
-                    />
-                </View>
+                <ScreenError
+                    icon="warning-outline"
+                    title={t('provider.locationNotFound')}
+                    message={errorMsg}
+                    onRetry={handleRetryLocation}
+                />
             ) : (
                 <>
                     <MapView
@@ -285,6 +277,7 @@ const ProviderLocationSelection = ({ route, navigation }) => {
                         <Button
                             title={t('provider.locationConfirm')}
                             onPress={handleConfirmLocation}
+                            disabled={!selectedLocation}
                             icon={<Ionicons name="checkmark-circle-outline" size={20} color={colors.primary} />}
                             iconPosition="left"
                             fullWidth
@@ -301,6 +294,7 @@ const createStyles = (colors) => StyleSheet.create({
         flex: 1,
     },
     locationInfoContainer: {
+        ...colors.elevation.md,
         position: 'absolute',
         bottom: 0,
         left: 0,
@@ -309,7 +303,6 @@ const createStyles = (colors) => StyleSheet.create({
         padding: spacing.xl,
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
-        ...shadows.medium,
     },
     locationHeader: {
         flexDirection: 'row',
@@ -319,7 +312,7 @@ const createStyles = (colors) => StyleSheet.create({
     locationIcon: {
         width: 40,
         height: 40,
-        borderRadius: radius.xxl,
+        borderRadius: radius.full,
         backgroundColor: colors.opacity.background.primary,
         justifyContent: 'center',
         alignItems: 'center',
@@ -329,16 +322,13 @@ const createStyles = (colors) => StyleSheet.create({
         flex: 1,
     },
     locationLabel: {
-        fontSize: typography.sm,
+        ...typography.styles.label,
         color: colors.text.secondary,
         marginBottom: spacing.xxs,
-        fontWeight: '500',
     },
     locationName: {
-        fontSize: typography.md,
-        fontWeight: '600',
+        ...typography.styles.bodyBold,
         color: colors.text.primary,
-        lineHeight: 20,
     },
     coordinatesContainer: {
         backgroundColor: colors.background,
@@ -349,9 +339,8 @@ const createStyles = (colors) => StyleSheet.create({
         alignSelf: 'flex-start',
     },
     coordinatesText: {
-        fontSize: typography.xs,
+        ...typography.styles.small,
         color: colors.text.secondary,
-        fontFamily: 'monospace',
     },
     instructionContainer: {
         flexDirection: 'row',
@@ -363,43 +352,14 @@ const createStyles = (colors) => StyleSheet.create({
         gap: spacing.sm,
     },
     instructionText: {
-        fontSize: typography.sm,
+        ...typography.styles.caption,
         color: colors.text.secondary,
-        lineHeight: 18,
         flex: 1,
     },
     buttonContent: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-    },
-    errorContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: spacing.xxl,
-    },
-    errorIconContainer: {
-        width: 120,
-        height: 120,
-        borderRadius: radius.pill,
-        backgroundColor: colors.opacity.background.warning,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: spacing.xxl,
-    },
-    errorTitle: {
-        fontSize: typography.lg,
-        fontWeight: 'bold',
-        color: colors.text.primary,
-        marginBottom: spacing.sm,
-    },
-    errorText: {
-        fontSize: typography.md,
-        color: colors.text.secondary,
-        textAlign: 'center',
-        lineHeight: 22,
-        marginBottom: spacing.xxl,
     },
 });
 

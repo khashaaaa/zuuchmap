@@ -65,7 +65,7 @@ export default function RoleSelectPage() {
                   : 'border-border/50 bg-surface hover:border-primary/40'
               }`}
             >
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${selected === type ? 'bg-primary text-on-primary' : 'bg-surface2 text-muted'}`}>
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${selected === type ? 'bg-primary text-on-primary' : 'bg-surface2 text-muted'}`}>
                 <Icon size={20} />
               </div>
               <div>

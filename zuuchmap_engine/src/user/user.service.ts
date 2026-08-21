@@ -100,21 +100,29 @@ export class UserService {
   }
 
   async getUserPosts(userId: string) {
-    const posts = await this.postRepository.find({
-      where: { user: { id: userId } },
-      order: { date_created: 'DESC' },
-    });
-    return {
-      totalPosts: posts.length,
-      activePosts: posts.filter(p => p.approval_status === 'APPROVED' && p.status === 'ACTIVE').length,
-      posts,
-    };
+    // Counters come from COUNT queries; loading every row to count in JS
+    // scaled linearly with the user's post history.
+    const [posts, totalPosts, activePosts] = await Promise.all([
+      this.postRepository.find({
+        where: { user: { id: userId } },
+        order: { date_created: 'DESC' },
+        take: 200,
+      }),
+      this.postRepository.count({ where: { user: { id: userId } } }),
+      this.postRepository.count({
+        where: { user: { id: userId }, approval_status: 'APPROVED', status: 'ACTIVE' as any },
+      }),
+    ]);
+    return { totalPosts, activePosts, posts };
   }
 
   async findAll(): Promise<User[]> {
     try {
+      // Admin list view; capped until the UI paginates.
       return await this.userRepository.find({
-        relations: ['company']
+        relations: ['company'],
+        order: { date_created: 'DESC' },
+        take: 500,
       });
     } catch (error) {
       this.logger.error(`Failed to retrieve all users: ${error.message}`);
@@ -172,9 +180,11 @@ export class UserService {
     }
   }
 
-  async savePushToken(userId: string, pushToken: string): Promise<void> {
+  async savePushToken(userId: string, pushToken: string | null): Promise<void> {
     try {
-      await this.userRepository.update(userId, { push_token: pushToken });
+      // Column is nullable but the entity property is typed `string`; the cast
+      // lets a logout clear the token without retyping every consumer.
+      await this.userRepository.update(userId, { push_token: pushToken as string });
     } catch (error) {
       this.logger.error(`Failed to save push token for user ${userId}: ${error.message}`);
       throw error;
@@ -210,41 +220,6 @@ export class UserService {
       }
       this.logger.error(`Failed to delete user ${id}: ${error.message}`);
       throw new InternalServerErrorException('Failed to delete user: ' + error.message);
-    }
-  }
-
-  async getUserCompleteness(userId: string): Promise<{
-    isComplete: boolean;
-    completionPercentage: number;
-    missingFields: string[];
-  }> {
-    try {
-      const user = await this.findOne(userId);
-
-      const requiredFields = [
-        { field: 'parent_name', name: 'Parent Name' },
-        { field: 'given_name', name: 'Given Name' },
-        { field: 'email', name: 'Email' },
-        { field: 'address', name: 'Address' },
-        { field: 'type', name: 'User Type' }
-      ];
-
-      const missingFields = requiredFields
-        .filter(({ field }) => !user[field] || user[field].trim() === '')
-        .map(({ name }) => name);
-
-      const completionPercentage = Math.round(
-        ((requiredFields.length - missingFields.length) / requiredFields.length) * 100
-      );
-
-      return {
-        isComplete: missingFields.length === 0,
-        completionPercentage,
-        missingFields
-      };
-    } catch (error) {
-      this.logger.error(`Failed to check user completeness: ${error.message}`);
-      throw error;
     }
   }
 }

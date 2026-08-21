@@ -5,18 +5,35 @@
   /* Direction A — neutral grounds, amber reserved for accents.
      Values mirror zuuchmap_app/src/design/theme.js palettes. */
   --color-primary: #F5A623;
-  --color-primary-dark: #D68F0A;
   --color-on-primary: #1A1200;   /* text on primary fills */
   --color-on-color: #101113;     /* text on semantic fills */
+  /* Primary as TEXT on normal grounds (prices, links, active nav). Mirrors
+     app text.link — the fill colour fails AA as light-theme text. */
+  --color-primary-text: #F5A623;
   --color-background: #17181A;
   --color-surface: #1F2124;
+  /* Raised/inset ground one step off surface; maps to different app tokens
+     per theme (dark surfaceElevated-ish, light surfaceLight). */
   --color-surface2: #26282C;
+  /* Base for /20–/50 alpha steps (border-border/50 etc.), not a 1:1 app
+     mirror — use it through an alpha, or use border-strong at full strength. */
   --color-border: #6B6F75;
+  /* Full-strength hairline; mirrors app border.dark. */
+  --color-border-strong: #3D4147;
   --color-text: #ECEDEE;
   --color-muted: #9BA1A6;
   --color-danger: #E5645C;
   --color-success: #57C27D;
   --color-warning: #E0A63E;
+  /* Chart marks. Amber reads at 7.96:1 on the dark surface. */
+  --color-chart: #F5A623;
+  /* Modal/drawer scrim; mirrors app opacity.overlay. */
+  --color-scrim: rgba(0, 0, 0, 0.6);
+
+  /* Commissioner — chosen for complete Mongolian coverage (Ө, Ү) plus ₮,
+     and the narrowest metrics of the faces that have all three. Swapping the
+     face is a one-line change here plus the <link> in index.html. */
+  --font-sans: "Commissioner", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 
   --radius-btn:   0.75rem;   /* 12px */
   --radius-card:  1rem;      /* 16px */
@@ -26,24 +43,31 @@
      Dark surfaces still need more opacity than light ones to read at all,
      but far less than a hard drop shadow needs. */
   --shadow-card: inset 0 1px 0 rgba(255,255,255,0.04), 0 1px 3px rgba(0,0,0,0.18), 0 12px 28px -8px rgba(0,0,0,0.22);
+  /* Hover step: same shape, slightly deeper — pairs with the card lift. */
+  --shadow-card-hover: inset 0 1px 0 rgba(255,255,255,0.04), 0 2px 6px rgba(0,0,0,0.20), 0 18px 34px -8px rgba(0,0,0,0.28);
 }
 
 html[data-theme="light"] {
   --color-primary: #E8890C;
-  --color-primary-dark: #C87206;
   --color-on-primary: #241500;
   --color-on-color: #FFFFFF;
+  --color-primary-text: #A35F00;
   --color-background: #FAFAF8;
   --color-surface: #FFFFFF;
   --color-surface2: #F3F2EE;
   --color-border: #918D85;
+  --color-border-strong: #C9C6BE;
   --color-text: #1A1C1E;
   --color-muted: #5F6368;
   --color-danger: #BE3B33;
   --color-success: #1E7C46;
   --color-warning: #9A6A00;
+  /* Chart marks step darker: #E8890C is only 2.62:1 on white, below the 3:1 floor. */
+  --color-chart: #C87206;
+  --color-scrim: rgba(0, 0, 0, 0.4);
 
   --shadow-card: inset 0 1px 0 rgba(255,255,255,0.7), 0 1px 3px rgba(0,0,0,0.03), 0 12px 28px -8px rgba(0,0,0,0.05);
+  --shadow-card-hover: inset 0 1px 0 rgba(255,255,255,0.7), 0 2px 6px rgba(0,0,0,0.05), 0 18px 34px -8px rgba(0,0,0,0.10);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -55,6 +79,21 @@ html[data-theme="light"] {
   }
 }
 
+/* Mount-once grow-in for the hand-rolled charts. `backwards` holds scale(0)
+   through each element's animation-delay; the reduced-motion block above
+   collapses both to instant. */
+@keyframes chart-grow-x { from { transform: scaleX(0); } }
+@keyframes chart-grow-y { from { transform: scaleY(0); } }
+.chart-grow-x {
+  transform-origin: left center;
+  animation: chart-grow-x 0.4s ease-out backwards;
+}
+.chart-grow-y {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: chart-grow-y 0.4s ease-out backwards;
+}
+
 * { box-sizing: border-box; }
 
 html, body, #root { height: 100%; }
@@ -63,14 +102,19 @@ body {
   margin: 0;
   background: var(--color-background);
   color: var(--color-text);
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   transition: background 0.2s, color 0.2s;
 }
 
+/* Prices, counts and specs are read by comparison, so their digits must share
+   one advance width. Tables get it by default; everything else opts in with
+   Tailwind's `tabular-nums`. */
+table { font-variant-numeric: tabular-nums; }
+
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: var(--color-border-strong); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-muted); }
 
 /* Leaflet theme */
@@ -78,7 +122,7 @@ body {
 .leaflet-popup-content-wrapper {
   background: var(--color-surface2);
   color: var(--color-text);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-strong);
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.3);
 }
@@ -86,6 +130,39 @@ body {
 .leaflet-bar a {
   background: var(--color-surface);
   color: var(--color-text);
-  border-color: var(--color-border);
+  border-color: var(--color-border-strong);
 }
 .leaflet-bar a:hover { background: var(--color-surface2); }
+
+/* Category map pins (L.divIcon, no remote assets) — fill is the category
+   colour, set inline by `categoryPin()` in lib/utils.js. The ring is fixed
+   white (the app's onMedia idiom): pins sit on map imagery in both themes,
+   not on a themed surface. */
+.map-pin-wrap { background: transparent; border: 0; }
+.map-pin,
+.map-pin::after { box-sizing: border-box; }
+.map-pin {
+  position: relative;
+  display: block;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+.map-pin::after {
+  /* Tail: rotated square tucked behind the disc; its lower edges carry the
+     white ring so the outline reads as one shape. Tip lands at y=36. */
+  content: '';
+  position: absolute;
+  z-index: -1;
+  left: 8px;
+  top: 22px;
+  width: 10px;
+  height: 10px;
+  transform: rotate(45deg);
+  background: inherit;
+  border: 2px solid #fff;
+  border-top-color: transparent;
+  border-left-color: transparent;
+}

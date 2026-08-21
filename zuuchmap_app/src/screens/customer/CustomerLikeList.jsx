@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing, typography, shadows, safeAreaHelpers, radius, interactions } from '../../design/theme';
+import { spacing, typography, safeAreaHelpers, radius, interactions } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useMinDisplayTime } from '../../hooks/useMinDisplayTime';
 import { useTranslation } from 'react-i18next';
@@ -24,7 +24,8 @@ import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import ScreenHeader from '../../components/ScreenHeader';
 import LikeButton from '../../components/LikeButton';
 import EmptyState from '../../components/EmptyState';
-import { SkeletonItem, FadeSlideIn } from '../../components';
+import ScreenError from '../../components/ScreenError';
+import { SkeletonItem, FadeSlideIn, PressableScale } from '../../components';
 import { showErrorModal } from '../../utils/errorManager';
 import { logger } from '../../utils/logger';
 import { getFixedImageUrl, getPostTitle, normalizePostType, getPostPrice } from '../../utils/postUtils';
@@ -52,7 +53,7 @@ const CustomerLikeList = ({ navigation }) => {
 
     const {
         data, isLoading: loading, isRefetching, refetch,
-        fetchNextPage, hasNextPage, isFetchingNextPage: loadingMore, error,
+        fetchNextPage, hasNextPage, isFetchingNextPage: loadingMore, error, isError,
     } = useInfiniteQuery({
         queryKey: ['liked', 'posts'],
         enabled: isAuthenticated === true,
@@ -77,7 +78,7 @@ const CustomerLikeList = ({ navigation }) => {
                 t('auth.sessionExpiredDesc'),
                 [
                     { text: t('common.close') },
-                    { text: t('auth.title'), onPress: () => navigation.navigate('Login') },
+                    { text: t('auth.title'), onPress: () => navigation.navigate('PhoneNumber') },
                 ],
                 'warning'
             );
@@ -123,14 +124,17 @@ const CustomerLikeList = ({ navigation }) => {
                 posts: (pg.posts || []).filter((post) => !(post.id === post_id && post.post_type === post_type)),
             })),
         }));
+        qc.invalidateQueries({ queryKey: ['liked', 'count'] });
     }, [qc]);
 
     const handleBrowsePosts = () => {
-        navigation.navigate('AllPosts');
+        // Nested target — this screen is also registered at the root, where a
+        // bare 'AllPosts' (a tab inside CustomerDashboard) doesn't resolve.
+        navigation.navigate('CustomerDashboard', { screen: 'AllPosts' });
     };
 
     const handleLogin = () => {
-        navigation.navigate('Login');
+        navigation.navigate('PhoneNumber');
     };
 
     const getImageUrl = (item) => {
@@ -143,10 +147,9 @@ const CustomerLikeList = ({ navigation }) => {
         const imageUri = getImageUrl(item);
         return (
         <FadeSlideIn index={index}>
-        <TouchableOpacity
+        <PressableScale
             style={[styles.post_card, { backgroundColor: colors.surface }]}
             onPress={() => handlePostPress(item)}
-            activeOpacity={interactions.activeOpacity}
         >
             <View style={styles.image_container}>
                 {imageUri ? (
@@ -203,7 +206,7 @@ const CustomerLikeList = ({ navigation }) => {
                     </Text>
                 </View>
             </View>
-        </TouchableOpacity>
+        </PressableScale>
         </FadeSlideIn>
     );
     }, [handlePostPress, handleUnlike]);
@@ -222,6 +225,11 @@ const CustomerLikeList = ({ navigation }) => {
                     actionButton={{ text: t('auth.title'), onPress: handleLogin }}
                 />
             );
+        }
+
+        // A failed fetch is not an empty shelf — offer a retry, not "browse posts".
+        if (isError) {
+            return <ScreenError onRetry={refetch} />;
         }
 
         return (
@@ -311,6 +319,7 @@ const createStyles = (colors) => StyleSheet.create({
         padding: spacing.lg,
     },
     post_card: {
+        ...colors.elevation.md,
         backgroundColor: colors.surface,
         borderRadius: radius.lg,
         marginBottom: spacing.md,
@@ -319,7 +328,6 @@ const createStyles = (colors) => StyleSheet.create({
         height: 120,
         borderWidth: 1,
         borderColor: colors.border.light,
-        ...shadows.medium,
     },
     image_container: {
         width: 100,
@@ -349,21 +357,18 @@ const createStyles = (colors) => StyleSheet.create({
         marginBottom: spacing.xs,
     },
     post_title: {
-        fontSize: typography.md,
-        fontWeight: 'bold',
+        ...typography.styles.title,
         color: colors.text.primary,
         flex: 1,
         marginRight: spacing.sm,
-        lineHeight: 18,
     },
     category_text: {
-        fontSize: typography.xs,
+        ...typography.styles.small,
         color: colors.text.secondary,
         marginBottom: spacing.xs,
     },
     price_text: {
-        fontSize: typography.sm,
-        fontWeight: '600',
+        ...typography.styles.price,
         color: colors.primary,
         marginBottom: spacing.xs,
     },
@@ -379,12 +384,12 @@ const createStyles = (colors) => StyleSheet.create({
         marginRight: spacing.xs,
     },
     location_text: {
-        fontSize: typography.xs,
+        ...typography.styles.small,
         color: colors.text.secondary,
         marginLeft: spacing.xs,
     },
     liked_at_text: {
-        fontSize: typography.xs,
+        ...typography.styles.small,
         color: colors.text.tertiary,
         fontStyle: 'italic',
     },

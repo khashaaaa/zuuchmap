@@ -8,9 +8,9 @@ import { useReducedMotion } from '../hooks/useReducedMotion';
  * Use inside FlatList renderItem for per-item staggered entrance.
  * @param {number} index   - item index, used to compute stagger delay
  * @param {number} delay   - base delay in ms (default 60)
- * @param {number} stagger - extra ms per index (default 50)
+ * @param {number} stagger - extra ms per index (defaults to animations.stagger)
  */
-const FadeSlideIn = ({ children, index = 0, delay = 60, stagger = 50, style }) => {
+const FadeSlideIn = ({ children, index = 0, delay = 60, stagger = animations.stagger, style }) => {
     const reduced = useReducedMotion();
     const opacity    = useRef(new Animated.Value(reduced ? 1 : 0)).current;
     const translateY = useRef(new Animated.Value(reduced ? 0 : 18)).current;

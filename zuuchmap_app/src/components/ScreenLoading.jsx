@@ -23,7 +23,7 @@ const ScreenLoading = ({ message }) => {
 
 const styles = StyleSheet.create({
     container: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    text: { marginTop: spacing.lg, fontSize: typography.md, fontWeight: '600' },
+    text: { ...typography.styles.bodyBold, marginTop: spacing.lg },
 });
 
 export default ScreenLoading;

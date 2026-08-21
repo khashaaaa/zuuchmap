@@ -48,7 +48,7 @@ export default function Modal({ open, onClose, title, children, footer, tabs, si
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: shouldReduceMotion ? 0 : 0.15 }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"
+          className="fixed inset-0 z-[1200] flex items-center justify-center p-4 bg-scrim"
           onClick={(e) => e.target === e.currentTarget && onClose()}
         >
           <motion.div
@@ -61,11 +61,11 @@ export default function Modal({ open, onClose, title, children, footer, tabs, si
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 8 }}
             transition={{ duration: shouldReduceMotion ? 0 : 0.15 }}
-            className={`bg-surface border border-border/50 rounded-card w-full ${SIZES[size]} shadow-xl flex flex-col max-h-[90vh]`}
+            className={`bg-surface border border-border/50 rounded-modal w-full ${SIZES[size]} shadow-card flex flex-col max-h-[90vh]`}
           >
             <div className="flex items-center justify-between px-5 py-4 border-b border-border/50 shrink-0">
-              <h2 id="modal-title" className="font-semibold text-text">{title}</h2>
-              <button onClick={onClose} aria-label={t('common.close')} className="min-w-9 min-h-9 -mr-2 flex items-center justify-center rounded-btn text-muted hover:text-text hover:bg-surface2 transition-colors">
+              <h2 id="modal-title" className="text-base font-semibold text-text">{title}</h2>
+              <button onClick={onClose} aria-label={t('common.close')} className="min-w-[44px] min-h-[44px] -mr-2 flex items-center justify-center rounded-btn text-muted hover:text-text hover:bg-surface2 transition-colors">
                 <X size={18} />
               </button>
             </div>

@@ -24,7 +24,11 @@ const buildFormData = async (postData) => {
   const { images, ...rawData } = postData;
 
   const userId = await getUserId();
-  if (!userId) throw new Error('Хэрэглэгчийн ID хадгалалтад олдсонгүй');
+  if (!userId) {
+    const error = new Error('User ID missing from storage');
+    error.code = 'USER_ID_MISSING';
+    throw error;
+  }
   formData.append('user', userId);
 
   for (const [key, val] of Object.entries(rawData)) {

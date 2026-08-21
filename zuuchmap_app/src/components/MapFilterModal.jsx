@@ -12,8 +12,11 @@ import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import BottomSheetModal from './BottomSheetModal';
 import Button from './Button';
-import { spacing, typography, shadows, radius, interactions } from '../design/theme';
+import SelectionPop from './SelectionPop';
+import { spacing, typography, radius, interactions } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
+import { useActiveCategorySchemas } from '../hooks/useCategorySchemas';
+import { getSchemaLabel } from '../utils/postUtils';
 import { useTranslation } from 'react-i18next';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -29,16 +32,15 @@ const MapFilterModal = ({
     const styles = useMemo(() => createStyles(colors), [colors]);
     const { t } = useTranslation();
 
-    const POST_CATEGORY_DEFS = useMemo(() => [
-        { key: 'vehiclerent', icon: 'car', color: colors.success },
-        { key: 'toolrent', icon: 'construct', color: colors.warning },
-        { key: 'machineryrent', icon: 'hardware-chip', color: colors.machinery },
-        { key: 'materialstore', icon: 'cube', color: colors.material },
-        { key: 'factory', icon: 'business', color: colors.danger },
-        { key: 'construction', icon: 'hammer', color: colors.primary },
-        { key: 'jobvacancy', icon: 'briefcase', color: colors.jobVacancy },
-        { key: 'sos', icon: 'alert-circle', color: colors.sos }
-    ], [colors]);
+    // Filter chips are whatever the admin has active, in their sort order —
+    // never a list baked into the build.
+    const schemas = useActiveCategorySchemas();
+    const POST_CATEGORY_DEFS = useMemo(() => schemas.map((schema) => ({
+        key: schema.key,
+        icon: schema.icon || 'pricetag-outline',
+        color: schema.color || colors.primary,
+        label: getSchemaLabel(schema),
+    })), [schemas, colors]);
 
     const [selectedCategories, setSelectedCategories] = useState(
         initialFilters.selectedCategories || []
@@ -114,8 +116,8 @@ const MapFilterModal = ({
         const isSelected = selectedCategories.includes(category.key);
 
         return (
+            <SelectionPop key={category.key} selected={isSelected}>
             <TouchableOpacity
-                key={category.key}
                 style={[
                     styles.categoryItem,
                     { backgroundColor: colors.background },
@@ -131,14 +133,14 @@ const MapFilterModal = ({
                     <Ionicons
                         name={category.icon}
                         size={20}
-                        color={isSelected ? colors.text.inverse : colors.text.secondary}
+                        color={isSelected ? colors.text.primary : colors.text.secondary}
                     />
                 </View>
                 <Text style={[
                     styles.categoryLabel,
                     isSelected && styles.categoryLabelSelected
                 ]}>
-                    {t(`category.${category.key}`)}
+                    {category.label || t(`category.${category.key}`, { defaultValue: category.key })}
                 </Text>
                 {isSelected && (
                     <Ionicons
@@ -148,12 +150,13 @@ const MapFilterModal = ({
                     />
                 )}
             </TouchableOpacity>
+            </SelectionPop>
         );
     }, [selectedCategories, toggleCategory, styles, colors]);
 
     const titleComponent = (
         <View style={styles.headerLeft}>
-            <Text style={{ color: colors.text.inverse, fontSize: typography.lg, fontWeight: 'bold' }}>{t('common.filter')}</Text>
+            <Text style={{ ...typography.styles.title, color: colors.text.primary, }}>{t('common.filter')}</Text>
             {activeFilterCount > 0 && (
                 <View style={styles.filterCountBadge}>
                     <Text style={styles.filterCountText}>
@@ -191,12 +194,13 @@ const MapFilterModal = ({
         >
             <View style={styles.section}>
                 <View style={styles.sectionHeader}>
-                    <Text style={[styles.sectionTitle, { color: colors.text.inverse }]}>{t('posts.category')}</Text>
+                    <Text style={[styles.sectionTitle, { color: colors.text.primary }]}>{t('posts.category')}</Text>
                     <View style={styles.categoryActions}>
                         <TouchableOpacity
                             onPress={selectAllCategories}
                             style={styles.categoryAction}
                             activeOpacity={interactions.activeOpacityLight}
+                            hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
                         >
                             <Text style={styles.categoryActionText}>{t('filter.all')}</Text>
                         </TouchableOpacity>
@@ -204,6 +208,7 @@ const MapFilterModal = ({
                             onPress={clearAllCategories}
                             style={styles.categoryAction}
                             activeOpacity={interactions.activeOpacityLight}
+                            hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
                         >
                             <Text style={styles.categoryActionText}>{t('common.clear')}</Text>
                         </TouchableOpacity>
@@ -217,7 +222,7 @@ const MapFilterModal = ({
 
             <View style={styles.section}>
                 <View style={styles.sectionHeader}>
-                    <Text style={[styles.sectionTitle, { color: colors.text.inverse }]}>{t('common.price')}</Text>
+                    <Text style={[styles.sectionTitle, { color: colors.text.primary }]}>{t('common.price')}</Text>
                     <Switch
                         value={priceRange.enabled}
                         onValueChange={(enabled) =>
@@ -263,7 +268,7 @@ const MapFilterModal = ({
                         </View>
 
                         <View style={styles.sliderContainer}>
-                            <Text style={[styles.sliderLabel, { color: colors.text.inverse }]}>
+                            <Text style={[styles.sliderLabel, { color: colors.text.primary }]}>
                                 {(priceRange.min ?? 0).toLocaleString()} ₮ - {priceRange.max != null ? `${priceRange.max.toLocaleString()} ₮` : '∞'}
                             </Text>
                             <Slider
@@ -286,7 +291,7 @@ const MapFilterModal = ({
             {userLocation && (
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
-                        <Text style={[styles.sectionTitle, { color: colors.text.inverse }]}>{t('map.filter')}</Text>
+                        <Text style={[styles.sectionTitle, { color: colors.text.primary }]}>{t('map.filter')}</Text>
                         <Switch
                             value={locationFilter.enabled}
                             onValueChange={(enabled) =>
@@ -304,7 +309,7 @@ const MapFilterModal = ({
                             </Text>
 
                             <View style={styles.radiusContainer}>
-                                <Text style={[styles.radiusLabel, { color: colors.text.inverse }]}>
+                                <Text style={[styles.radiusLabel, { color: colors.text.primary }]}>
                                     {t('map.radiusLabel', { radius: locationFilter.radius })}
                                 </Text>
                                 <Slider
@@ -335,9 +340,8 @@ const createStyles = (colors) => StyleSheet.create({
         flex: 1,
     },
     modalTitle: {
-        fontSize: typography.xl,
-        fontWeight: typography.weight.bold,
-        color: colors.text.inverse,
+        ...typography.styles.h3,
+        color: colors.text.primary,
         marginRight: spacing.sm,
     },
     filterCountBadge: {
@@ -350,9 +354,8 @@ const createStyles = (colors) => StyleSheet.create({
         paddingHorizontal: spacing.xs,
     },
     filterCountText: {
-        color: colors.text.inverse,
-        fontSize: typography.xs,
-        fontWeight: typography.weight.bold,
+        color: colors.text.primary,
+        ...typography.styles.badge,
     },
     headerButtons: {
         flexDirection: 'row',
@@ -365,8 +368,7 @@ const createStyles = (colors) => StyleSheet.create({
     },
     resetButtonText: {
         color: colors.primary,
-        fontSize: typography.sm,
-        fontWeight: typography.weight.semibold,
+        ...typography.styles.labelStrong,
     },
     closeButton: {
         padding: spacing.xs,
@@ -382,7 +384,7 @@ const createStyles = (colors) => StyleSheet.create({
     },
     sectionTitle: {
         ...typography.styles.h3,
-        color: colors.text.inverse,
+        color: colors.text.primary,
     },
     categoryActions: {
         flexDirection: 'row',
@@ -394,8 +396,7 @@ const createStyles = (colors) => StyleSheet.create({
     },
     categoryActionText: {
         color: colors.primary,
-        fontSize: typography.sm,
-        fontWeight: typography.weight.medium,
+        ...typography.styles.label,
     },
     categoriesGrid: {
         flexDirection: 'row',
@@ -428,12 +429,12 @@ const createStyles = (colors) => StyleSheet.create({
     },
     categoryLabel: {
         flex: 1,
-        fontSize: typography.xs,
+        ...typography.styles.small,
         color: colors.text.secondary,
     },
     categoryLabelSelected: {
+        ...typography.styles.micro,
         color: colors.text.primary,
-        fontWeight: typography.weight.medium,
     },
     priceRangeContent: {
         marginTop: spacing.md,
@@ -448,7 +449,7 @@ const createStyles = (colors) => StyleSheet.create({
         marginHorizontal: spacing.xs,
     },
     priceLabel: {
-        fontSize: typography.sm,
+        ...typography.styles.caption,
         color: colors.text.secondary,
         marginBottom: spacing.xs,
     },
@@ -457,7 +458,7 @@ const createStyles = (colors) => StyleSheet.create({
         borderColor: colors.border.medium,
         borderRadius: radius.sm,
         padding: spacing.md,
-        fontSize: typography.md,
+        ...typography.styles.body,
         color: colors.text.primary,
         backgroundColor: colors.background,
     },
@@ -465,11 +466,10 @@ const createStyles = (colors) => StyleSheet.create({
         marginTop: spacing.md,
     },
     sliderLabel: {
-        fontSize: typography.sm,
-        color: colors.text.inverse,
+        ...typography.styles.label,
+        color: colors.text.primary,
         textAlign: 'center',
         marginBottom: spacing.sm,
-        fontWeight: typography.weight.medium,
     },
     slider: {
         width: '100%',
@@ -479,7 +479,7 @@ const createStyles = (colors) => StyleSheet.create({
         marginTop: spacing.md,
     },
     locationDescription: {
-        fontSize: typography.sm,
+        ...typography.styles.caption,
         color: colors.text.secondary,
         marginBottom: spacing.md,
         textAlign: 'center',
@@ -488,11 +488,10 @@ const createStyles = (colors) => StyleSheet.create({
         marginTop: spacing.sm,
     },
     radiusLabel: {
-        fontSize: typography.sm,
-        color: colors.text.inverse,
+        ...typography.styles.label,
+        color: colors.text.primary,
         textAlign: 'center',
         marginBottom: spacing.sm,
-        fontWeight: typography.weight.medium,
     },
     applyButton: {
         flex: 1,

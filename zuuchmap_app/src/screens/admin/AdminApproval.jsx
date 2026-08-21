@@ -4,21 +4,22 @@ import { useQuery } from '@tanstack/react-query';
 import {
     View,
     Text,
-    TouchableOpacity,
     ScrollView,
     RefreshControl,
-    ActivityIndicator,
     StyleSheet,
     Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing, typography, shadows, radius, interactions, isTablet } from '../../design/theme';
+import { spacing, typography, radius, isTablet } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import ScreenHeader from '../../components/ScreenHeader';
+import ScreenError from '../../components/ScreenError';
+import ScreenLoading from '../../components/ScreenLoading';
 import Button from '../../components/Button';
+import PressableScale from '../../components/PressableScale';
 import postService from '../../services/api/postService';
 import FadeSlideIn from '../../components/FadeSlideIn';
 import { socketService } from '../../services/socketService';
@@ -26,7 +27,7 @@ import { invalidatePostData } from '../../services/queryClient';
 
 
 const StatCard = ({ label, value, color, colors }) => (
-    <View style={[styles.statCard, { borderColor: color + '44', backgroundColor: colors.surface }]}>
+    <View style={[styles.statCard, colors.elevation.sm, { borderColor: color + '44', backgroundColor: colors.surface }]}>
         <Text style={[styles.statValue, { color }]}>{value}</Text>
         <Text style={[styles.statLabel, { color: colors.text.tertiary }]}>{label}</Text>
     </View>
@@ -36,7 +37,7 @@ const AdminApproval = ({ navigation }) => {
     const insets = useSafeAreaInsets();
     const { colors, isDark } = useAppTheme();
     const { t } = useTranslation();
-    const { data: stats, isLoading: loading, isRefetching: refreshing, refetch } = useQuery({
+    const { data: stats, isLoading: loading, isRefetching: refreshing, isError, refetch } = useQuery({
         queryKey: ['admin', 'stats'],
         queryFn: async () => (await postService.getAdminStats()).data,
         staleTime: 30 * 1000,
@@ -54,7 +55,8 @@ const AdminApproval = ({ navigation }) => {
         return () => {
             socketService.off('stats.updated', handleDataChanged);
             socketService.off('post.created', handleDataChanged);
-            socketService.disconnect();
+            // Do not disconnect — the socket is shared with useNotificationSync;
+            // its lifecycle ends at logout (userService.logout), not screen unmount.
         };
     }, []);
 
@@ -65,9 +67,9 @@ const AdminApproval = ({ navigation }) => {
             <ScreenHeader title={t('admin.dashboard')} showBack={false} />
 
             {loading ? (
-                <View style={styles.center}>
-                    <ActivityIndicator color={colors.primary} size="large" />
-                </View>
+                <ScreenLoading />
+            ) : isError ? (
+                <ScreenError onRetry={refetch} />
             ) : (
                 <ScrollView
                     contentContainerStyle={[styles.content, { paddingBottom: (Platform.OS === 'ios' ? 88 : 65) + insets.bottom + spacing.md }]}
@@ -94,18 +96,18 @@ const AdminApproval = ({ navigation }) => {
                         onPress={() => navigation.navigate('AdminPostList')}
                         disabled={totalPending === 0}
                         fullWidth
-                        style={{ marginBottom: spacing.lg, ...shadows.medium }}
+                        style={{ ...colors.elevation.md, marginBottom: spacing.lg }}
                     />
 
                     <Text style={[styles.sectionTitle, { color: colors.text.tertiary }]}>{t('nav.categories')}</Text>
                     {stats?.byType?.map((row, i) => (
                         <FadeSlideIn key={row.postType} index={i} delay={100}>
-                            <TouchableOpacity
-                                style={[styles.typeRow, { backgroundColor: colors.surface }]}
+                            <PressableScale
+                                style={[styles.typeRow, colors.elevation.sm, { backgroundColor: colors.surface }]}
                                 onPress={() => navigation.navigate('AdminPostList', { filterType: row.postType })}
-                                activeOpacity={interactions.activeOpacity}
+                                accessibilityRole="button"
                             >
-                                <Text style={[styles.typeLabel, { color: colors.text.inverse }]}>{row.postType ? t(`category.${row.postType}`, { defaultValue: row.postType }) : ''}</Text>
+                                <Text style={[styles.typeLabel, { color: colors.text.primary }]}>{row.postType ? t(`category.${row.postType}`, { defaultValue: row.postType }) : ''}</Text>
                                 <View style={styles.typeBadges}>
                                     {row.pending > 0 && (
                                         <View style={[styles.badgeWarning, { backgroundColor: colors.opacity.background.warning }]}>
@@ -115,9 +117,9 @@ const AdminApproval = ({ navigation }) => {
                                     <View style={[styles.badgeSuccess, { backgroundColor: colors.opacity.background.success }]}>
                                         <Text style={[styles.badgeSuccessText, { color: colors.success }]}>{row.approved}</Text>
                                     </View>
-                                    <Ionicons name="chevron-forward" size={16} color={colors.text.tertiary} />
+                                    <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} />
                                 </View>
-                            </TouchableOpacity>
+                            </PressableScale>
                         </FadeSlideIn>
                     ))}
                     </View>{/* end tabletCentering */}
@@ -128,7 +130,6 @@ const AdminApproval = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-    center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     content: { padding: spacing.lg },
     tabletCentering: {
         maxWidth: isTablet ? 700 : '100%',
@@ -136,10 +137,8 @@ const styles = StyleSheet.create({
         width: '100%',
     },
     sectionTitle: {
-        fontSize: typography.sm,
-        fontWeight: '600',
+        ...typography.styles.overline,
         textTransform: 'uppercase',
-        letterSpacing: 1,
         marginBottom: spacing.md,
         marginTop: spacing.lg,
     },
@@ -150,10 +149,9 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         padding: spacing.md,
         alignItems: 'center',
-        ...shadows.small,
     },
-    statValue: { fontSize: typography.xxl, fontWeight: '700' },
-    statLabel: { fontSize: typography.xs, marginTop: spacing.xs, textAlign: 'center' },
+    statValue: { ...typography.styles.h2 },
+    statLabel: { ...typography.styles.small, marginTop: spacing.xs, textAlign: 'center' },
     typeRow: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -161,14 +159,13 @@ const styles = StyleSheet.create({
         borderRadius: radius.card,
         padding: spacing.md,
         marginBottom: spacing.sm,
-        ...shadows.small,
     },
-    typeLabel: { fontSize: typography.sm, fontWeight: '500' },
+    typeLabel: { ...typography.styles.label },
     typeBadges: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
     badgeWarning: { borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
-    badgeWarningText: { fontSize: typography.xs, fontWeight: '600' },
+    badgeWarningText: { ...typography.styles.badge },
     badgeSuccess: { borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
-    badgeSuccessText: { fontSize: typography.xs, fontWeight: '600' },
+    badgeSuccessText: { ...typography.styles.badge },
 });
 
 export default AdminApproval;

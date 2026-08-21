@@ -22,19 +22,19 @@ export default function SettingsSection() {
                 onPress={() => setIsOpen(prev => !prev)}
                 activeOpacity={interactions.activeOpacityLight}
             >
-                <Text style={[styles.sectionTitle, { color: colors.text.inverse }]}>
+                <Text style={[styles.sectionTitle, { color: colors.text.primary }]}>
                     {t('settings.language')}
                 </Text>
                 <View style={styles.headerRight}>
                     {currentLang && (
-                        <Text style={[styles.currentLang, { color: colors.text.inverse }]}>
+                        <Text style={[styles.currentLang, { color: colors.text.primary }]}>
                             {currentLang.flag} {currentLang.label}
                         </Text>
                     )}
                     <Ionicons
                         name={isOpen ? 'chevron-up' : 'chevron-down'}
                         size={16}
-                        color={colors.text.inverse}
+                        color={colors.text.primary}
                         style={styles.chevron}
                     />
                 </View>
@@ -85,10 +85,8 @@ const styles = StyleSheet.create({
         paddingVertical: spacing.lg,
     },
     sectionTitle: {
-        fontSize: typography.sm,
-        fontWeight: '600',
+        ...typography.styles.overline,
         textTransform: 'uppercase',
-        letterSpacing: 0.5,
     },
     headerRight: {
         flexDirection: 'row',
@@ -96,8 +94,7 @@ const styles = StyleSheet.create({
         gap: spacing.sm,
     },
     currentLang: {
-        fontSize: typography.sm,
-        fontWeight: '500',
+        ...typography.styles.label,
     },
     chevron: {
         marginLeft: spacing.xs,
@@ -119,10 +116,9 @@ const styles = StyleSheet.create({
         borderWidth: 1.5,
     },
     flag: {
-        fontSize: typography.md,
+        ...typography.styles.body,
     },
     langLabel: {
-        fontSize: typography.sm,
-        fontWeight: '500',
+        ...typography.styles.label,
     },
 });

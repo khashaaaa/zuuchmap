@@ -7,6 +7,7 @@ export default function CategoryPills({
   allLabel,
   as = 'button',
   shape = 'lg',
+  basePath = '/browse',
   className = '',
 }) {
   const shapeClass = shape === 'full' ? 'rounded-full' : 'rounded-btn'
@@ -27,7 +28,7 @@ export default function CategoryPills({
           </button>
         ) : (
           <Link
-            to="/customer/browse"
+            to={basePath}
             className={`${baseClass} ${inactiveClass}`}
           >
             {allLabel}
@@ -47,7 +48,7 @@ export default function CategoryPills({
         ) : (
           <Link
             key={cat.key}
-            to={`/customer/browse?category=${cat.key}`}
+            to={`${basePath}?category=${cat.key}`}
             className={`${baseClass} ${inactiveClass}`}
           >
             {cat.label}

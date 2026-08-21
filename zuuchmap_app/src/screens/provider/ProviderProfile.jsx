@@ -5,7 +5,7 @@ import {
     Image,
     TouchableOpacity,
     ScrollView,
-    ActivityIndicator,
+    RefreshControl,
     ActionSheetIOS,
     Platform,
     Linking,
@@ -14,17 +14,19 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { pickProfileImage, takeProfilePhoto } from '../../utils/imageUtils';
-import { spacing, typography, shadows, safeAreaHelpers, radius, interactions, isTablet, dimensions } from '../../design/theme';
+import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet, dimensions } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { useCountUp } from '../../hooks/useCountUp';
 import { useTranslation } from 'react-i18next';
 import userService from '../../services/api/userService';
 import { saveUserInfo } from '../../services/api/authHelpers';
-import { ScreenLayout, SettingsSection } from '../../components';
+import { ScreenLayout, SettingsSection, PressableScale } from '../../components';
 import { ProfileSection, ProfileInfoRow, ProfileActionRow } from '../../components';
 import { ProfileBadge } from '../../components';
 import { APP_CONFIG, DEFAULT_AVATAR_URL } from '../../config/app.config';
 import { API_CONFIG } from '../../config/api.config';
 import { hideErrorModal, showErrorModal, showInfoModal } from '../../utils/errorManager';
+import { confirmLogout } from '../../utils/navigationUtils';
 import { logger } from '../../utils/logger';
 
 const ProviderProfile = ({ navigation }) => {
@@ -36,6 +38,9 @@ const ProviderProfile = ({ navigation }) => {
     const [imageError, setImageError] = useState(false);
     const [companyImageError, setCompanyImageError] = useState(false);
     const [isUploadingImage, setIsUploadingImage] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
+    const totalPostsDisplay = useCountUp(profile?.totalPosts || 0, !!profile);
+    const activePostsDisplay = useCountUp(profile?.activePosts || 0, !!profile);
 
     useEffect(() => {
         loadProfile();
@@ -47,8 +52,8 @@ const ProviderProfile = ({ navigation }) => {
         return unsubscribe;
     }, [navigation]);
 
-    const loadProfile = async () => {
-        setIsLoading(true);
+    const loadProfile = async (showLoader = true) => {
+        if (showLoader) setIsLoading(true);
         setImageError(false);
         setCompanyImageError(false);
         try {
@@ -67,6 +72,11 @@ const ProviderProfile = ({ navigation }) => {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleRefresh = async () => {
+        setRefreshing(true);
+        try { await loadProfile(false); } finally { setRefreshing(false); }
     };
 
     const handleImageError = () => setImageError(true);
@@ -124,34 +134,13 @@ const ProviderProfile = ({ navigation }) => {
     const handleCompanyDetails = () => navigation.navigate('ProviderCompany', { companyId: profile.companyId });
     const handleCreateCompany = () => navigation.navigate('ProviderCompanyCreate');
 
-    const handleLogout = async () => {
-        showErrorModal(
-            t('nav.logout'),
-            t('common.confirm'),
-            [
-                { text: t('common.cancel') },
-                {
-                    text: t('nav.logout'),
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            hideErrorModal();
-                            await saveUserInfo(profile.phoneNumber, profile.userType, {
-                                name: profile.name,
-                                profilePicture: profile.profilePicture
-                            });
-                            await userService.logout(true);
-                            navigation.reset({ index: 0, routes: [{ name: 'PhoneNumber' }] });
-                        } catch (error) {
-                            logger.error('Logout error:', error);
-                            showErrorModal(t('common.error'), t('common.error'));
-                        }
-                    }
-                }
-            ],
-            'warning'
-        );
-    };
+    const handleLogout = () => confirmLogout({
+        t, navigation,
+        phoneNumber: profile.phoneNumber,
+        userType: profile.userType,
+        name: profile.name,
+        profilePicture: profile.profilePicture,
+    });
 
     if (isLoading) {
         return (
@@ -189,11 +178,14 @@ const ProviderProfile = ({ navigation }) => {
                         safeAreaHelpers.getBottomSafeArea(insets) + dimensions.bottomTabHeight
                     )
                 ]}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} colors={[colors.primary]} />
+                }
                 showsVerticalScrollIndicator={false}
             >
                 <View style={styles.tabletCentering}>
                 <View style={styles.profileHeader}>
-                    <View style={[styles.profileCard, { backgroundColor: colors.surface }]}>
+                    <View style={[styles.profileCard, colors.elevation.md, { backgroundColor: colors.surface }]}>
                         <View style={styles.profileImageContainer}>
                             <Image
                                 source={{
@@ -207,7 +199,7 @@ const ProviderProfile = ({ navigation }) => {
                         </View>
 
                         <View style={styles.profileInfo}>
-                            <Text style={[styles.profileName, { color: colors.text.inverse }]}>{profile.name}</Text>
+                            <Text style={[styles.profileName, { color: colors.text.primary }]}>{profile.name}</Text>
                             <View style={styles.phoneContainer}>
                                 <Ionicons name="call-outline" size={16} color={colors.primary} />
                                 <Text style={[styles.profilePhone, { color: colors.text.secondary }]}>{profile.phoneNumber}</Text>
@@ -219,7 +211,7 @@ const ProviderProfile = ({ navigation }) => {
                             style={[styles.editButton, { backgroundColor: colors.opacity.background.primary }]}
                             onPress={handleEditProfile}
                             activeOpacity={interactions.activeOpacityLight}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            hitSlop={interactions.hitSlop}
                         >
                             <Ionicons name="create-outline" size={18} color={colors.primary} />
                         </TouchableOpacity>
@@ -228,7 +220,7 @@ const ProviderProfile = ({ navigation }) => {
 
                 <View style={styles.companySection}>
                     {profile.companyId ? (
-                        <TouchableOpacity style={[styles.companyCard, { backgroundColor: colors.surface }]} onPress={handleCompanyDetails} activeOpacity={interactions.activeOpacity}>
+                        <PressableScale style={[styles.companyCard, colors.elevation.sm, { backgroundColor: colors.surface }]} onPress={handleCompanyDetails} accessibilityRole="button">
                             <View style={styles.companyHeader}>
                                 {profile.companyLogo && !companyImageError ? (
                                     <Image
@@ -242,7 +234,7 @@ const ProviderProfile = ({ navigation }) => {
                                     </View>
                                 )}
                                 <View style={styles.companyInfo}>
-                                    <Text style={[styles.companyName, { color: colors.text.inverse }]}>
+                                    <Text style={[styles.companyName, { color: colors.text.primary }]}>
                                         {profile.companyName || t('company.title')}
                                     </Text>
                                     <Text style={[styles.companySubtitle, { color: colors.text.secondary }]}>
@@ -251,12 +243,12 @@ const ProviderProfile = ({ navigation }) => {
                                 </View>
                                 <Ionicons name="chevron-forward" size={20} color={colors.primary} />
                             </View>
-                        </TouchableOpacity>
+                        </PressableScale>
                     ) : (
-                        <TouchableOpacity
+                        <PressableScale
                             style={[styles.createCompanyCard, { backgroundColor: colors.opacity.background.success }]}
                             onPress={handleCreateCompany}
-                            activeOpacity={interactions.activeOpacity}
+                            accessibilityRole="button"
                         >
                             <View style={styles.createCompanyIcon}>
                                 <Ionicons name="add-circle-outline" size={32} color={colors.primary} />
@@ -270,16 +262,16 @@ const ProviderProfile = ({ navigation }) => {
                                 </Text>
                             </View>
                             <Ionicons name="chevron-forward" size={20} color={colors.primary} />
-                        </TouchableOpacity>
+                        </PressableScale>
                     )}
                 </View>
 
-                <View style={[styles.statsSection, { backgroundColor: colors.surface }]}>
+                <View style={[styles.statsSection, colors.elevation.md, { backgroundColor: colors.surface }]}>
                     <View style={styles.statItem}>
                         <View style={[styles.statIconContainer, { backgroundColor: colors.opacity.background.primary }]}>
                             <Ionicons name="document-outline" size={20} color={colors.primary} />
                         </View>
-                        <Text style={[styles.statValue, { color: colors.text.inverse }]}>{profile.totalPosts || 0}</Text>
+                        <Text style={[styles.statValue, { color: colors.text.primary }]}>{totalPostsDisplay}</Text>
                         <Text style={[styles.statLabel, { color: colors.text.secondary }]}>{t('profile.totalPosts')}</Text>
                     </View>
 
@@ -287,7 +279,7 @@ const ProviderProfile = ({ navigation }) => {
                         <View style={[styles.statIconContainer, { backgroundColor: colors.opacity.background.primary }]}>
                             <Ionicons name="pulse-outline" size={20} color={colors.primary} />
                         </View>
-                        <Text style={[styles.statValue, { color: colors.text.inverse }]}>{profile.activePosts || 0}</Text>
+                        <Text style={[styles.statValue, { color: colors.text.primary }]}>{activePostsDisplay}</Text>
                         <Text style={[styles.statLabel, { color: colors.text.secondary }]}>{t('profile.activePosts')}</Text>
                     </View>
 
@@ -295,7 +287,7 @@ const ProviderProfile = ({ navigation }) => {
                         <View style={[styles.statIconContainer, { backgroundColor: colors.opacity.background.primary }]}>
                             <Ionicons name="calendar-outline" size={18} color={colors.primary} />
                         </View>
-                        <Text style={[styles.statValue, { color: colors.text.inverse }]}>{profile.memberSince || '2024'}</Text>
+                        <Text style={[styles.statValue, { color: colors.text.primary }]}>{profile.memberSince || '2024'}</Text>
                         <Text style={[styles.statLabel, { color: colors.text.secondary }]}>{t('profile.memberSince')}</Text>
                     </View>
                 </View>
@@ -361,20 +353,18 @@ const styles = StyleSheet.create({
         padding: spacing.xl,
         flexDirection: 'row',
         alignItems: 'center',
-        ...shadows.medium,
     },
     profileImageContainer: { position: 'relative', marginRight: spacing.lg },
     profileImage: { width: isTablet ? 110 : 80, height: isTablet ? 110 : 80, borderRadius: radius.pill, borderWidth: 3 },
     profileInfo: { flex: 1 },
-    profileName: { fontSize: typography.lg, fontWeight: 'bold', marginBottom: spacing.xs },
+    profileName: { ...typography.styles.h3, marginBottom: spacing.xs },
     phoneContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm },
-    profilePhone: { fontSize: typography.sm, marginLeft: spacing.xs },
+    profilePhone: { ...typography.styles.caption, marginLeft: spacing.xs },
     editButton: { width: 36, height: 36, borderRadius: radius.xl, justifyContent: 'center', alignItems: 'center' },
     companySection: { marginBottom: spacing.xl },
     companyCard: {
         borderRadius: radius.card,
         padding: spacing.lg,
-        ...shadows.small,
     },
     companyHeader: { flexDirection: 'row', alignItems: 'center' },
     companyLogo: { width: 48, height: 48, borderRadius: radius.lg, marginRight: spacing.md },
@@ -383,8 +373,8 @@ const styles = StyleSheet.create({
         justifyContent: 'center', alignItems: 'center', marginRight: spacing.md,
     },
     companyInfo: { flex: 1 },
-    companyName: { fontSize: typography.md, fontWeight: '600', marginBottom: spacing.xs },
-    companySubtitle: { fontSize: typography.sm },
+    companyName: { ...typography.styles.title, marginBottom: spacing.xs },
+    companySubtitle: { ...typography.styles.caption },
     createCompanyCard: {
         borderRadius: radius.card,
         padding: spacing.lg,
@@ -393,22 +383,21 @@ const styles = StyleSheet.create({
     },
     createCompanyIcon: { marginRight: spacing.md },
     createCompanyInfo: { flex: 1 },
-    createCompanyTitle: { fontSize: typography.md, fontWeight: '600', marginBottom: spacing.xs },
-    createCompanySubtitle: { fontSize: typography.sm, lineHeight: 18 },
+    createCompanyTitle: { ...typography.styles.bodyBold, marginBottom: spacing.xs },
+    createCompanySubtitle: { ...typography.styles.caption },
     statsSection: {
         flexDirection: 'row',
         borderRadius: radius.xxl,
         padding: spacing.lg,
         marginBottom: spacing.xl,
-        ...shadows.medium,
     },
     statItem: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     statIconContainer: {
         width: 36, height: 36, borderRadius: radius.xl,
         justifyContent: 'center', alignItems: 'center', marginBottom: spacing.sm,
     },
-    statValue: { fontSize: typography.xl, fontWeight: '600', marginBottom: spacing.xs },
-    statLabel: { fontSize: typography.xs, textAlign: 'center' },
+    statValue: { ...typography.styles.h2, marginBottom: spacing.xs, fontVariant: ['tabular-nums'] },
+    statLabel: { ...typography.styles.small, textAlign: 'center' },
     bottomSpacing: { height: spacing.xxxl * 3 },
 });
 

@@ -1,11 +1,11 @@
 import { NavLink, Link, useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import {
   LayoutDashboard, FileText, Users, Map, Heart, User, Building2,
-  LogOut, ChevronRight, Search, Tag, Plus, CalendarRange,
+  LogOut, ChevronRight, Search, Tag, Plus, CalendarRange, BarChart3,
 } from 'lucide-react'
 import { useAuthStore } from '../store'
 import { usersApi } from '@/lib/api'
@@ -19,11 +19,13 @@ function buildNav(t) {
       { to: '/admin/posts', label: t('nav.posts'), icon: FileText },
       { to: '/admin/users', label: t('nav.users'), icon: Users },
       { to: '/admin/categories', label: t('admin.categories'), icon: Tag },
+      { to: '/admin/analytics', label: t('analytics.title'), icon: BarChart3 },
       { to: '/admin/profile', label: t('nav.profile'), icon: User },
     ],
     provider: [
       { to: '/provider', label: t('nav.dashboard'), icon: LayoutDashboard, end: true },
-      { to: '/provider/posts', label: t('nav.myPosts'), icon: FileText },
+      { to: '/provider/posts', label: t('nav.myPosts'), icon: FileText, end: true },
+      { to: '/provider/posts/new', label: t('posts.add'), icon: Plus },
       { to: '/provider/bookings', label: t('booking.receivedBookings'), icon: CalendarRange },
       { to: '/provider/company', label: t('nav.company'), icon: Building2 },
       { to: '/provider/profile', label: t('nav.profile'), icon: User },
@@ -39,21 +41,34 @@ function buildNav(t) {
   }
 }
 
-function NavItem({ to, label, icon: Icon, end, onClick }) {
+function NavItem({ to, label, icon: Icon, end, onClick, indicatorId }) {
+  const shouldReduceMotion = useReducedMotion()
   return (
     <NavLink
       to={to}
       end={end}
       onClick={onClick}
       className={({ isActive }) =>
-        `flex items-center gap-3 px-3 py-2.5 rounded-btn text-sm transition-colors ${
-          isActive ? 'bg-primary/15 text-primary font-medium' : 'text-muted hover:text-text hover:bg-surface2'
+        `relative flex items-center gap-3 px-3 py-2.5 rounded-btn text-sm transition-colors ${
+          isActive ? 'text-primary-text font-medium' : 'text-muted hover:text-text hover:bg-surface2'
         }`
       }
     >
-      <Icon size={18} className="shrink-0" />
-      <span className="flex-1 truncate">{label}</span>
-      <ChevronRight size={14} className="opacity-50 shrink-0" />
+      {({ isActive }) => (
+        <>
+          {isActive && (
+            <motion.span
+              layoutId={indicatorId}
+              transition={shouldReduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 400, damping: 35 }}
+              className="absolute inset-0 rounded-btn bg-primary/15"
+              aria-hidden="true"
+            />
+          )}
+          <Icon size={18} className="relative shrink-0" />
+          <span className="relative flex-1 truncate">{label}</span>
+          <ChevronRight size={14} className="relative opacity-50 shrink-0" />
+        </>
+      )}
     </NavLink>
   )
 }
@@ -62,8 +77,11 @@ export default function AppSidebar({ onNavigate }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { user, isAdmin, logout } = useAuthStore()
-  const { data: profile } = useQuery({ queryKey: ['profile'], queryFn: usersApi.getProfile, staleTime: Infinity })
+  const { data: profile } = useQuery({ queryKey: ['profile'], queryFn: usersApi.getProfile, staleTime: 30_000 })
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
+  // The sidebar mounts twice (desktop + mobile drawer) — a per-instance id
+  // keeps each indicator gliding within its own nav.
+  const indicatorId = useId()
   const navMap = useMemo(() => buildNav(t), [t])
   const nav = isAdmin ? navMap.admin : user?.type === 'PROVIDER' ? navMap.provider : navMap.customer
   const isAdminProvider = isAdmin && user?.type === 'PROVIDER'
@@ -77,20 +95,22 @@ export default function AppSidebar({ onNavigate }) {
       animate={{ x: 0, opacity: 1 }}
       className="flex flex-col w-60 h-full bg-surface border-r border-border/20 shadow-card shrink-0"
     >
-      <div className="h-14 px-4 flex flex-col justify-center border-b border-border/50">
-        <h1 className="text-lg md:text-xl font-bold text-primary tracking-tight">ZuuchMap</h1>
-        <p className="text-xs text-muted mt-0.5">Construction marketplace</p>
+      <div className="h-14 px-4 flex flex-col justify-center border-b border-border/50 overflow-hidden">
+        <h1 className="text-lg md:text-xl font-bold text-primary tracking-tight leading-tight">ZuuchMap</h1>
+        {/* One line, ellipsized — the EN tagline is long enough to wrap and
+            spill past the fixed-height header into the nav below otherwise. */}
+        <p className="text-[11px] leading-tight text-muted truncate">{t('landing.footerTagline')}</p>
       </div>
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {nav.map((item) => (
-          <NavItem key={item.to} {...item} onClick={onNavigate} />
+          <NavItem key={item.to} {...item} onClick={onNavigate} indicatorId={indicatorId} />
         ))}
         {isAdminProvider && (
           <>
             <p className="px-3 pt-3 pb-1 text-xs font-semibold text-muted uppercase tracking-wider">{t('onboarding.provider')}</p>
-            <NavItem to="/provider/posts" end label={t('nav.myPosts')} icon={FileText} onClick={onNavigate} />
-            <NavItem to="/provider/posts/new" label={t('posts.add')} icon={Plus} onClick={onNavigate} />
-            <NavItem to="/provider/company" label={t('nav.company')} icon={Building2} onClick={onNavigate} />
+            <NavItem to="/provider/posts" end label={t('nav.myPosts')} icon={FileText} onClick={onNavigate} indicatorId={indicatorId} />
+            <NavItem to="/provider/posts/new" label={t('posts.add')} icon={Plus} onClick={onNavigate} indicatorId={indicatorId} />
+            <NavItem to="/provider/company" label={t('nav.company')} icon={Building2} onClick={onNavigate} indicatorId={indicatorId} />
           </>
         )}
       </nav>

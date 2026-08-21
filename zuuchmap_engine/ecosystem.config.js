@@ -7,6 +7,10 @@ module.exports = {
             autorestart: true,
             watch: false,
             max_memory_restart: '1G',
+            // A process that dies inside 10s never counted as "started", so a
+            // fatal boot error stops after 10 tries instead of looping forever.
+            min_uptime: '10s',
+            max_restarts: 10,
             env: {
                 NODE_ENV: 'production',
                 PG_HOST: '158.69.212.75',

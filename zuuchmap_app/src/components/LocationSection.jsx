@@ -17,6 +17,9 @@ const LocationSection = ({
     const { colors, styles: gStyles } = useAppTheme();
     const { t } = useTranslation();
 
+    const provinceOptions = provinces.map((value) => ({ value, label: t(`province.${value}`, { defaultValue: value }) }));
+    const districtOptions = districts.map((value) => ({ value, label: t(`district.${value}`, { defaultValue: value }) }));
+
     return (
         <>
             <View style={gStyles.sectionHeader}>
@@ -30,7 +33,7 @@ const LocationSection = ({
                 component={
                     <PickerField
                         value={province}
-                        options={provinces}
+                        options={provinceOptions}
                         onSelect={onProvinceChange}
                         placeholder={t('common.province')}
                         error={errors.province}
@@ -47,7 +50,7 @@ const LocationSection = ({
                     component={
                         <PickerField
                             value={district}
-                            options={districts}
+                            options={districtOptions}
                             onSelect={onDistrictChange}
                             placeholder={t('common.district')}
                             error={errors.district}

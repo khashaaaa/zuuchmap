@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import likeService from '../services/api/likeService';
 import userService from '../services/api/userService';
 import { getUserInfo } from '../services/api/authHelpers';
-import { spacing, typography, interactions } from '../design/theme';
+import { spacing, typography, interactions, animations } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useTranslation } from 'react-i18next';
@@ -66,19 +66,28 @@ const LikeButton = ({
                 return;
             }
 
-            const auth_status = await userService.isAuthenticated();
-            if (!mountedRef.current) return;
-            if (auth_status.is_admin) {
-                setHidden(true);
-                return;
+            // When the parent already resolved auth, don't re-check — the
+            // network isAuthenticated() used to fire one /user/profile request
+            // per rendered button in a list.
+            let authenticated;
+            if (authenticated_prop !== undefined) {
+                authenticated = authenticated_prop;
+            } else {
+                const auth_status = await userService.isAuthenticated();
+                if (!mountedRef.current) return;
+                if (auth_status.is_admin) {
+                    setHidden(true);
+                    return;
+                }
+                authenticated = auth_status.authenticated;
             }
-            setIsAuthenticated(auth_status.authenticated);
+            setIsAuthenticated(authenticated);
 
             if (show_count) {
                 await loadLikeCount();
             }
 
-            if (auth_status.authenticated && !skip_check) {
+            if (authenticated && !skip_check) {
                 await loadLikeStatus();
             } else if (!skip_check) {
                 if (mountedRef.current) setIsLiked(false);
@@ -142,8 +151,8 @@ const LikeButton = ({
         if (onLikeChange) onLikeChange(next_liked);
         if (!reduced) {
             Animated.sequence([
-                Animated.spring(scaleAnim, { toValue: 1.4, useNativeDriver: true, tension: 200, friction: 5 }),
-                Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, tension: 200, friction: 5 }),
+                Animated.spring(scaleAnim, { toValue: 1.4, useNativeDriver: true, ...animations.pop }),
+                Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, ...animations.pop }),
             ]).start();
         }
 
@@ -163,7 +172,7 @@ const LikeButton = ({
                 setIsAuthenticated(false);
                 setIsLiked(false);
                 showErrorModal(t('auth.sessionExpired'), t('auth.sessionExpiredDesc'));
-            } else if (error.message?.includes('Баталгаажуулалтын токен шаардлагатай')) {
+            } else if (error.code === 'AUTH_TOKEN_MISSING') {
                 setIsAuthenticated(false);
                 setIsLiked(false);
                 showErrorModal(t('auth.title'), t('auth.loginRequired'), [], 'warning');
@@ -186,7 +195,7 @@ const LikeButton = ({
             onPress={handleToggleLike}
             disabled={loading}
             activeOpacity={interactions.activeOpacityLight}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            hitSlop={interactions.hitSlop}
             accessibilityRole="button"
             accessibilityLabel={is_liked ? t('posts.saved') : t('posts.save')}
         >
@@ -217,8 +226,7 @@ const styles = StyleSheet.create({
     },
     like_count: {
         marginLeft: spacing.xs,
-        fontSize: typography.sm,
-        fontWeight: typography.weight.medium,
+        ...typography.styles.label,
     },
 });
 

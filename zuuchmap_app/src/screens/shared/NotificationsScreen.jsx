@@ -2,8 +2,8 @@ import React, { useMemo, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { ScreenLayout } from '../../components';
-import { spacing, typography, radius } from '../../design/theme';
+import { ScreenLayout, EmptyState, FadeSlideIn } from '../../components';
+import { spacing, typography, radius, withAlpha, interactions } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useAppContext } from '../../context/AppContext';
 
@@ -31,9 +31,9 @@ function NotifItem({ item, colors }) {
     return (
         <View style={[
             styles.item,
-            { backgroundColor: item.read ? 'transparent' : `${iconColor}12`, borderBottomColor: colors.border.light },
+            { backgroundColor: item.read ? 'transparent' : withAlpha(iconColor, 0.07), borderBottomColor: colors.border.light },
         ]}>
-            <View style={[styles.iconWrap, { backgroundColor: `${iconColor}18` }]}>
+            <View style={[styles.iconWrap, { backgroundColor: withAlpha(iconColor, 0.09) }]}>
                 <Ionicons name={iconName} size={20} color={iconColor} />
             </View>
             <View style={styles.body}>
@@ -63,22 +63,31 @@ const NotificationsScreen = ({ navigation }) => {
             showBack
             onBack={() => navigation.goBack()}
             rightComponent={unreadCount > 0 ? (
-                <TouchableOpacity onPress={markAllRead} style={styles.readBtn}>
+                <TouchableOpacity
+                    onPress={markAllRead}
+                    style={styles.readBtn}
+                    activeOpacity={interactions.activeOpacityLight}
+                    hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+                >
                     <Text style={[styles.readBtnText, { color: colors.primary }]}>{t('notifications.markAllRead')}</Text>
                 </TouchableOpacity>
             ) : null}
         >
             {notifications.length === 0 ? (
-                <View style={styles.empty}>
-                    <Ionicons name="notifications-off-outline" size={56} color={colors.text.secondary} />
-                    <Text style={[styles.emptyTitle, { color: colors.text.primary }]}>{t('notifications.empty')}</Text>
-                    <Text style={[styles.emptySub, { color: colors.text.secondary }]}>{t('notifications.emptySubtitle')}</Text>
-                </View>
+                <EmptyState
+                    icon="notifications-off-outline"
+                    title={t('notifications.empty')}
+                    subtitle={t('notifications.emptySubtitle')}
+                />
             ) : (
                 <FlatList
                     data={notifications}
                     keyExtractor={(item) => String(item.id)}
-                    renderItem={({ item }) => <NotifItem item={item} colors={colors} />}
+                    renderItem={({ item, index }) => (
+                        <FadeSlideIn index={index}>
+                            <NotifItem item={item} colors={colors} />
+                        </FadeSlideIn>
+                    )}
                     contentContainerStyle={styles.list}
                 />
             )}
@@ -102,24 +111,15 @@ const styles = StyleSheet.create({
         borderRadius: radius.full,
         alignItems: 'center',
         justifyContent: 'center',
-        marginTop: 2,
+        marginTop: spacing.xxs,
     },
     body: { flex: 1 },
-    title: { fontSize: typography.sm, fontWeight: '600', marginBottom: 2 },
-    message: { fontSize: typography.xs, lineHeight: typography.xs * 1.5, marginBottom: 4 },
-    ts: { fontSize: typography.xs },
-    dot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
-    readBtn: { paddingHorizontal: spacing.sm },
-    readBtnText: { fontSize: typography.sm, fontWeight: '500' },
-    empty: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        gap: spacing.md,
-        padding: spacing.xl,
-    },
-    emptyTitle: { fontSize: typography.lg, fontWeight: '600', textAlign: 'center' },
-    emptySub: { fontSize: typography.sm, textAlign: 'center', lineHeight: typography.sm * 1.6 },
+    title: { ...typography.styles.title, marginBottom: spacing.xxs },
+    message: { ...typography.styles.small, lineHeight: typography.xs * 1.5, marginBottom: spacing.xs },
+    ts: { ...typography.styles.small },
+    dot: { width: 8, height: 8, borderRadius: radius.full, marginTop: spacing.xs },
+    readBtn: { paddingHorizontal: spacing.sm, paddingVertical: spacing.sm },
+    readBtnText: { ...typography.styles.label },
 });
 
 export default NotificationsScreen;

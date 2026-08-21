@@ -4,15 +4,15 @@ import { Repository } from 'typeorm';
 import { Post } from '../post/entities/post.entity';
 import { User } from '../user/entities/user.entity';
 import { UserType } from '../enums/usertype';
-import { sendPushNotification } from '../utils/pushNotification';
+import { PostNotificationService } from '../post/post-notification.service';
 import { EventsGateway } from '../events/events.gateway';
-import { SimpleCache } from '../utils/cache';
+import { sharedCache, invalidatePostReadCaches } from '../utils/cache';
 
 const STATS_TTL = 30_000; // 30 s
 
 @Injectable()
 export class AdminService {
-  private readonly cache = new SimpleCache();
+  private readonly cache = sharedCache;
 
   constructor(
     @InjectRepository(Post)
@@ -20,6 +20,7 @@ export class AdminService {
     @InjectRepository(User)
     private userRepository: Repository<User>,
     private readonly events: EventsGateway,
+    private readonly notifications: PostNotificationService,
   ) {}
 
   async editPost(postId: number, updates: { title?: string; details?: string }): Promise<Post> {
@@ -27,14 +28,17 @@ export class AdminService {
     if (!post) throw new BadRequestException(`Post #${postId} not found`);
     if (updates.title?.trim()) post.title = updates.title.trim();
     if (updates.details?.trim()) post.details = updates.details.trim();
-    return this.postRepository.save(post);
+    const saved = await this.postRepository.save(post);
+    invalidatePostReadCaches();
+    return saved;
   }
 
   async getPendingPosts(category?: string) {
     const qb = this.postRepository.createQueryBuilder('post')
       .leftJoinAndSelect('post.user', 'user')
       .where('post.approval_status = :s', { s: 'PENDING' })
-      .orderBy('post.date_created', 'DESC');
+      .orderBy('post.date_created', 'DESC')
+      .take(200);
 
     if (category) qb.andWhere('post.category = :category', { category });
 
@@ -55,17 +59,17 @@ export class AdminService {
     await this.postRepository.save(post);
 
     const userId = post.user?.id;
-    if (post.user?.push_token) {
-      await sendPushNotification(
-        post.user.push_token,
+    if (userId) {
+      await this.notifications.notifyUsers(
+        [userId],
         'Зар зөвшөөрөгдлөө',
         `"${post.title}" нийтлэгдлээ. Та одоо харагдаж байна.`,
         { postId, notifType: 'approved' },
       );
+      this.events.emitPostApproved(postId, userId, post.title);
     }
-    if (userId) this.events.emitPostApproved(postId, userId, post.title);
     this.events.emitStatsUpdated();
-    this.cache.del('admin:stats');
+    invalidatePostReadCaches();
 
     return { success: true, message: 'Post approved', post };
   }
@@ -79,17 +83,17 @@ export class AdminService {
     await this.postRepository.save(post);
 
     const userId = post.user?.id;
-    if (post.user?.push_token) {
-      await sendPushNotification(
-        post.user.push_token,
+    if (userId) {
+      await this.notifications.notifyUsers(
+        [userId],
         `"${post.title}" зөвшөөрөгдсөнгүй`,
         `Шалтгаан: ${reason.trim()}`,
         { postId, reason: reason.trim(), notifType: 'rejected' },
       );
+      this.events.emitPostRejected(postId, userId, reason.trim(), post.title);
     }
-    if (userId) this.events.emitPostRejected(postId, userId, reason.trim(), post.title);
     this.events.emitStatsUpdated();
-    this.cache.del('admin:stats');
+    invalidatePostReadCaches();
 
     return { success: true, message: 'Post rejected', post };
   }

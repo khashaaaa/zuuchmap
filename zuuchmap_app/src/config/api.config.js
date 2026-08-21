@@ -4,9 +4,8 @@ export const API_CONFIG = {
   ENDPOINTS: {
     AUTH: {
       CHECK_USER: '/user/check',
-      SEND_OTP: '/auth/otp/send',
-      VERIFY_OTP: '/auth/otp/verify',
-      ENROLL_BIOMETRIC: '/user/otp/enroll-biometric',
+      VERIFY_START: '/auth/verify/start',
+      VERIFY_STATUS: '/auth/verify/status',
     },
 
     USER: {
@@ -18,11 +17,6 @@ export const API_CONFIG = {
       DELETE_ACCOUNT: '/user/account',
     },
 
-    PAGES: {
-      PRIVACY: '/privacy/page',
-      ACCOUNT_DELETION: '/account-deletion/page',
-    },
-
     ADMIN: {
       PENDING_POSTS: '/admin/posts/pending',
       EDIT_POST: (id) => `/admin/posts/${id}`,
@@ -32,11 +26,13 @@ export const API_CONFIG = {
     },
 
     COMPANY: {
-      LIST: '/company',
       CREATE: '/company',
       GET: (id) => `/company/${id}`,
       UPDATE: (id) => `/company/${id}`,
-      DELETE: (id) => `/company/${id}`,
+    },
+
+    ANALYTICS: {
+      COLLECT: '/analytics/collect',
     },
 
     POSTS: {
@@ -49,7 +45,6 @@ export const API_CONFIG = {
       DELETE: (id) => `/posts/${id}`,
       INCREMENT_VIEWS: (id) => `/posts/${id}/views`,
       CATEGORIES: '/posts/categories/all',
-      CATEGORY: (key) => `/posts/categories/${key}`,
     },
 
     BOOKINGS: {
@@ -85,6 +80,8 @@ export const API_CONFIG = {
     CACHED_MAP_POSTS: 'cached_map_posts',
     MAP_PREFERENCES: 'map_preferences',
     CATEGORY_SCHEMAS: 'category_schemas',
+    DEVICE_ID: 'zm_device_id',
+    ANON_ID: 'zm_anon_id',
   },
 
   UPLOAD_PATHS: {
@@ -95,7 +92,6 @@ export const API_CONFIG = {
 
   CACHE: {
     MAP_POSTS_DURATION: 15 * 60 * 1000,
-    POST_LIST_DURATION: 10 * 60 * 1000,
     CATEGORY_SCHEMAS_DURATION: 60 * 60 * 1000,
   },
 };

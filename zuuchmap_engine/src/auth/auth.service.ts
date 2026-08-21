@@ -1,151 +1,303 @@
-import { Injectable, UnauthorizedException, InternalServerErrorException, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  Injectable, UnauthorizedException, InternalServerErrorException,
+  HttpException, HttpStatus, Logger,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from 'src/user/entities/user.entity';
-import { Repository } from 'typeorm';
+import { LessThan, Repository } from 'typeorm';
 import { SimpleCache } from 'src/utils/cache';
 import { isAdmin } from 'src/admin/admin.guard';
+import { jwtSecret } from 'src/utils/jwt-secret';
 import * as crypto from 'crypto';
+import { VerificationSession } from './entities/verification-session.entity';
+import { TrustedDevice } from './entities/trusted-device.entity';
+import { VerifyMnService } from './verify-mn.service';
 
-const OTP_TTL = Number(process.env.OTP_TTL_MS) || 5 * 60 * 1000;
+const SESSION_TTL = Number(process.env.VERIFY_TTL_MS) || 5 * 60 * 1000;
 const RATE_TTL = Number(process.env.RATE_TTL_MS) || 60 * 60 * 1000;
 const RATE_LIMIT = Number(process.env.OTP_RATE_LIMIT) || 5;
+/** verify.mn 429s a session polled faster than every 2s; stay clear of it. */
+const UPSTREAM_POLL_MS = 3_000;
+
+export interface AuthResult {
+  user: {
+    id: string;
+    phone_number: string;
+    type: string;
+    is_verified: boolean;
+    is_admin: boolean;
+  };
+  token: string;
+}
+
+export interface StartResult {
+  /** True when the device was already trusted — no SMS, no charge. */
+  verified: boolean;
+  session_id?: string;
+  code?: string;
+  shortcode?: string;
+  sms_uri?: string;
+  display_instruction?: string;
+  expires_at?: string;
+  auth?: AuthResult;
+}
 
 @Injectable()
 export class AuthService {
-  private readonly otpCache = new SimpleCache();
+  private readonly logger = new Logger(AuthService.name);
   private readonly rateCache = new SimpleCache();
 
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @InjectRepository(VerificationSession)
+    private sessionRepository: Repository<VerificationSession>,
+    @InjectRepository(TrustedDevice)
+    private deviceRepository: Repository<TrustedDevice>,
     private jwtService: JwtService,
+    private verifyMn: VerifyMnService,
   ) { }
 
-  generateOtp(phone_number: string): string {
+  /** Dev convenience only — never active when NODE_ENV=production. */
+  private get devMode(): boolean {
+    return process.env.NODE_ENV !== 'production' && !this.verifyMn.enabled;
+  }
+
+  private hashDevice(deviceId: string): string {
+    return crypto.createHash('sha256').update(deviceId).digest('hex');
+  }
+
+  private normalizePhone(phone: string): string {
+    const digits = (phone ?? '').replace(/\D/g, '').replace(/^976/, '');
+    if (!/^\d{8}$/.test(digits)) {
+      throw new HttpException('Enter a valid 8-digit Mongolian number.', HttpStatus.BAD_REQUEST);
+    }
+    return digits;
+  }
+
+  /**
+   * Step 1. Either hands back an authenticated session (device already trusted)
+   * or registers a verify.mn session the user completes by SMS.
+   */
+  async startVerification(rawPhone: string, deviceId?: string): Promise<StartResult> {
+    const phone_number = this.normalizePhone(rawPhone);
+    const device_hash = deviceId ? this.hashDevice(deviceId) : undefined;
+
+    // Known device on an existing account: skip SMS entirely (and its 150₮).
+    if (device_hash) {
+      const user = await this.userRepository.findOne({ where: { phone_number } });
+      if (user) {
+        const trusted = await this.deviceRepository.findOne({
+          where: { user: { id: user.id }, device_hash },
+          relations: ['user'],
+        });
+        if (trusted) {
+          trusted.last_seen_at = new Date();
+          await this.deviceRepository.save(trusted);
+          return { verified: true, auth: await this.issueSession(user) };
+        }
+      }
+    }
+
     const rateKey = `rate:${phone_number}`;
-    const count = (this.rateCache.get<number>(rateKey) ?? 0);
+    const count = this.rateCache.get<number>(rateKey) ?? 0;
     if (count >= RATE_LIMIT) {
-      throw new HttpException('Too many OTP requests. Try again in an hour.', HttpStatus.TOO_MANY_REQUESTS);
+      throw new HttpException(
+        'Too many verification attempts. Try again in an hour.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     }
     this.rateCache.set(rateKey, count + 1, RATE_TTL);
 
-    const code = process.env.OTP_OVERRIDE ?? crypto.randomInt(100000, 999999).toString();
-    this.otpCache.set(`otp:${phone_number}`, code, OTP_TTL);
-    return code;
-  }
+    const code = crypto.randomInt(100000, 999999).toString();
+    const expires_at = new Date(Date.now() + SESSION_TTL);
 
-  async generateToken(user: User) {
-    const payload = {
-      sub: user.id,
-      phone: user.phone_number,
-      type: user.type
-    };
+    const session = this.sessionRepository.create({
+      phone_number,
+      code,
+      status: 'PENDING',
+      device_hash,
+      expires_at,
+    });
+    await this.sessionRepository.save(session);
 
-    if (!process.env.JWT_SECRET) {
-      throw new InternalServerErrorException('JWT secret not configured');
+    if (this.devMode) {
+      this.logger.warn(`DEV verification session ${session.id} — code ${code}, auto-verifies on first poll.`);
+      return {
+        verified: false,
+        session_id: session.id,
+        code,
+        shortcode: '144773',
+        sms_uri: `sms:144773?body=${code}`,
+        display_instruction: `[DEV] No SMS needed — this verifies automatically.`,
+        expires_at: expires_at.toISOString(),
+      };
     }
 
-    return this.jwtService.sign(payload, {
-      secret: process.env.JWT_SECRET,
-      expiresIn: '30d'
+    const callback = `${this.callbackBase()}/auth/verify/callback/${session.id}`;
+    const remote = await this.verifyMn.createSession(phone_number, code, callback);
+
+    session.provider_session_id = remote.sessionId;
+    session.expires_at = new Date(remote.expiresAt);
+    await this.sessionRepository.save(session);
+
+    return {
+      verified: false,
+      session_id: session.id,
+      code: remote.text,
+      shortcode: remote.shortcode,
+      sms_uri: remote.smsUri,
+      display_instruction: remote.displayInstruction,
+      expires_at: remote.expiresAt,
+    };
+  }
+
+  private callbackBase(): string {
+    const base = process.env.PUBLIC_ENGINE_URL;
+    if (!base) {
+      throw new InternalServerErrorException(
+        'PUBLIC_ENGINE_URL must be set so verify.mn can reach the callback.',
+      );
+    }
+    return base.replace(/\/$/, '');
+  }
+
+  /**
+   * Step 2. Client polls this. Returns a token the moment verify.mn confirms
+   * the SMS arrived from the claimed number.
+   */
+  async checkVerification(sessionId: string): Promise<{ status: string; auth?: AuthResult }> {
+    const session = await this.sessionRepository.findOne({ where: { id: sessionId } });
+    if (!session) throw new HttpException('Verification session not found.', HttpStatus.NOT_FOUND);
+
+    if (session.status === 'CONSUMED') {
+      throw new HttpException('This verification was already used.', HttpStatus.GONE);
+    }
+
+    if (session.status === 'VERIFIED') {
+      return { status: 'VERIFIED', auth: await this.completeSession(session) };
+    }
+
+    if (session.expires_at.getTime() < Date.now()) {
+      if (session.status !== 'EXPIRED') {
+        session.status = 'EXPIRED';
+        await this.sessionRepository.save(session);
+      }
+      return { status: 'EXPIRED' };
+    }
+
+    if (this.devMode && !session.provider_session_id) {
+      session.status = 'VERIFIED';
+      session.verified_at = new Date();
+      await this.sessionRepository.save(session);
+      return { status: 'VERIFIED', auth: await this.completeSession(session) };
+    }
+
+    // Respect the upstream rate limit — poll verify.mn at most every 3s per session.
+    const since = session.last_checked_at ? Date.now() - session.last_checked_at.getTime() : Infinity;
+    if (since < UPSTREAM_POLL_MS) return { status: 'PENDING' };
+
+    session.last_checked_at = new Date();
+    await this.sessionRepository.save(session);
+
+    const remote = await this.verifyMn.getStatus(session.provider_session_id);
+
+    if (remote.sessionStatus === 'VERIFIED') {
+      session.status = 'VERIFIED';
+      session.verified_at = remote.verifiedAt ? new Date(remote.verifiedAt) : new Date();
+      await this.sessionRepository.save(session);
+      return { status: 'VERIFIED', auth: await this.completeSession(session) };
+    }
+
+    if (remote.sessionStatus === 'EXPIRED') {
+      session.status = 'EXPIRED';
+      await this.sessionRepository.save(session);
+      return { status: 'EXPIRED' };
+    }
+
+    return { status: 'PENDING' };
+  }
+
+  /** Wake-up nudge from verify.mn. Never trusted on its own. */
+  async handleCallback(sessionId: string): Promise<void> {
+    try {
+      await this.checkVerification(sessionId);
+    } catch (err) {
+      this.logger.warn(`Callback check for ${sessionId} failed: ${err?.message}`);
+    }
+  }
+
+  /** Creates the user on first verification, trusts the device, mints the token. */
+  private async completeSession(session: VerificationSession): Promise<AuthResult> {
+    let user = await this.userRepository.findOne({ where: { phone_number: session.phone_number } });
+    if (!user) {
+      user = this.userRepository.create({ phone_number: session.phone_number, is_verified: true });
+      await this.userRepository.save(user);
+    } else if (!user.is_verified) {
+      user.is_verified = true;
+      await this.userRepository.save(user);
+    }
+
+    if (session.device_hash) {
+      const existing = await this.deviceRepository.findOne({
+        where: { user: { id: user.id }, device_hash: session.device_hash },
+      });
+      if (existing) {
+        existing.last_seen_at = new Date();
+        await this.deviceRepository.save(existing);
+      } else {
+        await this.deviceRepository.save(
+          this.deviceRepository.create({
+            user,
+            device_hash: session.device_hash,
+            last_seen_at: new Date(),
+          }),
+        );
+      }
+    }
+
+    session.status = 'CONSUMED';
+    await this.sessionRepository.save(session);
+
+    return this.issueSession(user);
+  }
+
+  private async issueSession(user: User): Promise<AuthResult> {
+    return {
+      user: {
+        id: user.id,
+        phone_number: user.phone_number,
+        type: user.type,
+        is_verified: user.is_verified,
+        is_admin: isAdmin(user.phone_number),
+      },
+      token: await this.generateToken(user),
+    };
+  }
+
+  async generateToken(user: User): Promise<string> {
+    return this.jwtService.sign(
+      { sub: user.id, phone: user.phone_number, type: user.type },
+      { secret: jwtSecret(), expiresIn: '30d' },
+    );
+  }
+
+  /** Nightly housekeeping — keeps the session table from growing forever. */
+  @Cron('30 0 * * *')
+  async pruneSessions(): Promise<void> {
+    await this.sessionRepository.delete({
+      expires_at: LessThan(new Date(Date.now() - 24 * 60 * 60 * 1000)),
     });
   }
 
-  async verifyOtp(
-    phone_number: string,
-    code?: string,
-    biometric?: boolean,
-    device_info?: { deviceId?: string; platform?: string; version?: string; [key: string]: unknown }
-  ): Promise<{ user: { id: string; phone_number: string; type: string; is_verified: boolean; is_admin: boolean }; token: string }> {
-    try {
-      let user = await this.userRepository.findOne({ where: { phone_number } });
-
-      // Handle biometric authentication
-      if (biometric === true) {
-        if (!user) {
-          throw new UnauthorizedException('User not found');
-        }
-
-        // Check if user has biometric enrolled
-        if (user.biometric !== 'enrolled') {
-          throw new UnauthorizedException('Biometric not enrolled. Please use OTP authentication.');
-        }
-
-        // Biometric authentication successful
-        user.is_verified = true;
-        await this.userRepository.save(user);
-
-        const token = await this.generateToken(user);
-
-        return {
-          user: {
-            id: user.id,
-            phone_number: user.phone_number,
-            type: user.type,
-            is_verified: user.is_verified,
-            is_admin: isAdmin(user.phone_number),
-          },
-          token
-        };
-      }
-
-      // Handle OTP authentication (existing logic)
-      if (!code) {
-        throw new UnauthorizedException('OTP code is required for non-biometric authentication');
-      }
-
-      const cached = this.otpCache.get<string>(`otp:${phone_number}`);
-      if (!cached || cached !== code) {
-        throw new UnauthorizedException('Invalid or expired OTP code');
-      }
-      this.otpCache.del(`otp:${phone_number}`);
-
-      if (!user) {
-        user = this.userRepository.create({
-          phone_number,
-          is_verified: true,
-        });
-        await this.userRepository.save(user);
-      } else {
-        user.is_verified = true;
-        await this.userRepository.save(user);
-      }
-
-      const token = await this.generateToken(user);
-
-      return {
-        user: {
-          id: user.id,
-          phone_number: user.phone_number,
-          type: user.type,
-          is_verified: user.is_verified,
-          is_admin: isAdmin(user.phone_number),
-        },
-        token
-      };
-    } catch (error) {
-      if (error instanceof UnauthorizedException) {
-        throw error;
-      }
-      throw new InternalServerErrorException('Failed to verify OTP: ' + error.message);
-    }
-  }
-
   async validateUser(userId: string): Promise<User> {
-    try {
-      const user = await this.userRepository.findOne({
-        where: { id: userId },
-        relations: ['company']
-      });
-
-      if (!user) {
-        throw new UnauthorizedException('Invalid token');
-      }
-
-      return user;
-    } catch (error) {
-      throw new UnauthorizedException('Invalid token');
-    }
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['company'],
+    });
+    if (!user) throw new UnauthorizedException('Invalid token');
+    return user;
   }
 }

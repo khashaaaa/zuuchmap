@@ -14,39 +14,96 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { pickCompanyLogo } from '../../utils/imageUtils';
-import { spacing, typography, shadows, radius, safeAreaHelpers, interactions } from '../../design/theme';
+import { spacing, typography, radius, safeAreaHelpers, interactions, isTablet } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 import userService from '../../services/api/userService';
+import { queryClient } from '../../services/queryClient';
 import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import ScreenHeader from '../../components/ScreenHeader';
+import ScreenLoading from '../../components/ScreenLoading';
+import ScreenError from '../../components/ScreenError';
 import { TextInput, Button } from '../../components';
 import { validateEmail, validatePhone, validateRequired } from '../../utils/formUtils';
 import { logger } from '../../utils/logger';
-import { showErrorModal } from '../../utils/errorManager';
+import { showErrorModal, showWarningModal } from '../../utils/errorManager';
 
+const EMPTY_FORM = {
+    name: '',
+    description: '',
+    logo: null,
+    website: '',
+    address: '',
+    phone_number: '',
+    email: '',
+    registration_number: '',
+    tax_id: '',
+};
+
+// One description of the form; both the editable inputs and the read-only
+// info rows are rendered from it.
+const SECTIONS = [
+    {
+        titleKey: 'company.basicInfo',
+        fields: [
+            { key: 'name', labelKey: 'company.name', icon: 'business-outline', required: true },
+            { key: 'description', labelKey: 'company.description', icon: 'document-text-outline', multiline: true, numberOfLines: 3 },
+            { key: 'website', labelKey: 'common.website', icon: 'globe-outline', keyboardType: 'url', normalizeUrl: true },
+        ],
+    },
+    {
+        titleKey: 'company.contactInfo',
+        fields: [
+            { key: 'address', labelKey: 'common.address', icon: 'location-outline' },
+            { key: 'phone_number', labelKey: 'common.phone', icon: 'call-outline', keyboardType: 'phone-pad' },
+            { key: 'email', labelKey: 'common.email', icon: 'mail-outline', keyboardType: 'email-address' },
+        ],
+    },
+    {
+        titleKey: 'company.legalInfo',
+        fields: [
+            { key: 'registration_number', labelKey: 'company.regNumber', icon: 'card-outline' },
+            { key: 'tax_id', labelKey: 'company.taxId', icon: 'receipt-outline' },
+        ],
+    },
+];
+
+// Flat, in-order field list used to chain keyboard focus across sections.
+const FIELD_ORDER = SECTIONS.flatMap((s) => s.fields.map((f) => f.key));
+
+const normalizeWebsiteUrl = (url) => {
+    if (!url || url.trim() === '') return '';
+    const trimmed = url.trim();
+    return /^https?:\/\//.test(trimmed) ? trimmed : `https://${trimmed}`;
+};
+
+// Serves both routes: with a companyId it views/edits an existing company,
+// without one it creates a new company.
 const ProviderCompany = ({ route, navigation }) => {
     const { colors, isDark, styles: gStyles } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
     const { t } = useTranslation();
     const insets = useSafeAreaInsets();
-    const { companyId } = route.params;
-    const [isEditing, setIsEditing] = useState(false);
-    const [company, setCompany] = useState(null);
-    const [isLoading, setIsLoading] = useState(true);
+
+    const companyId = route?.params?.companyId ?? null;
+    const isCreate = !companyId;
+
+    const [form, setForm] = useState(isCreate ? EMPTY_FORM : null);
+    const [isEditing, setIsEditing] = useState(isCreate);
+    const [isLoading, setIsLoading] = useState(!isCreate);
     const [isSaving, setIsSaving] = useState(false);
     const [logoLoading, setLogoLoading] = useState(false);
     const [logoChanged, setLogoChanged] = useState(false);
     const [formErrors, setFormErrors] = useState({});
+    const [dirty, setDirty] = useState(false);
     const scrollViewRef = useRef(null);
     const inputRefs = useRef({});
 
     useEffect(() => {
-        loadCompany();
+        if (!isCreate) loadCompany();
 
         const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', () => {});
         const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {});
-
         return () => {
             keyboardDidShowListener.remove();
             keyboardDidHideListener.remove();
@@ -56,8 +113,7 @@ const ProviderCompany = ({ route, navigation }) => {
     const loadCompany = async () => {
         setIsLoading(true);
         try {
-            const companyData = await userService.getCompany(companyId);
-            setCompany(companyData);
+            setForm(await userService.getCompany(companyId));
         } catch (error) {
             logger.error('Company loading error:', error);
             showErrorModal(t('common.error'), t('company.loadError'));
@@ -66,11 +122,34 @@ const ProviderCompany = ({ route, navigation }) => {
         }
     };
 
-    const updateCompanyData = (field, value) => {
-        setCompany(prev => ({ ...prev, [field]: value }));
+    const updateField = (field, value) => {
+        setForm(prev => ({ ...prev, [field]: value }));
+        setDirty(true);
         if (formErrors[field]) {
             setFormErrors(prev => ({ ...prev, [field]: null }));
         }
+    };
+
+    const focusField = (fieldName) => {
+        const input = inputRefs.current[fieldName];
+        if (!input || !scrollViewRef.current) return;
+        input.focus();
+        input.measureLayout(
+            scrollViewRef.current,
+            (_, y) => scrollViewRef.current.scrollTo({ y: y - 100, animated: true }),
+            () => logger.warn('Measurement failed')
+        );
+    };
+
+    const scrollToField = (fieldName) => {
+        if (!scrollViewRef.current || !inputRefs.current[fieldName]) return;
+        setTimeout(() => {
+            inputRefs.current[fieldName]?.measureLayout(
+                scrollViewRef.current,
+                (_, y) => scrollViewRef.current.scrollTo({ y: y - 120, animated: true }),
+                () => {}
+            );
+        }, 100);
     };
 
     const pickLogo = async () => {
@@ -78,7 +157,7 @@ const ProviderCompany = ({ route, navigation }) => {
         try {
             const uri = await pickCompanyLogo();
             if (uri) {
-                updateCompanyData('logo', uri);
+                updateField('logo', uri);
                 setLogoChanged(true);
             }
         } catch (error) {
@@ -89,23 +168,19 @@ const ProviderCompany = ({ route, navigation }) => {
     };
 
     const removeLogo = () => {
-        updateCompanyData('logo', null);
+        updateField('logo', null);
         setLogoChanged(true);
     };
 
     const validateForm = () => {
         const errors = {};
 
-        if (!validateRequired(company.name)) {
-            errors.name = t('company.nameRequired');
-        }
+        if (!validateRequired(form.name)) errors.name = t('company.nameRequired');
+        if (form.email && !validateEmail(form.email)) errors.email = t('common.invalidEmail');
+        if (form.phone_number && !validatePhone(form.phone_number)) errors.phone_number = t('common.invalidPhone');
 
-        if (company.email && !validateEmail(company.email)) {
-            errors.email = t('common.invalidEmail');
-        }
-
-        if (company.phone_number && !validatePhone(company.phone_number)) {
-            errors.phone_number = t('common.invalidPhone');
+        if (Object.keys(errors).length > 0) {
+            setTimeout(() => focusField(Object.keys(errors)[0]), 100);
         }
 
         setFormErrors(errors);
@@ -116,49 +191,49 @@ const ProviderCompany = ({ route, navigation }) => {
         Keyboard.dismiss();
 
         if (!validateForm()) {
-            showErrorModal(t('common.validationError'), t('company.formError'));
+            showErrorModal(isCreate ? t('common.error') : t('common.validationError'), t('company.formError'));
             return;
         }
 
         setIsSaving(true);
 
         try {
+            const excludedFields = ['id', 'is_verified', 'date_created', 'date_updated', 'users', 'logo'];
             const submitData = {};
 
-            const excludedFields = ['id', 'is_verified', 'date_created', 'date_updated', 'users', 'logo'];
-
-            Object.keys(company).forEach(key => {
-                if (!excludedFields.includes(key) &&
-                    company[key] !== null &&
-                    company[key] !== undefined) {
-                    const value = company[key].toString().trim();
-                    if (value !== '') {
-                        submitData[key] = value;
-                    }
-                }
+            Object.keys(form).forEach(key => {
+                if (excludedFields.includes(key)) return;
+                if (form[key] === null || form[key] === undefined) return;
+                const value = form[key].toString().trim();
+                if (value !== '') submitData[key] = value;
             });
 
-            if (logoChanged && company.logo && typeof company.logo === 'string' && company.logo.startsWith('file://')) {
-                submitData.logo = company.logo;
+            const logoIsNewFile = typeof form.logo === 'string' && form.logo.startsWith('file://');
+            if (logoIsNewFile && (isCreate || logoChanged)) submitData.logo = form.logo;
+
+            if (isCreate) {
+                await userService.createCompany(submitData);
+                queryClient.invalidateQueries({ queryKey: ['profile'] });
+                setDirty(false);
+                navigation.goBack();
+                return;
             }
 
-            await userService.updateCompany(company.id, submitData);
-
+            await userService.updateCompany(form.id, submitData);
+            queryClient.invalidateQueries({ queryKey: ['profile'] });
             setIsEditing(false);
             setLogoChanged(false);
+            setDirty(false);
             await loadCompany();
         } catch (error) {
-            logger.error('Company update error:', error);
+            logger.error('Company save error:', error);
 
+            // Server validation messages are shown as-is; local/internal errors
+            // (coded, often untranslated) fall back to the translated copy.
             let errorMessage = t('company.saveError');
-            if (error.response?.data?.message) {
-                if (Array.isArray(error.response.data.message)) {
-                    errorMessage = error.response.data.message.join('\n');
-                } else {
-                    errorMessage = error.response.data.message;
-                }
-            } else if (error.message) {
-                errorMessage = error.message;
+            const message = error.response?.data?.message;
+            if (message) {
+                errorMessage = Array.isArray(message) ? message.join('\n') : message;
             }
 
             showErrorModal(t('common.error'), errorMessage);
@@ -170,14 +245,25 @@ const ProviderCompany = ({ route, navigation }) => {
     const handleCancel = () => {
         setIsEditing(false);
         setLogoChanged(false);
+        setDirty(false);
         loadCompany();
+    };
+
+    const handleBack = () => {
+        if (!dirty) {
+            navigation.goBack();
+            return;
+        }
+        showWarningModal(t('common.unsavedChangesTitle'), t('common.unsavedChangesMessage'), [
+            { text: t('common.cancel'), style: 'cancel' },
+            { text: t('common.discard'), style: 'destructive', onPress: () => navigation.goBack() },
+        ]);
     };
 
     const renderInfoField = (icon, label, value) => {
         if (!value) return null;
-
         return (
-            <View style={styles.infoItem}>
+            <View key={label} style={styles.infoItem}>
                 <View style={styles.infoIcon}>
                     <Ionicons name={icon} size={20} color={colors.primary} />
                 </View>
@@ -189,30 +275,52 @@ const ProviderCompany = ({ route, navigation }) => {
         );
     };
 
+    const renderField = (field, isLast) => {
+        const nextKey = FIELD_ORDER[FIELD_ORDER.indexOf(field.key) + 1];
+        return (
+            <TextInput
+                key={field.key}
+                ref={(r) => { inputRefs.current[field.key] = r; }}
+                label={t(field.labelKey)}
+                value={form[field.key] || ''}
+                onChangeText={(text) => updateField(field.key, text)}
+                error={formErrors[field.key]}
+                required={field.required}
+                multiline={field.multiline}
+                numberOfLines={field.numberOfLines}
+                keyboardType={field.keyboardType}
+                returnKeyType={field.multiline ? undefined : (nextKey ? 'next' : 'done')}
+                onSubmitEditing={field.multiline || !nextKey ? undefined : () => focusField(nextKey)}
+                blurOnSubmit={field.multiline ? undefined : !nextKey}
+                onFocus={() => scrollToField(field.key)}
+                onBlur={field.normalizeUrl ? () => {
+                    if (form[field.key] && form[field.key].trim() !== '') {
+                        updateField(field.key, normalizeWebsiteUrl(form[field.key]));
+                    }
+                } : undefined}
+                containerStyle={isLast ? styles.lastField : undefined}
+            />
+        );
+    };
+
     if (isLoading) {
         return (
             <CustomSafeAreaView backgroundColor={colors.background} statusBarColor={colors.surface} statusBarStyle={isDark ? 'light-content' : 'dark-content'}>
                 <ScreenHeader title={t('company.title')} onBack={() => navigation.goBack()} />
-                <View style={[gStyles.loadingContainer, { backgroundColor: colors.background }]}>
-                    <ActivityIndicator size="large" color={colors.primary} />
-                    <Text style={[gStyles.loadingText, { color: colors.text.secondary }]}>{t('company.loading')}</Text>
-                </View>
+                <ScreenLoading message={t('company.loading')} />
             </CustomSafeAreaView>
         );
     }
 
-    if (!company) {
+    if (!form) {
         return (
             <CustomSafeAreaView backgroundColor={colors.background} statusBarColor={colors.surface} statusBarStyle={isDark ? 'light-content' : 'dark-content'}>
                 <ScreenHeader title={t('company.title')} onBack={() => navigation.goBack()} />
-                <View style={styles.errorContainer}>
-                    <View style={styles.errorIconContainer}>
-                        <Ionicons name="alert-circle-outline" size={64} color={colors.primary} />
-                    </View>
-                    <Text style={styles.errorTitle}>{t('company.notFound')}</Text>
-                    <Text style={styles.errorDesc}>{t('company.notFoundDesc')}</Text>
-                    <Button title={t('common.retry')} onPress={loadCompany} />
-                </View>
+                <ScreenError
+                    title={t('company.notFound')}
+                    message={t('company.notFoundDesc')}
+                    onRetry={loadCompany}
+                />
             </CustomSafeAreaView>
         );
     }
@@ -224,9 +332,9 @@ const ProviderCompany = ({ route, navigation }) => {
                 style={gStyles.keyboardAvoidingView}
             >
                 <ScreenHeader
-                    title={t('company.title')}
-                    onBack={() => navigation.goBack()}
-                    rightComponent={isEditing ? (
+                    title={isCreate ? t('company.createTitle') : t('company.title')}
+                    onBack={isCreate ? handleBack : () => navigation.goBack()}
+                    rightComponent={!isCreate && isEditing ? (
                         <TouchableOpacity
                             style={styles.cancelButton}
                             onPress={handleCancel}
@@ -249,7 +357,9 @@ const ProviderCompany = ({ route, navigation }) => {
                     keyboardShouldPersistTaps="handled"
                     showsVerticalScrollIndicator={false}
                 >
-                    {company.is_verified && (
+                    <View style={isTablet ? styles.tabletContainer : undefined}>
+
+                    {form.is_verified && (
                         <View style={styles.verificationSection}>
                             <View style={styles.verificationBadge}>
                                 <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
@@ -260,7 +370,7 @@ const ProviderCompany = ({ route, navigation }) => {
 
                     <View style={styles.logoSection}>
                         <View style={styles.logoCard}>
-                            {!isEditing && (
+                            {!isCreate && !isEditing && (
                                 <TouchableOpacity
                                     style={[styles.inlineEditButton, { backgroundColor: colors.opacity.background.primary }]}
                                     onPress={() => setIsEditing(true)}
@@ -279,10 +389,17 @@ const ProviderCompany = ({ route, navigation }) => {
                                     >
                                         {logoLoading ? (
                                             <ActivityIndicator size="large" color={colors.primary} />
-                                        ) : company.logo ? (
+                                        ) : form.logo ? (
                                             <View style={styles.logoContainer}>
-                                                <Image source={{ uri: company.logo }} style={styles.logoImage} resizeMode="cover" />
-                                                <TouchableOpacity style={styles.removeLogoButton} onPress={removeLogo} activeOpacity={interactions.activeOpacityLight}>
+                                                <Image source={{ uri: form.logo }} style={styles.logoImage} resizeMode="cover" />
+                                                <TouchableOpacity
+                                                    style={styles.removeLogoButton}
+                                                    onPress={removeLogo}
+                                                    activeOpacity={interactions.activeOpacityLight}
+                                                    hitSlop={interactions.hitSlop}
+                                                    accessibilityRole="button"
+                                                    accessibilityLabel={t('upload.removeImage')}
+                                                >
                                                     <Ionicons name="close-circle" size={24} color={colors.primary} />
                                                 </TouchableOpacity>
                                             </View>
@@ -293,9 +410,9 @@ const ProviderCompany = ({ route, navigation }) => {
                                         )}
                                     </TouchableOpacity>
                                 ) : (
-                                    company.logo ? (
+                                    form.logo ? (
                                         <View style={styles.logoDisplayContainer}>
-                                            <Image source={{ uri: company.logo }} style={styles.logoDisplay} resizeMode="cover" />
+                                            <Image source={{ uri: form.logo }} style={styles.logoDisplay} resizeMode="cover" />
                                         </View>
                                     ) : (
                                         <View style={styles.logoPlaceholder}>
@@ -309,7 +426,7 @@ const ProviderCompany = ({ route, navigation }) => {
                                 <Text style={styles.logoSubtitle}>
                                     {isEditing
                                         ? t('company.logoHint')
-                                        : company.logo
+                                        : form.logo
                                             ? t('company.logoOfficial')
                                             : t('company.logoEmpty')
                                     }
@@ -323,7 +440,7 @@ const ProviderCompany = ({ route, navigation }) => {
                                     >
                                         <Ionicons name="camera-outline" size={16} color={colors.primary} />
                                         <Text style={styles.changeLogoText}>
-                                            {company.logo ? t('company.logoChange') : t('company.logoAdd')}
+                                            {form.logo ? t('company.logoChange') : t('company.logoAdd')}
                                         </Text>
                                     </TouchableOpacity>
                                 )}
@@ -331,110 +448,31 @@ const ProviderCompany = ({ route, navigation }) => {
                         </View>
                     </View>
 
-                    <View style={styles.formSection}>
-                        {isEditing ? (
-                            <View style={styles.formCard}>
-                                <TextInput
-                                    ref={(r) => { inputRefs.current['name'] = r; }}
-                                    label={t('company.name')}
-                                    value={company.name || ''}
-                                    onChangeText={(text) => updateCompanyData('name', text)}
-                                    error={formErrors.name}
-                                    required
-                                />
-                                <TextInput
-                                    ref={(r) => { inputRefs.current['description'] = r; }}
-                                    label={`${t('company.description')}`}
-                                    value={company.description || ''}
-                                    onChangeText={(text) => updateCompanyData('description', text)}
-                                    error={formErrors.description}
-                                    multiline
-                                    numberOfLines={4}
-                                />
-                                <TextInput
-                                    ref={(r) => { inputRefs.current['website'] = r; }}
-                                    label={`${t('common.website')}`}
-                                    value={company.website || ''}
-                                    onChangeText={(text) => updateCompanyData('website', text)}
-                                    error={formErrors.website}
-                                    keyboardType="url"
-                                    containerStyle={styles.lastField}
-                                />
-                            </View>
-                        ) : (
-                            <View style={styles.infoCard}>
-                                {renderInfoField('business-outline', t('company.name'), company.name)}
-                                {renderInfoField('document-text-outline', t('company.description'), company.description)}
-                                {renderInfoField('globe-outline', t('common.website'), company.website)}
-                            </View>
-                        )}
-                    </View>
-
-                    <View style={styles.formSection}>
-                        {isEditing ? (
-                            <View style={styles.formCard}>
-                                <TextInput
-                                    ref={(r) => { inputRefs.current['address'] = r; }}
-                                    label={`${t('common.address')}`}
-                                    value={company.address || ''}
-                                    onChangeText={(text) => updateCompanyData('address', text)}
-                                    error={formErrors.address}
-                                />
-                                <TextInput
-                                    ref={(r) => { inputRefs.current['phone_number'] = r; }}
-                                    label={`${t('common.phone')}`}
-                                    value={company.phone_number || ''}
-                                    onChangeText={(text) => updateCompanyData('phone_number', text)}
-                                    error={formErrors.phone_number}
-                                    keyboardType="phone-pad"
-                                />
-                                <TextInput
-                                    ref={(r) => { inputRefs.current['email'] = r; }}
-                                    label={`${t('common.email')}`}
-                                    value={company.email || ''}
-                                    onChangeText={(text) => updateCompanyData('email', text)}
-                                    error={formErrors.email}
-                                    keyboardType="email-address"
-                                    containerStyle={styles.lastField}
-                                />
-                            </View>
-                        ) : (
-                            <View style={styles.infoCard}>
-                                {renderInfoField('location-outline', t('common.address'), company.address)}
-                                {renderInfoField('call-outline', t('common.phone'), company.phone_number)}
-                                {renderInfoField('mail-outline', t('common.email'), company.email)}
-                            </View>
-                        )}
-                    </View>
-
-                    <View style={styles.formSection}>
-                        {isEditing ? (
-                            <View style={styles.formCard}>
-                                <TextInput
-                                    ref={(r) => { inputRefs.current['registration_number'] = r; }}
-                                    label={`${t('company.regNumber')}`}
-                                    value={company.registration_number || ''}
-                                    onChangeText={(text) => updateCompanyData('registration_number', text)}
-                                    error={formErrors.registration_number}
-                                />
-                                <TextInput
-                                    ref={(r) => { inputRefs.current['tax_id'] = r; }}
-                                    label={`${t('company.taxId')}`}
-                                    value={company.tax_id || ''}
-                                    onChangeText={(text) => updateCompanyData('tax_id', text)}
-                                    error={formErrors.tax_id}
-                                    containerStyle={styles.lastField}
-                                />
-                            </View>
-                        ) : (
-                            <View style={styles.infoCard}>
-                                {renderInfoField('card-outline', t('company.regNumber'), company.registration_number)}
-                                {renderInfoField('receipt-outline', t('company.taxId'), company.tax_id)}
-                            </View>
-                        )}
-                    </View>
+                    {SECTIONS.map((section) => (
+                        <View key={section.titleKey} style={styles.formSection}>
+                            {isCreate && (
+                                <View style={gStyles.sectionHeader}>
+                                    <Text style={[gStyles.sectionSubtitle, { color: colors.text.secondary }]}>
+                                        {t(section.titleKey)}
+                                    </Text>
+                                </View>
+                            )}
+                            {isEditing ? (
+                                <View style={styles.formCard}>
+                                    {section.fields.map((field, i) => renderField(field, i === section.fields.length - 1))}
+                                </View>
+                            ) : (
+                                <View style={styles.infoCard}>
+                                    {section.fields.map((field) =>
+                                        renderInfoField(field.icon, t(field.labelKey), form[field.key])
+                                    )}
+                                </View>
+                            )}
+                        </View>
+                    ))}
 
                     <View style={styles.bottomSpacing} />
+                    </View>
                 </ScrollView>
 
                 {isEditing && (
@@ -444,12 +482,12 @@ const ProviderCompany = ({ route, navigation }) => {
                         { backgroundColor: colors.surface },
                     ]}>
                         <Button
-                            title={t('common.save')}
+                            title={isCreate ? t('company.createTitle') : t('common.save')}
                             onPress={handleSave}
-                            disabled={isSaving}
+                            disabled={isSaving || logoLoading}
                             loading={isSaving}
                             loadingText={t('common.saving')}
-                            icon="checkmark-circle-outline"
+                            icon={isCreate ? 'add-circle-outline' : 'checkmark-circle-outline'}
                             fullWidth
                         />
                     </View>
@@ -466,6 +504,7 @@ const createStyles = (colors) => StyleSheet.create({
     scrollContent: {
         padding: spacing.lg,
     },
+    tabletContainer: { maxWidth: 680, alignSelf: 'center', width: '100%' },
     verificationSection: {
         marginBottom: spacing.lg,
     },
@@ -482,20 +521,19 @@ const createStyles = (colors) => StyleSheet.create({
     },
     verificationText: {
         marginLeft: spacing.sm,
-        fontSize: typography.sm,
+        ...typography.styles.labelStrong,
         color: colors.success,
-        fontWeight: '600',
     },
     logoSection: {
         marginBottom: spacing.xl,
     },
     logoCard: {
+        ...colors.elevation.md,
         backgroundColor: colors.surface,
         borderRadius: radius.xxl,
         padding: spacing.xl,
         flexDirection: 'row',
         alignItems: 'center',
-        ...shadows.medium,
         position: 'relative',
     },
     inlineEditButton: {
@@ -504,7 +542,7 @@ const createStyles = (colors) => StyleSheet.create({
         right: spacing.sm,
         width: 32,
         height: 32,
-        borderRadius: radius.xl,
+        borderRadius: radius.full,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -552,27 +590,25 @@ const createStyles = (colors) => StyleSheet.create({
         backgroundColor: colors.border.light,
     },
     removeLogoButton: {
+        ...colors.elevation.sm,
         position: 'absolute',
         top: -8,
         right: -8,
         backgroundColor: colors.surface,
         borderRadius: radius.lg,
-        ...shadows.small,
     },
     logoInfo: {
         flex: 1,
     },
     logoTitle: {
-        fontSize: typography.md,
-        fontWeight: 'bold',
+        ...typography.styles.bodyBold,
         color: colors.text.primary,
         marginBottom: spacing.xs,
     },
     logoSubtitle: {
-        fontSize: typography.sm,
+        ...typography.styles.caption,
         color: colors.text.secondary,
         marginBottom: spacing.md,
-        lineHeight: 18,
     },
     changeLogoButton: {
         flexDirection: 'row',
@@ -583,26 +619,22 @@ const createStyles = (colors) => StyleSheet.create({
         borderRadius: radius.xxl,
         alignSelf: 'flex-start',
     },
-    changeLogoText: {
-        color: colors.primary,
-        fontWeight: '600',
-        fontSize: typography.sm,
-        marginLeft: spacing.xs,
-    },
+    changeLogoText: { ...typography.styles.labelStrong, color: colors.primary,
+        marginLeft: spacing.xs, },
     formSection: {
         marginBottom: spacing.xl,
     },
     formCard: {
+        ...colors.elevation.md,
         backgroundColor: colors.surface,
         borderRadius: radius.xxl,
         padding: spacing.xl,
-        ...shadows.medium,
     },
     infoCard: {
+        ...colors.elevation.md,
         backgroundColor: colors.surface,
         borderRadius: radius.xxl,
         padding: spacing.lg,
-        ...shadows.medium,
     },
     infoItem: {
         flexDirection: 'row',
@@ -625,15 +657,13 @@ const createStyles = (colors) => StyleSheet.create({
         flex: 1,
     },
     infoLabel: {
-        fontSize: typography.xs,
+        ...typography.styles.micro,
         color: colors.text.secondary,
         marginBottom: spacing.xs,
-        fontWeight: '500',
     },
     infoText: {
-        fontSize: typography.md,
+        ...typography.styles.body,
         color: colors.text.primary,
-        lineHeight: 20,
     },
     lastField: {
         marginBottom: 0,
@@ -646,46 +676,17 @@ const createStyles = (colors) => StyleSheet.create({
     },
     cancelButtonText: {
         color: colors.text.primary,
-        fontSize: typography.sm,
-        fontWeight: '500',
+        ...typography.styles.label,
     },
     bottomSpacing: {
         height: spacing.xl,
     },
     saveButtonContainer: {
+        ...colors.elevation.md,
         backgroundColor: colors.surface,
         borderTopWidth: 1,
         borderTopColor: colors.border.light,
         padding: spacing.lg,
-        ...shadows.medium,
-    },
-    errorContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: spacing.xxl,
-    },
-    errorIconContainer: {
-        width: 120,
-        height: 120,
-        borderRadius: radius.pill,
-        backgroundColor: colors.opacity.background.danger,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: spacing.xxl,
-    },
-    errorTitle: {
-        fontSize: typography.lg,
-        fontWeight: 'bold',
-        color: colors.text.primary,
-        marginBottom: spacing.sm,
-    },
-    errorDesc: {
-        fontSize: typography.md,
-        color: colors.text.secondary,
-        textAlign: 'center',
-        lineHeight: 22,
-        marginBottom: spacing.xxl,
     },
 });
 

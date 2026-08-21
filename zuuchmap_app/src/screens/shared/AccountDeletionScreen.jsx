@@ -3,7 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { ScreenLayout } from '../../components';
-import { spacing, typography, radius, shadows, interactions } from '../../design/theme';
+import { spacing, typography, radius, interactions } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { hideErrorModal, showErrorModal, showWarningModal } from '../../utils/errorManager';
 import userService from '../../services/api/userService';
@@ -67,13 +67,13 @@ const AccountDeletionScreen = ({ navigation }) => {
           </View>
         </View>
 
-        <View style={[styles.card, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text.inverse }]}>{t('accountDeletion.whatTitle')}</Text>
+        <View style={[styles.card, colors.elevation.sm, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text.primary }]}>{t('accountDeletion.whatTitle')}</Text>
           <Text style={[styles.sectionText, { color: colors.text.secondary }]}>{t('accountDeletion.what')}</Text>
         </View>
 
-        <View style={[styles.card, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text.inverse }]}>{t('accountDeletion.howTitle')}</Text>
+        <View style={[styles.card, colors.elevation.sm, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text.primary }]}>{t('accountDeletion.howTitle')}</Text>
           <Text style={[styles.sectionText, { color: colors.text.secondary }]}>{t('accountDeletion.how')}</Text>
         </View>
 
@@ -98,18 +98,18 @@ const AccountDeletionScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   content: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxxl },
   warningCard: { borderWidth: 1, borderRadius: radius.xl, padding: spacing.lg, flexDirection: 'row', gap: spacing.md },
-  warningIcon: { marginTop: 2 },
-  warningTitle: { fontSize: typography.sm, fontWeight: '700', marginBottom: spacing.xs },
-  warningText: { fontSize: typography.sm, lineHeight: typography.sm * 1.5 },
-  card: { borderRadius: radius.xl, padding: spacing.lg, ...shadows.small },
-  sectionTitle: { fontSize: typography.md, fontWeight: '600', marginBottom: spacing.sm },
-  sectionText: { fontSize: typography.sm, lineHeight: typography.sm * 1.6 },
+  warningIcon: { marginTop: spacing.xxs },
+  warningTitle: { ...typography.styles.labelStrong, marginBottom: spacing.xs },
+  warningText: { ...typography.styles.caption, lineHeight: typography.sm * 1.5 },
+  card: { borderRadius: radius.xl, padding: spacing.lg, },
+  sectionTitle: { ...typography.styles.title, marginBottom: spacing.sm },
+  sectionText: { ...typography.styles.caption, lineHeight: typography.sm * 1.6 },
   deleteBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: spacing.sm, padding: spacing.lg, borderRadius: radius.xl, marginTop: spacing.sm,
   },
   deleteBtnDisabled: { opacity: 0.6 },
-  deleteBtnText: { fontSize: typography.md, fontWeight: '700' },
+  deleteBtnText: { ...typography.styles.bodyBold },
 });
 
 export default AccountDeletionScreen;

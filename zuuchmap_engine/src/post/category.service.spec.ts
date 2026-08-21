@@ -1,6 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { CategoryService } from './category.service';
 import { CategorySchema } from './entities/category-schema.entity';
+import { sharedCache } from '../utils/cache';
 
 describe('CategoryService', () => {
   let service: CategoryService;
@@ -9,6 +10,9 @@ describe('CategoryService', () => {
   };
 
   beforeEach(() => {
+    // The cache is a module-level singleton shared across services — reset it
+    // so entries from one test can't satisfy reads in the next.
+    sharedCache.invalidatePrefix('');
     repo = {
       find: jest.fn(),
       findOne: jest.fn(),
@@ -35,6 +39,35 @@ describe('CategoryService', () => {
     it('rejects field keys that shadow post columns', () => {
       expect(() => service.validateCategoryData(valid({
         fields: [{ key: 'title', label: 'T', type: 'text' }],
+      }))).toThrow(BadRequestException);
+    });
+
+    it('rejects a category key that would break URLs and cache lookups', () => {
+      expect(() => service.validateCategoryData(valid({ key: 'Vehicle Rent!' })))
+        .toThrow(BadRequestException);
+    });
+
+    it('accepts a snake_case category key', () => {
+      expect(() => service.validateCategoryData(valid({ key: 'heavy_haulage' }))).not.toThrow();
+    });
+
+    it('rejects an emoji icon — mobile renders icons through Ionicons', () => {
+      expect(() => service.validateCategoryData(valid({ icon: '🚗' })))
+        .toThrow(BadRequestException);
+    });
+
+    it('accepts an Ionicons glyph name', () => {
+      expect(() => service.validateCategoryData(valid({ icon: 'car-outline' }))).not.toThrow();
+    });
+
+    it('rejects a non-hex colour', () => {
+      expect(() => service.validateCategoryData(valid({ color: 'red' })))
+        .toThrow(BadRequestException);
+    });
+
+    it('rejects non-snake_case subcategory values', () => {
+      expect(() => service.validateCategoryData(valid({
+        subcategories: [{ value: 'Power Tools', display: 'Power Tools' }],
       }))).toThrow(BadRequestException);
     });
 

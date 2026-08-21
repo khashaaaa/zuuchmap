@@ -2,11 +2,13 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG, getUploadUrl } from '../../config/api.config';
 import { DEFAULT_AVATAR_URL } from '../../config/app.config';
-import { getAuthToken, getUserId, getUserType, storeAuthData } from './authHelpers';
+import { getAuthToken, getUserId, getUserType, storeAuthData, emitAuthChanged } from './authHelpers';
+import { socketService } from '../socketService';
 import { queryClient } from '../queryClient';
 import apiClient from './apiClient';
 import { navigateToDashboard } from '../../utils/navigationUtils';
 import { logger } from '../../utils/logger';
+import { getDeviceId } from '../../utils/device';
 
 const API_URL = API_CONFIG.BASE_URL;
 
@@ -63,100 +65,36 @@ const userService = {
         }
     },
 
-    sendOtp: (phoneNumber) => {
-        return axios.post(`${API_URL}${API_CONFIG.ENDPOINTS.AUTH.SEND_OTP}`, { phone_number: phoneNumber });
+    /**
+     * Begins phone verification. Resolves with `verified: true` and a stored
+     * token when this device was already trusted — no SMS, no charge to the
+     * user. Otherwise returns the code they must text to the shortcode.
+     */
+    startVerification: async (phoneNumber) => {
+        const deviceId = await getDeviceId();
+        const response = await axios.post(`${API_URL}${API_CONFIG.ENDPOINTS.AUTH.VERIFY_START}`, {
+            phone_number: phoneNumber,
+            device_id: deviceId,
+        });
+
+        const data = response.data?.data ?? {};
+        if (data.verified && data.auth?.token) {
+            await storeAuthData({ ...data.auth.user, token: data.auth.token }, phoneNumber);
+        }
+        return data;
     },
 
-    verifyOtp: async (phoneNumber, code, biometric, deviceInfo) => {
-        try {
-            const response = await axios.post(`${API_URL}${API_CONFIG.ENDPOINTS.AUTH.VERIFY_OTP}`, {
-                phone_number: phoneNumber,
-                code,
-                biometric,
-                device_info: deviceInfo
-            });
+    /** Polls until verify.mn confirms the SMS arrived from the claimed number. */
+    checkVerification: async (sessionId, phoneNumber) => {
+        const response = await axios.post(`${API_URL}${API_CONFIG.ENDPOINTS.AUTH.VERIFY_STATUS}`, {
+            session_id: sessionId,
+        });
 
-            if (response.data && response.data.data && response.data.data.token) {
-                await storeAuthData(response.data.data, phoneNumber);
-            } else {
-                logger.warn('No token received from verification');
-            }
-
-            return response;
-        } catch (error) {
-            logger.error('OTP Verification error:', error);
-            throw error;
+        const data = response.data?.data ?? {};
+        if (data.status === 'VERIFIED' && data.auth?.token) {
+            await storeAuthData({ ...data.auth.user, token: data.auth.token }, phoneNumber);
         }
-    },
-
-    enrollBiometric: async (phoneNumber, deviceInfo, token = null) => {
-        try {
-            const headers = token ? {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                }
-            } : {};
-
-            return await axios.post(`${API_URL}${API_CONFIG.ENDPOINTS.AUTH.ENROLL_BIOMETRIC}`, {
-                phone_number: phoneNumber,
-                device_info: deviceInfo
-            }, headers);
-        } catch (error) {
-            throw error;
-        }
-    },
-
-    authenticateWithBiometric: async (phoneNumber, deviceInfo) => {
-        try {
-            if (!phoneNumber) {
-                throw new Error('Биометрик баталгаажуулалтад утасны дугаар шаардлагатай');
-            }
-            
-            if (!deviceInfo || !deviceInfo.deviceId || !deviceInfo.os) {
-                logger.warn('Device info may be incomplete:', deviceInfo);
-            }
-            
-            const cleanDeviceInfo = {
-                deviceId: deviceInfo?.deviceId || 'тодорхойгүй-төхөөрөмж',
-                model: deviceInfo?.model || 'Тодорхойгүй',
-                os: deviceInfo?.os || 'тодорхойгүй',
-                osVersion: deviceInfo?.osVersion || '0'
-            };
-            
-            const payload = {
-                phone_number: phoneNumber,
-                biometric: true,
-                device_info: cleanDeviceInfo
-            };
-            
-            if (__DEV__) {
-                logger.debug('Biometric auth request payload:', payload);
-            }
-            
-            const response = await axios.post(`${API_URL}${API_CONFIG.ENDPOINTS.AUTH.VERIFY_OTP}`, payload);
-
-            if (response.data && response.data.data && response.data.data.token) {
-                await storeAuthData(response.data.data, phoneNumber);
-            } else {
-                logger.warn('No token received from biometric verification');
-            }
-
-            return response;
-        } catch (error) {
-            logger.error('Biometric authentication error:', error);
-            
-            if (error.response) {
-                logger.error('Response status:', error.response.status);
-                logger.error('Response data:', error.response.data);
-            } else if (error.request) {
-                logger.error('Request made but no response received');
-            } else {
-                logger.error('Error setting up request:', error.message);
-            }
-            
-            throw error;
-        }
+        return data;
     },
 
     setUserType: async (phoneNumber, type, _token = null, navigation = null) => {
@@ -221,6 +159,11 @@ const userService = {
 
     logout: async (keepUserInfo = true) => {
         try {
+            // Stop this device receiving the account's pushes; must run while the
+            // JWT is still stored. Best-effort — logout proceeds regardless.
+            await apiClient.delete(API_CONFIG.ENDPOINTS.USER.SAVE_PUSH_TOKEN)
+                .catch((err) => logger.warn?.('Push token clear failed on logout:', err?.message));
+            socketService.disconnect();
             if (keepUserInfo) {
                 await AsyncStorage.multiRemove([
                     API_CONFIG.STORAGE_KEYS.AUTH_TOKEN,
@@ -236,6 +179,7 @@ const userService = {
                 ]);
             }
             queryClient.clear();
+            emitAuthChanged();
             return true;
         } catch (error) {
             logger.error('Logout error:', error);
@@ -243,24 +187,9 @@ const userService = {
         }
     },
 
-    fullLogout: async () => {
-        try {
-            const { clearAuthData } = await import('./authHelpers');
-            await clearAuthData();
-            return true;
-        } catch (error) {
-            logger.error('Full logout error:', error);
-            return false;
-        }
-    },
-
     clearAuthData: async () => {
         const { clearAuthData } = await import('./authHelpers');
         return clearAuthData();
-    },
-
-    getCurrentUser: async () => {
-        return apiClient.get(API_CONFIG.ENDPOINTS.USER.PROFILE);
     },
 
     getUserPosts: async () => {
@@ -344,7 +273,9 @@ const userService = {
 
             const userId = await getUserId();
             if (!userId) {
-                throw new Error('Хэрэглэгчийн ID шаардлагатай боловч олдсонгүй');
+                const error = new Error('User ID missing from storage');
+                error.code = 'USER_ID_MISSING';
+                throw error;
             }
             return apiClient.patch(API_CONFIG.ENDPOINTS.USER.UPDATE(userId), formData);
         } catch (error) {
@@ -361,7 +292,9 @@ const userService = {
         try {
             const userId = await getUserId();
             if (!userId) {
-                throw new Error('Хэрэглэгчийн ID шаардлагатай боловч олдсонгүй');
+                const error = new Error('User ID missing from storage');
+                error.code = 'USER_ID_MISSING';
+                throw error;
             }
             const response = await apiClient.patch(API_CONFIG.ENDPOINTS.USER.UPDATE(userId), formData);
 
@@ -486,35 +419,6 @@ const userService = {
         }
     },
 
-    deleteCompany: async (companyId) => {
-        try {
-            const response = await apiClient.delete(API_CONFIG.ENDPOINTS.COMPANY.DELETE(companyId));
-            return response.data;
-        } catch (error) {
-            logger.error('Delete company error:', error);
-            throw error;
-        }
-    },
-
-    getAllCompanies: async () => {
-        try {
-            const response = await apiClient.get(API_CONFIG.ENDPOINTS.COMPANY.LIST);
-
-            if (response.data && Array.isArray(response.data)) {
-                response.data = response.data.map(company => ({
-                    ...company,
-                    logo: company.logo
-                        ? getUploadUrl(API_CONFIG.UPLOAD_PATHS.COMPANY_LOGO, company.logo)
-                        : null
-                }));
-            }
-
-            return response.data;
-        } catch (error) {
-            logger.error('Get all companies error:', error);
-            throw error;
-        }
-    }
 };
 
 export default userService;

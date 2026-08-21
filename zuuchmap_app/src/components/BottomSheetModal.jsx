@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import BaseModal from './BaseModal';
-import { spacing, typography, radius, shadows, safeAreaHelpers, interactions, animations } from '../design/theme';
+import { spacing, typography, radius, safeAreaHelpers, interactions, animations } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 
@@ -58,7 +58,7 @@ const BottomSheetModal = ({
             } else if (reducedRef.current) {
                 Animated.timing(panY, { toValue: 0, duration: 1, useNativeDriver: true }).start();
             } else {
-                Animated.spring(panY, { toValue: 0, useNativeDriver: true, tension: 80, friction: 12 }).start();
+                Animated.spring(panY, { toValue: 0, useNativeDriver: true, ...animations.spring.sheet }).start();
             }
         },
         onPanResponderTerminate: () => {
@@ -66,7 +66,7 @@ const BottomSheetModal = ({
                 if (reducedRef.current) {
                     Animated.timing(panY, { toValue: 0, duration: 1, useNativeDriver: true }).start();
                 } else {
-                    Animated.spring(panY, { toValue: 0, useNativeDriver: true }).start();
+                    Animated.spring(panY, { toValue: 0, useNativeDriver: true, ...animations.spring.sheet }).start();
                 }
             }
         },
@@ -93,14 +93,14 @@ const BottomSheetModal = ({
                         <View style={[styles.handle, { backgroundColor: colors.border.medium }]} />
                         <View style={styles.headerContent}>
                             {title && (
-                                <Text style={[styles.title, { color: colors.text.inverse }]}>{title}</Text>
+                                <Text style={[styles.title, { color: colors.text.primary }]}>{title}</Text>
                             )}
                             {showCloseButton && (
                                 <TouchableOpacity
                                     onPress={onClose}
                                     style={styles.closeButton}
                                     activeOpacity={interactions.activeOpacityLight}
-                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                    hitSlop={interactions.hitSlop}
                                     accessibilityRole="button"
                                     accessibilityLabel={t('common.close')}
                                 >
@@ -118,6 +118,7 @@ const BottomSheetModal = ({
                         { paddingBottom: safeAreaHelpers.getBottomSafeArea(insets) + spacing.lg },
                     ]}
                     showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
                 >
                     {children}
                 </ScrollView>
@@ -156,8 +157,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
     },
     title: {
-        fontSize: typography.lg,
-        fontWeight: typography.weight.bold,
+        ...typography.styles.title,
         flex: 1,
     },
     closeButton: {

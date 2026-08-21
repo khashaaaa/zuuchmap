@@ -3,6 +3,7 @@
 // instead of crashing the bundle.
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 export const PROVIDER_GOOGLE = 'google';
 export const PROVIDER_DEFAULT = null;
@@ -14,6 +15,7 @@ export const Polygon = () => null;
 export const Circle = () => null;
 
 const MapView = React.forwardRef(({ style, children }, ref) => {
+  const { t } = useTranslation();
   React.useImperativeHandle(ref, () => ({
     animateToRegion: () => {},
     animateCamera: () => {},
@@ -22,8 +24,7 @@ const MapView = React.forwardRef(({ style, children }, ref) => {
   }));
   return (
     <View style={[styles.placeholder, style]}>
-      <Text style={styles.text}>Газрын зураг вэб дээр дэмжигдэхгүй</Text>
-      <Text style={styles.subtext}>Map preview is unavailable on web</Text>
+      <Text style={styles.text}>{t('map.webUnsupported')}</Text>
       <View style={{ display: 'none' }}>{children}</View>
     </View>
   );
@@ -37,7 +38,6 @@ const styles = StyleSheet.create({
     minHeight: 120,
   },
   text: { fontSize: 14, color: '#6b5f52', fontWeight: '600' },
-  subtext: { fontSize: 12, color: '#9a8f81', marginTop: 4 },
 });
 
 export default MapView;

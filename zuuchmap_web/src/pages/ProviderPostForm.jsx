@@ -1,18 +1,19 @@
-import { useState, useEffect, useMemo } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { useNavigate, useParams, useBlocker } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Upload, X, MapPin } from 'lucide-react'
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet'
-import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { postsApi, categoryApi } from '@/lib/api'
-import { getCategoryLabel, getSubcategoryLabel, getFieldLabel, getOptionLabel, getPostCategory, getImageUrl, PRICE_UNITS, PROVINCES, DISTRICTS } from '@/lib/utils'
+import { getCategoryLabel, getSubcategoryLabel, getFieldLabel, getOptionLabel, getPostCategory, getCategoryColor, categoryPin, getImageUrl, goBack, PRICE_UNITS, PROVINCES, DISTRICTS, apiErrorMessage } from '@/lib/utils'
 import { useThemeStore } from '@/store'
 import { toast } from 'sonner'
 import Input from '../components/Input'
 import Button from '../components/Button'
 import PageHeader from '../components/PageHeader'
+import ConfirmModal from '../components/ConfirmModal'
+import ErrorState from '../components/ErrorState'
 
 function compressImage(file) {
   return new Promise((resolve) => {
@@ -36,16 +37,9 @@ function compressImage(file) {
   })
 }
 
-delete L.Icon.Default.prototype._getIconUrl
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-})
-
 const UB_CENTER = [47.8864, 106.9057]
 
-function LocationPicker({ lat, lng, onChange }) {
+function LocationPicker({ lat, lng, color, onChange }) {
   const { theme } = useThemeStore()
   function ClickHandler() {
     useMapEvents({ click: (e) => onChange(e.latlng.lat, e.latlng.lng) })
@@ -59,7 +53,7 @@ function LocationPicker({ lat, lng, onChange }) {
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
       />
       <ClickHandler />
-      {lat && lng && <Marker position={[lat, lng]} />}
+      {lat && lng && <Marker position={[lat, lng]} icon={categoryPin(color)} />}
     </MapContainer>
   )
 }
@@ -99,7 +93,7 @@ export default function ProviderPostForm() {
   const qc = useQueryClient()
   const isEdit = Boolean(id)
 
-  const { data: post } = useQuery({
+  const { data: post, isLoading: postLoading, isError: postError, refetch: refetchPost } = useQuery({
     queryKey: ['post', id],
     queryFn: () => postsApi.getOne(id),
     enabled: isEdit,
@@ -108,7 +102,7 @@ export default function ProviderPostForm() {
   const { data: schemas = [] } = useQuery({
     queryKey: ['categories'],
     queryFn: categoryApi.getAll,
-    staleTime: 60_000,
+    staleTime: 300_000,
   })
 
   const [form, setForm] = useState({
@@ -128,12 +122,17 @@ export default function ProviderPostForm() {
     longitude: '',
     available_from: '',
     available_until: '',
+    status: 'ACTIVE',
     attributes: {},
   })
   const [newImages, setNewImages] = useState([])
   const [newImageUrls, setNewImageUrls] = useState([])
   const [existingImages, setExistingImages] = useState([])
-  const [dirty, setDirty] = useState(false)
+  // Mirrored into a ref so the navigation blocker sees the value synchronously
+  // (onSuccess flips it false and navigates in the same tick).
+  const [dirty, setDirtyState] = useState(false)
+  const dirtyRef = useRef(false)
+  const setDirty = (v) => { dirtyRef.current = v; setDirtyState(v) }
 
   useEffect(() => {
     const urls = newImages.map((f) => URL.createObjectURL(f))
@@ -165,6 +164,7 @@ export default function ProviderPostForm() {
         longitude: post.longitude ?? '',
         available_from: post.available_from ? post.available_from.slice(0, 10) : '',
         available_until: post.available_until ? post.available_until.slice(0, 10) : '',
+        status: post.status ?? 'ACTIVE',
         attributes: post.attributes ?? {},
       })
       setExistingImages(post.images ?? [])
@@ -175,11 +175,16 @@ export default function ProviderPostForm() {
     mutationFn: (fd) => isEdit ? postsApi.update(id, fd) : postsApi.create(fd),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['my-posts'] })
+      qc.invalidateQueries({ queryKey: ['posts'] })
+      qc.invalidateQueries({ queryKey: ['posts-map'] })
+      qc.invalidateQueries({ queryKey: ['admin-pending'] })
+      qc.invalidateQueries({ queryKey: ['admin-stats'] })
+      if (isEdit) qc.invalidateQueries({ queryKey: ['post', String(id)] })
       toast.success(t(isEdit ? 'posts.updated' : 'posts.created'))
       setDirty(false)
       navigate('/provider/posts')
     },
-    onError: (e) => toast.error(e.response?.data?.message || t('posts.createError')),
+    onError: (e) => toast.error(apiErrorMessage(e, t, t('posts.createError'))),
   })
 
   useEffect(() => {
@@ -188,6 +193,12 @@ export default function ProviderPostForm() {
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
   }, [dirty])
+
+  // In-app navigation guard — catches sidebar links and back, not just the
+  // browser-level unload the effect above handles.
+  const blocker = useBlocker(({ currentLocation, nextLocation }) =>
+    dirtyRef.current && currentLocation.pathname !== nextLocation.pathname
+  )
 
   function set(key, val) { setDirty(true); setForm((f) => ({ ...f, [key]: val })) }
   function setAttr(key, val) { setDirty(true); setForm((f) => ({ ...f, attributes: { ...f.attributes, [key]: val } })) }
@@ -216,6 +227,9 @@ export default function ProviderPostForm() {
     const fd = new FormData()
     const { attributes, ...rest } = form
     const normalized = { ...rest }
+    // category is immutable after creation and is not part of UpdatePostDto —
+    // the backend rejects unknown fields, so never send it on edit.
+    if (isEdit) delete normalized.category
     if (normalized.website && !/^https?:\/\//i.test(normalized.website)) {
       normalized.website = `https://${normalized.website}`
     }
@@ -239,14 +253,40 @@ export default function ProviderPostForm() {
   const lat = form.latitude ? Number(form.latitude) : null
   const lng = form.longitude ? Number(form.longitude) : null
 
+  // Never render an editable-but-empty form: typing before the post arrives
+  // gets clobbered by the fill effect, and submitting a blank form would PATCH
+  // empty values over the real post.
+  if (isEdit && postLoading) return (
+    <div className="max-w-3xl">
+      <PageHeader title={t('posts.edit')} onBack={() => goBack(navigate, '/provider/posts')} />
+      <div className="space-y-4">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="h-12 bg-surface2 rounded-btn animate-pulse" />
+        ))}
+      </div>
+    </div>
+  )
+  if (isEdit && postError) return (
+    <div className="max-w-3xl">
+      <PageHeader title={t('posts.edit')} onBack={() => goBack(navigate, '/provider/posts')} />
+      <ErrorState onRetry={refetchPost} />
+    </div>
+  )
+
   return (
     <div className="max-w-3xl">
       <PageHeader
         title={t(isEdit ? 'posts.edit' : 'posts.create')}
-        onBack={() => {
-          if (dirty && !window.confirm(t('posts.unsavedChangesConfirm'))) return
-          navigate(-1)
-        }}
+        onBack={() => goBack(navigate, '/provider/posts')}
+      />
+      <ConfirmModal
+        open={blocker.state === 'blocked'}
+        onClose={() => blocker.reset?.()}
+        title={t('posts.unsavedChangesTitle')}
+        message={t('posts.unsavedChangesConfirm')}
+        confirmLabel={t('posts.leaveWithoutSaving')}
+        cancelLabel={t('common.cancel')}
+        onConfirm={() => blocker.proceed?.()}
       />
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className={schema?.subcategories?.length > 0 ? 'grid grid-cols-1 sm:grid-cols-2 gap-3' : undefined}>
@@ -285,7 +325,7 @@ export default function ProviderPostForm() {
             <Input as="select" value={form.province}
               onChange={(e) => { set('province', e.target.value); set('district', '') }}>
               <option value="">{t('common.select')}</option>
-              {PROVINCES.map((p) => <option key={p.value} value={p.value}>{t(`province.${p.value}`)}</option>)}
+              {PROVINCES.map((p) => <option key={p} value={p}>{t(`province.${p}`, { defaultValue: p })}</option>)}
             </Input>
           </div>
           {form.province === 'ULAANBAATAR' ? (
@@ -293,7 +333,7 @@ export default function ProviderPostForm() {
               <label className="text-xs text-muted block mb-1.5">{t('common.district')}</label>
               <Input as="select" value={form.district} onChange={(e) => set('district', e.target.value)}>
                 <option value="">{t('common.select')}</option>
-                {DISTRICTS.map((d) => <option key={d.value} value={d.value}>{t(`district.${d.value}`)}</option>)}
+                {DISTRICTS.map((d) => <option key={d} value={d}>{t(`district.${d}`, { defaultValue: d })}</option>)}
               </Input>
             </div>
           ) : <div />}
@@ -305,7 +345,7 @@ export default function ProviderPostForm() {
             <MapPin size={12} /> {t('posts.location')}
           </div>
           <div className="rounded-lg overflow-hidden border border-border/50">
-            <LocationPicker lat={lat} lng={lng} onChange={(la, lo) => setForm((f) => ({ ...f, latitude: String(la), longitude: String(lo) }))} />
+            <LocationPicker lat={lat} lng={lng} color={getCategoryColor(form.category, schemas)} onChange={(la, lo) => setForm((f) => ({ ...f, latitude: String(la), longitude: String(lo) }))} />
           </div>
           <p className="text-xs text-muted mt-1">
             {lat && lng ? `${lat.toFixed(5)}, ${lng.toFixed(5)}` : t('posts.clickToPin')}
@@ -334,6 +374,18 @@ export default function ProviderPostForm() {
             {field(`${t('posts.availableUntil')}`, 'available_until', 'date')}
           </div>
         )}
+        {/* Rental status lets a provider mark a listing rented/paused without
+            editing content — mirrors the app's StatusSection. */}
+        {schema?.has_rental_status && (
+          <div>
+            <label className="text-xs text-muted block mb-1.5">{t('common.status')}</label>
+            <Input as="select" value={form.status} onChange={(e) => set('status', e.target.value)}>
+              {['ACTIVE', 'RENTED', 'EXPIRED'].map((s) => (
+                <option key={s} value={s}>{t(`status.${s.toLowerCase()}`, { defaultValue: s })}</option>
+              ))}
+            </Input>
+          </div>
+        )}
 
         {schema?.fields?.map((f) => (
           <DynamicField key={f.key} field={f} value={form.attributes[f.key] ?? ''} onChange={(v) => setAttr(f.key, v)} t={t} />
@@ -342,12 +394,13 @@ export default function ProviderPostForm() {
         <div>
           <label className="text-xs text-muted block mb-1.5">{t('posts.images')}</label>
           <p className="text-xs text-muted mb-2">{t('posts.imagesHint')}</p>
+          {/* bg-black/60 + white on photography is the onMedia idiom — theme-independent by design. */}
           {existingImages.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-2">
               {existingImages.map((img) => (
                 <div key={img} className="relative w-20 h-20 rounded-lg overflow-hidden">
                   <img src={getImageUrl(img)} alt="" className="w-full h-full object-cover" />
-                  <button type="button" onClick={() => removeExisting(img)} className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5">
+                  <button type="button" onClick={() => removeExisting(img)} aria-label={t('common.delete')} className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5">
                     <X size={10} />
                   </button>
                 </div>
@@ -359,21 +412,21 @@ export default function ProviderPostForm() {
               {newImages.map((f, i) => (
                 <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden">
                   <img src={newImageUrls[i]} alt="" className="w-full h-full object-cover" />
-                  <button type="button" onClick={() => removeNew(i)} className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5">
+                  <button type="button" onClick={() => removeNew(i)} aria-label={t('common.delete')} className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5">
                     <X size={10} />
                   </button>
                 </div>
               ))}
             </div>
           )}
-          <label className="flex items-center gap-2 cursor-pointer w-fit px-3 py-2 border border-dashed border-border/50 rounded-btn text-sm text-muted hover:border-primary/40 hover:text-primary transition-colors">
+          <label className="flex items-center gap-2 cursor-pointer w-fit px-3 py-2 border border-dashed border-border/50 rounded-btn text-sm text-muted hover:border-primary/40 hover:text-primary-text transition-colors">
             <Upload size={14} /> {t('posts.addImage')}
             <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => addImages(e.target.files)} />
           </label>
         </div>
 
         <div className="sticky bottom-0 -mx-4 sm:mx-0 px-4 sm:px-0 py-3 bg-background/95 backdrop-blur border-t border-border/50">
-          <Button type="submit" disabled={mut.isPending} className="w-full">
+          <Button type="submit" size="lg" disabled={mut.isPending} className="w-full">
             {mut.isPending ? t('posts.creating') : t(isEdit ? 'posts.update' : 'posts.create')}
           </Button>
         </div>

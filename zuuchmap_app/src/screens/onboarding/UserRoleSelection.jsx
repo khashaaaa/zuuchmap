@@ -3,7 +3,6 @@ import {
     View,
     Text,
     TouchableOpacity,
-    ActivityIndicator,
     StatusBar,
     StyleSheet,
 } from 'react-native';
@@ -19,6 +18,8 @@ import { apiClient } from '../../services/api/apiClient';
 import { API_CONFIG } from '../../config/api.config';
 import { getErrorMessage, showErrorModal, showWarningModal } from '../../utils/errorManager';
 import Button from '../../components/Button';
+import ScreenLoading from '../../components/ScreenLoading';
+import PressableScale from '../../components/PressableScale';
 import { logger } from '../../utils/logger';
 
 const UserRoleSelection = ({ route, navigation }) => {
@@ -97,10 +98,11 @@ const UserRoleSelection = ({ route, navigation }) => {
             style={[styles.themeToggle, { backgroundColor: colors.opacity.background.primary }]}
             onPress={() => navigation.goBack()}
             activeOpacity={interactions.activeOpacityLight}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="button"
             accessibilityLabel={t('common.back')}
         >
-            <Ionicons name="arrow-back" size={20} color={colors.primary} />
+            <Ionicons name="arrow-back" size={24} color={colors.primary} />
         </TouchableOpacity>
     ) : <View />;
 
@@ -114,14 +116,12 @@ const UserRoleSelection = ({ route, navigation }) => {
                         style={[styles.themeToggle, { backgroundColor: colors.opacity.background.primary }]}
                         onPress={() => setThemeMode(isDark ? 'light' : 'dark')}
                         activeOpacity={interactions.activeOpacityLight}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
                         <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={colors.primary} />
                     </TouchableOpacity>
                 </View>
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={colors.primary} />
-                    <Text style={[styles.loadingText, { color: colors.text.primary }]}>{t('common.loading')}</Text>
-                </View>
+                <ScreenLoading />
             </SafeAreaView>
         );
     }
@@ -136,6 +136,7 @@ const UserRoleSelection = ({ route, navigation }) => {
                         style={[styles.themeToggle, { backgroundColor: colors.opacity.background.primary }]}
                         onPress={() => setThemeMode(isDark ? 'light' : 'dark')}
                         activeOpacity={interactions.activeOpacityLight}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
                         <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={colors.primary} />
                     </TouchableOpacity>
@@ -147,14 +148,14 @@ const UserRoleSelection = ({ route, navigation }) => {
                 </View>
 
                 <View style={styles.optionsContainer}>
-                    <TouchableOpacity
+                    <PressableScale
                         style={[
                             styles.optionCard,
                             { backgroundColor: colors.surface, borderColor: colors.border.light },
                             selectedRole === 'PROVIDER' && { borderColor: colors.primary, backgroundColor: colors.opacity.background.primary },
                         ]}
                         onPress={() => setSelectedRole('PROVIDER')}
-                        activeOpacity={interactions.activeOpacityLight}
+                        accessibilityRole="button"
                     >
                         <View style={styles.optionContent}>
                             <View style={styles.optionLeft}>
@@ -186,16 +187,16 @@ const UserRoleSelection = ({ route, navigation }) => {
                                 <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
                             )}
                         </View>
-                    </TouchableOpacity>
+                    </PressableScale>
 
-                    <TouchableOpacity
+                    <PressableScale
                         style={[
                             styles.optionCard,
                             { backgroundColor: colors.surface, borderColor: colors.border.light },
                             selectedRole === 'CUSTOMER' && { borderColor: colors.primary, backgroundColor: colors.opacity.background.primary },
                         ]}
                         onPress={() => setSelectedRole('CUSTOMER')}
-                        activeOpacity={interactions.activeOpacityLight}
+                        accessibilityRole="button"
                     >
                         <View style={styles.optionContent}>
                             <View style={styles.optionLeft}>
@@ -227,7 +228,7 @@ const UserRoleSelection = ({ route, navigation }) => {
                                 <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
                             )}
                         </View>
-                    </TouchableOpacity>
+                    </PressableScale>
                 </View>
 
                 <View style={styles.footer}>
@@ -253,8 +254,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacing.xxl,
         paddingTop: spacing.lg,
     },
-    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    loadingText: { marginTop: spacing.lg, fontSize: typography.md, fontWeight: '600' },
     content: {
         flex: 1,
         paddingHorizontal: spacing.xxl,
@@ -269,7 +268,7 @@ const styles = StyleSheet.create({
     themeToggle: {
         width: 36,
         height: 36,
-        borderRadius: radius.xl,
+        borderRadius: radius.full,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -277,16 +276,14 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     title: {
-        fontSize: typography.xxl,
-        fontWeight: 'bold',
+        ...typography.styles.h2,
         marginTop: spacing.lg,
         marginBottom: spacing.sm,
         textAlign: 'center',
     },
     subtitle: {
-        fontSize: typography.md,
+        ...typography.styles.body,
         textAlign: 'center',
-        lineHeight: 22,
         paddingHorizontal: spacing.sm,
     },
     optionsContainer: {
@@ -314,20 +311,18 @@ const styles = StyleSheet.create({
     optionIcon: {
         width: 48,
         height: 48,
-        borderRadius: radius.xxxl,
+        borderRadius: radius.full,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: spacing.md,
     },
     optionTextContainer: { flex: 1 },
     optionTitle: {
-        fontSize: typography.md,
-        fontWeight: 'bold',
+        ...typography.styles.bodyBold,
         marginBottom: spacing.xs,
     },
     optionDescription: {
-        fontSize: typography.sm,
-        lineHeight: 18,
+        ...typography.styles.caption,
     },
     footer: {
         gap: spacing.xxl,

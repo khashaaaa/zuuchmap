@@ -3,7 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, Linking, StyleSheet } from 'r
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { ScreenLayout } from '../../components';
-import { spacing, typography, radius, shadows, interactions } from '../../design/theme';
+import { spacing, typography, radius, interactions } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 
 const ContactRow = ({ icon, label, value, onPress, colors }) => (
@@ -19,13 +19,13 @@ const ContactRow = ({ icon, label, value, onPress, colors }) => (
       <Text style={[styles.contactLabel, { color: colors.text.secondary }]}>{label}</Text>
       <Text style={[styles.contactValue, { color: colors.primary }]}>{value}</Text>
     </View>
-    <Ionicons name="chevron-forward" size={16} color={colors.text.secondary} />
+    <Ionicons name="chevron-forward" size={20} color={colors.text.secondary} />
   </TouchableOpacity>
 );
 
 const FaqItem = ({ question, answer, colors }) => (
   <View style={styles.faqItem}>
-    <Text style={[styles.faqQ, { color: colors.text.inverse }]}>{question}</Text>
+    <Text style={[styles.faqQ, { color: colors.text.primary }]}>{question}</Text>
     <Text style={[styles.faqA, { color: colors.text.secondary }]}>{answer}</Text>
   </View>
 );
@@ -44,7 +44,7 @@ const HelpSupportScreen = ({ navigation }) => {
   return (
     <ScreenLayout title={t('helpSupport.title')} showBack onBack={() => navigation.goBack()}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+        <View style={[styles.card, colors.elevation.sm, { backgroundColor: colors.surface }]}>
           <ContactRow
             icon="call-outline"
             label={t('helpSupport.phoneLabel')}
@@ -67,14 +67,14 @@ const HelpSupportScreen = ({ navigation }) => {
             </View>
             <View style={styles.contactText}>
               <Text style={[styles.contactLabel, { color: colors.text.secondary }]}>{t('helpSupport.hoursLabel')}</Text>
-              <Text style={[styles.hoursValue, { color: colors.text.inverse }]}>{t('helpSupport.hoursText')}</Text>
+              <Text style={[styles.hoursValue, { color: colors.text.primary }]}>{t('helpSupport.hoursText')}</Text>
             </View>
           </View>
         </View>
 
         <Text style={[styles.sectionHeader, { color: colors.text.secondary }]}>{t('helpSupport.faqTitle')}</Text>
 
-        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+        <View style={[styles.card, colors.elevation.sm, { backgroundColor: colors.surface }]}>
           {faqs.map(({ q, a }, i) => (
             <React.Fragment key={i}>
               {i > 0 && <View style={[styles.divider, { backgroundColor: colors.border.light }]} />}
@@ -91,19 +91,19 @@ const HelpSupportScreen = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   content: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxxl },
-  card: { borderRadius: radius.xl, padding: spacing.lg, ...shadows.small },
+  card: { borderRadius: radius.xl, padding: spacing.lg, },
   contactRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.sm },
   hoursRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.sm },
   contactIcon: { width: 36, height: 36, borderRadius: radius.full, justifyContent: 'center', alignItems: 'center', marginRight: spacing.md },
   contactText: { flex: 1 },
-  contactLabel: { fontSize: typography.xs, marginBottom: 2 },
-  contactValue: { fontSize: typography.md, fontWeight: '500' },
-  hoursValue: { fontSize: typography.md },
+  contactLabel: { ...typography.styles.small, marginBottom: spacing.xxs },
+  contactValue: { ...typography.styles.bodyMedium },
+  hoursValue: { ...typography.styles.body },
   divider: { height: 1, marginVertical: spacing.xs },
-  sectionHeader: { fontSize: typography.sm, fontWeight: '600', paddingHorizontal: spacing.xs },
+  sectionHeader: { ...typography.styles.label, paddingHorizontal: spacing.xs },
   faqItem: { paddingVertical: spacing.sm },
-  faqQ: { fontSize: typography.sm, fontWeight: '600', marginBottom: spacing.xs },
-  faqA: { fontSize: typography.sm, lineHeight: typography.sm * 1.6 },
+  faqQ: { ...typography.styles.label, marginBottom: spacing.xs },
+  faqA: { ...typography.styles.caption, lineHeight: typography.sm * 1.6 },
   bottomSpacing: { height: spacing.xl },
 });
 

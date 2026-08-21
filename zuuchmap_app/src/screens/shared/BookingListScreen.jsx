@@ -1,17 +1,18 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, RefreshControl, StyleSheet } from 'react-native';
+import { View, Text, FlatList, RefreshControl, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { spacing, typography, radius, shadows, interactions, isTablet } from '../../design/theme';
+import { spacing, typography, radius, isTablet } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useMinDisplayTime } from '../../hooks/useMinDisplayTime';
 import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import ScreenHeader from '../../components/ScreenHeader';
 import Button from '../../components/Button';
-import { EmptyState, SkeletonItem, FadeSlideIn } from '../../components';
+import { EmptyState, SkeletonItem, FadeSlideIn, PressableScale } from '../../components';
+import ScreenError from '../../components/ScreenError';
 import bookingService from '../../services/api/bookingService';
 import { showErrorModal, showWarningModal, getErrorMessage } from '../../utils/errorManager';
 import { formatDateYYYYMMDD } from '../../utils/displayUtils';
@@ -34,7 +35,7 @@ const BookingListScreen = ({ route, navigation }) => {
     const qc = useQueryClient();
     const [busyId, setBusyId] = useState(null);
 
-    const { data: bookings = [], isLoading, isRefetching, refetch } = useQuery({
+    const { data: bookings = [], isLoading, isRefetching, isError, refetch } = useQuery({
         queryKey: ['bookings', role],
         queryFn: () => (isProviderView ? bookingService.received() : bookingService.mine()),
         staleTime: 30 * 1000,
@@ -77,9 +78,8 @@ const BookingListScreen = ({ route, navigation }) => {
 
         return (
             <FadeSlideIn index={index}>
-            <TouchableOpacity
+            <PressableScale
                 style={styles.card}
-                activeOpacity={interactions.activeOpacity}
                 onPress={() => item.post && navigation.navigate('PostDetailScreen', {
                     postId: item.post.id, postType: item.post.category, role: isProviderView ? 'provider' : 'customer',
                 })}
@@ -90,7 +90,7 @@ const BookingListScreen = ({ route, navigation }) => {
                     </Text>
                     <View style={[styles.statusChip, { borderColor: statusColor + '55', backgroundColor: statusColor + '18' }]}>
                         <Text style={[styles.statusText, { color: statusColor }]}>
-                            {t(`booking.${item.status.toLowerCase()}`)}
+                            {t(`booking.${item.status.toLowerCase()}`, { defaultValue: item.status })}
                         </Text>
                     </View>
                 </View>
@@ -152,7 +152,7 @@ const BookingListScreen = ({ route, navigation }) => {
                         />
                     </View>
                 )}
-            </TouchableOpacity>
+            </PressableScale>
             </FadeSlideIn>
         );
     };
@@ -172,6 +172,8 @@ const BookingListScreen = ({ route, navigation }) => {
                     keyExtractor={(_, i) => `sk-${i}`}
                     contentContainerStyle={styles.list}
                 />
+            ) : isError ? (
+                <ScreenError onRetry={refetch} />
             ) : bookings.length === 0 ? (
                 <EmptyState
                     icon="calendar-outline"
@@ -202,20 +204,20 @@ const BookingListScreen = ({ route, navigation }) => {
 const createStyles = (colors) => StyleSheet.create({
     list: { padding: spacing.lg, ...(isTablet ? { maxWidth: 680, alignSelf: 'center', width: '100%' } : {}) },
     card: {
+        ...colors.elevation.sm,
         backgroundColor: colors.surface,
         borderRadius: radius.card,
         padding: spacing.lg,
         marginBottom: spacing.md,
         gap: spacing.sm,
-        ...shadows.small,
     },
     cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm },
-    cardTitle: { flex: 1, fontSize: typography.md, fontWeight: '700', color: colors.text.inverse },
-    statusChip: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.pill, borderWidth: 1 },
-    statusText: { fontSize: typography.xs, fontWeight: '600' },
+    cardTitle: { ...typography.styles.title, flex: 1, color: colors.text.primary },
+    statusChip: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xxs, borderRadius: radius.pill, borderWidth: 1 },
+    statusText: { ...typography.styles.badge },
     metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-    metaText: { fontSize: typography.sm, color: colors.text.secondary },
-    message: { fontSize: typography.sm, color: colors.text.tertiary, backgroundColor: colors.background, borderRadius: radius.card, padding: spacing.md },
+    metaText: { ...typography.styles.caption, color: colors.text.secondary },
+    message: { ...typography.styles.caption, color: colors.text.tertiary, backgroundColor: colors.background, borderRadius: radius.card, padding: spacing.md },
     actions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.xs },
     actionBtn: { flex: 1 },
 });

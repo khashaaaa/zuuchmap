@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import Modal from './Modal'
 import Button from './Button'
 
@@ -14,6 +15,7 @@ export default function ConfirmModal({
   cancelLabel,
   children,
 }) {
+  const { t } = useTranslation()
   return (
     <Modal
       open={open}
@@ -22,10 +24,10 @@ export default function ConfirmModal({
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={isPending}>
-            {cancelLabel ?? 'Cancel'}
+            {cancelLabel ?? t('common.cancel')}
           </Button>
           <Button variant={confirmVariant} onClick={onConfirm} disabled={isPending}>
-            {isPending && loadingLabel ? loadingLabel : (confirmLabel ?? 'Confirm')}
+            {isPending ? (loadingLabel ?? t('common.loading')) : (confirmLabel ?? t('common.confirm'))}
           </Button>
         </>
       }

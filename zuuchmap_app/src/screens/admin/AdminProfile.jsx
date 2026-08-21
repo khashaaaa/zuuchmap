@@ -5,11 +5,12 @@ import {
     TouchableOpacity,
     Image,
     ScrollView,
+    RefreshControl,
     StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing, typography, shadows, safeAreaHelpers, radius, interactions, isTablet, dimensions } from '../../design/theme';
+import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet, dimensions } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 import userService from '../../services/api/userService';
@@ -18,6 +19,7 @@ import { ScreenLayout, SettingsSection } from '../../components';
 import { ProfileSection, ProfileActionRow } from '../../components';
 import { DEFAULT_AVATAR_URL } from '../../config/app.config';
 import { hideErrorModal, showErrorModal } from '../../utils/errorManager';
+import { confirmLogout } from '../../utils/navigationUtils';
 import { logger } from '../../utils/logger';
 
 const AdminProfile = ({ navigation }) => {
@@ -26,11 +28,12 @@ const AdminProfile = ({ navigation }) => {
     const { t } = useTranslation();
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [imageError, setImageError] = useState(false);
 
-    const loadUserProfile = useCallback(async () => {
+    const loadUserProfile = useCallback(async (showLoader = true) => {
         try {
-            setLoading(true);
+            if (showLoader) setLoading(true);
             setImageError(false);
             const profile = await userService.getUserProfile();
             setUser(profile);
@@ -42,39 +45,24 @@ const AdminProfile = ({ navigation }) => {
         }
     }, [t]);
 
+    const handleRefresh = useCallback(async () => {
+        setRefreshing(true);
+        try { await loadUserProfile(false); } finally { setRefreshing(false); }
+    }, [loadUserProfile]);
+
     useEffect(() => {
         loadUserProfile();
-        const unsubscribe = navigation.addListener('focus', loadUserProfile);
+        const unsubscribe = navigation.addListener('focus', () => loadUserProfile());
         return unsubscribe;
     }, [navigation, loadUserProfile]);
 
-    const handleLogout = useCallback(() => {
-        showErrorModal(
-            t('nav.logout'),
-            t('common.confirm'),
-            [
-                { text: t('common.cancel') },
-                {
-                    text: t('nav.logout'),
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            hideErrorModal();
-                            await saveUserInfo(user.phoneNumber, user.userType, {
-                                name: user.name,
-                                profilePicture: user.profilePicture,
-                            });
-                            await userService.logout(true);
-                            navigation.reset({ index: 0, routes: [{ name: 'PhoneNumber' }] });
-                        } catch (err) {
-                            logger.error('Logout error:', err);
-                        }
-                    },
-                },
-            ],
-            'warning'
-        );
-    }, [user, navigation, t]);
+    const handleLogout = () => confirmLogout({
+        t, navigation,
+        phoneNumber: user.phoneNumber,
+        userType: user.userType,
+        name: user.name,
+        profilePicture: user.profilePicture,
+    });
 
     if (loading) {
         return (
@@ -107,17 +95,20 @@ const AdminProfile = ({ navigation }) => {
                     styles.content,
                     gStyles.scrollViewContentWithBottomInset(safeAreaHelpers.getBottomSafeArea(insets) + dimensions.bottomTabHeight),
                 ]}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} colors={[colors.primary]} />
+                }
                 showsVerticalScrollIndicator={false}
             >
                 <View style={styles.tabletCentering}>
-                    <View style={[styles.profileCard, { backgroundColor: colors.surface }]}>
+                    <View style={[styles.profileCard, colors.elevation.sm, { backgroundColor: colors.surface }]}>
                         <Image
                             source={{ uri: imageError ? DEFAULT_AVATAR_URL : (user.profilePicture || DEFAULT_AVATAR_URL) }}
                             style={[styles.avatar, { borderColor: colors.border.light }]}
                             onError={() => setImageError(true)}
                         />
                         <View style={styles.profileInfo}>
-                            <Text style={[styles.userName, { color: colors.text.inverse }]} numberOfLines={1}>
+                            <Text style={[styles.userName, { color: colors.text.primary }]} numberOfLines={1}>
                                 {user.name || t('common.user')}
                             </Text>
                             <View style={styles.phoneRow}>
@@ -135,6 +126,7 @@ const AdminProfile = ({ navigation }) => {
                             style={[styles.editBtn, { backgroundColor: colors.opacity.background.primary }]}
                             onPress={() => navigation.navigate('CustomerEditProfile', { profile: user })}
                             activeOpacity={interactions.activeOpacityLight}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         >
                             <Ionicons name="create-outline" size={18} color={colors.primary} />
                         </TouchableOpacity>
@@ -200,7 +192,6 @@ const styles = StyleSheet.create({
         padding: spacing.lg,
         marginBottom: spacing.lg,
         gap: spacing.md,
-        ...shadows.small,
     },
     avatar: {
         width: 64,
@@ -210,8 +201,7 @@ const styles = StyleSheet.create({
     },
     profileInfo: { flex: 1 },
     userName: {
-        fontSize: typography.md,
-        fontWeight: '700',
+        ...typography.styles.title,
         marginBottom: spacing.xs,
     },
     phoneRow: {
@@ -220,7 +210,7 @@ const styles = StyleSheet.create({
         gap: spacing.xs,
         marginBottom: spacing.xs,
     },
-    userPhone: { fontSize: typography.sm },
+    userPhone: { ...typography.styles.caption },
     adminBadge: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -231,9 +221,7 @@ const styles = StyleSheet.create({
         borderRadius: radius.lg,
     },
     adminBadgeText: {
-        fontSize: typography.xs,
-        fontWeight: '700',
-        letterSpacing: 0.5,
+        ...typography.styles.badge,
     },
     editBtn: {
         width: 36,

@@ -4,16 +4,19 @@ import { useTranslation } from 'react-i18next'
 import { Trash2, Users, ChevronRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { usersApi } from '@/lib/api'
-import { formatDate } from '@/lib/utils'
+import { formatDate, apiErrorMessage } from '@/lib/utils'
 import UserAvatar from '@/components/UserAvatar'
 import Input from '@/components/Input'
 import { useAuthStore } from '@/store'
 import PageHeader from '@/components/PageHeader'
 import SearchBar from '@/components/SearchBar'
 import EmptyState from '@/components/EmptyState'
+import ErrorState from '@/components/ErrorState'
 import ConfirmModal from '@/components/ConfirmModal'
+import { TypeBadge } from '@/components/StatusBadge'
 import DensityToggle from '@/components/DensityToggle'
 import { useTableDensity } from '@/hooks/useTableDensity'
+import { useMinDisplayTime } from '@/hooks/useMinDisplayTime'
 import { toast } from 'sonner'
 
 export default function AdminUsers() {
@@ -26,10 +29,11 @@ export default function AdminUsers() {
   const cellPad = density === 'compact' ? 'px-4 py-1.5' : 'px-4 py-3'
   const qc = useQueryClient()
 
-  const { data: users = [], isLoading } = useQuery({
+  const { data: users = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['admin-users'],
     queryFn: usersApi.getAll,
   })
+  const showSkeleton = useMinDisplayTime(isLoading)
 
   const filtered = useMemo(() => {
     return users.filter((u) => {
@@ -41,8 +45,8 @@ export default function AdminUsers() {
 
   const deleteMut = useMutation({
     mutationFn: usersApi.deleteUser,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-users'] }); toast.success(t('admin.userDeleted')) },
-    onError: (e) => toast.error(e.response?.data?.message || t('common.error')),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-users'] }); qc.invalidateQueries({ queryKey: ['admin-stats'] }); toast.success(t('admin.userDeleted')) },
+    onError: (e) => toast.error(apiErrorMessage(e, t, t('common.error'))),
   })
 
   return (
@@ -61,12 +65,14 @@ export default function AdminUsers() {
         </Input>
         <DensityToggle density={density} onToggle={toggleDensity} className="ml-auto" />
       </div>
-      {isLoading ? (
+      {showSkeleton ? (
         <div className="space-y-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="h-16 bg-surface2 rounded-card animate-pulse" />
           ))}
         </div>
+      ) : isError ? (
+        <ErrorState onRetry={refetch} />
       ) : filtered.length === 0 ? (
         <EmptyState icon={Users} title={t('common.noData')} />
       ) : (
@@ -86,17 +92,15 @@ export default function AdminUsers() {
               {filtered.map((user) => (
                 <tr key={user.id} className="border-b border-border/50 last:border-b-0 hover:bg-surface2/50 transition-colors">
                   <td className={cellPad}>
-                    <Link to={`/admin/users/${user.id}`} className="flex items-center gap-3 hover:text-primary transition-colors group">
+                    <Link to={`/admin/users/${user.id}`} className="flex items-center gap-3 hover:text-primary-text transition-colors group">
                       <UserAvatar src={user.profile_picture} name={user.given_name} size="sm" />
-                      <span className="text-text group-hover:text-primary">{user.given_name ?? '—'}</span>
+                      <span className="text-text group-hover:text-primary-text">{user.given_name ?? '—'}</span>
                       <ChevronRight size={12} className="text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
                     </Link>
                   </td>
                   <td className={`${cellPad} text-muted hidden sm:table-cell`}>{user.phone_number}</td>
                   <td className={cellPad}>
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-md border ${user.type === 'PROVIDER' ? 'bg-primary/10 text-primary border-primary/20' : 'bg-surface2 text-muted border-border/50'}`}>
-                      {user.type === 'PROVIDER' ? t('onboarding.provider') : user.type === 'CUSTOMER' ? t('onboarding.customer') : '—'}
-                    </span>
+                    <TypeBadge type={user.type} />
                   </td>
                   <td className={`${cellPad} text-muted hidden sm:table-cell`}>{formatDate(user.date_created)}</td>
                   <td className={cellPad}>
@@ -105,7 +109,7 @@ export default function AdminUsers() {
                         onClick={() => setDeleteTarget(user)}
                         title={t('common.delete')}
                         aria-label={t('common.delete')}
-                        className="min-w-9 min-h-9 flex items-center justify-center text-muted hover:text-danger hover:bg-danger/10 rounded-btn transition-colors"
+                        className="min-w-[44px] min-h-[44px] flex items-center justify-center text-muted hover:text-danger hover:bg-danger/10 rounded-btn transition-colors"
                       >
                         <Trash2 size={14} />
                       </button>

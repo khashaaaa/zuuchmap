@@ -6,20 +6,39 @@ import { toast } from 'sonner'
 import { reviewsApi } from '@/lib/api'
 import InfoSection from '@/components/InfoSection'
 import Input from '@/components/Input'
+import Button from '@/components/Button'
 import UserAvatar from '@/components/UserAvatar'
-import { formatDate } from '@/lib/utils'
+import ErrorState from '@/components/ErrorState'
+import { formatDate, apiErrorMessage } from '@/lib/utils'
 
 export function Stars({ value, size = 14, onSelect }) {
+  const { t } = useTranslation()
   return (
     <span className="inline-flex gap-0.5">
-      {[1, 2, 3, 4, 5].map((i) => (
-        <Star
-          key={i}
-          size={size}
-          className={`${i <= value ? 'text-warning fill-warning' : 'text-border'} ${onSelect ? 'cursor-pointer' : ''}`}
-          onClick={onSelect ? () => onSelect(i) : undefined}
-        />
-      ))}
+      {[1, 2, 3, 4, 5].map((i) => {
+        const star = (
+          <Star
+            size={size}
+            className={i <= value ? 'text-warning fill-warning' : 'text-border-strong'}
+          />
+        )
+        // The interactive variant is the only rating input — it has to be a
+        // real button so keyboard and screen-reader users can rate at all.
+        return onSelect ? (
+          <button
+            key={i}
+            type="button"
+            onClick={() => onSelect(i)}
+            aria-label={t('review.rateStars', { count: i })}
+            aria-pressed={i <= value}
+            className="cursor-pointer rounded focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary"
+          >
+            {star}
+          </button>
+        ) : (
+          <span key={i}>{star}</span>
+        )
+      })}
     </span>
   )
 }
@@ -31,7 +50,7 @@ export default function ProviderReviews({ providerId, canReview }) {
   const [rating, setRating] = useState(0)
   const [comment, setComment] = useState('')
 
-  const { data } = useQuery({
+  const { data, isError, refetch } = useQuery({
     queryKey: ['reviews', providerId],
     queryFn: () => reviewsApi.forProvider(providerId),
     enabled: Boolean(providerId),
@@ -51,13 +70,18 @@ export default function ProviderReviews({ providerId, canReview }) {
       qc.invalidateQueries({ queryKey: ['reviews', providerId] })
       toast.success(t('review.submitted'))
     },
-    onError: (e) => {
-      if (e.response?.status === 403) toast.error(t('review.notEligible'))
-      else toast.error(t('common.error'))
-    },
+    onError: (e) => toast.error(apiErrorMessage(e, t, t('common.error'))),
   })
 
-  if (!providerId || !data) return null
+  if (!providerId) return null
+  // A failed load must not silently erase the reviews section — trust signals
+  // vanishing without a trace reads as "this provider has no reputation".
+  if (isError) return (
+    <InfoSection title={t('review.title')}>
+      <ErrorState compact onRetry={refetch} />
+    </InfoSection>
+  )
+  if (!data) return null
   const { average, count, reviews } = data
 
   return (
@@ -76,13 +100,9 @@ export default function ProviderReviews({ providerId, canReview }) {
           </div>
           <Input as="textarea" rows={2} value={comment} onChange={(e) => setComment(e.target.value)}
             placeholder={t('review.comment')} className="resize-none bg-background" />
-          <button
-            onClick={() => mut.mutate()}
-            disabled={!rating || mut.isPending}
-            className="px-4 py-1.5 bg-primary text-on-primary font-semibold rounded-btn text-xs hover:bg-primary/90 disabled:opacity-50 transition-colors"
-          >
+          <Button size="sm" onClick={() => mut.mutate()} disabled={!rating || mut.isPending}>
             {mut.isPending ? t('common.saving') : t('review.submit')}
-          </button>
+          </Button>
         </div>
       )}
 
@@ -97,7 +117,7 @@ export default function ProviderReviews({ providerId, canReview }) {
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-medium text-text">{r.author?.given_name || '—'}</span>
                   <Stars value={r.rating} size={11} />
-                  <span className="text-[11px] text-muted">{formatDate(r.date_updated)}</span>
+                  <span className="text-xs text-muted">{formatDate(r.date_updated)}</span>
                 </div>
                 {r.comment && <p className="text-xs text-muted mt-1">{r.comment}</p>}
               </div>

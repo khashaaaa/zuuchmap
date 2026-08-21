@@ -1,10 +1,35 @@
-import { QueryClient } from '@tanstack/react-query';
+import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query';
 import { invalidatePostCaches } from '../utils/cacheManager';
+
+/**
+ * Safety net under the per-screen error states: every read/write failure is
+ * reported, so a bug that only reproduces on a user's phone still reaches us.
+ * No UI here — screens own how a failure looks.
+ *
+ * The import is lazy because analytics -> authHelpers -> queryClient is a cycle.
+ */
+const report = (error, context) => {
+  if (error?.response?.status === 401) return; // handled by the axios interceptor
+  import('./analytics')
+    .then((m) => m.reportError(error, context))
+    .catch(() => {});
+};
+
+const queryCache = new QueryCache({
+  onError: (error, query) => report(error, `query:${String(query.queryKey?.[0] ?? 'unknown')}`),
+});
+
+const mutationCache = new MutationCache({
+  onError: (error, _vars, _ctx, mutation) =>
+    report(error, `mutation:${String(mutation.options.mutationKey?.[0] ?? 'unknown')}`),
+});
 
 // Single app-wide client. Screens read server state exclusively through React Query;
 // AsyncStorage-backed service caches (map, categories) exist only as offline fallbacks
 // inside queryFns.
 export const queryClient = new QueryClient({
+  queryCache,
+  mutationCache,
   defaultOptions: {
     queries: {
       retry: 2,

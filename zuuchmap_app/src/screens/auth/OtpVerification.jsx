@@ -1,247 +1,197 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View,
     Text,
-    TextInput,
     TouchableOpacity,
-    KeyboardAvoidingView,
     Platform,
     StatusBar,
     StyleSheet,
+    Linking,
+    ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { spacing, typography, radius, interactions, isTablet } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useAppContext } from '../../context/AppContext';
 import { useTranslation } from 'react-i18next';
 import userService from '../../services/api/userService';
-import { getDeviceInfo } from '../../utils/navigationUtils';
+import { saveUserInfo } from '../../services/api/authHelpers';
 import { navigateToDashboard } from '../../utils/navigationUtils';
 import { getErrorMessage, showErrorModal } from '../../utils/errorManager';
-import { API_CONFIG } from '../../config/api.config';
+import { track } from '../../services/analytics';
 import { logger } from '../../utils/logger';
 import Button from '../../components/Button';
 
+/** Client poll cadence; the engine throttles its own upstream calls to 3s. */
+const POLL_MS = 2000;
+
+/**
+ * verify.mn is Mobile-Originated: we never send the user an SMS. We show a code
+ * they text to the shortcode from the number they are claiming, and possession
+ * is proven by that message arriving from that number.
+ */
 const OtpVerification = ({ route, navigation }) => {
-    const {
-        phoneNumber,
-        userExists,
-        isExistingUser,
-        userType,
-        skipToRoleSelection = false
-    } = route.params || {};
+    const { phoneNumber, userType, session } = route.params || {};
 
-    const [otp, setOtp] = useState(['', '', '', '', '', '']);
-    const [timer, setTimer] = useState(60);
-    const [isResending, setIsResending] = useState(false);
-    const [isVerifying, setIsVerifying] = useState(false);
+    const [status, setStatus] = useState('PENDING');
+    const [now, setNow] = useState(() => Date.now());
+    const settled = useRef(false);
 
-    const inputRefs = useRef([]);
     const { colors, isDark } = useAppTheme();
     const { setThemeMode } = useAppContext();
     const { t } = useTranslation();
 
-    useEffect(() => {
-        inputRefs.current = inputRefs.current.slice(0, 6);
-        const timer = setTimeout(() => inputRefs.current[0]?.focus(), 300);
-        return () => clearTimeout(timer);
-    }, []);
+    const expiresAt = session?.expires_at ? Date.parse(session.expires_at) : now + 300000;
+    const secondsLeft = Math.max(0, Math.round((expiresAt - now) / 1000));
+    const view = status === 'PENDING' && secondsLeft <= 0 ? 'EXPIRED' : status;
 
-    useEffect(() => {
-        if (timer > 0) {
-            const interval = setInterval(() => {
-                setTimer(prev => prev - 1);
-            }, 1000);
-            return () => clearInterval(interval);
+    const finish = useCallback(async (auth) => {
+        const isAdmin = auth?.user?.is_admin === true;
+        track('auth.verified', { trusted_device: false });
+
+        if (userType) {
+            await saveUserInfo(phoneNumber, userType);
+            navigateToDashboard(navigation, userType, isAdmin);
+        } else {
+            navigation.navigate('UserRoleSelection', { phoneNumber });
         }
-    }, [timer]);
+    }, [navigation, phoneNumber, userType]);
 
-    const handleOtpChange = (text, index) => {
-        const newOtp = [...otp];
-        newOtp[index] = text;
-        setOtp(newOtp);
-
-        if (text.length === 1 && index < 5) {
-            inputRefs.current[index + 1].focus();
-        }
-    };
-
-    const handleKeyPress = (e, index) => {
-        if (e.nativeEvent.key === 'Backspace' && index > 0 && otp[index] === '') {
-            inputRefs.current[index - 1].focus();
-        }
-    };
-
-    const handleResendOtp = async () => {
-        setIsResending(true);
+    const poll = useCallback(async () => {
+        if (settled.current || !session?.session_id) return;
         try {
-            await userService.sendOtp(phoneNumber);
-            setTimer(60);
-        } catch (error) {
-            showErrorModal(t('common.error'), getErrorMessage(error, t('auth.codeSendError')));
-        } finally {
-            setIsResending(false);
-        }
-    };
+            const result = await userService.checkVerification(session.session_id, phoneNumber);
 
-    const handleVerifyOtp = async () => {
-        const otpString = otp.join('');
-        if (otpString.length !== 6) {
-            showErrorModal(t('common.error'), t('auth.enterCode'));
-            return;
-        }
-
-        setIsVerifying(true);
-        try {
-            const deviceInfo = getDeviceInfo();
-            const response = await userService.verifyOtp(
-                phoneNumber,
-                otpString,
-                null,
-                deviceInfo
-            );
-
-            if (response.data && response.data.success) {
-                const isAdmin = response.data.data?.is_admin === true;
-                if (isExistingUser && userType) {
-                    if (userType) {
-                        const { saveUserInfo } = await import('../../services/api/authHelpers');
-                        await saveUserInfo(phoneNumber, userType);
-                    }
-                    navigateToDashboard(navigation, userType, isAdmin);
-                } else if (isExistingUser && skipToRoleSelection) {
-                    navigation.navigate('UserRoleSelection', {
-                        phoneNumber,
-                        userId: response.data.data?.id,
-                        token: response.data.data?.token
-                    });
-                } else {
-                    navigation.navigate('UserRoleSelection', {
-                        phoneNumber,
-                        userId: response.data.data?.id,
-                        token: response.data.data?.token,
-                    });
-                }
+            if (result.status === 'VERIFIED' && result.auth) {
+                settled.current = true;
+                setStatus('VERIFIED');
+                await finish(result.auth);
+                return;
+            }
+            if (result.status === 'EXPIRED') {
+                settled.current = true;
+                setStatus('EXPIRED');
             }
         } catch (error) {
-            logger.error('OTP verification error:', error);
-            setOtp(['', '', '', '', '', '']);
-            inputRefs.current[0]?.focus();
-            const errorMessage = error?.response?.status === 400
-                ? t('auth.wrongCode')
-                : getErrorMessage(error, t('auth.wrongCode'));
-            showErrorModal(t('common.error'), errorMessage);
-        } finally {
-            setIsVerifying(false);
+            // 410 means already consumed; anything else is transient and the
+            // next tick retries.
+            if (error?.response?.status === 410) {
+                settled.current = true;
+                setStatus('EXPIRED');
+            } else {
+                logger.debug('Verification poll failed, retrying', error?.message);
+            }
+        }
+    }, [session?.session_id, phoneNumber, finish]);
+
+    useEffect(() => {
+        if (status !== 'PENDING') return undefined;
+        const id = setInterval(poll, POLL_MS);
+        return () => clearInterval(id);
+    }, [status, poll]);
+
+    useEffect(() => {
+        if (status !== 'PENDING') return undefined;
+        const id = setInterval(() => setNow(Date.now()), 1000);
+        return () => clearInterval(id);
+    }, [status]);
+
+    const openSms = async () => {
+        try {
+            await Linking.openURL(session.sms_uri);
+        } catch (error) {
+            showErrorModal(t('common.error'), getErrorMessage(error, t('auth.smsOpenError')));
         }
     };
 
-    const isOtpComplete = otp.every(digit => digit !== '') && otp.join('').length === 6;
+    const mins = String(Math.floor(secondsLeft / 60)).padStart(2, '0');
+    const secs = String(secondsLeft % 60).padStart(2, '0');
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
             <StatusBar backgroundColor={colors.surface} barStyle={isDark ? 'light-content' : 'dark-content'} />
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={styles.flex1}
-            >
-                <View style={styles.tabletCentering}>
+            <View style={styles.tabletCentering}>
                 <View style={styles.content}>
                     <View style={styles.topRow}>
                         <TouchableOpacity
                             style={styles.backButton}
                             onPress={() => navigation.goBack()}
-                            activeOpacity={interactions.activeOpacity}
+                            activeOpacity={interactions.activeOpacityLight}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         >
-                            <Ionicons name="arrow-back" size={24} color={colors.primary} />
+                            <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={[styles.themeToggle, { backgroundColor: colors.opacity.background.primary }]}
                             onPress={() => setThemeMode(isDark ? 'light' : 'dark')}
                             activeOpacity={interactions.activeOpacityLight}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         >
                             <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={colors.primary} />
                         </TouchableOpacity>
                     </View>
 
                     <View style={styles.header}>
-                        <Ionicons name="shield-checkmark-outline" size={64} color={colors.primary} />
+                        <View style={[styles.iconContainer, { backgroundColor: colors.opacity.background.primary }]}>
+                            <Ionicons name="chatbox-ellipses-outline" size={56} color={colors.primary} />
+                        </View>
                         <Text style={[styles.title, { color: colors.text.primary }]}>
-                            {t('auth.verifyTitle')}
+                            {t('auth.smsTitle')}
                         </Text>
                         <Text style={[styles.subtitle, { color: colors.text.secondary }]}>
-                            {t('auth.verifySubtitle', { phone: phoneNumber })}
+                            {t('auth.smsLead', { shortcode: session?.shortcode ?? '144773' })}
                         </Text>
-                        {isExistingUser && (
-                            <View style={[styles.existingUserBadge, { backgroundColor: colors.opacity.background.success }]}>
-                                <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
-                                <Text style={[styles.existingUserText, { color: colors.success }]}>
-                                    {userType ? `${userType === 'PROVIDER' ? t('onboarding.provider') : t('onboarding.customer')}` : t('common.user')}
-                                </Text>
-                            </View>
-                        )}
+
+                        <View style={[styles.codeCard, { backgroundColor: colors.surface, borderColor: colors.border.medium }]}>
+                            <Text style={[styles.codeLabel, { color: colors.text.secondary }]}>
+                                {t('auth.yourCode')}
+                            </Text>
+                            <Text style={[styles.code, { color: colors.text.primary }]}>
+                                {session?.code}
+                            </Text>
+                        </View>
                     </View>
 
                     <View style={styles.form}>
-                        <View style={styles.otpContainer}>
-                            {otp.map((digit, index) => (
-                                <TextInput
-                                    key={index}
-                                    ref={ref => inputRefs.current[index] = ref}
-                                    style={[
-                                        styles.otpInput,
-                                        { borderColor: colors.border.medium, color: colors.text.inverse, backgroundColor: colors.surface },
-                                        digit && { borderColor: colors.primary },
-                                    ]}
-                                    value={digit}
-                                    onChangeText={text => handleOtpChange(text, index)}
-                                    onKeyPress={e => handleKeyPress(e, index)}
-                                    keyboardType="number-pad"
-                                    maxLength={1}
-                                    textAlign="center"
-                                    textContentType="oneTimeCode"
-                                    autoComplete="sms-otp"
-                                />
-                            ))}
-                        </View>
-
-                        <Button
-                            title={isVerifying ? t('auth.verifying') : t('auth.verify')}
-                            onPress={handleVerifyOtp}
-                            disabled={!isOtpComplete || isVerifying}
-                            loading={isVerifying}
-                            fullWidth
-                        />
-
-                        <View style={styles.resendContainer}>
-                            <Text style={[styles.resendText, { color: colors.text.secondary }]}>
-                                {t('auth.enterCode')}{' '}
-                            </Text>
-                            {timer > 0 ? (
-                                <Text style={[styles.timerText, { color: colors.text.secondary }]}>
-                                    {t('auth.resendIn', { count: timer })}
-                                </Text>
-                            ) : (
-                                <TouchableOpacity onPress={handleResendOtp} disabled={isResending} activeOpacity={interactions.activeOpacityLight}>
-                                    <Text style={[styles.resendButton, { color: colors.primary }]}>
-                                        {isResending ? t('auth.resending') : t('auth.resend')}
+                        {view === 'PENDING' && (
+                            <>
+                                <Button title={t('auth.openSms')} onPress={openSms} />
+                                <View style={styles.waitingRow}>
+                                    <ActivityIndicator size="small" color={colors.primary} />
+                                    <Text style={[styles.waitingText, { color: colors.text.secondary }]}>
+                                        {t('auth.waiting')} {mins}:{secs}
                                     </Text>
-                                </TouchableOpacity>
-                            )}
-                        </View>
+                                </View>
+                                <Text style={[styles.costNote, { color: colors.text.secondary }]}>
+                                    {t('auth.cost')}
+                                </Text>
+                            </>
+                        )}
+
+                        {view === 'EXPIRED' && (
+                            <>
+                                <Text style={[styles.expiredText, { color: colors.danger }]}>
+                                    {t('auth.expired')}
+                                </Text>
+                                <Button title={t('auth.startOver')} onPress={() => navigation.goBack()} />
+                            </>
+                        )}
+
+                        {view === 'VERIFIED' && (
+                            <Text style={[styles.waitingText, { color: colors.success, textAlign: 'center' }]}>
+                                {t('auth.verified')}
+                            </Text>
+                        )}
                     </View>
                 </View>
-                </View>{/* end tabletCentering */}
-            </KeyboardAvoidingView>
+            </View>
         </SafeAreaView>
     );
 };
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    flex1: { flex: 1 },
     tabletCentering: {
         flex: 1,
         maxWidth: isTablet ? 480 : '100%',
@@ -259,72 +209,68 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: spacing.lg,
     },
-    backButton: {
-        padding: spacing.sm,
-    },
+    backButton: { padding: spacing.sm },
     themeToggle: {
         width: 36,
         height: 36,
-        borderRadius: radius.xl,
+        borderRadius: radius.full,
         justifyContent: 'center',
         alignItems: 'center',
     },
     header: {
         alignItems: 'center',
-        marginBottom: spacing.xxxl,
         flex: 1,
         justifyContent: 'center',
     },
+    iconContainer: {
+        width: 96,
+        height: 96,
+        borderRadius: radius.xl,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: spacing.lg,
+    },
     title: {
-        fontSize: typography.xxl,
-        fontWeight: 'bold',
-        marginTop: spacing.lg,
+        ...typography.styles.h2,
         marginBottom: spacing.sm,
         textAlign: 'center',
     },
     subtitle: {
-        fontSize: typography.md,
+        ...typography.styles.body,
         textAlign: 'center',
-        lineHeight: 22,
-        marginBottom: spacing.md,
+        marginBottom: spacing.xl,
     },
-    existingUserBadge: {
-        flexDirection: 'row',
+    codeCard: {
+        alignSelf: 'stretch',
         alignItems: 'center',
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.xs,
+        borderWidth: 1,
         borderRadius: radius.card,
-        gap: spacing.xs,
+        paddingVertical: spacing.lg,
     },
-    existingUserText: {
-        fontSize: typography.sm,
-        fontWeight: '600',
+    codeLabel: { ...typography.styles.caption, marginBottom: spacing.xs },
+    code: {
+        ...typography.styles.display,
+        letterSpacing: 8,
     },
     form: {
-        gap: spacing.xxl,
+        gap: spacing.lg,
         paddingBottom: spacing.xxl,
     },
-    otpContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingHorizontal: spacing.sm,
-    },
-    otpInput: {
-        width: 48,
-        height: 48,
-        borderWidth: 2,
-        borderRadius: radius.md,
-        fontSize: typography.xl,
-    },
-    resendContainer: {
+    waitingRow: {
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
-        flexWrap: 'wrap',
+        gap: spacing.sm,
     },
-    resendText: { fontSize: typography.sm },
-    timerText: { fontSize: typography.sm },
-    resendButton: { fontWeight: 'bold', fontSize: typography.sm },
+    waitingText: { ...typography.styles.caption },
+    costNote: {
+        ...typography.styles.small,
+        textAlign: 'center',
+    },
+    expiredText: {
+        ...typography.styles.caption,
+        textAlign: 'center',
+    },
 });
 
 export default OtpVerification;

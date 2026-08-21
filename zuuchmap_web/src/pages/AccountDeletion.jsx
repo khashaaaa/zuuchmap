@@ -5,7 +5,9 @@ import { useTranslation } from 'react-i18next'
 import { useMutation } from '@tanstack/react-query'
 import { useAuthStore } from '@/store'
 import { usersApi } from '@/lib/api'
+import { goBack } from '@/lib/utils'
 import Button from '@/components/Button'
+import AlertBanner from '@/components/AlertBanner'
 import ConfirmModal from '@/components/ConfirmModal'
 import PageHeader from '@/components/PageHeader'
 import { toast } from 'sonner'
@@ -29,15 +31,11 @@ export default function AccountDeletion() {
   return (
     <div className="min-h-screen bg-background p-3 md:p-6">
       <div className="max-w-2xl mx-auto">
-        <PageHeader title={t('accountDeletion.title')} icon={Trash2} onBack={() => navigate(-1)} />
+        <PageHeader title={t('accountDeletion.title')} icon={Trash2} onBack={() => goBack(navigate, '/')} />
 
-        <div className="flex gap-3 bg-danger/10 border border-danger/30 rounded-card p-4 mb-4">
-          <AlertTriangle size={20} className="text-danger shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-semibold text-danger mb-1">{t('accountDeletion.warningTitle')}</p>
-            <p className="text-sm text-muted">{t('accountDeletion.warning')}</p>
-          </div>
-        </div>
+        <AlertBanner variant="danger" title={t('accountDeletion.warningTitle')} icon={AlertTriangle} className="mb-4">
+          {t('accountDeletion.warning')}
+        </AlertBanner>
 
         <div className="bg-surface border border-border/20 shadow-card rounded-card p-6 md:p-8 space-y-5 mb-4">
           <div>

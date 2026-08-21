@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, TextInput, StyleSheet } from 'react-nativ
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { spacing, typography, radius } from '../design/theme';
+import { spacing, typography, radius, interactions } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
 import bookingService from '../services/api/bookingService';
 import { showErrorModal, getErrorMessage } from '../utils/errorManager';
@@ -11,9 +11,15 @@ import { formatDateYYYYMMDD } from '../utils/displayUtils';
 import Button from './Button';
 
 const Stars = ({ value, size = 14, color, onSelect }) => (
-    <View style={{ flexDirection: 'row', gap: 2 }}>
+    <View style={{ flexDirection: 'row', gap: spacing.xxs }}>
         {[1, 2, 3, 4, 5].map((i) => (
-            <TouchableOpacity key={i} disabled={!onSelect} onPress={() => onSelect?.(i)}>
+            <TouchableOpacity
+                key={i}
+                disabled={!onSelect}
+                onPress={() => onSelect?.(i)}
+                activeOpacity={interactions.activeOpacityLight}
+                hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+            >
                 <Ionicons name={i <= value ? 'star' : 'star-outline'} size={size} color={color} />
             </TouchableOpacity>
         ))}
@@ -131,17 +137,17 @@ const createStyles = (colors) => StyleSheet.create({
         gap: spacing.md,
     },
     headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: spacing.sm },
-    title: { fontSize: typography.md, fontWeight: '700', color: colors.text.inverse },
+    title: { ...typography.styles.title, color: colors.text.primary },
     avgRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-    avgText: { fontSize: typography.sm, color: colors.text.secondary },
+    avgText: { ...typography.styles.caption, color: colors.text.secondary },
     form: { gap: spacing.md },
-    commentInput: { backgroundColor: colors.background, color: colors.text.inverse, borderColor: colors.border.light, minHeight: 60, textAlignVertical: 'top' },
-    empty: { fontSize: typography.sm, color: colors.text.tertiary },
+    commentInput: { backgroundColor: colors.background, color: colors.text.primary, borderColor: colors.border.light, minHeight: 60, textAlignVertical: 'top' },
+    empty: { ...typography.styles.caption, color: colors.text.tertiary },
     reviewRow: { backgroundColor: colors.background, borderRadius: radius.card, padding: spacing.md, gap: spacing.xs },
     reviewHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
-    reviewAuthor: { fontSize: typography.sm, fontWeight: '600', color: colors.text.inverse },
-    reviewDate: { fontSize: typography.xs, color: colors.text.tertiary },
-    reviewComment: { fontSize: typography.sm, color: colors.text.secondary },
+    reviewAuthor: { ...typography.styles.label, color: colors.text.primary },
+    reviewDate: { ...typography.styles.small, color: colors.text.tertiary },
+    reviewComment: { ...typography.styles.caption, color: colors.text.secondary },
 });
 
 export default ReviewSection;

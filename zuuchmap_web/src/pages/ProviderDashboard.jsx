@@ -3,8 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Plus, FileText, Eye } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { postsApi } from '@/lib/api'
+import { BarList } from '@/components/Charts'
 import { useAuthStore as useStore } from '@/store'
 import StatCard from '@/components/StatCard'
 import PageHeader from '@/components/PageHeader'
@@ -17,16 +17,18 @@ export default function ProviderDashboard() {
   const { t } = useTranslation()
   const user = useStore((s) => s.user)
 
-  const { data: posts = [], isLoading } = useQuery({
+  const { data: posts = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['my-posts'],
     queryFn: postsApi.getMine,
   })
 
   const totalViews = useMemo(() => posts.reduce((sum, p) => sum + (p.views ?? 0), 0), [posts])
   const approved = useMemo(() => posts.filter((p) => p.approval_status === 'APPROVED').length, [posts])
+  // BarList truncates via CSS and shows the full title on hover — no manual clipping.
   const chartData = useMemo(() => posts.map((p) => ({
-    name: p.title ? p.title.substring(0, 15) + (p.title.length > 15 ? '…' : '') : '—',
-    views: p.views ?? 0,
+    key: p.id,
+    label: p.title || '—',
+    value: p.views ?? 0,
   })), [posts])
 
   return (
@@ -45,31 +47,21 @@ export default function ProviderDashboard() {
         <StatCard icon={Eye} label={t('posts.totalViews')} value={totalViews} />
       </div>
       <div className="bg-surface border border-border/20 shadow-card rounded-card p-5 md:p-6 mb-8">
-        <h3 className="text-sm font-semibold text-text mb-4">{t('posts.postViewsChart')}</h3>
+        <h2 className="text-sm font-semibold text-text mb-4">{t('posts.postViewsChart')}</h2>
         {chartData.length === 0 ? (
           <p className="text-base text-muted text-center py-6">{t('posts.noMyPosts')}</p>
         ) : (
-          <div className="min-h-[160px]">
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={chartData} margin={{ top: 4, right: 8, left: -16, bottom: 4 }}>
-              <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'var(--color-muted)' }} />
-              <YAxis tick={{ fontSize: 11, fill: 'var(--color-muted)' }} allowDecimals={false} />
-              <Tooltip
-                contentStyle={{ background: 'var(--color-surface2)', border: '1px solid var(--color-border)', borderRadius: 8, color: 'var(--color-text)' }}
-                cursor={{ fill: 'var(--color-surface2)' }}
-              />
-              <Bar dataKey="views" fill="var(--color-primary)" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-          </div>
+          <BarList data={chartData} label={t('posts.postViewsChart')} />
         )}
       </div>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="font-semibold text-text">{t('posts.recentPosts')}</h2>
-        <Link to="/provider/posts" className="text-sm text-primary hover:underline">{t('common.viewAll')}</Link>
+        <h2 className="text-sm font-semibold text-text">{t('posts.recentPosts')}</h2>
+        <Link to="/provider/posts" className="text-sm text-primary-text hover:underline">{t('common.viewAll')}</Link>
       </div>
       <PostGrid
         isLoading={isLoading}
+        isError={isError}
+        onRetry={refetch}
         isEmpty={posts.length === 0}
         emptyState={
           <EmptyState
@@ -85,8 +77,8 @@ export default function ProviderDashboard() {
         cols={3}
         skeletonCount={3}
       >
-        {posts.slice(0, 6).map((post) => (
-          <PostCard key={post.id} post={post} to={`/provider/posts/${post.id}`} />
+        {posts.slice(0, 6).map((post, i) => (
+          <PostCard key={post.id} post={post} to={`/provider/posts/${post.id}`} index={i} />
         ))}
       </PostGrid>
     </div>

@@ -25,7 +25,7 @@ const ContactSection = ({
                 error={error}
                 component={
                     <TextInput
-                        style={[gStyles.input, { backgroundColor: colors.surface, color: colors.text.inverse, borderColor: colors.border.light }, error && gStyles.inputError]}
+                        style={[gStyles.input, { backgroundColor: colors.surface, color: colors.text.primary, borderColor: colors.border.light }, error && gStyles.inputError]}
                         value={contactPhone}
                         onChangeText={(text) => onContactPhoneChange(text.replace(/[^0-9]/g, ''))}
                         keyboardType="phone-pad"

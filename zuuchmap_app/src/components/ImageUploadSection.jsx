@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, ScrollView, Image, ActivityIndicator, Pla
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useTranslation } from 'react-i18next';
-import { spacing, typography, shadows, radius, interactions } from '../design/theme';
+import { spacing, typography, radius, interactions } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { showErrorModal, showInfoModal } from '../utils/errorManager';
 import { logger } from '../utils/logger';
@@ -185,11 +185,11 @@ const ImageUploadSection = ({
                                 style={styles.removeImageButton}
                                 onPress={() => removeImage(index)}
                                 activeOpacity={interactions.activeOpacityLight}
-                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                hitSlop={interactions.hitSlop}
                                 accessibilityRole="button"
                                 accessibilityLabel={t('upload.removeImage')}
                             >
-                                <Ionicons name="close-circle" size={22} color={colors.primary} />
+                                <Ionicons name="close-circle" size={24} color={colors.primary} />
                             </TouchableOpacity>
                             <View style={styles.imageIndexBadge}>
                                 <Text style={styles.imageIndexText}>{index + 1}</Text>
@@ -212,13 +212,12 @@ const ImageUploadSection = ({
 
 const createStyles = (colors) => StyleSheet.create({
     sectionTitle: {
-        fontSize: typography.xl,
-        fontWeight: 'bold',
+        ...typography.styles.h3,
         color: colors.text.primary,
         marginBottom: spacing.xs,
     },
     sectionSubtitle: {
-        fontSize: typography.sm,
+        ...typography.styles.caption,
         color: colors.text.secondary,
     },
     imagePickerButton: {
@@ -234,8 +233,7 @@ const createStyles = (colors) => StyleSheet.create({
     },
     imagePickerText: {
         color: colors.primary,
-        fontSize: typography.sm,
-        fontWeight: typography.weight.medium,
+        ...typography.styles.label,
         marginTop: spacing.xs,
     },
     loadingImagesContainer: {
@@ -252,7 +250,7 @@ const createStyles = (colors) => StyleSheet.create({
     loadingImagesText: {
         marginTop: spacing.sm,
         color: colors.text.secondary,
-        fontSize: typography.sm,
+        ...typography.styles.caption,
     },
     imagesContainer: {
         paddingVertical: spacing.sm,
@@ -269,15 +267,16 @@ const createStyles = (colors) => StyleSheet.create({
         backgroundColor: colors.border.light,
     },
     removeImageButton: {
+        ...colors.elevation.sm,
         position: 'absolute',
         top: -spacing.sm,
         right: -spacing.sm,
         backgroundColor: colors.surface,
         borderRadius: radius.md,
         padding: spacing.xs,
-        ...shadows.small,
     },
     imageIndexBadge: {
+        ...colors.elevation.sm,
         position: 'absolute',
         bottom: -spacing.sm,
         left: -spacing.sm,
@@ -287,15 +286,13 @@ const createStyles = (colors) => StyleSheet.create({
         height: 24,
         justifyContent: 'center',
         alignItems: 'center',
-        ...shadows.small,
     },
     imageIndexText: {
-        color: colors.text.inverse,
-        fontSize: typography.xs,
-        fontWeight: typography.weight.bold,
+        color: colors.onPrimary,
+        ...typography.styles.badge,
     },
     imageCountText: {
-        fontSize: typography.sm,
+        ...typography.styles.caption,
         color: colors.text.secondary,
         textAlign: 'center',
         marginTop: -spacing.md,

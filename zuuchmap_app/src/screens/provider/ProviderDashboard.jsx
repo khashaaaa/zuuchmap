@@ -7,7 +7,7 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import { StatusBar } from 'expo-status-bar';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme } from '../../hooks/useAppTheme';
-import { spacing, shadows, typography, radius, interactions } from '../../design/theme';
+import { spacing, typography, radius, interactions } from '../../design/theme';
 
 import ProviderPostList from './ProviderPostList';
 import ProviderProfile from './ProviderProfile';
@@ -28,7 +28,7 @@ const CreatePostButton = ({ navigation, colors }) => {
             style={styles.createButtonContainer}
             activeOpacity={interactions.activeOpacity}
         >
-            <View style={[styles.createButton, { backgroundColor: colors.primary }]}>
+            <View style={[styles.createButton, colors.elevation.md, { backgroundColor: colors.primary }]}>
                 <Ionicons name="add" size={28} color={colors.onPrimary} />
             </View>
         </TouchableOpacity>
@@ -87,16 +87,16 @@ const ProviderDashboard = ({ navigation }) => {
                     tabBarInactiveTintColor: colors.text.tertiary,
                     headerShown: false,
                     tabBarStyle: {
+                        ...colors.elevation.md,
                         height: Platform.OS === 'ios' ? 88 : 65 + insets.bottom,
                         paddingBottom: Platform.OS === 'ios' ? spacing.md : spacing.sm + insets.bottom,
                         paddingTop: spacing.xs,
                         backgroundColor: colors.surface,
                         borderTopWidth: 1,
                         borderTopColor: colors.border.light,
-                        ...shadows.medium,
                     },
                     tabBarItemStyle: { paddingVertical: spacing.xs, paddingHorizontal: spacing.sm },
-                    tabBarLabelStyle: { fontSize: typography.xs, fontWeight: '500', marginTop: spacing.xs },
+                    tabBarLabelStyle: { ...typography.styles.micro, marginTop: spacing.xs },
                     tabBarHideOnKeyboard: Platform.OS === 'android',
                 })}
                 safeAreaInsets={{ bottom: Platform.OS === 'android' ? insets.bottom : 0 }}
@@ -140,7 +140,6 @@ const styles = StyleSheet.create({
         borderRadius: radius.xxxl,
         justifyContent: 'center',
         alignItems: 'center',
-        ...shadows.medium,
     },
 });
 

@@ -1,9 +1,10 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import BaseModal from './BaseModal';
-import { spacing, typography, radius, shadows, interactions } from '../design/theme';
+import { spacing, typography, radius, interactions, animations } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useTranslation } from 'react-i18next';
 import Button from './Button';
 
@@ -21,7 +22,19 @@ const DialogModal = ({
 }) => {
     const { colors } = useAppTheme();
     const { t } = useTranslation();
+    const reduced = useReducedMotion();
+    const iconScale = useRef(new Animated.Value(1)).current;
     const defaultButtons = buttons || [{ text: t('common.confirm'), onPress: onClose, variant: 'primary' }];
+
+    useEffect(() => {
+        if (!visible) return;
+        if (reduced) {
+            iconScale.setValue(1);
+            return;
+        }
+        iconScale.setValue(0.5);
+        Animated.spring(iconScale, { toValue: 1, useNativeDriver: true, ...animations.spring.modal }).start();
+    }, [visible, reduced, iconScale]);
 
     return (
         <BaseModal
@@ -31,17 +44,22 @@ const DialogModal = ({
             dismissible={dismissible}
         >
             {icon && (
-                <View style={[styles.iconContainer, { backgroundColor: colors.opacity.background.primary }, iconBgColor && { backgroundColor: iconBgColor }]}>
+                <Animated.View style={[
+                    styles.iconContainer,
+                    { backgroundColor: colors.opacity.background.primary },
+                    iconBgColor && { backgroundColor: iconBgColor },
+                    !reduced && { transform: [{ scale: iconScale }] },
+                ]}>
                     <Ionicons
                         name={icon}
                         size={48}
                         color={iconColor || colors.primary}
                     />
-                </View>
+                </Animated.View>
             )}
 
             {title && (
-                <Text style={[styles.title, { color: colors.text.inverse }]}>{title}</Text>
+                <Text style={[styles.title, { color: colors.text.primary }]}>{title}</Text>
             )}
 
             {message && (
@@ -89,7 +107,6 @@ const styles = StyleSheet.create({
     },
     title: {
         ...typography.styles.h3,
-        fontWeight: typography.weight.bold,
         marginBottom: spacing.md,
         textAlign: 'center',
     },
@@ -97,7 +114,6 @@ const styles = StyleSheet.create({
         ...typography.styles.body,
         textAlign: 'center',
         marginBottom: spacing.xl,
-        lineHeight: 22,
     },
     buttonContainer: {
         flexDirection: 'row',

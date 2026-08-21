@@ -5,10 +5,11 @@ import { useTranslation } from 'react-i18next'
 import { usersApi } from '@/lib/api'
 import { useAuthStore } from '@/store'
 import { toast } from 'sonner'
+import { apiErrorMessage } from '@/lib/utils'
 
 export function useProfileForm() {
   const { t } = useTranslation()
-  const { user, login, token, logout } = useAuthStore()
+  const { user, logout, setUser } = useAuthStore()
   const navigate = useNavigate()
   const qc = useQueryClient()
 
@@ -24,7 +25,7 @@ export function useProfileForm() {
     return () => URL.revokeObjectURL(url)
   }, [avatar])
 
-  const { data: profile } = useQuery({
+  const { data: profile, isLoading: profileLoading, isError: profileError, refetch: refetchProfile } = useQuery({
     queryKey: ['profile'],
     queryFn: usersApi.getProfile,
   })
@@ -42,11 +43,11 @@ export function useProfileForm() {
   const mut = useMutation({
     mutationFn: (fd) => usersApi.update(user.id, fd),
     onSuccess: (updated) => {
-      login(token, updated)
+      setUser({ ...user, ...updated })
       qc.setQueryData(['profile'], (old) => ({ ...old, ...updated }))
       toast.success(t('profile.saveSuccess'))
     },
-    onError: (e) => toast.error(e.response?.data?.message || t('profile.saveError')),
+    onError: (e) => toast.error(apiErrorMessage(e, t, t('profile.saveError'))),
   })
 
   const deleteMut = useMutation({
@@ -56,7 +57,7 @@ export function useProfileForm() {
       logout()
       navigate('/login', { replace: true })
     },
-    onError: (e) => toast.error(e.response?.data?.message || t('accountDeletion.error')),
+    onError: (e) => toast.error(apiErrorMessage(e, t, t('accountDeletion.error'))),
   })
 
   function handleSubmit(e) {
@@ -70,7 +71,7 @@ export function useProfileForm() {
   return {
     form, setForm,
     avatar, setAvatar, avatarUrl,
-    profile,
+    profile, profileLoading, profileError, refetchProfile,
     src: profile ?? user,
     mut, deleteMut,
     handleSubmit,

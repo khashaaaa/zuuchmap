@@ -4,11 +4,12 @@ import { useTranslation } from 'react-i18next'
 import { Building } from 'lucide-react'
 import { companyApi, usersApi } from '@/lib/api'
 import { useAuthStore as useStore } from '@/store'
-import { getCompanyLogoUrl } from '@/lib/utils'
+import { getCompanyLogoUrl, apiErrorMessage } from '@/lib/utils'
 import Button from '@/components/Button'
 import Input from '@/components/Input'
 import PageHeader from '@/components/PageHeader'
 import EmptyState from '@/components/EmptyState'
+import ErrorState from '@/components/ErrorState'
 import { toast } from 'sonner'
 
 export default function ProviderCompany() {
@@ -35,7 +36,7 @@ export default function ProviderCompany() {
 
   const companyId = profile?.company?.id ?? user?.company?.id
 
-  const { data: company, isLoading } = useQuery({
+  const { data: company, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['my-company'],
     queryFn: () => companyApi.getById(companyId),
     enabled: Boolean(companyId),
@@ -56,7 +57,7 @@ export default function ProviderCompany() {
       setEditing(false)
       toast.success(t('company.created'))
     },
-    onError: (e) => toast.error(e.response?.data?.message || t('common.error')),
+    onError: (e) => toast.error(apiErrorMessage(e, t, t('common.error'))),
   })
 
   const updateMut = useMutation({
@@ -67,7 +68,7 @@ export default function ProviderCompany() {
       setEditing(false)
       toast.success(t('company.updated'))
     },
-    onError: (e) => toast.error(e.response?.data?.message || t('common.error')),
+    onError: (e) => toast.error(apiErrorMessage(e, t, t('common.error'))),
   })
 
   function handleSubmit(e) {
@@ -78,7 +79,22 @@ export default function ProviderCompany() {
     company ? updateMut.mutate(fd) : createMut.mutate(fd)
   }
 
-  if (isLoading) return <div className="h-48 bg-surface2 rounded-card animate-pulse" />
+  if (isLoading) return (
+    <div>
+      <PageHeader title={t('company.title')} />
+      <div className="h-48 bg-surface2 rounded-card animate-pulse" />
+    </div>
+  )
+
+  // Never tell a provider their company isn't registered because we failed to ask.
+  if (isError && error?.response?.status !== 404 && !editing) {
+    return (
+      <div>
+        <PageHeader title={t('company.title')} />
+        <ErrorState onRetry={refetch} />
+      </div>
+    )
+  }
 
   if (!company && !editing) {
     return (

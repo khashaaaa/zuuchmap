@@ -55,10 +55,8 @@ const createStyles = (colors) => StyleSheet.create({
         marginRight: spacing.xxs,
     },
     badgeText: {
-        fontSize: typography.xs,
+        ...typography.styles.badge,
         color: colors.primary,
-        fontWeight: '600',
-        letterSpacing: 0.5,
     },
 });
 

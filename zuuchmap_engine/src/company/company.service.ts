@@ -38,7 +38,7 @@ export class CompanyService {
 
   async findAll(): Promise<Company[]> {
     try {
-      return await this.companyRepository.find({ relations: ['users'] });
+      return await this.companyRepository.find({ relations: ['users'], take: 500 });
     } catch (error) {
       throw new InternalServerErrorException('Failed to retrieve companies: ' + error.message);
     }
@@ -82,13 +82,22 @@ export class CompanyService {
     try {
       const company = await this.findOne(id);
 
-      if (company.logo) {
-        await deleteSingleImage(company.logo, './uploads/companylogo');
-      }
+      // Detach members first — the users FK otherwise blocks the delete.
+      await this.userRepository
+        .createQueryBuilder()
+        .update(User)
+        .set({ company: null as unknown as Company })
+        .where('"companyId" = :id', { id })
+        .execute();
 
       const result = await this.companyRepository.delete(id);
       if (result.affected === 0) {
         throw new NotFoundException(`Company with ID ${id} not found`);
+      }
+
+      // Only after the row is gone — a failed delete must not orphan the logo.
+      if (company.logo) {
+        await deleteSingleImage(company.logo, './uploads/companylogo');
       }
     } catch (error) {
       if (error instanceof NotFoundException) throw error;

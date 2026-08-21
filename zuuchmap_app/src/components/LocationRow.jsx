@@ -48,7 +48,7 @@ const createStyles = (colors) => StyleSheet.create({
         flex: 1,
     },
     text: {
-        fontSize: typography.xs,
+        ...typography.styles.small,
         color: colors.text.secondary,
         marginLeft: spacing.xs,
         flex: 1,

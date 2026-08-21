@@ -28,19 +28,27 @@ client.interceptors.response.use(
 
 const data = (r) => r.data?.data ?? r.data
 
-// Auth
+// Auth — verify.mn Mobile-Originated flow: the user texts a code to the
+// shortcode, we poll until the provider confirms it arrived from their number.
 export const authApi = {
-  sendOtp: (phone) => client.post('/auth/otp/send', { phone_number: phone }).then(data),
-  verifyOtp: (phone, code) => client.post('/auth/otp/verify', { phone_number: phone, code }).then((r) => {
-    const d = r.data?.data ?? r.data
-    return { token: d.token, user: { id: d.id, phone_number: d.phone_number, type: d.type, is_verified: d.is_verified, is_admin: d.is_admin === true } }
-  }),
+  start: (phone, deviceId) =>
+    client.post('/auth/verify/start', { phone_number: phone, device_id: deviceId }).then(data),
+  status: (sessionId) =>
+    client.post('/auth/verify/status', { session_id: sessionId }).then(data),
+}
+
+// Analytics — fire-and-forget; never let a failed beacon surface to the user.
+export const analyticsApi = {
+  collect: (payload) =>
+    client.post('/analytics/collect', payload).catch(() => {}),
+  summary: (days) => client.get('/analytics/summary', { params: { days } }).then(data),
 }
 
 // Posts
 export const postsApi = {
   getAll: (params) => client.get('/posts', { params }).then(data),
   getMap: () => client.get('/posts/map').then(data),
+  getStats: () => client.get('/posts/stats').then(data),
   getOne: (id) => client.get(`/posts/${id}`).then(data),
   getMine: () => client.get('/posts/mine').then(data),
   create: (form) => client.post('/posts', form, { headers: { 'Content-Type': 'multipart/form-data' } }).then(data),

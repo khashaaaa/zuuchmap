@@ -1,15 +1,16 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, Modal, TouchableOpacity, TextInput, StyleSheet, Platform, KeyboardAvoidingView } from 'react-native';
+import { View, Text, Modal, TouchableOpacity, TextInput, ScrollView, StyleSheet, Platform, KeyboardAvoidingView } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { spacing, typography, radius } from '../design/theme';
+import { spacing, typography, radius, interactions } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
 import bookingService from '../services/api/bookingService';
-import { invalidatePostData } from '../services/queryClient';
+import { invalidatePostData, queryClient } from '../services/queryClient';
 import { showErrorModal, showInfoModal, getErrorMessage } from '../utils/errorManager';
 import Button from './Button';
+import PressableScale from './PressableScale';
 
 const fmt = (d) => d.toISOString().slice(0, 10);
 
@@ -32,10 +33,17 @@ const BookingRequestModal = ({ visible, onClose, postId }) => {
         }),
         onSuccess: () => {
             invalidatePostData();
+            queryClient.invalidateQueries({ queryKey: ['bookings'] });
             onClose();
             showInfoModal(t('booking.request'), t('booking.submitted'));
         },
-        onError: (e) => showErrorModal(t('common.error'), getErrorMessage(e) || t('booking.requestError')),
+        // Close the sheet BEFORE showing the error — two RN modals can't be
+        // visible at once, so a dialog raised over the open sheet is swallowed
+        // (and the send button would spin forever). Mirrors onSuccess.
+        onError: (e) => {
+            onClose();
+            showErrorModal(t('common.error'), getErrorMessage(e) || t('booking.requestError'));
+        },
     });
 
     const onPickerChange = (_event, selected) => {
@@ -56,20 +64,32 @@ const BookingRequestModal = ({ visible, onClose, postId }) => {
                 <View style={styles.sheet}>
                     <View style={styles.header}>
                         <Text style={styles.title}>{t('booking.request')}</Text>
-                        <TouchableOpacity onPress={onClose}>
-                            <Ionicons name="close" size={22} color={colors.text.secondary} />
+                        <TouchableOpacity
+                            onPress={onClose}
+                            activeOpacity={interactions.activeOpacityLight}
+                            hitSlop={interactions.hitSlop}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('common.close')}
+                        >
+                            <Ionicons name="close" size={24} color={colors.text.secondary} />
                         </TouchableOpacity>
                     </View>
 
+                    <ScrollView
+                        keyboardShouldPersistTaps="handled"
+                        showsVerticalScrollIndicator={false}
+                        contentContainerStyle={styles.scrollBody}
+                    >
+
                     <View style={styles.dateRow}>
-                        <TouchableOpacity style={styles.dateBox} onPress={() => setPickerFor('start')}>
+                        <PressableScale style={styles.dateBox} onPress={() => setPickerFor('start')} accessibilityRole="button">
                             <Text style={styles.dateLabel}>{t('booking.startDate')}</Text>
                             <Text style={styles.dateValue}>{fmt(startDate)}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.dateBox} onPress={() => setPickerFor('end')}>
+                        </PressableScale>
+                        <PressableScale style={styles.dateBox} onPress={() => setPickerFor('end')} accessibilityRole="button">
                             <Text style={styles.dateLabel}>{t('booking.endDate')}</Text>
                             <Text style={styles.dateValue}>{fmt(endDate)}</Text>
-                        </TouchableOpacity>
+                        </PressableScale>
                     </View>
 
                     {pickerFor && (
@@ -103,6 +123,7 @@ const BookingRequestModal = ({ visible, onClose, postId }) => {
                         loading={mut.isPending}
                         fullWidth
                     />
+                    </ScrollView>
                 </View>
             </KeyboardAvoidingView>
         </Modal>
@@ -110,16 +131,18 @@ const BookingRequestModal = ({ visible, onClose, postId }) => {
 };
 
 const createStyles = (colors) => StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+    overlay: { flex: 1, backgroundColor: colors.opacity.overlay, justifyContent: 'flex-end' },
     sheet: {
+        ...colors.elevation.lg,
         backgroundColor: colors.surface,
-        borderTopLeftRadius: radius.sheet ?? 20,
-        borderTopRightRadius: radius.sheet ?? 20,
+        borderTopLeftRadius: radius.modal,
+        borderTopRightRadius: radius.modal,
         padding: spacing.lg,
         gap: spacing.md,
     },
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    title: { fontSize: typography.lg, fontWeight: '700', color: colors.text.inverse },
+    scrollBody: { gap: spacing.md },
+    title: { ...typography.styles.title, color: colors.text.primary },
     dateRow: { flexDirection: 'row', gap: spacing.md },
     dateBox: {
         flex: 1,
@@ -129,9 +152,9 @@ const createStyles = (colors) => StyleSheet.create({
         borderColor: colors.border.light,
         padding: spacing.md,
     },
-    dateLabel: { fontSize: typography.xs, color: colors.text.tertiary, marginBottom: spacing.xs },
-    dateValue: { fontSize: typography.md, fontWeight: '600', color: colors.text.inverse },
-    messageInput: { backgroundColor: colors.background, color: colors.text.inverse, borderColor: colors.border.light },
+    dateLabel: { ...typography.styles.small, color: colors.text.tertiary, marginBottom: spacing.xs },
+    dateValue: { ...typography.styles.bodyBold, color: colors.text.primary },
+    messageInput: { backgroundColor: colors.background, color: colors.text.primary, borderColor: colors.border.light },
 });
 
 export default BookingRequestModal;

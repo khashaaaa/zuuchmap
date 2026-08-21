@@ -10,10 +10,13 @@ import PageHeader from '@/components/PageHeader'
 import StatusBadge from '@/components/StatusBadge'
 import CategoryBadge from '@/components/CategoryBadge'
 import EmptyState from '@/components/EmptyState'
+import ErrorState from '@/components/ErrorState'
 import { toast } from 'sonner'
 import TabBar from '@/components/TabBar'
 import DensityToggle from '@/components/DensityToggle'
 import { useTableDensity } from '@/hooks/useTableDensity'
+import ConfirmModal from '@/components/ConfirmModal'
+import { useMinDisplayTime } from '@/hooks/useMinDisplayTime'
 
 const TAB_KEYS = ['APPROVED', 'PENDING', 'REJECTED']
 
@@ -21,13 +24,14 @@ export default function AdminPosts() {
   const { t } = useTranslation()
   const [tab, setTab] = useState('APPROVED')
   const [selected, setSelected] = useState(new Set())
+  const [confirmBulk, setConfirmBulk] = useState(false)
   const [density, toggleDensity] = useTableDensity()
   const cellPad = density === 'compact' ? 'px-4 py-1.5' : 'px-4 py-3'
   const qc = useQueryClient()
 
   useEffect(() => setSelected(new Set()), [tab])
 
-  const { data: pending = [], isLoading: pendingLoading } = useQuery({
+  const { data: pending = [], isLoading: pendingLoading, isError: pendingError, refetch: refetchPending } = useQuery({
     queryKey: ['admin-pending'],
     queryFn: adminApi.getPending,
     enabled: tab === 'PENDING',
@@ -35,7 +39,7 @@ export default function AdminPosts() {
     select: (d) => Array.isArray(d) ? d : (d?.posts ?? d?.data ?? []),
   })
 
-  const { data: allPosts = [], isLoading: allLoading } = useQuery({
+  const { data: allPosts = [], isLoading: allLoading, isError: allError, refetch: refetchAll } = useQuery({
     queryKey: ['posts', { approval_status: tab }],
     queryFn: () => postsApi.getAll({ approval_status: tab, limit: 50 }),
     enabled: tab !== 'PENDING',
@@ -48,7 +52,8 @@ export default function AdminPosts() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-pending'] })
       qc.invalidateQueries({ queryKey: ['admin-stats'] })
-      qc.invalidateQueries({ queryKey: ['posts', { approval_status: 'APPROVED' }] })
+      qc.invalidateQueries({ queryKey: ['posts'] })
+      qc.invalidateQueries({ queryKey: ['posts-map'] })
       toast.success(t('admin.approveSuccess'))
     },
     onError: () => toast.error(t('common.error')),
@@ -60,8 +65,8 @@ export default function AdminPosts() {
       setSelected(new Set())
       qc.invalidateQueries({ queryKey: ['admin-pending'] })
       qc.invalidateQueries({ queryKey: ['admin-stats'] })
-      qc.invalidateQueries({ queryKey: ['posts', { approval_status: 'PENDING' }] })
-      qc.invalidateQueries({ queryKey: ['posts', { approval_status: 'APPROVED' }] })
+      qc.invalidateQueries({ queryKey: ['posts'] })
+      qc.invalidateQueries({ queryKey: ['posts-map'] })
       toast.success(t('admin.approveSuccess'))
     },
     onError: () => toast.error(t('common.error')),
@@ -69,6 +74,9 @@ export default function AdminPosts() {
 
   const posts = tab === 'PENDING' ? pending : allPosts
   const isLoading = tab === 'PENDING' ? pendingLoading : allLoading
+  const isError = tab === 'PENDING' ? pendingError : allError
+  const refetch = tab === 'PENDING' ? refetchPending : refetchAll
+  const showSkeleton = useMinDisplayTime(isLoading)
 
   const allSelected = posts.length > 0 && posts.every((p) => selected.has(p.id))
 
@@ -91,21 +99,23 @@ export default function AdminPosts() {
 
   return (
     <div>
-      <PageHeader title={t('admin.postsTitle')} description={t(`status.${tab.toLowerCase()}`)} />
+      <PageHeader title={t('admin.postsTitle')} description={t(`status.${tab.toLowerCase()}`, { defaultValue: tab })} />
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <TabBar
-          tabs={TAB_KEYS.map((key) => ({ key, label: t(`status.${key.toLowerCase()}`) }))}
+          tabs={TAB_KEYS.map((key) => ({ key, label: t(`status.${key.toLowerCase()}`, { defaultValue: key }) }))}
           value={tab}
           onChange={setTab}
         />
         <DensityToggle density={density} onToggle={toggleDensity} />
       </div>
-      {isLoading ? (
+      {showSkeleton ? (
         <div className="space-y-3">
           {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="h-16 bg-surface2 rounded-card animate-pulse" />
           ))}
         </div>
+      ) : isError ? (
+        <ErrorState onRetry={refetch} />
       ) : posts.length === 0 ? (
         <EmptyState icon={Clock} title={t('posts.noMyPosts')} />
       ) : (
@@ -115,7 +125,7 @@ export default function AdminPosts() {
               <span className="text-sm text-text font-medium">{t('common.total', { count: selected.size })}</span>
               <Button
                 size="sm"
-                onClick={() => bulkApproveMut.mutate(Array.from(selected))}
+                onClick={() => setConfirmBulk(true)}
                 disabled={bulkApproveMut.isPending}
               >
                 {t('admin.approve')} ({selected.size})
@@ -131,6 +141,7 @@ export default function AdminPosts() {
                     <th className="px-4 py-3 w-8 flex items-center justify-center">
                       <input
                         type="checkbox"
+                        aria-label={t('admin.selectAll')}
                         className="w-4 h-4 accent-primary cursor-pointer"
                         checked={allSelected}
                         onChange={toggleSelectAll}
@@ -146,11 +157,12 @@ export default function AdminPosts() {
               </thead>
               <tbody>
                 {posts.map((post) => (
-                  <tr key={post.id} className="border-b border-border/50 last:border-b-0 hover:bg-surface2 transition-colors">
+                  <tr key={post.id} className="border-b border-border/50 last:border-b-0 hover:bg-surface2/50 transition-colors">
                     {tab === 'PENDING' && (
                       <td className={`${cellPad} w-8 flex items-center justify-center`}>
                         <input
                           type="checkbox"
+                          aria-label={`${t('common.select')}: ${getPostTitle(post, t)}`}
                           className="w-4 h-4 accent-primary cursor-pointer"
                           checked={selected.has(post.id)}
                           onChange={() => toggleSelect(post.id)}
@@ -158,7 +170,7 @@ export default function AdminPosts() {
                       </td>
                     )}
                     <td className={cellPad}>
-                      <Link to={`/admin/posts/${post.id}`} className="text-text hover:text-primary transition-colors font-medium line-clamp-1">
+                      <Link to={`/admin/posts/${post.id}`} className="text-text hover:text-primary-text transition-colors font-medium line-clamp-1">
                         {getPostTitle(post, t)}
                       </Link>
                     </td>
@@ -171,13 +183,13 @@ export default function AdminPosts() {
                           <button
                             onClick={() => approveMut.mutate(post.id)}
                             disabled={approveMut.isPending && approveMut.variables === post.id}
-                            className="min-w-9 min-h-9 flex items-center justify-center rounded-btn text-success hover:bg-success/10 transition-colors disabled:opacity-50"
+                            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-btn text-success hover:bg-success/10 transition-colors disabled:opacity-50"
                             title={t('admin.approve')}
                           >
                             <CheckCircle size={16} />
                           </button>
                         )}
-                        <Link to={`/admin/posts/${post.id}`} className="min-w-9 min-h-9 flex items-center justify-center rounded-btn text-muted hover:text-primary hover:bg-primary/10 transition-colors">
+                        <Link to={`/admin/posts/${post.id}`} title={t('common.view')} aria-label={`${t('common.view')}: ${getPostTitle(post, t)}`} className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-btn text-muted hover:text-primary-text hover:bg-primary/10 transition-colors">
                           <Eye size={16} />
                         </Link>
                       </div>
@@ -190,6 +202,17 @@ export default function AdminPosts() {
           </div>
         </>
       )}
+      <ConfirmModal
+        open={confirmBulk}
+        onClose={() => setConfirmBulk(false)}
+        title={t('admin.approve')}
+        message={t('admin.confirmBulkApprove', { count: selected.size })}
+        confirmLabel={`${t('admin.approve')} (${selected.size})`}
+        confirmVariant="primary"
+        cancelLabel={t('common.cancel')}
+        onConfirm={() => { bulkApproveMut.mutate(Array.from(selected)); setConfirmBulk(false) }}
+        isPending={bulkApproveMut.isPending}
+      />
     </div>
   )
 }

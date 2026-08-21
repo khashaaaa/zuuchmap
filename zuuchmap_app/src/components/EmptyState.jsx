@@ -1,8 +1,10 @@
-import React, { useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useMemo, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { spacing, typography, shadows, radius, interactions } from '../design/theme';
+import { spacing, typography, radius, animations } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
+import { useReducedMotion } from '../hooks/useReducedMotion';
+import Button from './Button';
 
 const EmptyState = ({
     icon = 'document-outline',
@@ -14,6 +16,25 @@ const EmptyState = ({
 }) => {
     const { colors } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
+    const reduced = useReducedMotion();
+    const iconAnim = useRef(new Animated.Value(reduced ? 1 : 0)).current;
+
+    useEffect(() => {
+        if (reduced) {
+            iconAnim.setValue(1);
+            return;
+        }
+        Animated.timing(iconAnim, {
+            toValue: 1,
+            duration: animations.duration.normal,
+            useNativeDriver: true,
+        }).start();
+    }, [reduced, iconAnim]);
+
+    const iconScale = iconAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0.85, 1],
+    });
 
     const getIconColor = () => {
         if (variant === 'search') return colors.primary;
@@ -22,9 +43,9 @@ const EmptyState = ({
 
     return (
         <View style={styles.container}>
-            <View style={styles.iconContainer}>
+            <Animated.View style={[styles.iconContainer, !reduced && { opacity: iconAnim, transform: [{ scale: iconScale }] }]}>
                 <Ionicons name={icon} size={iconSize} color={getIconColor()} />
-            </View>
+            </Animated.View>
             {title && (
                 <Text style={styles.title}>{title}</Text>
             )}
@@ -32,23 +53,11 @@ const EmptyState = ({
                 <Text style={styles.subtitle}>{subtitle}</Text>
             )}
             {actionButton?.onPress && (
-                <TouchableOpacity
-                    style={styles.actionButton}
+                <Button
+                    title={actionButton.text}
+                    icon={actionButton.icon}
                     onPress={actionButton.onPress}
-                    activeOpacity={interactions.activeOpacity}
-                >
-                    {actionButton?.icon && (
-                        <Ionicons
-                            name={actionButton.icon}
-                            size={20}
-                            color={colors.text.inverse}
-                            style={styles.actionIcon}
-                        />
-                    )}
-                    {actionButton?.text && (
-                        <Text style={styles.actionButtonText}>{actionButton.text}</Text>
-                    )}
-                </TouchableOpacity>
+                />
             )}
         </View>
     );
@@ -74,38 +83,17 @@ const createStyles = (colors) => StyleSheet.create({
         borderColor: colors.border.light,
     },
     title: {
-        fontSize: typography.lg,
-        fontWeight: '600',
+        ...typography.styles.title,
         color: colors.text.primary,
         marginBottom: spacing.sm,
         textAlign: 'center',
     },
     subtitle: {
-        fontSize: typography.sm,
+        ...typography.styles.caption,
         color: colors.text.secondary,
         textAlign: 'center',
         paddingHorizontal: spacing.xl,
-        lineHeight: 20,
         marginBottom: spacing.sm,
-    },
-    actionButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: colors.primary,
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.lg,
-        borderRadius: radius.button,
-        gap: spacing.sm,
-        minHeight: 48,
-        ...shadows.small,
-    },
-    actionIcon: {
-        marginRight: 0,
-    },
-    actionButtonText: {
-        fontSize: typography.md,
-        fontWeight: '600',
-        color: colors.text.inverse,
     },
 });
 

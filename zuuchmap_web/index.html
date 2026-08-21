@@ -3,7 +3,47 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ZuuchMap — Барилгын зах зээл</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
+    <!-- Commissioner: full Mongolian Cyrillic (Ө U+04E8, Ү U+04AE) and the
+         tugrik sign (₮ U+20AE), all verified against the served font files.
+         display=swap so first paint never waits on the network. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Commissioner:wght@400..800&display=swap" />
+    <link rel="canonical" href="https://zuuchmap.com/" />
+
+    <title>ZuuchMap — Барилгын зах зээл | Машин механизм, материал, гүйцэтгэгч</title>
+    <meta name="description" content="Монголын барилгын зах зээл. Машин механизм, тээврийн хэрэгсэл, багаж түрээслэх, барилгын материал, үйлдвэр, гүйцэтгэгч, ажлын байр, SOS үйлчилгээ — 21 аймагт." />
+    <meta name="theme-color" content="#17181A" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#FAFAF8" media="(prefers-color-scheme: light)" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="ZuuchMap" />
+    <meta property="og:locale" content="mn_MN" />
+    <meta property="og:url" content="https://zuuchmap.com/" />
+    <meta property="og:title" content="ZuuchMap — Барилгын зах зээл" />
+    <meta property="og:description" content="Машин механизм, багаж түрээслэх, материал авах, гүйцэтгэгч сонгох, ажлын байр — Монголын 21 аймагт." />
+    <meta property="og:image" content="https://zuuchmap.com/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="ZuuchMap — Барилгын зах зээл" />
+    <meta name="twitter:description" content="Машин механизм, багаж түрээслэх, материал авах, гүйцэтгэгч сонгох, ажлын байр — Монголын 21 аймагт." />
+    <meta name="twitter:image" content="https://zuuchmap.com/og.png" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "ZuuchMap",
+        "url": "https://zuuchmap.com/",
+        "description": "Монголын барилгын зах зээл — машин механизм, материал, гүйцэтгэгч, ажлын байр.",
+        "inLanguage": "mn"
+      }
+    </script>
+
     <script>
       (function() {
         var t = localStorage.getItem('zm_theme') || 'dark';

@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing, typography, shadows, safeAreaHelpers, radius, interactions, isTablet } from '../../design/theme';
+import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 import postService from '../../services/api/postService';
@@ -23,10 +23,12 @@ import { getPostImageUrl } from '../../config/api.config';
 import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import ScreenHeader from '../../components/ScreenHeader';
 import LikeButton from '../../components/LikeButton';
-import { CategoryBadge, StatusBadge, SkeletonItem, EmptyState, LocationRow, FadeSlideIn, Button } from '../../components';
+import { CategoryBadge, StatusBadge, SkeletonItem, EmptyState, LocationRow, FadeSlideIn, Button, SelectionPop } from '../../components';
+import ScreenError from '../../components/ScreenError';
 import SearchInput from '../../components/SearchInput';
 import BottomSheetModal from '../../components/BottomSheetModal';
-import { getFixedImageUrl, getPostPrice, getPostImage, getPostTitle as getPostTitleUtil, getSearchableText, categoryToPostType } from '../../utils/postUtils';
+import PressableScale from '../../components/PressableScale';
+import { getFixedImageUrl, getPostPrice, getPostImage, getPostTitle as getPostTitleUtil, getSearchableText, categoryToPostType, getSchemaLabel } from '../../utils/postUtils';
 import { useQuery } from '@tanstack/react-query';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useMinDisplayTime } from '../../hooks/useMinDisplayTime';
@@ -35,18 +37,6 @@ import { logger } from '../../utils/logger';
 import likeService from '../../services/api/likeService';
 import userService from '../../services/api/userService';
 import NotificationBell from '../../components/NotificationBell';
-
-const CATEGORIES = [
-    { value: '' },
-    { value: 'vehiclerent' },
-    { value: 'toolrent' },
-    { value: 'machineryrent' },
-    { value: 'materialstore' },
-    { value: 'construction' },
-    { value: 'factory' },
-    { value: 'jobvacancy' },
-    { value: 'sos' },
-];
 
 const PRICE_RANGES = [
     { value: '' },
@@ -89,10 +79,10 @@ const PostItem = React.memo(({
     const handlePress = useCallback(() => onPress(item), [item, onPress]);
 
     return (
-        <TouchableOpacity
+        <PressableScale
             style={[styles.postCard, { backgroundColor: colors.surface }, isSos && styles.sosCard]}
             onPress={handlePress}
-            activeOpacity={interactions.activeOpacity}
+            accessibilityRole="button"
         >
             <View style={[styles.imageContainer, { backgroundColor: colors.border.light }]}>
                 {imageUri && !imageError ? (
@@ -141,7 +131,6 @@ const PostItem = React.memo(({
 
                 <CategoryBadge
                     postType={item.post_type || 'construction'}
-                    backgroundColor={colors.opacity.background.primary}
                     showIcon={true}
                 />
 
@@ -164,7 +153,7 @@ const PostItem = React.memo(({
                     )}
                 </View>
             </View>
-        </TouchableOpacity>
+        </PressableScale>
     );
 }, (prevProps, nextProps) => {
     return (
@@ -276,11 +265,20 @@ const CustomerPostList = ({ route, navigation }) => {
 
     // Browse mode: fetch live category list for the pill row
     const { data: categorySchemas = [] } = useQuery({
-        queryKey: ['categories', 'all'],
-        queryFn: () => categoryService.getCategories(),
-        staleTime: 10 * 60 * 1000,
-        enabled: !isFilterMode,
+        queryKey: ['categories'],
+        queryFn: () => categoryService.getCategories(true),
+        staleTime: 5 * 60 * 1000,
     });
+
+    // "All" plus whatever the admin has active — no build-time category list.
+    const categoryOptions = useMemo(() => [
+        { value: '', label: t('filter.allCategories') },
+        ...categorySchemas
+            .filter((c) => c.active !== false)
+            .slice()
+            .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+            .map((c) => ({ value: c.key, label: getSchemaLabel(c) })),
+    ], [categorySchemas, t]);
 
     useEffect(() => {
         if (isError) {
@@ -442,17 +440,12 @@ const CustomerPostList = ({ route, navigation }) => {
 
     const renderEmptyState = useCallback(() => {
         if (isError) {
+            // Broken must not look like empty — siblings use ScreenError for fetch failures.
             return (
-                <EmptyState
+                <ScreenError
                     icon="cloud-offline-outline"
-                    title={t('common.error')}
-                    subtitle={getErrorMessage(errorObj)}
-                    variant="default"
-                    actionButton={{
-                        text: t('common.retry'),
-                        icon: 'refresh',
-                        onPress: refetchActive,
-                    }}
+                    message={getErrorMessage(errorObj)}
+                    onRetry={refetchActive}
                 />
             );
         }
@@ -502,22 +495,24 @@ const CustomerPostList = ({ route, navigation }) => {
                 <View style={styles.filterSection}>
                     <Text style={[styles.filterLabel, { color: colors.text.secondary }]}>{t('filter.category')}</Text>
                     <View style={styles.filterOptionsContainer}>
-                        {CATEGORIES.map((cat) => (
-                            <TouchableOpacity
-                                key={cat.value}
-                                style={[
-                                    styles.filterOption,
-                                    filters.category === cat.value && styles.filterOptionActive,
-                                ]}
-                                onPress={() => setFilters(prev => ({ ...prev, category: cat.value }))}
-                            >
-                                <Text style={[
-                                    styles.filterOptionText,
-                                    filters.category === cat.value && styles.filterOptionTextActive,
-                                ]}>
-                                    {cat.value ? t(`category.${cat.value}`) : t('filter.allCategories')}
-                                </Text>
-                            </TouchableOpacity>
+                        {categoryOptions.map((cat) => (
+                            <SelectionPop key={cat.value} selected={filters.category === cat.value}>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.filterOption,
+                                        filters.category === cat.value && styles.filterOptionActive,
+                                    ]}
+                                    onPress={() => setFilters(prev => ({ ...prev, category: cat.value }))}
+                                    activeOpacity={interactions.activeOpacity}
+                                >
+                                    <Text style={[
+                                        styles.filterOptionText,
+                                        filters.category === cat.value && styles.filterOptionTextActive,
+                                    ]}>
+                                        {cat.label}
+                                    </Text>
+                                </TouchableOpacity>
+                            </SelectionPop>
                         ))}
                     </View>
                 </View>
@@ -526,21 +521,23 @@ const CustomerPostList = ({ route, navigation }) => {
                     <Text style={[styles.filterLabel, { color: colors.text.secondary }]}>{t('filter.priceRange')}</Text>
                     <View style={styles.filterOptionsContainer}>
                         {PRICE_RANGES.map((range) => (
-                            <TouchableOpacity
-                                key={range.value}
-                                style={[
-                                    styles.filterOption,
-                                    filters.priceRange === range.value && styles.filterOptionActive,
-                                ]}
-                                onPress={() => setFilters(prev => ({ ...prev, priceRange: range.value }))}
-                            >
-                                <Text style={[
-                                    styles.filterOptionText,
-                                    filters.priceRange === range.value && styles.filterOptionTextActive,
-                                ]}>
-                                    {range.value ? range.label : t('filter.allPrices')}
-                                </Text>
-                            </TouchableOpacity>
+                            <SelectionPop key={range.value} selected={filters.priceRange === range.value}>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.filterOption,
+                                        filters.priceRange === range.value && styles.filterOptionActive,
+                                    ]}
+                                    onPress={() => setFilters(prev => ({ ...prev, priceRange: range.value }))}
+                                    activeOpacity={interactions.activeOpacity}
+                                >
+                                    <Text style={[
+                                        styles.filterOptionText,
+                                        filters.priceRange === range.value && styles.filterOptionTextActive,
+                                    ]}>
+                                        {range.value ? range.label : t('filter.allPrices')}
+                                    </Text>
+                                </TouchableOpacity>
+                            </SelectionPop>
                         ))}
                     </View>
                 </View>
@@ -549,21 +546,23 @@ const CustomerPostList = ({ route, navigation }) => {
                     <Text style={[styles.filterLabel, { color: colors.text.secondary }]}>{t('filter.status')}</Text>
                     <View style={styles.filterOptionsContainer}>
                         {STATUS_OPTIONS.map((status) => (
-                            <TouchableOpacity
-                                key={status.value}
-                                style={[
-                                    styles.filterOption,
-                                    filters.status === status.value && styles.filterOptionActive,
-                                ]}
-                                onPress={() => setFilters(prev => ({ ...prev, status: status.value }))}
-                            >
-                                <Text style={[
-                                    styles.filterOptionText,
-                                    filters.status === status.value && styles.filterOptionTextActive,
-                                ]}>
-                                    {status.value ? t(`status.${status.value}`) : t('filter.allStatuses')}
-                                </Text>
-                            </TouchableOpacity>
+                            <SelectionPop key={status.value} selected={filters.status === status.value}>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.filterOption,
+                                        filters.status === status.value && styles.filterOptionActive,
+                                    ]}
+                                    onPress={() => setFilters(prev => ({ ...prev, status: status.value }))}
+                                    activeOpacity={interactions.activeOpacity}
+                                >
+                                    <Text style={[
+                                        styles.filterOptionText,
+                                        filters.status === status.value && styles.filterOptionTextActive,
+                                    ]}>
+                                        {status.value ? t(`status.${status.value}`, { defaultValue: status.value }) : t('filter.allStatuses')}
+                                    </Text>
+                                </TouchableOpacity>
+                            </SelectionPop>
                         ))}
                     </View>
                 </View>
@@ -574,7 +573,7 @@ const CustomerPostList = ({ route, navigation }) => {
                         style={[styles.locationInput, {
                             backgroundColor: colors.background,
                             borderColor: colors.border.light,
-                            color: colors.text.inverse,
+                            color: colors.text.primary,
                         }]}
                         value={filters.location}
                         onChangeText={(text) => setFilters(prev => ({ ...prev, location: text }))}
@@ -597,44 +596,49 @@ const CustomerPostList = ({ route, navigation }) => {
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.pillsContainer}
                 >
-                    <TouchableOpacity
-                        style={[
-                            styles.pill,
-                            { borderColor: colors.border.medium, backgroundColor: colors.background },
-                            !filters.category && { backgroundColor: colors.primary, borderColor: colors.primary },
-                        ]}
-                        onPress={() => setFilters(prev => ({ ...prev, category: '' }))}
-                        activeOpacity={interactions.activeOpacity}
-                    >
-                        <Text style={[
-                            styles.pillText,
-                            { color: colors.text.primary },
-                            !filters.category && { color: colors.onPrimary, fontWeight: '600' },
-                        ]}>
-                            {t('filter.allCategories')}
-                        </Text>
-                    </TouchableOpacity>
+                    <SelectionPop selected={!filters.category}>
+                        <TouchableOpacity
+                            style={[
+                                styles.pill,
+                                { borderColor: colors.border.medium, backgroundColor: colors.background },
+                                !filters.category && { backgroundColor: colors.primary, borderColor: colors.primary },
+                            ]}
+                            onPress={() => setFilters(prev => ({ ...prev, category: '' }))}
+                            activeOpacity={interactions.activeOpacity}
+                            hitSlop={{ top: 6, bottom: 6 }}
+                        >
+                            <Text style={[
+                                styles.pillText,
+                                { color: colors.text.primary },
+                                !filters.category && { ...typography.styles.labelStrong, color: colors.onPrimary },
+                            ]}>
+                                {t('filter.allCategories')}
+                            </Text>
+                        </TouchableOpacity>
+                    </SelectionPop>
                     {categorySchemas.map((cat) => {
                         const isActive = filters.category === cat.key;
                         return (
-                            <TouchableOpacity
-                                key={cat.key}
-                                style={[
-                                    styles.pill,
-                                    { borderColor: colors.border.medium, backgroundColor: colors.background },
-                                    isActive && { backgroundColor: colors.primary, borderColor: colors.primary },
-                                ]}
-                                onPress={() => setFilters(prev => ({ ...prev, category: isActive ? '' : cat.key }))}
-                                activeOpacity={interactions.activeOpacity}
-                            >
-                                <Text style={[
-                                    styles.pillText,
-                                    { color: colors.text.primary },
-                                    isActive && { color: colors.onPrimary, fontWeight: '600' },
-                                ]}>
-                                    {t(`category.${cat.key}`, { defaultValue: cat.label || cat.key })}
-                                </Text>
-                            </TouchableOpacity>
+                            <SelectionPop key={cat.key} selected={isActive}>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.pill,
+                                        { borderColor: colors.border.medium, backgroundColor: colors.background },
+                                        isActive && { backgroundColor: colors.primary, borderColor: colors.primary },
+                                    ]}
+                                    onPress={() => setFilters(prev => ({ ...prev, category: isActive ? '' : cat.key }))}
+                                    activeOpacity={interactions.activeOpacity}
+                                    hitSlop={{ top: 6, bottom: 6 }}
+                                >
+                                    <Text style={[
+                                        styles.pillText,
+                                        { color: colors.text.primary },
+                                        isActive && { ...typography.styles.labelStrong, color: colors.onPrimary },
+                                    ]}>
+                                        {t(`category.${cat.key}`, { defaultValue: cat.label || cat.key })}
+                                    </Text>
+                                </TouchableOpacity>
+                            </SelectionPop>
                         );
                     })}
                 </ScrollView>
@@ -789,6 +793,7 @@ const createStyles = (colors) => StyleSheet.create({
         padding: spacing.lg,
     },
     headerInfo: {
+        ...colors.elevation.sm,
         marginBottom: spacing.lg,
         padding: spacing.lg,
         backgroundColor: colors.opacity.background.success,
@@ -797,20 +802,18 @@ const createStyles = (colors) => StyleSheet.create({
         alignItems: 'center',
         borderWidth: 1,
         borderColor: colors.opacity.background.success,
-        ...shadows.small,
     },
     headerTextContainer: {
         marginLeft: spacing.sm,
         flex: 1,
     },
     categoryText: {
-        fontSize: typography.md,
+        ...typography.styles.bodyBold,
         color: colors.success,
-        fontWeight: '600',
         marginBottom: spacing.xs,
     },
     resultCount: {
-        fontSize: typography.sm,
+        ...typography.styles.caption,
         color: colors.text.secondary,
     },
     searchRow: {
@@ -825,6 +828,7 @@ const createStyles = (colors) => StyleSheet.create({
         flex: 1,
     },
     filterRowBtn: {
+        ...colors.elevation.sm,
         width: 52,
         height: 52,
         borderRadius: radius.input,
@@ -832,7 +836,6 @@ const createStyles = (colors) => StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         position: 'relative',
-        ...shadows.small,
     },
     filterBadge: {
         position: 'absolute',
@@ -847,10 +850,10 @@ const createStyles = (colors) => StyleSheet.create({
     },
     filterBadgeText: {
         color: colors.text.onColor,
-        fontSize: typography.xs,
-        fontWeight: 'bold',
+        ...typography.styles.badge,
     },
     postCard: {
+        ...colors.elevation.sm,
         backgroundColor: colors.surface,
         borderRadius: radius.card,
         marginBottom: spacing.md,
@@ -859,7 +862,6 @@ const createStyles = (colors) => StyleSheet.create({
         alignItems: 'flex-start',
         borderWidth: 1,
         borderColor: colors.border.light,
-        ...shadows.small,
     },
     sosCard: {
         borderColor: colors.danger,
@@ -875,14 +877,13 @@ const createStyles = (colors) => StyleSheet.create({
         left: 0,
         right: 0,
         backgroundColor: colors.danger,
-        paddingVertical: 2,
+        paddingVertical: spacing.xxs,
         alignItems: 'center',
     },
     sosBadgeText: {
+        // "SOS" is set in caps, which is exactly what `overline` is tuned for.
+        ...typography.styles.overline,
         color: colors.text.onColor,
-        fontSize: typography.xs,
-        fontWeight: 'bold',
-        letterSpacing: 1,
     },
     postImage: {
         position: 'absolute',
@@ -911,15 +912,12 @@ const createStyles = (colors) => StyleSheet.create({
         gap: spacing.xs,
     },
     postTitle: {
+        ...typography.styles.title,
         flex: 1,
-        fontSize: typography.md,
-        fontWeight: '700',
         color: colors.text.primary,
-        lineHeight: 20,
     },
     postPrice: {
-        fontSize: typography.sm,
-        fontWeight: '700',
+        ...typography.styles.price,
         color: colors.primary,
     },
     postFooter: {
@@ -933,7 +931,7 @@ const createStyles = (colors) => StyleSheet.create({
         flexShrink: 1,
     },
     postDate: {
-        fontSize: typography.xs,
+        ...typography.styles.small,
         color: colors.text.tertiary,
     },
     pillsWrapper: {
@@ -948,21 +946,21 @@ const createStyles = (colors) => StyleSheet.create({
     pill: {
         paddingHorizontal: spacing.md,
         paddingVertical: spacing.xs,
+        minHeight: 36,
         borderRadius: radius.xxl,
         borderWidth: 1,
         alignItems: 'center',
         justifyContent: 'center',
     },
     pillText: {
-        fontSize: typography.sm,
+        ...typography.styles.caption,
     },
     filterSection: {
         marginBottom: spacing.xl,
     },
     filterLabel: {
-        fontSize: typography.md,
-        fontWeight: '600',
-        color: colors.text.inverse,
+        ...typography.styles.bodyBold,
+        color: colors.text.primary,
         marginBottom: spacing.md,
     },
     filterOptionsContainer: {
@@ -983,19 +981,19 @@ const createStyles = (colors) => StyleSheet.create({
         borderColor: colors.primary,
     },
     filterOptionText: {
-        fontSize: typography.sm,
+        ...typography.styles.caption,
         color: colors.text.primary,
     },
     filterOptionTextActive: {
+        ...typography.styles.labelStrong,
         color: colors.onPrimary,
-        fontWeight: '600',
     },
     locationInput: {
         borderWidth: 1,
         borderColor: colors.border.medium,
         borderRadius: radius.input,
         padding: spacing.md,
-        fontSize: typography.md,
+        ...typography.styles.body,
         color: colors.text.primary,
         backgroundColor: colors.background,
     },

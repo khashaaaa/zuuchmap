@@ -4,14 +4,17 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Plus, Pencil, Trash2, FileText, Timer } from 'lucide-react'
 import { postsApi } from '@/lib/api'
-import { getPostCategory, getPostTitle, getImageUrl } from '@/lib/utils'
+import { getPostCategory, getPostTitle, getImageUrl, apiErrorMessage } from '@/lib/utils'
 import PageHeader from '@/components/PageHeader'
 import CategoryBadge from '@/components/CategoryBadge'
 import StatusBadge from '@/components/StatusBadge'
 import EmptyState from '@/components/EmptyState'
+import ErrorState from '@/components/ErrorState'
 import ConfirmModal from '@/components/ConfirmModal'
 import TabBar from '@/components/TabBar'
 import Button from '@/components/Button'
+import DensityToggle from '@/components/DensityToggle'
+import { useTableDensity } from '@/hooks/useTableDensity'
 import { toast } from 'sonner'
 
 const TAB_STATUSES = {
@@ -26,6 +29,8 @@ export default function ProviderPosts() {
   const qc = useQueryClient()
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [tab, setTab] = useState('ALL')
+  const [density, toggleDensity] = useTableDensity()
+  const cellPad = density === 'compact' ? 'px-4 py-1.5' : 'px-4 py-3'
 
   function expiryLabel(post) {
     if (!post.expires_at) return null
@@ -36,15 +41,15 @@ export default function ProviderPosts() {
     return { text: t('posts.expiresIn', { days }), cls: 'text-muted' }
   }
 
-  const { data: posts = [], isLoading } = useQuery({
+  const { data: posts = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['my-posts'],
     queryFn: postsApi.getMine,
   })
 
   const deleteMut = useMutation({
     mutationFn: postsApi.remove,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['my-posts'] }); toast.success(t('posts.deleted')) },
-    onError: (e) => toast.error(e.response?.data?.message || t('common.error')),
+    onSuccess: () => { ['my-posts', 'posts', 'posts-map', 'admin-stats'].forEach((k) => qc.invalidateQueries({ queryKey: [k] })); toast.success(t('posts.deleted')) },
+    onError: (e) => toast.error(apiErrorMessage(e, t, t('common.error'))),
   })
 
   const counts = {
@@ -69,23 +74,27 @@ export default function ProviderPosts() {
       />
 
       {posts.length > 0 && (
-        <TabBar
-          tabs={[
-            { key: 'ALL', label: `${t('status.all')} (${counts.ALL})` },
-            { key: 'PENDING', label: `${t('status.pending')} (${counts.PENDING})` },
-            { key: 'APPROVED', label: `${t('status.approved')} (${counts.APPROVED})` },
-            { key: 'REJECTED', label: `${t('status.rejected')} (${counts.REJECTED})` },
-          ]}
-          value={tab}
-          onChange={setTab}
-          className="mb-5"
-        />
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+          <TabBar
+            tabs={[
+              { key: 'ALL', label: `${t('status.all')} (${counts.ALL})` },
+              { key: 'PENDING', label: `${t('status.pending')} (${counts.PENDING})` },
+              { key: 'APPROVED', label: `${t('status.approved')} (${counts.APPROVED})` },
+              { key: 'REJECTED', label: `${t('status.rejected')} (${counts.REJECTED})` },
+            ]}
+            value={tab}
+            onChange={setTab}
+          />
+          <DensityToggle density={density} onToggle={toggleDensity} />
+        </div>
       )}
 
       {isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-16 bg-surface2 rounded-card animate-pulse" />)}
         </div>
+      ) : isError ? (
+        <ErrorState onRetry={refetch} />
       ) : posts.length === 0 ? (
         <EmptyState
           icon={FileText}
@@ -115,8 +124,8 @@ export default function ProviderPosts() {
                 {filtered.map((post) => {
                   const expiry = expiryLabel(post)
                   return (
-                    <tr key={post.id} className="border-b border-border/50 last:border-b-0 hover:bg-surface2 transition-colors">
-                      <td className="px-4 py-3">
+                    <tr key={post.id} className="border-b border-border/50 last:border-b-0 hover:bg-surface2/50 transition-colors">
+                      <td className={cellPad}>
                         <Link to={`/provider/posts/${post.id}`} className="flex items-center gap-3 group">
                           {post.images?.[0] ? (
                             <img src={getImageUrl(post.images[0])} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" />
@@ -124,7 +133,7 @@ export default function ProviderPosts() {
                             <div className="w-10 h-10 rounded-lg bg-surface2 shrink-0" />
                           )}
                           <div className="min-w-0">
-                            <p className="text-text group-hover:text-primary transition-colors font-medium line-clamp-1">
+                            <p className="text-text group-hover:text-primary-text transition-colors font-medium line-clamp-1">
                               {getPostTitle(post, t)}
                             </p>
                             {post.approval_status === 'REJECTED' && post.rejection_reason && (
@@ -133,21 +142,21 @@ export default function ProviderPosts() {
                           </div>
                         </Link>
                       </td>
-                      <td className="px-4 py-3"><CategoryBadge category={getPostCategory(post)} /></td>
-                      <td className="px-4 py-3"><StatusBadge status={post.approval_status} /></td>
-                      <td className="px-4 py-3">
+                      <td className={cellPad}><CategoryBadge category={getPostCategory(post)} /></td>
+                      <td className={cellPad}><StatusBadge status={post.approval_status} /></td>
+                      <td className={cellPad}>
                         {expiry ? (
                           <span className={`flex items-center gap-1 text-xs ${expiry.cls}`}>
                             <Timer size={11} /> {expiry.text}
                           </span>
                         ) : <span className="text-muted text-xs">—</span>}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className={cellPad}>
                         <div className="flex items-center gap-1.5 justify-end">
                           <Link
                             to={`/provider/posts/${post.id}/edit`}
                             title={t('posts.edit')}
-                            className="min-w-9 min-h-9 flex items-center justify-center rounded-btn text-muted hover:text-primary hover:bg-primary/10 transition-colors"
+                            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-btn text-muted hover:text-primary-text hover:bg-primary/10 transition-colors"
                           >
                             <Pencil size={14} />
                           </Link>
@@ -155,7 +164,7 @@ export default function ProviderPosts() {
                             onClick={() => setDeleteTarget(post)}
                             title={t('common.delete')}
                             aria-label={t('common.delete')}
-                            className="min-w-9 min-h-9 flex items-center justify-center rounded-btn text-muted hover:text-danger hover:bg-danger/10 transition-colors"
+                            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-btn text-muted hover:text-danger hover:bg-danger/10 transition-colors"
                           >
                             <Trash2 size={14} />
                           </button>

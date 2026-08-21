@@ -1,4 +1,5 @@
 import { useMinDisplayTime } from '../hooks/useMinDisplayTime'
+import ErrorState from './ErrorState'
 
 const COLS = {
   1: 'grid-cols-1',
@@ -7,7 +8,7 @@ const COLS = {
   4: 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
 }
 
-export default function PostGrid({ isLoading, isEmpty, emptyState, cols = 4, skeletonCount, className = '', children }) {
+export default function PostGrid({ isLoading, isError, onRetry, isEmpty, emptyState, cols = 4, skeletonCount, className = '', children }) {
   const colsClass = COLS[cols] ?? COLS[4]
   const count = skeletonCount ?? cols * 2
   const showSkeleton = useMinDisplayTime(isLoading)
@@ -21,6 +22,10 @@ export default function PostGrid({ isLoading, isEmpty, emptyState, cols = 4, ske
       </div>
     )
   }
+
+  // A failed fetch must not fall through to the empty state — "nothing here"
+  // and "we couldn't ask" are different answers.
+  if (isError) return <ErrorState onRetry={onRetry} />
 
   if (isEmpty) return emptyState ?? null
 

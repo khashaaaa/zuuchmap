@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Zuuchmap production deploy — verified 2026-07-18.
+# Zuuchmap production deploy — verified 2026-08-16 (monorepo).
 # Usage:
-#   ./deploy.sh            # push local commits, then deploy engine + web on the VPS
+#   ./deploy.sh            # push local monorepo, then deploy engine + web on the VPS
 #   ./deploy.sh --no-push  # deploy whatever is already on GitHub master
 # Credentials come from ~/.zuuchmap-deploy.env (never committed).
 set -euo pipefail
@@ -9,6 +9,7 @@ source ~/.zuuchmap-deploy.env
 
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 NO_PUSH="${1:-}"
+MONO_URL="https://$GH_USER:$GH_TOKEN@github.com/$GH_USER/zuuchmap.git"
 
 vps() {
   python3 - "$1" <<PYEOF
@@ -24,33 +25,36 @@ PYEOF
 }
 
 if [ "$NO_PUSH" != "--no-push" ]; then
-  for repo in zuuchmap_engine zuuchmap_web zuuchmap_app; do
-    if [ -n "$(git -C "$ROOT/$repo" status --porcelain)" ]; then
-      echo "!! $repo has uncommitted changes — commit them first (or run with --no-push)"; exit 1
-    fi
-    git -C "$ROOT/$repo" push "https://$GH_USER:$GH_TOKEN@github.com/$GH_USER/$repo.git" master
-  done
+  if [ -n "$(git -C "$ROOT" status --porcelain)" ]; then
+    echo "!! Working tree has uncommitted changes — commit them first (or run with --no-push)"; exit 1
+  fi
+  git -C "$ROOT" push "$MONO_URL" master
 fi
 
 STAMP=$(date +%Y%m%d_%H%M)
-echo "== 1/5 DB backup =="
+echo "== 1/6 DB backup =="
 vps "PGPASSWORD=$PG_PASS pg_dump -h $PG_HOST -U $PG_USER $PG_DB | gzip > ~/zuuchmap_backup_$STAMP.sql.gz && ls -la ~/zuuchmap_backup_$STAMP.sql.gz"
 # Retention: keep only the 10 most recent backups so these don't accumulate forever.
 vps "cd ~ && ls -t zuuchmap_backup_*.sql.gz 2>/dev/null | tail -n +11 | xargs -r rm -v"
 
 NODEPATH='export PATH=$HOME/.nvm/versions/node/v24.11.1/bin:$PATH'
 
-echo "== 2/5 Engine: pull, install, build =="
-vps "$NODEPATH; cd /var/www/zuuchmap_engine && git pull https://$GH_USER:$GH_TOKEN@github.com/$GH_USER/zuuchmap_engine.git master && npm install --no-audit --no-fund 2>&1 | tail -1 && npm run build 2>&1 | tail -1"
+echo "== 2/6 Sync monorepo checkout (~/zuuchmap-mono) =="
+vps "test -d ~/zuuchmap-mono/.git && (cd ~/zuuchmap-mono && git fetch origin master && git reset --hard origin/master) || git clone $MONO_URL ~/zuuchmap-mono"
 
-echo "== 3/5 Engine: migrations (production) =="
+echo "== 3/6 Engine: sync from monorepo, install, build =="
+vps "rm -rf /var/www/zuuchmap_engine/.git; rsync -a --delete --exclude .git --exclude-from=~/zuuchmap-mono/zuuchmap_engine/.gitignore ~/zuuchmap-mono/zuuchmap_engine/ /var/www/zuuchmap_engine/"
+vps "$NODEPATH; cd /var/www/zuuchmap_engine && npm install --no-audit --no-fund 2>&1 | tail -1 && npm run build 2>&1 | tail -1"
+
+echo "== 4/6 Engine: migrations (production) =="
 vps "$NODEPATH; cd /var/www/zuuchmap_engine && NODE_ENV=production npx typeorm-ts-node-commonjs migration:run -d src/database/data-source.ts 2>&1 | grep -E 'executed|pending|No migrations' | tail -6"
 
-echo "== 4/5 Engine: restart via pm2 =="
+echo "== 5/6 Engine: restart via pm2 =="
 vps "$NODEPATH; pm2 restart zuuchmap_engine 2>/dev/null || (cd /var/www/zuuchmap_engine && pm2 start ecosystem.config.js); pm2 save >/dev/null; sleep 4; pm2 status | grep zuuchmap"
 
-echo "== 5/5 Web: pull + build (nginx serves dist directly) =="
-vps "$NODEPATH; cd /var/www/zuuchmap_web && git pull https://$GH_USER:$GH_TOKEN@github.com/$GH_USER/zuuchmap_web.git master && npm install --no-audit --no-fund 2>&1 | tail -1 && npm run build 2>&1 | grep -E 'built|error'"
+echo "== 6/6 Web: sync from monorepo, install, build (nginx serves dist directly) =="
+vps "rm -rf /var/www/zuuchmap_web/.git; rsync -a --delete --exclude .git --exclude-from=~/zuuchmap-mono/zuuchmap_web/.gitignore ~/zuuchmap-mono/zuuchmap_web/ /var/www/zuuchmap_web/"
+vps "$NODEPATH; cd /var/www/zuuchmap_web && npm install --no-audit --no-fund 2>&1 | tail -1 && npm run build 2>&1 | grep -E 'built|error'"
 
 echo "== Smoke test =="
 curl -s -o /dev/null -w "API  https://zuuchmap.com/engine/posts/categories/all -> HTTP %{http_code}\n" https://zuuchmap.com/engine/posts/categories/all

@@ -1,3 +1,4 @@
+import { API_CONFIG } from '../config/api.config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { logger } from './logger';
 
@@ -22,10 +23,6 @@ class CacheManager {
             value,
             expiresAt: ttl ? Date.now() + ttl : null,
         });
-    }
-
-    hasMemory(key) {
-        return this.getMemory(key) !== null;
     }
 
     deleteMemory(key) {
@@ -74,40 +71,6 @@ class CacheManager {
         }
     }
 
-    async clearStorage() {
-        try {
-            const keys = await AsyncStorage.getAllKeys();
-            const cacheKeys = keys.filter(key => key.startsWith(this.storagePrefix));
-            await AsyncStorage.multiRemove(cacheKeys);
-        } catch (error) {
-        }
-    }
-
-    async get(key, ttl = null) {
-        const memoryValue = this.getMemory(key);
-        if (memoryValue !== null) return memoryValue;
-        const storageValue = await this.getStorage(key);
-        if (storageValue !== null) {
-            // Warm memory from storage
-            this.setMemory(key, storageValue, ttl);
-        }
-        return storageValue;
-    }
-
-    async set(key, value, ttl = null) {
-        this.setMemory(key, value, ttl);
-        await this.setStorage(key, value, ttl);
-    }
-
-    async delete(key) {
-        this.deleteMemory(key);
-        await this.deleteStorage(key);
-    }
-
-    async clear() {
-        this.clearMemory();
-        await this.clearStorage();
-    }
 }
 
 const cacheManager = new CacheManager();
@@ -118,7 +81,7 @@ export default cacheManager;
 export const invalidatePostCaches = async () => {
     try {
         cacheManager.clearMemory();
-        await cacheManager.deleteStorage('cached_map_posts');
+        await cacheManager.deleteStorage(API_CONFIG.STORAGE_KEYS.CACHED_MAP_POSTS);
     } catch (error) {
         logger.error('Error invalidating post caches:', error);
     }

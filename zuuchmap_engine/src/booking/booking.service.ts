@@ -5,7 +5,7 @@ import { Booking } from './entities/booking.entity';
 import { Post } from '../post/entities/post.entity';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { BookingStatus } from '../enums/bookingstatus';
-import { PostService } from '../post/post.service';
+import { PostNotificationService } from '../post/post-notification.service';
 import { CategoryService } from '../post/category.service';
 import { EventsGateway } from '../events/events.gateway';
 
@@ -36,7 +36,7 @@ export class BookingService {
     private readonly bookingRepository: Repository<Booking>,
     @InjectRepository(Post)
     private readonly postRepository: Repository<Post>,
-    private readonly postService: PostService,
+    private readonly notifications: PostNotificationService,
     private readonly categoryService: CategoryService,
     @Optional() private readonly events: EventsGateway,
   ) {}
@@ -54,25 +54,25 @@ export class BookingService {
   async create(customerId: string, dto: CreateBookingDto) {
     const post = await this.postRepository.findOne({ where: { id: dto.post_id }, relations: ['user'] });
     if (!post) throw new NotFoundException('Post not found');
-    if (post.approval_status !== 'APPROVED') throw new BadRequestException('Post is not available for booking');
+    if (post.approval_status !== 'APPROVED') throw new BadRequestException({ code: 'BOOKING_POST_UNAVAILABLE', message: 'Post is not available for booking' });
     if (!post.user) throw new BadRequestException('Post has no owner');
-    if (post.user.id === customerId) throw new BadRequestException('You cannot book your own post');
+    if (post.user.id === customerId) throw new BadRequestException({ code: 'BOOKING_SELF', message: 'You cannot book your own post' });
 
     const schema = await this.categoryService.getCategory(post.category).catch(() => null);
-    if (!schema?.has_rental_status) throw new BadRequestException('This category does not support bookings');
+    if (!schema?.has_rental_status) throw new BadRequestException({ code: 'BOOKING_CATEGORY_UNSUPPORTED', message: 'This category does not support bookings' });
 
     const start = new Date(dto.start_date);
     const end = new Date(dto.end_date);
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
-      throw new BadRequestException('Invalid date range');
+      throw new BadRequestException({ code: 'BOOKING_DATE_RANGE', message: 'Invalid date range' });
     }
     const today = new Date(); today.setHours(0, 0, 0, 0);
-    if (start < today) throw new BadRequestException('Start date is in the past');
+    if (start < today) throw new BadRequestException({ code: 'BOOKING_DATE_PAST', message: 'Start date is in the past' });
 
     const existing = await this.bookingRepository.findOne({
       where: { post: { id: post.id }, customer: { id: customerId }, status: BookingStatus.PENDING },
     });
-    if (existing) throw new BadRequestException('You already have a pending request for this post');
+    if (existing) throw new BadRequestException({ code: 'BOOKING_ALREADY_PENDING', message: 'You already have a pending request for this post' });
 
     const booking = this.bookingRepository.create({
       post,
@@ -86,12 +86,12 @@ export class BookingService {
     const saved = await this.bookingRepository.save(booking);
 
     this.events?.emitBookingEvent(post.user.id, 'booking.requested', { bookingId: saved.id, postId: post.id });
-    this.postService.notifyUsers(
+    this.notifications.notifyUsers(
       [post.user.id],
       'Шинэ захиалгын хүсэлт',
       `"${post.title ?? schema.label}" зарт захиалгын хүсэлт ирлээ.`,
       { bookingId: saved.id, notifType: 'booking_requested' },
-    ).catch(() => {});
+    ).catch(err => this.logger.warn(`booking notify backstop: ${err?.message}`));
 
     const full = await this.findOwn(saved.id);
     return this.sanitize(full ?? saved);
@@ -127,8 +127,8 @@ export class BookingService {
   async respond(id: number, providerId: string, accept: boolean, responseMessage?: string) {
     const booking = await this.findOwn(id);
     if (!booking) throw new NotFoundException('Booking not found');
-    if (booking.provider?.id !== providerId) throw new ForbiddenException('Not your booking to respond to');
-    if (booking.status !== BookingStatus.PENDING) throw new BadRequestException('Booking is not pending');
+    if (booking.provider?.id !== providerId) throw new ForbiddenException({ code: 'BOOKING_NOT_YOURS', message: 'Not your booking to respond to' });
+    if (booking.status !== BookingStatus.PENDING) throw new BadRequestException({ code: 'BOOKING_NOT_PENDING', message: 'Booking is not pending' });
 
     if (accept) {
       // Refuse overlap with an already-accepted booking on the same post
@@ -140,7 +140,7 @@ export class BookingService {
           start: booking.start_date, end: booking.end_date,
         })
         .getOne();
-      if (overlap) throw new BadRequestException('Dates overlap an already accepted booking');
+      if (overlap) throw new BadRequestException({ code: 'BOOKING_OVERLAP', message: 'Dates overlap an already accepted booking' });
     }
 
     booking.status = accept ? BookingStatus.ACCEPTED : BookingStatus.DECLINED;
@@ -150,14 +150,14 @@ export class BookingService {
     this.events?.emitBookingEvent(booking.customer.id, 'booking.responded', {
       bookingId: saved.id, status: saved.status,
     });
-    this.postService.notifyUsers(
+    this.notifications.notifyUsers(
       [booking.customer.id],
       accept ? 'Захиалга баталгаажлаа' : 'Захиалга татгалзагдлаа',
       accept
         ? `"${booking.post.title ?? ''}" захиалгын хүсэлт зөвшөөрөгдлөө.`
         : `"${booking.post.title ?? ''}" захиалгын хүсэлт татгалзагдлаа.`,
       { bookingId: saved.id, notifType: 'booking_responded' },
-    ).catch(() => {});
+    ).catch(err => this.logger.warn(`booking notify backstop: ${err?.message}`));
 
     return this.sanitize(saved);
   }
@@ -165,21 +165,21 @@ export class BookingService {
   async cancel(id: number, customerId: string) {
     const booking = await this.findOwn(id);
     if (!booking) throw new NotFoundException('Booking not found');
-    if (booking.customer?.id !== customerId) throw new ForbiddenException('Not your booking');
+    if (booking.customer?.id !== customerId) throw new ForbiddenException({ code: 'BOOKING_NOT_YOURS', message: 'Not your booking' });
     if (booking.status !== BookingStatus.PENDING && booking.status !== BookingStatus.ACCEPTED) {
-      throw new BadRequestException('Booking cannot be cancelled');
+      throw new BadRequestException({ code: 'BOOKING_NOT_CANCELLABLE', message: 'Booking cannot be cancelled' });
     }
 
     booking.status = BookingStatus.CANCELLED;
     const saved = await this.bookingRepository.save(booking);
 
     this.events?.emitBookingEvent(booking.provider.id, 'booking.cancelled', { bookingId: saved.id });
-    this.postService.notifyUsers(
+    this.notifications.notifyUsers(
       [booking.provider.id],
       'Захиалга цуцлагдлаа',
       `"${booking.post.title ?? ''}" захиалга цуцлагдлаа.`,
       { bookingId: saved.id, notifType: 'booking_cancelled' },
-    ).catch(() => {});
+    ).catch(err => this.logger.warn(`booking notify backstop: ${err?.message}`));
 
     return this.sanitize(saved);
   }

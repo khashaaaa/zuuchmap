@@ -1,7 +1,6 @@
 import postService from './postService';
 import { API_CONFIG } from '../../config/api.config';
-import { getPriceUnitLabel } from '../../utils/displayUtils';
-import { getFixedImageUrl, getPostTitle as getPostTitleUtil } from '../../utils/postUtils';
+import { getFixedImageUrl, getPostTitle as getPostTitleUtil, getPostPrice as getPostPriceUtil } from '../../utils/postUtils';
 import { logger } from '../../utils/logger';
 import cacheManager from '../../utils/cacheManager';
 
@@ -75,12 +74,8 @@ const mapService = {
 
   getPostTitle: (post) => getPostTitleUtil(post, post.post_type || post.category),
 
-  getPostPrice: (post) => {
-    if (post.price_amount) {
-      return `${Number(post.price_amount).toLocaleString()} ₮${post.price_unit ? `/${getPriceUnitLabel(post.price_unit)}` : ''}`;
-    }
-    return post.attributes?.salary_range || null;
-  },
+  // Single implementation lives in postUtils (locale-aware units, coercion).
+  getPostPrice: (post) => getPostPriceUtil(post),
 
   calculateBounds: (coordinates) => {
     if (!coordinates?.length) return null;
@@ -124,12 +119,14 @@ const mapService = {
   },
 
   saveMapPreferences: async (prefs) => {
-    await cacheManager.setStorage('map_preferences', prefs).catch(() => {});
+    await cacheManager.setStorage(API_CONFIG.STORAGE_KEYS.MAP_PREFERENCES, prefs).catch(() => {});
   },
 
   loadMapPreferences: async () => {
-    const prefs = await cacheManager.getStorage('map_preferences').catch(() => null);
-    return prefs || { mapType: 'standard', showTraffic: false, clusterMarkers: true, autoFitMarkers: true };
+    const prefs = await cacheManager.getStorage(API_CONFIG.STORAGE_KEYS.MAP_PREFERENCES).catch(() => null);
+    // Defaults must match CustomerMapView's initial state (autoFitMarkers: false)
+    // or the UI flips depending on whether the storage read has resolved.
+    return prefs || { mapType: 'standard', showTraffic: false, clusterMarkers: true, autoFitMarkers: false };
   },
 };
 

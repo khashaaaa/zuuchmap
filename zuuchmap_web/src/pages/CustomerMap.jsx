@@ -2,26 +2,17 @@ import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 import { Link } from 'react-router-dom'
-import L from 'leaflet'
 import { useTranslation } from 'react-i18next'
 import { postsApi, categoryApi } from '@/lib/api'
-import { getCategoryLabel, getPostCategory, formatPrice, getImageUrl } from '@/lib/utils'
+import { getCategoryLabel, getPostCategory, getCategoryColor, categoryPin, formatPrice, getImageUrl } from '@/lib/utils'
 import CategoryPills from '@/components/CategoryPills'
+import ErrorState from '@/components/ErrorState'
+import EmptyState from '@/components/EmptyState'
 import { useThemeStore } from '@/store'
 
 const UB = [47.9184676, 106.9177016]
 const MAP_MARKER_CAP = 300
 const LIST_CAP = 100
-
-const markerIcon = new L.Icon({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-})
 
 export default function CustomerMap() {
   const { t } = useTranslation()
@@ -29,7 +20,7 @@ export default function CustomerMap() {
   const [selected, setSelected] = useState(null)
   const [selectedCategory, setSelectedCategory] = useState('')
 
-  const { data: allPosts = [], isLoading } = useQuery({
+  const { data: allPosts = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['posts-map'],
     queryFn: postsApi.getMap,
     staleTime: 60_000,
@@ -51,6 +42,9 @@ export default function CustomerMap() {
   )
 
   if (isLoading) return <div className="h-[calc(100vh-8rem)] bg-surface2 rounded-card animate-pulse" />
+
+  // An empty map and an unreachable engine look identical once the pins are gone.
+  if (isError) return <ErrorState onRetry={refetch} />
 
   return (
     <>
@@ -76,14 +70,14 @@ export default function CustomerMap() {
               <Marker
                 key={post.id}
                 position={[post.latitude, post.longitude]}
-                icon={markerIcon}
+                icon={categoryPin(getCategoryColor(getPostCategory(post), schemas))}
                 eventHandlers={{ click: () => setSelected(post) }}
               >
                 <Popup>
                   <div className="text-xs" style={{ minWidth: 140 }}>
                     <p className="font-semibold text-sm mb-0.5">{post.title || resolveLabel(getPostCategory(post))}</p>
-                    {post.price_amount && <p className="text-warning">{formatPrice(post.price_amount, post.price_unit, t)}</p>}
-                    <Link to={`/posts/${post.id}`} className="text-warning underline mt-1 block">{t('common.viewAll')}</Link>
+                    {post.price_amount && <p className="text-primary-text">{formatPrice(post.price_amount, post.price_unit, t)}</p>}
+                    <Link to={`/posts/${post.id}`} className="text-primary-text underline mt-1 block">{t('common.viewAll')}</Link>
                   </div>
                 </Popup>
               </Marker>
@@ -97,6 +91,9 @@ export default function CustomerMap() {
             ? t('common.showingOf', { shown: LIST_CAP, total: filtered.length })
             : t('common.total', { count: filtered.length })}
         </p>
+        {filtered.length === 0 && (
+          <EmptyState title={t('posts.browseEmpty')} description={t('posts.browseEmptyDesc')} />
+        )}
         {filtered.slice(0, LIST_CAP).map((post) => (
           <Link
             key={post.id}
@@ -110,7 +107,7 @@ export default function CustomerMap() {
             )}
             <div className="p-3">
               <p className="text-xs font-medium text-text line-clamp-2">{post.title || resolveLabel(getPostCategory(post))}</p>
-              {post.price_amount && <p className="text-xs text-primary mt-0.5">{formatPrice(post.price_amount, post.price_unit, t)}</p>}
+              {post.price_amount && <p className="text-xs text-primary-text mt-0.5">{formatPrice(post.price_amount, post.price_unit, t)}</p>}
             </div>
           </Link>
         ))}

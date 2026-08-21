@@ -25,14 +25,14 @@ export class ReviewService {
 
   // One review per author per provider — repeat submissions update the existing one
   async upsert(authorId: string, dto: CreateReviewDto) {
-    if (dto.provider_id === authorId) throw new BadRequestException('You cannot review yourself');
+    if (dto.provider_id === authorId) throw new BadRequestException({ code: 'REVIEW_SELF', message: 'You cannot review yourself' });
 
     const provider = await this.userRepository.findOne({ where: { id: dto.provider_id } });
     if (!provider) throw new NotFoundException('Provider not found');
 
     const eligible = await this.bookingService.hasAcceptedBooking(authorId, dto.provider_id);
     if (!eligible) {
-      throw new ForbiddenException('Only customers with an accepted booking can review this provider');
+      throw new ForbiddenException({ code: 'REVIEW_NEEDS_BOOKING', message: 'Only customers with an accepted booking can review this provider' });
     }
 
     let review = await this.reviewRepository.findOne({
@@ -55,14 +55,23 @@ export class ReviewService {
   }
 
   async forProvider(providerId: string) {
-    const reviews = await this.reviewRepository.find({
-      where: { provider: { id: providerId } },
-      relations: ['author'],
-      order: { date_updated: 'DESC' },
-      take: 100,
-    });
-    const count = reviews.length;
-    const average = count ? reviews.reduce((sum, r) => sum + r.rating, 0) / count : 0;
+    // Aggregate over the full set in SQL — the page below is capped at 100,
+    // and an average computed from a truncated page is wrong past that.
+    const [reviews, agg] = await Promise.all([
+      this.reviewRepository.find({
+        where: { provider: { id: providerId } },
+        relations: ['author'],
+        order: { date_updated: 'DESC' },
+        take: 100,
+      }),
+      this.reviewRepository.createQueryBuilder('r')
+        .select('COUNT(*)', 'count')
+        .addSelect('AVG(r.rating)', 'average')
+        .where('r."providerId" = :providerId', { providerId })
+        .getRawOne(),
+    ]);
+    const count = Number(agg?.count ?? 0);
+    const average = count ? Number(agg.average) : 0;
     return {
       average: Math.round(average * 10) / 10,
       count,
@@ -82,7 +91,7 @@ export class ReviewService {
     const review = await this.reviewRepository.findOne({ where: { id }, relations: ['author'] });
     if (!review) throw new NotFoundException('Review not found');
     if (review.author?.id !== userId && !isAdmin(userPhone)) {
-      throw new ForbiddenException('Not your review');
+      throw new ForbiddenException({ code: 'REVIEW_NOT_YOURS', message: 'Not your review' });
     }
     await this.reviewRepository.delete(id);
   }

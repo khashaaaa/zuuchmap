@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing, typography, shadows, radius, interactions, themedStyles } from '../../design/theme';
+import { spacing, typography, radius, interactions, themedStyles, withAlpha, toneForTheme, animations } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
@@ -25,7 +25,11 @@ import ScreenHeader from '../../components/ScreenHeader';
 
 import MapFilterModal from '../../components/MapFilterModal';
 import BottomSheetModal from '../../components/BottomSheetModal';
+import EmptyState from '../../components/EmptyState';
+import PressableScale from '../../components/PressableScale';
+import FadeSlideIn from '../../components/FadeSlideIn';
 import { getPostTypeConfig, normalizePostType } from '../../utils/postUtils';
+import { useCategorySchemas } from '../../hooks/useCategorySchemas';
 import { showErrorModal, showWarningModal } from '../../utils/errorManager';
 import { logger } from '../../utils/logger';
 
@@ -74,34 +78,19 @@ const CustomerMapView = ({ navigation, route }) => {
     const styles = makeStyles(colors);
     const { t } = useTranslation();
 
-    const getMarkerColor = useCallback((postType) => {
-        const map = {
-            vehiclerent: colors.success,
-            toolrent: colors.warning,
-            machineryrent: colors.machinery,
-            materialstore: colors.material,
-            factory: colors.danger,
-            construction: colors.primary,
-            jobvacancy: colors.jobVacancy,
-            sos: colors.sos,
-        };
-        return map[postType] || colors.text.secondary;
-    }, [colors]);
+    const schemas = useCategorySchemas();
 
-    const getMarkerIcon = useCallback((postType) => {
-        const icons = {
-            vehiclerent: 'car',
-            toolrent: 'construct',
-            machineryrent: 'hardware-chip',
-            materialstore: 'cube',
-            factory: 'business',
-            construction: 'hammer',
-            jobvacancy: 'briefcase',
-            sos: 'alert-circle',
-        };
-        return icons[postType] || 'location';
-    }, [colors]);
+    // Marker colour and glyph come from the category schema, so a vertical added
+    // in the admin UI appears on the map without an app release.
+    const getMarkerColor = useCallback((postType) => (
+        schemas.find((s) => s.key === normalizePostType(postType))?.color || colors.text.secondary
+    ), [schemas, colors]);
+
+    const getMarkerIcon = useCallback((postType) => (
+        schemas.find((s) => s.key === normalizePostType(postType))?.icon || 'location'
+    ), [schemas]);
     const mapRef = useRef(null);
+    const navigatingRef = useRef(false);
     const [hasInitialized, setHasInitialized] = useState(false);
 
     const [region, setRegion] = useState(DEFAULT_REGION);
@@ -164,7 +153,7 @@ const CustomerMapView = ({ navigation, route }) => {
                 latitudeDelta: 0.02,
                 longitudeDelta: 0.02,
             };
-            mapRef.current.animateToRegion(newRegion, 1000);
+            mapRef.current.animateToRegion(newRegion, animations.duration.camera);
         } else {
             getUserLocation(true).then((coords) => {
                 if (coords && mapRef.current && mapReady) {
@@ -173,7 +162,7 @@ const CustomerMapView = ({ navigation, route }) => {
                         latitudeDelta: 0.02,
                         longitudeDelta: 0.02,
                     };
-                    mapRef.current.animateToRegion(newRegion, 1000);
+                    mapRef.current.animateToRegion(newRegion, animations.duration.camera);
                 }
             });
         }
@@ -344,7 +333,7 @@ const CustomerMapView = ({ navigation, route }) => {
                         <Ionicons
                             name={getMarkerIcon(post.post_type)}
                             size={16}
-                            color="white"
+                            color={colors.text.onColor}
                         />
                     </View>
                 </Marker>
@@ -363,13 +352,14 @@ const CustomerMapView = ({ navigation, route }) => {
                 </View>
             </Marker>
         );
-    }, [handleClusterPress, getMarkerColor, getMarkerIcon]);
+    }, [handleClusterPress, getMarkerColor, getMarkerIcon, colors]);
 
-    const renderPostItem = useCallback(({ item }) => (
-        <TouchableOpacity
+    const renderPostItem = useCallback(({ item, index }) => (
+        <FadeSlideIn index={index}>
+        <PressableScale
             style={[styles.clusterPostItem, { backgroundColor: colors.surface }]}
             onPress={() => handlePostPress(item)}
-            activeOpacity={interactions.activeOpacityLight}
+            accessibilityRole="button"
         >
             <View style={[
                 styles.postTypeIndicator,
@@ -378,7 +368,7 @@ const CustomerMapView = ({ navigation, route }) => {
                 <Ionicons
                     name={getMarkerIcon(item.post_type)}
                     size={16}
-                    color="white"
+                    color={colors.text.onColor}
                 />
             </View>
 
@@ -397,7 +387,8 @@ const CustomerMapView = ({ navigation, route }) => {
             </View>
 
             <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-        </TouchableOpacity>
+        </PressableScale>
+        </FadeSlideIn>
     ), [handlePostPress, colors, getMarkerColor, getMarkerIcon]);
 
     const activeFilterCount = useMemo(() => {
@@ -416,7 +407,7 @@ const CustomerMapView = ({ navigation, route }) => {
                         <TouchableOpacity
                             style={styles.mapHeaderBtn}
                             onPress={() => dispatchUi({ type: 'SHOW_FILTER' })}
-                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            hitSlop={interactions.hitSlop}
                             accessibilityRole="button"
                             accessibilityLabel={t('filter.title')}
                         >
@@ -435,7 +426,7 @@ const CustomerMapView = ({ navigation, route }) => {
                         <TouchableOpacity
                             style={styles.mapHeaderBtn}
                             onPress={() => dispatchUi({ type: 'SHOW_SETTINGS' })}
-                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            hitSlop={interactions.hitSlop}
                             accessibilityRole="button"
                             accessibilityLabel={t('map.settings')}
                         >
@@ -446,7 +437,7 @@ const CustomerMapView = ({ navigation, route }) => {
                             style={styles.mapHeaderBtn}
                             onPress={onRefresh}
                             disabled={refreshing}
-                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            hitSlop={interactions.hitSlop}
                             accessibilityRole="button"
                             accessibilityLabel={t('map.refresh')}
                         >
@@ -495,19 +486,23 @@ const CustomerMapView = ({ navigation, route }) => {
                     const base = tabBarHeight + safeBottom + spacing.xl;
                     return (
                         <>
-                            <TouchableOpacity
+                            <PressableScale
                                 style={[styles.floatingButton, { bottom: base, right: spacing.lg, backgroundColor: colors.surface }]}
                                 onPress={centerOnUserLocation}
+                                accessibilityRole="button"
+                                accessibilityLabel={t('map.title')}
                             >
                                 <Ionicons name="locate" size={20} color={colors.primary} />
-                            </TouchableOpacity>
+                            </PressableScale>
 
-                            <TouchableOpacity
+                            <PressableScale
                                 style={[styles.floatingButton, { bottom: base + 60, right: spacing.lg, backgroundColor: colors.surface }]}
                                 onPress={fitToMarkers}
+                                accessibilityRole="button"
+                                accessibilityLabel={t('map.autoFit')}
                             >
                                 <Ionicons name="expand" size={20} color={colors.primary} />
-                            </TouchableOpacity>
+                            </PressableScale>
                         </>
                     );
                 })()}
@@ -530,6 +525,9 @@ const CustomerMapView = ({ navigation, route }) => {
                     keyExtractor={(item) => `${item.post_type}-${item.id}`}
                     showsVerticalScrollIndicator={false}
                     style={styles.clusterPostList}
+                    ListEmptyComponent={
+                        <EmptyState icon="map-outline" iconSize={40} title={t('posts.empty')} />
+                    }
                 />
             </BottomSheetModal>
 
@@ -539,7 +537,7 @@ const CustomerMapView = ({ navigation, route }) => {
                 title={null}
             >
                 {selectedPost && (() => {
-                    const typeConfig = getPostTypeConfig(normalizePostType(selectedPost.post_type), colors);
+                    const typeConfig = getPostTypeConfig(normalizePostType(selectedPost.post_type), colors, schemas);
                     const imageUri = selectedPost.images?.[0];
                     const price = mapService.getPostPrice(selectedPost);
                     const title = mapService.getPostTitle(selectedPost);
@@ -555,17 +553,17 @@ const CustomerMapView = ({ navigation, route }) => {
                                             resizeMode="cover"
                                         />
                                         <LinearGradient
-                                            colors={['transparent', 'rgba(0,0,0,0.55)']}
+                                            colors={['transparent', colors.opacity.overlay]}
                                             style={styles.previewGradient}
                                         />
                                     </>
                                 ) : (
-                                    <View style={[styles.previewImagePlaceholder, { backgroundColor: typeConfig.color + '22' }]}>
-                                        <Ionicons name={typeConfig.iconName} size={40} color={typeConfig.color} />
+                                    <View style={[styles.previewImagePlaceholder, { backgroundColor: withAlpha(typeConfig.color, 0.13) }]}>
+                                        <Ionicons name={typeConfig.iconName} size={40} color={toneForTheme(typeConfig.color, isDark)} />
                                     </View>
                                 )}
                                 <View style={[styles.previewCategoryPill, { backgroundColor: typeConfig.color }]}>
-                                    <Ionicons name={typeConfig.iconName} size={12} color="white" />
+                                    <Ionicons name={typeConfig.iconName} size={12} color={colors.text.onColor} />
                                     <Text style={styles.previewCategoryText}>{t('category.' + normalizePostType(selectedPost.post_type))}</Text>
                                 </View>
                             </View>
@@ -582,6 +580,10 @@ const CustomerMapView = ({ navigation, route }) => {
                                 <TouchableOpacity
                                     style={[styles.previewDetailButton, { backgroundColor: typeConfig.color }]}
                                     onPress={() => {
+                                        // Guard: a double-tap fires before the sheet closes and pushes two frames.
+                                        if (navigatingRef.current) return;
+                                        navigatingRef.current = true;
+                                        setTimeout(() => { navigatingRef.current = false; }, 800);
                                         dispatchUi({ type: 'HIDE_PREVIEW' });
                                         navigation.navigate('PostDetailScreen', {
                                             postId: selectedPost.id,
@@ -594,7 +596,7 @@ const CustomerMapView = ({ navigation, route }) => {
                                     activeOpacity={interactions.activeOpacity}
                                 >
                                     <Text style={styles.previewDetailButtonText}>{t('common.details')}</Text>
-                                    <Ionicons name="arrow-forward" size={16} color="white" />
+                                    <Ionicons name="arrow-forward" size={16} color={colors.text.onColor} />
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -672,9 +674,8 @@ const makeStyles = themedStyles((colors) => ({
         paddingHorizontal: spacing.xxs,
     },
     filterBadgeText: {
-        color: colors.text.inverse,
-        fontSize: typography.xs,
-        fontWeight: 'bold',
+        color: colors.text.onColor,
+        ...typography.styles.badge,
     },
     mapContainer: {
         flex: 1,
@@ -684,16 +685,17 @@ const makeStyles = themedStyles((colors) => ({
         flex: 1,
     },
     singleMarkerContainer: {
+        ...colors.elevation.md,
         width: 32,
         height: 32,
-        borderRadius: radius.card,
+        borderRadius: radius.full,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 2,
-        borderColor: colors.text.inverse,
-        ...shadows.medium,
+        borderColor: colors.text.onMedia,
     },
     clusterMarkerContainer: {
+        ...colors.elevation.md,
         backgroundColor: colors.primary,
         borderRadius: radius.xxl,
         minWidth: 40,
@@ -701,14 +703,9 @@ const makeStyles = themedStyles((colors) => ({
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 3,
-        borderColor: colors.text.inverse,
-        ...shadows.medium,
+        borderColor: colors.text.onMedia,
     },
-    clusterText: {
-        color: colors.text.inverse,
-        fontWeight: 'bold',
-        fontSize: typography.sm,
-    },
+    clusterText: { ...typography.styles.labelStrong, color: colors.onPrimary, },
     loadingOverlay: {
         position: 'absolute',
         top: 0,
@@ -721,20 +718,21 @@ const makeStyles = themedStyles((colors) => ({
     },
     loadingText: {
         marginTop: spacing.sm,
-        fontSize: typography.sm,
+        ...typography.styles.caption,
         color: colors.text.secondary,
     },
     floatingButton: {
+        ...colors.elevation.md,
         position: 'absolute',
         width: 48,
         height: 48,
-        borderRadius: radius.xxxl,
+        borderRadius: radius.full,
         // backgroundColor set inline (reactive to theme)
         justifyContent: 'center',
         alignItems: 'center',
-        ...shadows.medium,
     },
     postCountBadge: {
+        ...colors.elevation.md,
         position: 'absolute',
         top: spacing.lg,
         left: spacing.lg,
@@ -742,29 +740,27 @@ const makeStyles = themedStyles((colors) => ({
         paddingHorizontal: spacing.md,
         paddingVertical: spacing.sm,
         borderRadius: radius.xxl,
-        ...shadows.medium,
     },
     postCountText: {
-        color: colors.text.inverse,
-        fontSize: typography.sm,
-        fontWeight: '600',
+        color: colors.onPrimary,
+        ...typography.styles.labelStrong,
     },
     clusterPostList: {
         flex: 1,
     },
     clusterPostItem: {
+        ...colors.elevation.sm,
         flexDirection: 'row',
         alignItems: 'center',
         padding: spacing.md,
         backgroundColor: colors.background,
         borderRadius: radius.lg,
         marginBottom: spacing.sm,
-        ...shadows.small,
     },
     postTypeIndicator: {
         width: 40,
         height: 40,
-        borderRadius: radius.xxl,
+        borderRadius: radius.full,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: spacing.md,
@@ -773,19 +769,17 @@ const makeStyles = themedStyles((colors) => ({
         flex: 1,
     },
     postItemTitle: {
-        fontSize: typography.md,
-        fontWeight: '600',
+        ...typography.styles.bodyBold,
         color: colors.text.primary,
         marginBottom: spacing.xxs,
     },
     postItemCategory: {
-        fontSize: typography.xs,
+        ...typography.styles.small,
         color: colors.text.secondary,
         marginBottom: spacing.xxs,
     },
     postItemPrice: {
-        fontSize: typography.sm,
-        fontWeight: '600',
+        ...typography.styles.price,
         color: colors.primary,
     },
     settingItem: {
@@ -797,7 +791,7 @@ const makeStyles = themedStyles((colors) => ({
         borderBottomColor: colors.border.light,
     },
     settingLabel: {
-        fontSize: typography.md,
+        ...typography.styles.body,
         color: colors.text.primary,
         flex: 1,
     },
@@ -842,23 +836,19 @@ const makeStyles = themedStyles((colors) => ({
         borderRadius: radius.xxl,
     },
     previewCategoryText: {
-        color: colors.text.inverse,
-        fontSize: typography.xs,
-        fontWeight: '600',
+        color: colors.text.onColor,
+        ...typography.styles.badge,
     },
     previewBody: {
         paddingHorizontal: spacing.xs,
     },
     previewTitle: {
-        fontSize: typography.lg,
-        fontWeight: '700',
+        ...typography.styles.title,
         color: colors.text.primary,
         marginBottom: spacing.xs,
-        lineHeight: 24,
     },
     previewPrice: {
-        fontSize: typography.md,
-        fontWeight: '600',
+        ...typography.styles.price,
         color: colors.primary,
         marginBottom: spacing.sm,
     },
@@ -869,22 +859,21 @@ const makeStyles = themedStyles((colors) => ({
         marginBottom: spacing.lg,
     },
     previewLocationText: {
-        fontSize: typography.sm,
+        ...typography.styles.caption,
         color: colors.text.secondary,
     },
     previewDetailButton: {
+        ...colors.elevation.sm,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         gap: spacing.sm,
         paddingVertical: spacing.md,
         borderRadius: radius.button,
-        ...shadows.small,
     },
     previewDetailButtonText: {
-        color: colors.text.inverse,
-        fontSize: typography.md,
-        fontWeight: '600',
+        color: colors.text.onColor,
+        ...typography.styles.bodyBold,
     },
 }));
 

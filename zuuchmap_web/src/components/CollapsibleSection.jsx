@@ -7,7 +7,7 @@ export default function CollapsibleSection({ title, defaultOpen = true, children
   return (
     <details
       open={defaultOpen}
-      className={`group [&::-webkit-details-marker]:hidden ${isBare ? 'pt-4 border-t border-border/20' : 'border border-border/20 shadow-card rounded-card bg-surface'} ${className}`}
+      className={`group [&::-webkit-details-marker]:hidden ${isBare ? 'pt-4 border-t border-border/50' : 'border border-border/20 shadow-card rounded-card bg-surface'} ${className}`}
     >
       <summary className={`cursor-pointer list-none flex items-center justify-between text-sm font-semibold text-text ${isBare ? '' : 'px-4 py-3'}`}>
         {title}

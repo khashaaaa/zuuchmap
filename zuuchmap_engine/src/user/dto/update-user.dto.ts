@@ -6,9 +6,6 @@ export class UpdateUserDto {
   type?: string
 
   @IsOptional()
-  phone_number?: string
-
-  @IsOptional()
   parent_name?: string
 
   @IsOptional()
@@ -19,15 +16,6 @@ export class UpdateUserDto {
 
   @IsOptional()
   address?: string
-
-  @IsOptional()
-  biometric?: string
-
-  @IsOptional()
-  device_info?: string
-
-  @IsOptional()
-  is_verified?: boolean
 
   @IsOptional()
   profile_picture?: string

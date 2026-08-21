@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, ConflictException, 
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CategorySchema, FieldDef } from './entities/category-schema.entity';
-import { SimpleCache } from '../utils/cache';
+import { sharedCache } from '../utils/cache';
 
 const CACHE_KEY = 'categories';
 const CACHE_TTL = 60 * 60_000; // 1 h
@@ -10,7 +10,7 @@ const CACHE_TTL = 60 * 60_000; // 1 h
 @Injectable()
 export class CategoryService {
   private readonly logger = new Logger(CategoryService.name);
-  private readonly cache = new SimpleCache();
+  private readonly cache = sharedCache;
 
   constructor(
     @InjectRepository(CategorySchema)
@@ -29,9 +29,15 @@ export class CategoryService {
     return result;
   }
 
+  // Cached: this sits on the hot post-create and booking paths, which used
+  // to hit the DB per request while the list variant was cached for an hour.
   async getCategory(key: string): Promise<CategorySchema> {
+    const cacheKey = `category:${key}`;
+    const cached = this.cache.get<CategorySchema>(cacheKey);
+    if (cached) return cached;
     const cat = await this.categoryRepository.findOne({ where: { key } });
     if (!cat) throw new NotFoundException(`Category '${key}' not found`);
+    this.cache.set(cacheKey, cat, CACHE_TTL);
     return cat;
   }
 
@@ -69,8 +75,31 @@ export class CategoryService {
     }
     const subSeen = new Set<string>();
     for (const s of data.subcategories ?? []) {
+      if (!/^[a-z0-9_]+$/.test(s.value ?? '')) {
+        throw new BadRequestException(`Invalid subcategory value '${s.value}' — use snake_case (a-z, 0-9, _)`);
+      }
       if (subSeen.has(s.value)) throw new BadRequestException(`Duplicate subcategory value '${s.value}'`);
       subSeen.add(s.value);
+    }
+
+    // The key ends up in URLs (?category=…), i18n lookups and client caches, so
+    // it has to survive all three unescaped. Only checked when present —
+    // PATCH bodies are partial, and an existing key can never be renamed.
+    if (data.key !== undefined && !/^[a-z0-9_]+$/.test(data.key)) {
+      throw new BadRequestException(`Invalid category key '${data.key}' — use snake_case (a-z, 0-9, _)`);
+    }
+
+    // Mobile renders this through Ionicons, which needs a glyph name such as
+    // 'car-outline'. An emoji here silently produces a blank marker.
+    if (data.icon && !/^[a-z0-9-]+$/.test(data.icon)) {
+      throw new BadRequestException(
+        `Invalid icon '${data.icon}' — use an Ionicons name such as 'car-outline', not an emoji`,
+      );
+    }
+
+    // Hex colour, so the app and web can both use it as a literal fill.
+    if (data.color && !/^#[0-9a-fA-F]{6}$/.test(data.color)) {
+      throw new BadRequestException(`Invalid colour '${data.color}' — use a 6-digit hex such as #4CAF50`);
     }
   }
 
@@ -82,6 +111,7 @@ export class CategoryService {
     const cat = this.categoryRepository.create(data);
     const saved = await this.categoryRepository.save(cat);
     this.cache.del(CACHE_KEY);
+    this.cache.invalidatePrefix('category:');
     return saved;
   }
 
@@ -91,6 +121,7 @@ export class CategoryService {
     Object.assign(cat, data);
     const saved = await this.categoryRepository.save(cat);
     this.cache.del(CACHE_KEY);
+    this.cache.invalidatePrefix('category:');
     return saved;
   }
 
@@ -115,7 +146,7 @@ export class CategoryService {
       {
         key: 'vehiclerent', label: 'Тээврийн хэрэгсэл',
         labels: { mn: 'Тээврийн хэрэгсэл', en: 'Vehicle Rental', zh: '车辆租赁', ru: 'Аренда транспорта' },
-        icon: 'car-outline', color: '#4CAF50', sort_order: 0, ...rentalFlags,
+        icon: 'car-outline', color: '#558D39', sort_order: 0, ...rentalFlags,
         subcategories: [
           { value: 'car', display: 'Суудлын машин', labels: { mn: 'Суудлын машин', en: 'Car', zh: '轿车', ru: 'Легковой автомобиль' } },
           { value: 'suv', display: 'Жийп', labels: { mn: 'Жийп', en: 'SUV', zh: 'SUV', ru: 'Внедорожник' } },
@@ -128,7 +159,7 @@ export class CategoryService {
       {
         key: 'machineryrent', label: 'Машин техник',
         labels: { mn: 'Машин техник', en: 'Machinery Rental', zh: '机械租赁', ru: 'Аренда техники' },
-        icon: 'construct-outline', color: '#FF9800', sort_order: 1, ...rentalFlags,
+        icon: 'construct-outline', color: '#6A7BC2', sort_order: 1, ...rentalFlags,
         subcategories: [
           { value: 'crane', display: 'Кран', labels: { mn: 'Кран', en: 'Crane', zh: '起重机', ru: 'Кран' } },
           { value: 'excavator', display: 'Экскаватор', labels: { mn: 'Экскаватор', en: 'Excavator', zh: '挖掘机', ru: 'Экскаватор' } },
@@ -141,7 +172,7 @@ export class CategoryService {
       {
         key: 'toolrent', label: 'Багаж хэрэгсэл',
         labels: { mn: 'Багаж хэрэгсэл', en: 'Tool Rental', zh: '工具租赁', ru: 'Аренда инструментов' },
-        icon: 'hammer-outline', color: '#9C27B0', sort_order: 2, ...rentalFlags,
+        icon: 'hammer-outline', color: '#976CC3', sort_order: 2, ...rentalFlags,
         subcategories: [
           { value: 'power_tools', display: 'Цахилгаан багаж', labels: { mn: 'Цахилгаан багаж', en: 'Power Tools', zh: '电动工具', ru: 'Электроинструменты' } },
           { value: 'formwork', display: 'Хэв', labels: { mn: 'Хэв', en: 'Formwork', zh: '模板', ru: 'Опалубка' } },
@@ -153,7 +184,7 @@ export class CategoryService {
       {
         key: 'materialstore', label: 'Барилгын материал',
         labels: { mn: 'Барилгын материал', en: 'Building Materials', zh: '建材商店', ru: 'Стройматериалы' },
-        icon: 'layers-outline', color: '#795548', sort_order: 3,
+        icon: 'layers-outline', color: '#848236', sort_order: 3,
         subcategories: [
           { value: 'individual', display: 'Хувиараа', labels: { mn: 'Хувиараа', en: 'Individual', zh: '个人', ru: 'Частный' } },
           { value: 'wholesale', display: 'Бөөний', labels: { mn: 'Бөөний', en: 'Wholesale', zh: '批发', ru: 'Оптовый' } },
@@ -167,7 +198,7 @@ export class CategoryService {
       {
         key: 'construction', label: 'Барилгын үйлчилгээ',
         labels: { mn: 'Барилгын үйлчилгээ', en: 'Construction Services', zh: '建筑服务', ru: 'Строительные услуги' },
-        icon: 'business-outline', color: '#2196F3', sort_order: 4,
+        icon: 'business-outline', color: '#3D8995', sort_order: 4,
         has_rental_status: true, has_availability_dates: true, has_price: true, default_price_unit: 'PROJECT',
         subcategories: [
           { value: 'general', display: 'Ерөнхий барилга', labels: { mn: 'Ерөнхий барилга', en: 'General Construction', zh: '总承包', ru: 'Общестроительные работы' } },
@@ -184,7 +215,7 @@ export class CategoryService {
       {
         key: 'jobvacancy', label: 'Ажлын байр',
         labels: { mn: 'Ажлын байр', en: 'Job Vacancies', zh: '招聘', ru: 'Вакансии' },
-        icon: 'briefcase-outline', color: '#E91E63', sort_order: 5,
+        icon: 'briefcase-outline', color: '#BC5CA9', sort_order: 5,
         subcategories: [
           { value: 'engineer', display: 'Инженер', labels: { mn: 'Инженер', en: 'Engineer', zh: '工程师', ru: 'Инженер' } },
           { value: 'worker', display: 'Ажилчин', labels: { mn: 'Ажилчин', en: 'Worker', zh: '工人', ru: 'Рабочий' } },
@@ -208,7 +239,7 @@ export class CategoryService {
       {
         key: 'factory', label: 'Үйлдвэр',
         labels: { mn: 'Үйлдвэр', en: 'Factory', zh: '工厂', ru: 'Производство' },
-        icon: 'storefront-outline', color: '#607D8B', sort_order: 6,
+        icon: 'storefront-outline', color: '#3A8E5C', sort_order: 6,
         subcategories: [
           { value: 'concrete', display: 'Бетон бүтээгдэхүүн', labels: { mn: 'Бетон бүтээгдэхүүн', en: 'Concrete Products', zh: '混凝土制品', ru: 'Бетонные изделия' } },
           { value: 'metal', display: 'Металл бүтээгдэхүүн', labels: { mn: 'Металл бүтээгдэхүүн', en: 'Metal Products', zh: '金属制品', ru: 'Металлоизделия' } },
@@ -225,7 +256,7 @@ export class CategoryService {
       {
         key: 'sos', label: 'SOS Үйлчилгээ',
         labels: { mn: 'SOS Үйлчилгээ', en: 'SOS Services', zh: '紧急服务', ru: 'Экстренные услуги' },
-        icon: 'warning-outline', color: '#F44336', sort_order: 7,
+        icon: 'warning-outline', color: '#D25562', sort_order: 7,
         has_rental_status: true, has_price: true,
         subcategories: [
           { value: 'tire_repair', display: 'Дугуй засвар', labels: { mn: 'Дугуй засвар', en: 'Tire Repair', zh: '轮胎维修', ru: 'Шиномонтаж' } },

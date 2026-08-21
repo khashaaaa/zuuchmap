@@ -1,7 +1,7 @@
-import { useState, useCallback, useEffect, useMemo } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useState, useCallback, useMemo } from 'react'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { X, Heart } from 'lucide-react'
 import { toast } from 'sonner'
 import { postsApi, categoryApi, likesApi } from '@/lib/api'
@@ -11,17 +11,27 @@ import SearchBar from '@/components/SearchBar'
 import CategoryPills from '@/components/CategoryPills'
 import PostCard from '@/components/PostCard'
 import EmptyState from '@/components/EmptyState'
+import ErrorState from '@/components/ErrorState'
 import Pagination from '@/components/Pagination'
 import PostGrid from '@/components/PostGrid'
+import { useAuthStore } from '@/store'
+import { track } from '@/lib/analytics'
 
 const LIMIT = 12
 
 export default function CustomerBrowse() {
   const { t } = useTranslation()
   const qc = useQueryClient()
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
+  // Reachable signed-out from /browse — saving is the only gated affordance.
+  const isAuthed = useAuthStore((s) => Boolean(s.token))
 
-  const [category, setCategory] = useState(searchParams.get('category') ?? '')
+  // Category and page live in the URL — shareable, survives reload, and the
+  // browser back button walks through them. Everything else stays in state.
+  const category = searchParams.get('category') ?? ''
+  const page = Math.max(1, Number(searchParams.get('page')) || 1)
+
   const [subcat, setSubcat] = useState('')
   const [province, setProvince] = useState('')
   const [district, setDistrict] = useState('')
@@ -29,43 +39,57 @@ export default function CustomerBrowse() {
   const [search, setSearch] = useState('')
   const [attrInputs, setAttrInputs] = useState({})
   const [attrFilters, setAttrFilters] = useState({})
-  const [page, setPage] = useState(1)
 
-  useEffect(() => {
-    const cat = searchParams.get('category')
-    if (cat && cat !== category) setCategory(cat)
-  }, []) // eslint-disable-line
+  const setPage = useCallback((p) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (p > 1) next.set('page', String(p))
+      else next.delete('page')
+      return next
+    })
+  }, [setSearchParams])
+
+  // Filter changes reset pagination without stacking history entries.
+  const resetPage = useCallback(() => {
+    setSearchParams((prev) => {
+      if (!prev.has('page')) return prev
+      const next = new URLSearchParams(prev)
+      next.delete('page')
+      return next
+    }, { replace: true })
+  }, [setSearchParams])
 
   const debouncedSearch = useCallback(
-    debounce((val) => { setSearch(val); setPage(1) }, 400),
-    [] // eslint-disable-line
+    debounce((val) => {
+      setSearch(val); resetPage()
+      if (val) track('browse.search', { query_length: val.length })
+    }, 400),
+    [resetPage] // eslint-disable-line
   )
 
   const handleCategory = useCallback((val) => {
-    setCategory(val)
     setSubcat('')
     setAttrInputs({})
     setAttrFilters({})
-    setPage(1)
     setSearchParams(val ? { category: val } : {})
   }, [setSearchParams])
 
   const applyAttr = useCallback(
-    debounce((key, val) => { setAttrFilters((p) => ({ ...p, [key]: val })); setPage(1) }, 400),
-    [] // eslint-disable-line
+    debounce((key, val) => { setAttrFilters((p) => ({ ...p, [key]: val })); resetPage() }, 400),
+    [resetPage] // eslint-disable-line
   )
 
   const handleAttrChange = useCallback((key, val, immediate) => {
     setAttrInputs((p) => ({ ...p, [key]: val }))
-    if (immediate) { setAttrFilters((p) => ({ ...p, [key]: val })); setPage(1) }
+    if (immediate) { setAttrFilters((p) => ({ ...p, [key]: val })); resetPage() }
     else applyAttr(key, val)
-  }, [applyAttr])
+  }, [applyAttr, resetPage])
 
   const handleProvince = useCallback((val) => {
     setProvince(val)
     setDistrict('')
-    setPage(1)
-  }, [])
+    resetPage()
+  }, [resetPage])
 
   const queryParams = { approval_status: 'APPROVED', page, limit: LIMIT }
   if (category) queryParams.category = category
@@ -79,32 +103,37 @@ export default function CustomerBrowse() {
     }
   }
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['posts', queryParams],
     queryFn: () => postsApi.getAll(queryParams),
-    keepPreviousData: true,
+    // v5 form of keepPreviousData — the old boolean was silently ignored and
+    // page changes blanked the grid.
+    placeholderData: keepPreviousData,
     staleTime: 30_000,
   })
 
-  const { data: schemas = [] } = useQuery({
+  const { data: schemas = [], isError: schemasError, refetch: refetchSchemas } = useQuery({
     queryKey: ['categories'],
     queryFn: categoryApi.getAll,
-    staleTime: 60_000,
+    staleTime: 300_000,
   })
 
   const { data: likedIds = [] } = useQuery({
     queryKey: ['liked-ids'],
     queryFn: likesApi.getIds,
     staleTime: 60_000,
+    enabled: isAuthed,
   })
   const likedSet = useMemo(() => new Set(likedIds.map(String)), [likedIds])
 
   const likeMut = useMutation({
     mutationFn: ({ postId, postType, isLiked }) =>
       isLiked ? likesApi.unlike(postType, postId) : likesApi.toggle(postId, postType),
-    onSuccess: () => {
+    onSuccess: (_, { isLiked }) => {
       qc.invalidateQueries({ queryKey: ['liked-ids'] })
       qc.invalidateQueries({ queryKey: ['liked-posts'] })
+      qc.invalidateQueries({ queryKey: ['like-check'] })
+      toast.success(t(isLiked ? 'posts.unsaved' : 'posts.saved'))
     },
     onError: () => toast.error(t('common.error')),
   })
@@ -113,10 +142,10 @@ export default function CustomerBrowse() {
   const total = Array.isArray(data) ? data.length : (data?.total ?? 0)
 
   const clearAll = useCallback(() => {
-    setCategory(''); setSubcat(''); setProvince(''); setDistrict('')
-    setSearchInput(''); setSearch(''); setPage(1)
+    setSubcat(''); setProvince(''); setDistrict('')
+    setSearchInput(''); setSearch('')
     setAttrInputs({}); setAttrFilters({})
-    setSearchParams({})
+    setSearchParams({}) // drops category + page together
   }, [setSearchParams])
 
   const schema = useMemo(() => schemas.find((s) => s.key === category), [schemas, category])
@@ -135,7 +164,10 @@ export default function CustomerBrowse() {
         />
 
         <div>
-          <p className="label mb-2">{t('posts.category')}</p>
+          <p className="text-xs text-muted mb-2">{t('posts.category')}</p>
+          {schemasError && schemas.length === 0 && (
+            <ErrorState compact onRetry={refetchSchemas} />
+          )}
           <CategoryPills
             categories={schemas.filter((s) => s.active).map((s) => ({
               key: s.key,
@@ -152,7 +184,7 @@ export default function CustomerBrowse() {
         {schema && (schema.subcategories?.length > 0 || filterFields.length > 0) && (
           <div className="space-y-3">
             {schema.subcategories?.length > 0 && (
-              <Input as="select" value={subcat} onChange={(e) => { setSubcat(e.target.value); setPage(1) }} className="bg-surface rounded-btn w-full">
+              <Input as="select" value={subcat} onChange={(e) => { setSubcat(e.target.value); resetPage() }} className="bg-surface rounded-btn w-full">
                 <option value="">{t('posts.subcategory')}</option>
                 {schema.subcategories.map((sub) => (
                   <option key={sub.value} value={sub.value}>{getSubcategoryLabel(sub.value, t, schema)}</option>
@@ -173,18 +205,18 @@ export default function CustomerBrowse() {
         <div className="space-y-3">
           <Input as="select" value={province} onChange={(e) => handleProvince(e.target.value)} className="bg-surface rounded-btn w-full">
             <option value="">{t('common.province')}</option>
-            {PROVINCES.map((p) => <option key={p.value} value={p.value}>{t(`province.${p.value}`)}</option>)}
+            {PROVINCES.map((p) => <option key={p} value={p}>{t(`province.${p}`, { defaultValue: p })}</option>)}
           </Input>
           {province === 'ULAANBAATAR' && (
-            <Input as="select" value={district} onChange={(e) => { setDistrict(e.target.value); setPage(1) }} className="bg-surface rounded-btn w-full">
+            <Input as="select" value={district} onChange={(e) => { setDistrict(e.target.value); resetPage() }} className="bg-surface rounded-btn w-full">
               <option value="">{t('common.district')}</option>
-              {DISTRICTS.map((d) => <option key={d.value} value={d.value}>{t(`district.${d.value}`)}</option>)}
+              {DISTRICTS.map((d) => <option key={d} value={d}>{t(`district.${d}`, { defaultValue: d })}</option>)}
             </Input>
           )}
         </div>
 
         {hasFilters && (
-          <button onClick={clearAll} className="flex items-center gap-1 px-3 py-2 text-sm text-muted hover:text-text border border-border/50 rounded-btn w-full justify-center">
+          <button onClick={clearAll} className="flex items-center gap-1 px-3 py-2 text-sm text-muted hover:text-text border border-border/50 rounded-btn w-full justify-center transition-colors">
             <X size={13} /> {t('common.clear')}
           </button>
         )}
@@ -196,12 +228,14 @@ export default function CustomerBrowse() {
         )}
         <PostGrid
           isLoading={isLoading}
+          isError={isError}
+          onRetry={refetch}
           isEmpty={posts.length === 0}
           emptyState={<EmptyState title={t('posts.browseEmpty')} description={t('posts.browseEmptyDesc')} />}
           cols={3}
           skeletonCount={LIMIT}
         >
-          {posts.map((post) => {
+          {posts.map((post, i) => {
             const saved = likedSet.has(String(post.id))
             const postType = getPostCategory(post)
             const isPendingThis = likeMut.isPending && likeMut.variables?.postId === post.id
@@ -209,14 +243,18 @@ export default function CustomerBrowse() {
               <PostCard
                 key={post.id}
                 post={post}
+                index={i}
                 actions={
                   <button
-                    onClick={() => likeMut.mutate({ postId: post.id, postType, isLiked: saved })}
+                    onClick={() => {
+                      if (!isAuthed) return navigate('/login')
+                      likeMut.mutate({ postId: post.id, postType, isLiked: saved })
+                    }}
                     disabled={isPendingThis}
                     className={`w-full flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium border rounded-btn transition-colors disabled:opacity-50 ${
                       saved
-                        ? 'bg-primary/15 text-primary border-primary/30 hover:bg-danger/10 hover:text-danger hover:border-danger/30'
-                        : 'border-border/50 text-muted hover:text-primary hover:border-primary/40'
+                        ? 'bg-primary/15 text-primary-text border-primary/30 hover:bg-danger/10 hover:text-danger hover:border-danger/30'
+                        : 'border-border/50 text-muted hover:text-primary-text hover:border-primary/40'
                     }`}
                   >
                     <Heart size={12} className={isPendingThis ? 'animate-pulse' : ''} fill={saved ? 'currentColor' : 'none'} />

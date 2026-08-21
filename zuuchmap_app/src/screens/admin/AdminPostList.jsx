@@ -13,13 +13,14 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing, typography, shadows, radius, interactions, isTablet } from '../../design/theme';
+import { spacing, typography, radius, interactions, isTablet } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useMinDisplayTime } from '../../hooks/useMinDisplayTime';
 import { useTranslation } from 'react-i18next';
 import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import ScreenHeader from '../../components/ScreenHeader';
-import { EmptyState, SkeletonItem, FadeSlideIn } from '../../components';
+import { EmptyState, SkeletonItem, FadeSlideIn, PressableScale, SelectionPop } from '../../components';
+import ScreenError from '../../components/ScreenError';
 import postService from '../../services/api/postService';
 import { API_CONFIG, getPostImageUrl } from '../../config/api.config';
 import { getPostTitle } from '../../utils/postUtils';
@@ -39,13 +40,13 @@ const AdminPostList = ({ navigation, route }) => {
     const [imageErrors, setImageErrors] = useState({});
 
     const { data: categories = [] } = useQuery({
-        queryKey: ['categories', 'all'],
-        queryFn: () => categoryService.getCategories(),
-        staleTime: 10 * 60 * 1000,
+        queryKey: ['categories'],
+        queryFn: () => categoryService.getCategories(true),
+        staleTime: 5 * 60 * 1000,
     });
     const postTypes = useMemo(() => ['all', ...categories.map(c => c.key)], [categories]);
 
-    const { data: posts = [], isLoading: loading, isRefetching: refreshing, refetch } = useQuery({
+    const { data: posts = [], isLoading: loading, isRefetching: refreshing, isError, refetch } = useQuery({
         queryKey: ['admin', 'pending', activeFilter],
         queryFn: async () => {
             const typeParam = activeFilter === 'all' ? null : activeFilter;
@@ -66,7 +67,7 @@ const AdminPostList = ({ navigation, route }) => {
 
         return () => {
             socketService.off('post.created', handlePostCreated);
-            // Do not disconnect here — AdminDashboard owns the shared socket lifecycle
+            // Do not disconnect here — the socket is shared app-wide; it ends at logout
         };
     }, []);
 
@@ -80,10 +81,9 @@ const AdminPostList = ({ navigation, route }) => {
 
         return (
             <FadeSlideIn index={index}>
-                <TouchableOpacity
+                <PressableScale
                     style={styles.card}
                     onPress={() => navigation.navigate('PostDetailScreen', { postId: item.id, postType: item.postType, role: 'admin' })}
-                    activeOpacity={interactions.activeOpacity}
                 >
                     <View style={styles.imgBox}>
                         {hasErr || !thumb ? (
@@ -112,7 +112,7 @@ const AdminPostList = ({ navigation, route }) => {
                         </Text>
                     </View>
                     <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} style={styles.chevron} />
-                </TouchableOpacity>
+                </PressableScale>
             </FadeSlideIn>
         );
     }, [imageErrors, navigation, colors]);
@@ -130,24 +130,26 @@ const AdminPostList = ({ navigation, route }) => {
                 contentContainerStyle={styles.filterContent}
             >
                 {postTypes.map(type => (
-                    <TouchableOpacity
-                        key={type}
-                        style={[
-                            styles.filterChip,
-                            { borderColor: colors.border.light },
-                            activeFilter === type && { borderColor: colors.primary, backgroundColor: colors.opacity.background.primary },
-                        ]}
-                        onPress={() => setActiveFilter(type)}
-                        activeOpacity={interactions.activeOpacity}
-                    >
-                        <Text style={[
-                            styles.filterText,
-                            { color: colors.text.secondary },
-                            activeFilter === type && { color: colors.primary, fontWeight: '600' },
-                        ]}>
-                            {type === 'all' ? t('filter.all') : t(`category.${type}`)}
-                        </Text>
-                    </TouchableOpacity>
+                    <SelectionPop key={type} selected={activeFilter === type}>
+                        <TouchableOpacity
+                            style={[
+                                styles.filterChip,
+                                { borderColor: colors.border.light },
+                                activeFilter === type && { borderColor: colors.primary, backgroundColor: colors.opacity.background.primary },
+                            ]}
+                            onPress={() => setActiveFilter(type)}
+                            activeOpacity={interactions.activeOpacity}
+                            hitSlop={{ top: 6, bottom: 6 }}
+                        >
+                            <Text style={[
+                                styles.filterText,
+                                { color: colors.text.secondary },
+                                activeFilter === type && { ...typography.styles.labelStrong, color: colors.primary },
+                            ]}>
+                                {type === 'all' ? t('filter.all') : t(`category.${type}`)}
+                            </Text>
+                        </TouchableOpacity>
+                    </SelectionPop>
                 ))}
             </ScrollView>
 
@@ -158,6 +160,8 @@ const AdminPostList = ({ navigation, route }) => {
                     keyExtractor={(_, i) => `sk-${i}`}
                     contentContainerStyle={styles.list}
                 />
+            ) : isError ? (
+                <ScreenError onRetry={refetch} />
             ) : posts.length === 0 ? (
                 <EmptyState
                     icon="checkmark-circle-outline"
@@ -193,17 +197,17 @@ const createStyles = (colors) => StyleSheet.create({
     filterBar: { maxHeight: 52, borderBottomWidth: 1, borderBottomColor: colors.border.light },
     filterContent: { paddingHorizontal: spacing.md, alignItems: 'center', paddingVertical: spacing.sm, gap: spacing.sm },
     filterChip: { height: 32, paddingHorizontal: spacing.md, borderRadius: radius.pill, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-    filterText: { fontSize: typography.sm, includeFontPadding: false, textAlignVertical: 'center' },
+    filterText: { ...typography.styles.caption, includeFontPadding: false, textAlignVertical: 'center' },
     list: { padding: spacing.lg },
-    card: { flexDirection: 'row', borderRadius: radius.card, marginBottom: spacing.md, overflow: 'hidden', alignItems: 'center', backgroundColor: colors.surface, ...shadows.small },
+    card: { ...colors.elevation.sm, flexDirection: 'row', borderRadius: radius.card, marginBottom: spacing.md, overflow: 'hidden', alignItems: 'center', backgroundColor: colors.surface, },
     imgBox: { width: 100, height: 100, backgroundColor: colors.border.light },
     img: { width: '100%', height: '100%' },
     noImg: { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' },
     cardBody: { flex: 1, padding: spacing.md },
-    cardTitle: { fontSize: typography.sm, fontWeight: '700', marginBottom: spacing.xs, color: colors.text.inverse },
-    cardType: { fontSize: typography.xs, fontWeight: '600', marginBottom: spacing.xs, color: colors.primary },
-    cardUser: { fontSize: typography.xs, marginBottom: spacing.xs, color: colors.text.secondary },
-    cardDate: { fontSize: typography.xs, color: colors.text.tertiary },
+    cardTitle: { ...typography.styles.title, marginBottom: spacing.xs, color: colors.text.primary },
+    cardType: { ...typography.styles.badge, marginBottom: spacing.xs, color: colors.primary },
+    cardUser: { ...typography.styles.small, marginBottom: spacing.xs, color: colors.text.secondary },
+    cardDate: { ...typography.styles.small, color: colors.text.tertiary },
     chevron: { paddingRight: spacing.sm },
 });
 

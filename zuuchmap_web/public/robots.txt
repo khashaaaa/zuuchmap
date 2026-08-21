@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /provider
+Disallow: /customer
+Disallow: /verify
+
+Sitemap: https://zuuchmap.com/sitemap.xml

@@ -63,7 +63,7 @@ const TextInput = forwardRef(function TextInput(
                     styles.input,
                     {
                         backgroundColor: colors.background,
-                        color: colors.text.inverse,
+                        color: colors.text.primary,
                         borderColor,
                         borderWidth,
                     },
@@ -103,20 +103,17 @@ const styles = StyleSheet.create({
         marginBottom: spacing.xs,
     },
     label: {
-        fontSize: typography.sm,
-        fontWeight: '500',
-        letterSpacing: 0.2,
+        ...typography.styles.label,
     },
     star: {
-        fontSize: typography.sm,
-        fontWeight: '700',
+        ...typography.styles.labelStrong,
     },
     input: {
         borderWidth: 1,
         borderRadius: radius.input,
         paddingHorizontal: spacing.md,
         paddingVertical: spacing.md,
-        fontSize: typography.md,
+        ...typography.styles.body,
         minHeight: 52,
     },
     textarea: {
@@ -127,10 +124,9 @@ const styles = StyleSheet.create({
         opacity: 0.5,
     },
     error: {
-        fontSize: typography.xs,
+        ...typography.styles.micro,
         marginTop: spacing.xs,
         marginLeft: spacing.xs,
-        fontWeight: '500',
     },
 });
 

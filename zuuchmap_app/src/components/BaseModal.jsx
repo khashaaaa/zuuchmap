@@ -7,7 +7,7 @@ import {
     Dimensions,
     StyleSheet,
 } from 'react-native';
-import { spacing, radius, shadows, animations } from '../design/theme';
+import { spacing, radius, animations } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 
@@ -55,15 +55,15 @@ const BaseModal = ({
                 Animated.parallel([
                     reduced
                         ? Animated.timing(slideAnim, { toValue: 0, duration: 1, useNativeDriver: true })
-                        : Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }),
-                    Animated.timing(fadeAnim, { toValue: 1, duration: normalDur, useNativeDriver: true }),
+                        : Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, ...animations.spring.modal }),
+                    Animated.timing(fadeAnim, { toValue: 1, duration: fastDur, useNativeDriver: true }),
                 ]).start();
             } else if (variant === 'dialog') {
                 Animated.parallel([
                     Animated.timing(fadeAnim, { toValue: 1, duration: normalDur, useNativeDriver: true }),
                     reduced
                         ? Animated.timing(scaleAnim, { toValue: 1, duration: 1, useNativeDriver: true })
-                        : Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 8 }),
+                        : Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, ...animations.spring.modal }),
                 ]).start();
             } else {
                 Animated.timing(fadeAnim, { toValue: 1, duration: normalDur, useNativeDriver: true }).start();
@@ -92,6 +92,7 @@ const BaseModal = ({
         switch (variant) {
             case 'bottomSheet':
                 return {
+                    ...colors.elevation.lg,
                     position: 'absolute',
                     bottom: 0,
                     left: 0,
@@ -100,7 +101,6 @@ const BaseModal = ({
                     borderTopRightRadius: radius.modal,
                     backgroundColor: colors.surface,
                     maxHeight: SCREEN_HEIGHT * 0.9,
-                    ...shadows.large,
                 };
             case 'fullScreen':
                 return {
@@ -110,13 +110,13 @@ const BaseModal = ({
             case 'dialog':
             default:
                 return {
+                    ...colors.elevation.lg,
                     backgroundColor: colors.surface,
                     borderRadius: radius.modal,
                     padding: spacing.xl,
                     maxWidth: 400,
                     width: '90%',
                     alignSelf: 'center',
-                    ...shadows.large,
                 };
         }
     };

@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing, typography, shadows, safeAreaHelpers, radius, interactions, isTablet } from '../../design/theme';
+import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet, animations } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useMinDisplayTime } from '../../hooks/useMinDisplayTime';
 import { useTranslation } from 'react-i18next';
@@ -23,6 +23,7 @@ import { getUserId } from '../../services/api/authHelpers';
 import { socketService } from '../../services/socketService';
 import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import ScreenHeader from '../../components/ScreenHeader';
+import PressableScale from '../../components/PressableScale';
 import NotificationBell from '../../components/NotificationBell';
 import { CategoryBadge, StatusBadge, SkeletonItem, EmptyState, FadeSlideIn } from '../../components';
 import ScreenError from '../../components/ScreenError';
@@ -63,10 +64,10 @@ const PostItem = React.memo(({
     }, [item, onEdit, onDelete, getPostTitle, t]);
 
     return (
-        <TouchableOpacity
+        <PressableScale
             style={[styles.postCard, { backgroundColor: colors.surface }]}
             onPress={() => onPress(item)}
-            activeOpacity={interactions.activeOpacity}
+            accessibilityRole="button"
         >
             <View style={[styles.imageContainer, { backgroundColor: colors.border.light }]}>
                 {!imageUri || hasImageError ? (
@@ -79,7 +80,7 @@ const PostItem = React.memo(({
                         style={styles.postImage}
                         resizeMode="cover"
                         onError={() => setImageErrors(prev => ({ ...prev, [itemId]: true }))}
-                        fadeDuration={200}
+                        fadeDuration={animations.duration.fast}
                     />
                 )}
             </View>
@@ -93,7 +94,7 @@ const PostItem = React.memo(({
                         style={styles.menuButton}
                         onPress={handleMenuPress}
                         disabled={isLoading}
-                        hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                        hitSlop={interactions.hitSlop}
                     >
                         {isLoading
                             ? <ActivityIndicator size="small" color={colors.primary} />
@@ -141,7 +142,7 @@ const PostItem = React.memo(({
                     );
                 })()}
             </View>
-        </TouchableOpacity>
+        </PressableScale>
     );
 }, (prevProps, nextProps) => {
     return (
@@ -283,7 +284,7 @@ const ProviderPostList = ({ navigation }) => {
         } catch (error) {
             logger.error('Error loading post for edit:', error);
 
-            if (error.message === 'Баталгаажуулалт шаардлагатай' ||
+            if (error.code === 'AUTH_TOKEN_MISSING' ||
                 error.response?.status === 401 ||
                 error.response?.status === 403) {
                 await handleAuthError();
@@ -309,7 +310,7 @@ const ProviderPostList = ({ navigation }) => {
                             await postService.deletePost(post.id);
                             invalidatePostData();
                         } catch (error) {
-                            if (error.message === 'Баталгаажуулалт шаардлагатай' ||
+                            if (error.code === 'AUTH_TOKEN_MISSING' ||
                                 error.response?.status === 401 ||
                                 error.response?.status === 403) {
                                 await handleAuthError();
@@ -452,6 +453,7 @@ const createStyles = (colors) => StyleSheet.create({
         padding: spacing.lg,
     },
     postCard: {
+        ...colors.elevation.sm,
         backgroundColor: colors.surface,
         borderRadius: radius.card,
         marginBottom: spacing.md,
@@ -460,7 +462,6 @@ const createStyles = (colors) => StyleSheet.create({
         alignItems: 'flex-start',
         borderWidth: 1,
         borderColor: colors.border.light,
-        ...shadows.small,
     },
     imageContainer: {
         width: 96,
@@ -494,11 +495,9 @@ const createStyles = (colors) => StyleSheet.create({
         gap: spacing.xs,
     },
     postTitle: {
+        ...typography.styles.title,
         flex: 1,
-        fontSize: typography.md,
-        fontWeight: '700',
         color: colors.text.primary,
-        lineHeight: 20,
     },
     menuButton: {
         width: 32,
@@ -508,12 +507,11 @@ const createStyles = (colors) => StyleSheet.create({
         flexShrink: 0,
     },
     postPrice: {
-        fontSize: typography.sm,
-        fontWeight: '700',
+        ...typography.styles.price,
         color: colors.primary,
     },
     postDate: {
-        fontSize: typography.xs,
+        ...typography.styles.small,
         color: colors.text.tertiary,
     },
     approvalBadgePending: {
@@ -536,12 +534,11 @@ const createStyles = (colors) => StyleSheet.create({
         maxWidth: '100%',
     },
     approvalBadgeText: {
-        fontSize: typography.xs,
-        fontWeight: '600',
+        ...typography.styles.badge,
         color: colors.text.secondary,
     },
     rejectionReason: {
-        fontSize: typography.xs,
+        ...typography.styles.small,
         color: colors.danger,
         marginTop: spacing.xs,
     },
@@ -551,23 +548,22 @@ const createStyles = (colors) => StyleSheet.create({
         gap: spacing.sm,
     },
     statCard: {
+        ...colors.elevation.sm,
         flex: 1,
         backgroundColor: colors.surface,
         borderRadius: radius.card,
         paddingVertical: spacing.md,
         alignItems: 'center',
-        ...shadows.small,
     },
     statCardMiddle: {
         marginHorizontal: 0,
     },
     statValue: {
-        fontSize: typography.xl,
-        fontWeight: '700',
+        ...typography.styles.h2,
         marginBottom: spacing.xxs,
     },
     statLabel: {
-        fontSize: typography.sm,
+        ...typography.styles.caption,
         color: colors.text.secondary,
     },
 });

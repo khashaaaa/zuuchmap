@@ -3,7 +3,7 @@ import { Company } from "../../company/entities/company.entity";
 import { UserType } from "../../enums/usertype";
 import { Post } from "../../post/entities/post.entity";
 import { Likedpost } from "../../likedpost/entities/likedpost.entity";
-import { Viewedpost } from "../../viewedpost/entities/viewedpost.entity";
+import { Viewedpost } from "../../post/entities/viewedpost.entity";
 
 @Entity()
 export class User {

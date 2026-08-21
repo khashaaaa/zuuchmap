@@ -4,11 +4,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Trash2, Phone, Mail, MapPin, Calendar } from 'lucide-react'
 import { usersApi } from '@/lib/api'
-import { formatDate } from '@/lib/utils'
+import { formatDate, goBack, apiErrorMessage } from '@/lib/utils'
 import UserAvatar from '@/components/UserAvatar'
 import { useAuthStore } from '@/store'
 import ConfirmModal from '@/components/ConfirmModal'
+import Button from '@/components/Button'
+import { TypeBadge } from '@/components/StatusBadge'
 import PageHeader from '@/components/PageHeader'
+import ErrorState from '@/components/ErrorState'
 import { toast } from 'sonner'
 
 export default function AdminUserDetail() {
@@ -19,7 +22,7 @@ export default function AdminUserDetail() {
   const qc = useQueryClient()
   const [confirmDelete, setConfirmDelete] = useState(false)
 
-  const { data: user, isLoading } = useQuery({
+  const { data: user, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['user', id],
     queryFn: () => usersApi.getById(id),
   })
@@ -28,16 +31,24 @@ export default function AdminUserDetail() {
     mutationFn: () => usersApi.deleteUser(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-users'] })
+      qc.invalidateQueries({ queryKey: ['admin-stats'] })
       toast.success(t('admin.userDeleted'))
       navigate('/admin/users', { replace: true })
     },
-    onError: (e) => toast.error(e.response?.data?.message || t('common.error')),
+    onError: (e) => toast.error(apiErrorMessage(e, t, t('common.error'))),
   })
 
   if (isLoading) return (
-    <div className="max-w-md space-y-4">
-      <div className="h-8 bg-surface2 rounded w-24 animate-pulse" />
+    <div className="max-w-md">
+      <PageHeader title={t('admin.userDetail')} onBack={() => goBack(navigate, '/admin/users')} />
       <div className="h-48 bg-surface2 rounded-card animate-pulse" />
+    </div>
+  )
+
+  if (isError && error?.response?.status !== 404) return (
+    <div className="max-w-md">
+      <PageHeader title={t('admin.userDetail')} onBack={() => goBack(navigate, '/admin/users')} />
+      <ErrorState onRetry={refetch} />
     </div>
   )
 
@@ -52,7 +63,7 @@ export default function AdminUserDetail() {
 
   return (
     <div className="max-w-md">
-      <PageHeader title={t('admin.userDetail')} onBack={() => navigate(-1)} />
+      <PageHeader title={t('admin.userDetail')} onBack={() => goBack(navigate, '/admin/users')} />
 
       <div className="bg-surface border border-border/20 shadow-card rounded-card p-5 md:p-6 space-y-4">
         <div className="flex items-center gap-4">
@@ -60,11 +71,7 @@ export default function AdminUserDetail() {
           <div>
             <p className="font-semibold text-text text-lg">{user.given_name ?? '—'}</p>
             {user.parent_name && <p className="text-sm text-muted">{user.parent_name}</p>}
-            <span className={`inline-block mt-1 text-xs font-medium px-2 py-0.5 rounded-md border ${
-              user.type === 'PROVIDER' ? 'bg-primary/10 text-primary border-primary/20' : 'bg-surface2 text-muted border-border/50'
-            }`}>
-              {user.type === 'PROVIDER' ? t('onboarding.provider') : user.type === 'CUSTOMER' ? t('onboarding.customer') : '—'}
-            </span>
+            <span className="inline-block mt-1"><TypeBadge type={user.type} /></span>
           </div>
         </div>
 
@@ -80,12 +87,9 @@ export default function AdminUserDetail() {
 
       {(user.is_admin !== true || user.id === currentUser?.id) && (
         <div className="mt-4">
-          <button
-            onClick={() => setConfirmDelete(true)}
-            className="flex items-center gap-2 px-4 py-2 text-sm text-danger border border-danger/30 rounded-btn hover:bg-danger/10 transition-colors"
-          >
+          <Button variant="danger-outline" onClick={() => setConfirmDelete(true)}>
             <Trash2 size={14} /> {t('admin.deleteUser')}
-          </button>
+          </Button>
         </div>
       )}
 

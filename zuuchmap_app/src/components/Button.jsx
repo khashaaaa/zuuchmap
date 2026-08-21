@@ -1,16 +1,17 @@
 import React from 'react';
-import { TouchableOpacity, Text, ActivityIndicator, View, StyleSheet } from 'react-native';
+import { Text, ActivityIndicator, View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { spacing, typography, radius, interactions } from '../design/theme';
+import { spacing, typography, radius } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
+import PressableScale from './PressableScale';
 
 const SIZES = {
-    sm:     { paddingVertical: spacing.sm,  paddingHorizontal: spacing.md,  minHeight: 40, fontSize: typography.sm, iconSize: 16 },
-    small:  { paddingVertical: spacing.sm,  paddingHorizontal: spacing.md,  minHeight: 40, fontSize: typography.sm, iconSize: 16 },
-    md:     { paddingVertical: spacing.md,  paddingHorizontal: spacing.xl,  minHeight: 52, fontSize: typography.md, iconSize: 20 },
-    medium: { paddingVertical: spacing.md,  paddingHorizontal: spacing.xl,  minHeight: 52, fontSize: typography.md, iconSize: 20 },
-    lg:     { paddingVertical: spacing.lg,  paddingHorizontal: spacing.xxl, minHeight: 60, fontSize: typography.lg, iconSize: 24 },
-    large:  { paddingVertical: spacing.lg,  paddingHorizontal: spacing.xxl, minHeight: 60, fontSize: typography.lg, iconSize: 24 },
+    sm:     { paddingVertical: spacing.sm,  paddingHorizontal: spacing.md,  minHeight: 40, type: typography.styles.labelStrong, iconSize: 16 },
+    small:  { paddingVertical: spacing.sm,  paddingHorizontal: spacing.md,  minHeight: 40, type: typography.styles.labelStrong, iconSize: 16 },
+    md:     { paddingVertical: spacing.md,  paddingHorizontal: spacing.xl,  minHeight: 52, type: typography.styles.bodyBold,    iconSize: 20 },
+    medium: { paddingVertical: spacing.md,  paddingHorizontal: spacing.xl,  minHeight: 52, type: typography.styles.bodyBold,    iconSize: 20 },
+    lg:     { paddingVertical: spacing.lg,  paddingHorizontal: spacing.xxl, minHeight: 60, type: typography.styles.title,       iconSize: 24 },
+    large:  { paddingVertical: spacing.lg,  paddingHorizontal: spacing.xxl, minHeight: 60, type: typography.styles.title,       iconSize: 24 },
 };
 
 export default function Button({
@@ -53,7 +54,7 @@ export default function Button({
     };
 
     return (
-        <TouchableOpacity
+        <PressableScale
             style={[
                 styles.base,
                 { backgroundColor: bg, minHeight: sz.minHeight, paddingVertical: sz.paddingVertical, paddingHorizontal: sz.paddingHorizontal },
@@ -62,14 +63,15 @@ export default function Button({
                 style,
             ]}
             onPress={onPress}
-            disabled={disabled || loading}
-            activeOpacity={interactions.activeOpacity}
+            disabled={inactive}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: inactive, busy: loading }}
         >
             {loading ? (
                 <View style={styles.row}>
                     <ActivityIndicator color={fg} size="small" />
                     {loadingText && (
-                        <Text style={[styles.label, { fontSize: sz.fontSize, color: fg, marginLeft: spacing.sm }]}>
+                        <Text style={[styles.label, sz.type, { color: fg, marginLeft: spacing.sm }]}>
                             {loadingText}
                         </Text>
                     )}
@@ -77,20 +79,20 @@ export default function Button({
             ) : (
                 <View style={styles.row}>
                     {renderIcon('left')}
-                    <Text style={[styles.label, { fontSize: sz.fontSize, color: fg }, textStyle]}>
+                    <Text style={[styles.label, sz.type, { color: fg }, textStyle]}>
                         {title}
                     </Text>
                     {renderIcon('right')}
                 </View>
             )}
-        </TouchableOpacity>
+        </PressableScale>
     );
 }
 
 const styles = StyleSheet.create({
     base:     { borderRadius: radius.button, alignItems: 'center', justifyContent: 'center' },
     disabled: { opacity: 0.6 },
-    label:    { fontWeight: '600', textAlign: 'center' },
+    label:    { textAlign: 'center' },
     row:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
     iconL:    { marginRight: spacing.sm },
     iconR:    { marginLeft: spacing.sm },

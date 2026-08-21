@@ -29,14 +29,8 @@ const PUBLIC_URL = () => (process.env.R2_PUBLIC_URL ?? '').replace(/\/$/, '');
 export const IMAGE_CONFIG = {
   PROFILE: { prefix: 'profilepicture', maxSize: 5 * 1024 * 1024, quality: 80, maxWidth: 800, maxHeight: 800 },
   COMPANY_LOGO: { prefix: 'companylogo', maxSize: 10 * 1024 * 1024, quality: 85, maxWidth: 1000, maxHeight: 1000 },
-  CONSTRUCTION:  { prefix: 'construction',  maxSize: 15 * 1024 * 1024, quality: 75, maxWidth: 1920, maxHeight: 1080, maxCount: 10 },
-  FACTORY:       { prefix: 'factory',       maxSize: 15 * 1024 * 1024, quality: 75, maxWidth: 1920, maxHeight: 1080, maxCount: 10 },
-  JOBVACANCY:    { prefix: 'jobvacancy',    maxSize: 15 * 1024 * 1024, quality: 75, maxWidth: 1920, maxHeight: 1080, maxCount: 10 },
-  MACHINERYRENT: { prefix: 'machineryrent', maxSize: 15 * 1024 * 1024, quality: 75, maxWidth: 1920, maxHeight: 1080, maxCount: 10 },
-  MATERIALSTORE: { prefix: 'materialstore', maxSize: 15 * 1024 * 1024, quality: 75, maxWidth: 1920, maxHeight: 1080, maxCount: 10 },
-  SOS:           { prefix: 'sos',           maxSize: 15 * 1024 * 1024, quality: 75, maxWidth: 1920, maxHeight: 1080, maxCount: 10 },
-  TOOLRENT:      { prefix: 'toolrent',      maxSize: 15 * 1024 * 1024, quality: 75, maxWidth: 1920, maxHeight: 1080, maxCount: 10 },
-  VEHICLERENT:   { prefix: 'vehiclerent',   maxSize: 15 * 1024 * 1024, quality: 75, maxWidth: 1920, maxHeight: 1080, maxCount: 10 },
+  // Post uploads all resolve to the default 'posts' branch in processAfterSave;
+  // the per-category entries died with the pre-R2 per-category upload dirs.
 } as const;
 
 // Magic-byte MIME validation — checks actual file bytes, not the client-supplied Content-Type
@@ -103,15 +97,6 @@ function makeKey(prefix: string): string {
 
 // ─── Public API (same signatures as before, callers unchanged) ──────────────
 
-export const createSingleImageInterceptor = (imageType: keyof typeof IMAGE_CONFIG) => {
-  const config = IMAGE_CONFIG[imageType];
-  return FileInterceptor('image', {
-    storage: memoryStorage(),
-    fileFilter: imageFileFilter,
-    limits: { fileSize: config.maxSize },
-  });
-};
-
 export const createProfilePictureInterceptor = () =>
   FileInterceptor('profile_picture', {
     storage: memoryStorage(),
@@ -154,7 +139,6 @@ export class ImageUploadHandler {
   static async processAfterSave(
     files: Express.Multer.File[],
     destination: string,
-    oldImages?: string[]
   ): Promise<string[]> {
     if (!files || files.length === 0) return [];
 
@@ -163,10 +147,6 @@ export class ImageUploadHandler {
     const config = pathKey && IMAGE_CONFIG[pathKey]
       ? IMAGE_CONFIG[pathKey]
       : { prefix: pathKey?.toLowerCase() ?? 'posts', quality: 75, maxWidth: 1920, maxHeight: 1080 };
-
-    if (oldImages?.length) {
-      await Promise.allSettled(oldImages.map(deleteFromR2));
-    }
 
     const urls: string[] = [];
     for (const file of files) {
@@ -187,9 +167,3 @@ export const deleteMultipleImages = async (items: string[], _destination?: strin
   await Promise.allSettled(items.map(deleteFromR2));
 };
 
-export const deletePostImages = async (items: string[], _uploadPath?: string) => {
-  await Promise.allSettled(items.map(deleteFromR2));
-};
-
-// Kept for any lingering call sites — no-op now (no temp files on disk)
-export const cleanupTempFiles = async (_files: Express.Multer.File[]) => {};

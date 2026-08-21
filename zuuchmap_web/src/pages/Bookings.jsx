@@ -5,25 +5,22 @@ import { useTranslation } from 'react-i18next'
 import { Phone, CalendarRange } from 'lucide-react'
 import { toast } from 'sonner'
 import { bookingsApi } from '@/lib/api'
-import { formatDate, getImageUrl, getPostTitle } from '@/lib/utils'
+import { formatDate, getImageUrl, getPostTitle, apiErrorMessage } from '@/lib/utils'
 import PageHeader from '@/components/PageHeader'
 import EmptyState from '@/components/EmptyState'
+import ErrorState from '@/components/ErrorState'
 import UserAvatar from '@/components/UserAvatar'
 import Input from '@/components/Input'
+import Button from '@/components/Button'
+import StatusBadge from '@/components/StatusBadge'
 import ConfirmModal from '@/components/ConfirmModal'
 import TabBar from '@/components/TabBar'
+import { useMinDisplayTime } from '@/hooks/useMinDisplayTime'
 
 const TAB_STATUSES = {
   pending: ['PENDING'],
   upcoming: ['ACCEPTED'],
   history: ['DECLINED', 'CANCELLED'],
-}
-
-const STATUS_STYLES = {
-  PENDING: 'text-warning bg-warning/10 border-warning/20',
-  ACCEPTED: 'text-success bg-success/10 border-success/20',
-  DECLINED: 'text-danger bg-danger/10 border-danger/20',
-  CANCELLED: 'text-muted bg-surface2 border-border/50',
 }
 
 function BookingCard({ booking, mode, onAccept, onDecline, onRequestCancel, busy, t }) {
@@ -42,7 +39,7 @@ function BookingCard({ booking, mode, onAccept, onDecline, onRequestCancel, busy
           </Link>
         )}
         <div className="flex-1 min-w-0">
-          <Link to={`/posts/${booking.post?.id}`} className="text-sm font-semibold text-text hover:text-primary transition-colors line-clamp-1">
+          <Link to={`/posts/${booking.post?.id}`} className="text-sm font-semibold text-text hover:text-primary-text transition-colors line-clamp-1">
             {getPostTitle(booking.post, t)}
           </Link>
           <p className="text-xs text-muted flex items-center gap-1 mt-0.5">
@@ -52,15 +49,13 @@ function BookingCard({ booking, mode, onAccept, onDecline, onRequestCancel, busy
             <UserAvatar src={other?.profile_picture} name={other?.given_name} size="sm" />
             <span className="text-xs text-text">{other?.given_name || '—'}</span>
             {other?.phone_number && (
-              <a href={`tel:${other.phone_number}`} className="flex items-center gap-1 text-xs text-primary">
+              <a href={`tel:${other.phone_number}`} className="flex items-center gap-1 text-xs text-primary-text">
                 <Phone size={11} /> {other.phone_number}
               </a>
             )}
           </div>
         </div>
-        <span className={`text-xs font-medium px-2 py-0.5 rounded-md border shrink-0 ${STATUS_STYLES[booking.status] ?? STATUS_STYLES.CANCELLED}`}>
-          {t(`booking.${booking.status.toLowerCase()}`)}
-        </span>
+        <span className="shrink-0"><StatusBadge status={booking.status} /></span>
       </div>
 
       {booking.message && <p className="text-xs text-muted bg-surface2 rounded-lg p-2.5">{booking.message}</p>}
@@ -77,12 +72,12 @@ function BookingCard({ booking, mode, onAccept, onDecline, onRequestCancel, busy
               placeholder={t('booking.responseMessage')} className="resize-none" />
             <div className="flex gap-2">
               <button onClick={() => onDecline(booking.id, message)} disabled={busy}
-                className="px-3 py-1.5 bg-danger text-on-color rounded-btn text-xs font-semibold disabled:opacity-50">
+                className="px-3 py-1.5 bg-danger text-on-color rounded-btn text-xs font-semibold disabled:opacity-50 hover:bg-danger/90 transition-colors">
                 {t('booking.decline')}
               </button>
-              <button onClick={() => setRespondingTo(null)} className="px-3 py-1.5 bg-surface2 text-muted rounded-btn text-xs">
+              <Button variant="secondary" size="sm" onClick={() => setRespondingTo(null)}>
                 {t('common.cancel')}
-              </button>
+              </Button>
             </div>
           </div>
         ) : (
@@ -115,19 +110,39 @@ export default function Bookings({ mode }) {
   const [confirmCancelId, setConfirmCancelId] = useState(null)
   const [tab, setTab] = useState('pending')
 
-  const { data: bookings = [], isLoading } = useQuery({
+  const { data: bookings = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['bookings', mode],
     queryFn: () => (mode === 'provider' ? bookingsApi.received() : bookingsApi.mine()),
     staleTime: 30_000,
   })
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['bookings'] })
-  const onError = (e) => toast.error(e.response?.data?.message || t('common.error'))
+  const onError = (e) => toast.error(apiErrorMessage(e, t, t('common.error')))
 
-  const acceptMut = useMutation({ mutationFn: (id) => bookingsApi.accept(id), onSuccess: invalidate, onError })
-  const declineMut = useMutation({ mutationFn: ({ id, message }) => bookingsApi.decline(id, message), onSuccess: invalidate, onError })
-  const cancelMut = useMutation({ mutationFn: (id) => bookingsApi.cancel(id), onSuccess: invalidate, onError })
-  const busy = acceptMut.isPending || declineMut.isPending || cancelMut.isPending
+  const acceptMut = useMutation({
+    mutationFn: (id) => bookingsApi.accept(id),
+    onSuccess: () => { invalidate(); toast.success(t('booking.acceptSuccess')) },
+    onError,
+  })
+  const declineMut = useMutation({
+    mutationFn: ({ id, message }) => bookingsApi.decline(id, message),
+    onSuccess: () => { invalidate(); toast.success(t('booking.declineSuccess')) },
+    onError,
+  })
+  const cancelMut = useMutation({
+    mutationFn: (id) => bookingsApi.cancel(id),
+    onSuccess: () => { invalidate(); toast.success(t('booking.cancelSuccess')) },
+    onError,
+  })
+  // Scope the pending state to the booking being acted on — a page-wide flag
+  // would freeze every card while one request is in flight.
+  const busyId =
+    (acceptMut.isPending && acceptMut.variables) ||
+    (declineMut.isPending && declineMut.variables?.id) ||
+    (cancelMut.isPending && cancelMut.variables) ||
+    null
+
+  const showSkeleton = useMinDisplayTime(isLoading)
 
   const counts = Object.fromEntries(
     Object.entries(TAB_STATUSES).map(([key, statuses]) => [key, bookings.filter((b) => statuses.includes(b.status)).length])
@@ -140,7 +155,7 @@ export default function Bookings({ mode }) {
         title={t(mode === 'provider' ? 'booking.receivedBookings' : 'booking.myBookings')}
         description={t('common.total', { count: bookings.length })}
       />
-      {!isLoading && bookings.length > 0 && (
+      {!showSkeleton && bookings.length > 0 && (
         <TabBar
           tabs={[
             { key: 'pending', label: `${t('booking.pending')} (${counts.pending})` },
@@ -152,10 +167,12 @@ export default function Bookings({ mode }) {
           className="mb-4"
         />
       )}
-      {isLoading ? (
+      {showSkeleton ? (
         <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-28 bg-surface2 rounded-card animate-pulse" />)}
         </div>
+      ) : isError ? (
+        <ErrorState onRetry={refetch} />
       ) : bookings.length === 0 ? (
         <EmptyState title={t('booking.empty')} />
       ) : filtered.length === 0 ? (
@@ -167,7 +184,7 @@ export default function Bookings({ mode }) {
               key={b.id}
               booking={b}
               mode={mode}
-              busy={busy}
+              busy={busyId === b.id}
               onAccept={(id) => acceptMut.mutate(id)}
               onDecline={(id, message) => declineMut.mutate({ id, message })}
               onRequestCancel={(id) => setConfirmCancelId(id)}

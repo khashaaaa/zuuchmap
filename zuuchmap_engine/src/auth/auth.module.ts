@@ -5,19 +5,25 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
+import { VerifyMnService } from './verify-mn.service';
 import { User } from 'src/user/entities/user.entity';
+import { VerificationSession } from './entities/verification-session.entity';
+import { TrustedDevice } from './entities/trusted-device.entity';
+import { jwtSecret } from 'src/utils/jwt-secret';
 
 @Module({
   imports: [
     PassportModule,
-    JwtModule.register({
-      secret: process.env.JWT_SECRET || '4623892d1eeb3f4ac12a306e5da110ab',
-      signOptions: { expiresIn: '30d' },
+    JwtModule.registerAsync({
+      useFactory: () => ({
+        secret: jwtSecret(),
+        signOptions: { expiresIn: '30d' },
+      }),
     }),
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([User, VerificationSession, TrustedDevice]),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, VerifyMnService],
   exports: [AuthService],
 })
 export class AuthModule { }

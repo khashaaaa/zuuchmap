@@ -6,7 +6,7 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import { StatusBar } from 'expo-status-bar';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme } from '../../hooks/useAppTheme';
-import { spacing, shadows, typography } from '../../design/theme';
+import { spacing, typography } from '../../design/theme';
 
 import CustomerPostList from './CustomerPostList';
 import CustomerProfile from './CustomerProfile';
@@ -46,20 +46,20 @@ const CustomerDashboard = () => {
                     tabBarInactiveTintColor: colors.text.tertiary,
                     headerShown: false,
                     tabBarStyle: {
+                        ...colors.elevation.md,
                         height: Platform.OS === 'ios' ? 88 : 65 + insets.bottom,
                         paddingBottom: Platform.OS === 'ios' ? 25 : spacing.sm + insets.bottom,
                         paddingTop: spacing.xs,
                         backgroundColor: colors.surface,
                         borderTopWidth: 1,
                         borderTopColor: colors.border.light,
-                        ...shadows.medium,
                         position: 'absolute',
                         bottom: 0,
                         left: 0,
                         right: 0,
                     },
                     tabBarItemStyle: { paddingVertical: spacing.xs, paddingHorizontal: spacing.sm },
-                    tabBarLabelStyle: { fontSize: typography.xs, fontWeight: '500', marginTop: spacing.xs },
+                    tabBarLabelStyle: { ...typography.styles.micro, marginTop: spacing.xs },
                     tabBarHideOnKeyboard: Platform.OS === 'android',
                 })}
                 safeAreaInsets={{ bottom: Platform.OS === 'android' ? insets.bottom : 0 }}

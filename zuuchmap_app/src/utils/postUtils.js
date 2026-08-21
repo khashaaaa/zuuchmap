@@ -1,4 +1,4 @@
-import { palettes } from '../design/theme';
+import { palettes, categoryColors } from '../design/theme';
 import { formatPrice } from './displayUtils';
 import i18n from 'i18next';
 
@@ -7,21 +7,20 @@ export const categoryToPostType = (category) => category?.toLowerCase() || null;
 
 export const normalizePostType = (postType) => postType?.toLowerCase() || null;
 
-// Per-category icon and color — used for badges and map markers.
-// Pass the current palette from useAppTheme() so results follow the theme.
-export const getPostTypeConfig = (postType, colors = palettes.dark) => {
+// Per-category icon and colour for badges and map markers, read from the
+// category schema so a new vertical needs no app release. `icon` holds an
+// Ionicons name and `color` a hex, both editable in the admin category UI.
+// Pass the palette from useAppTheme() for the fallback when schemas aren't
+// loaded yet or the category has no icon set.
+export const getPostTypeConfig = (postType, colors = palettes.dark, schemas = []) => {
   const key = normalizePostType(postType);
-  const configs = {
-    vehiclerent:  { iconName: 'car-outline',      color: colors.success    },
-    toolrent:     { iconName: 'construct-outline', color: colors.warning    },
-    machineryrent:{ iconName: 'cog-outline',       color: colors.machinery  },
-    materialstore:{ iconName: 'cube-outline',      color: colors.material   },
-    construction: { iconName: 'build-outline',     color: colors.primary    },
-    factory:      { iconName: 'business-outline',  color: colors.danger     },
-    jobvacancy:   { iconName: 'briefcase-outline', color: colors.jobVacancy },
-    sos:          { iconName: 'medkit-outline',    color: colors.sos        },
+  const schema = schemas.find((s) => s.key === key);
+  return {
+    iconName: schema?.icon || 'pricetag-outline',
+    // Falling back to grey made an un-coloured category look broken rather than
+    // merely unconfigured; fall back to its slot in the category family instead.
+    color: schema?.color || categoryColors[key] || colors.text.secondary,
   };
-  return configs[key] || { iconName: 'pricetag-outline', color: colors.text.secondary };
 };
 
 // Human-readable post title derived from post fields + attributes
@@ -29,12 +28,13 @@ export const getPostTitle = (post, postType) => {
   if (post.title) return post.title;
   const key = normalizePostType(postType || post.category);
   const attrs = post.attributes || {};
-  if (key === 'vehiclerent' || key === 'toolrent' || key === 'machineryrent') {
-    const name = `${attrs.manufacturer || ''} ${attrs.model || ''}`.trim();
-    if (name) return name;
-  }
-  if (key === 'jobvacancy') return post.subcategory || attrs.position || i18n.t('category.jobvacancy');
-  return post.name || post.subcategory || i18n.t('category.' + key);
+  // Derive from whichever identifying attributes the category defines, rather
+  // than from a list of category keys — any vertical reusing these field keys
+  // gets the same treatment for free.
+  const name = [attrs.manufacturer, attrs.model].filter(Boolean).join(' ').trim();
+  if (name) return name;
+  if (attrs.position) return attrs.position;
+  return post.name || post.subcategory || i18n.t('category.' + key, { defaultValue: key });
 };
 
 // Locale-aware labels resolved from the category schema, falling back to client i18n
@@ -54,8 +54,10 @@ export const getSubcategoryLabel = (value, schema) => {
 // Normalizes image URLs — handles legacy path mismatches and falls back gracefully
 export const getFixedImageUrl = (url) => {
   if (!url) return null;
-  // All new images are under /uploads/posts/ — legacy paths are remapped
-  const fixes = {
+  // All new images are under /uploads/posts/. The map below is a frozen record
+  // of the per-category directories used before that change — it is historical
+  // data, not a category list, so new verticals never need an entry here.
+  const legacyPaths = {
     '/uploads/sos/': '/uploads/posts/',
     '/uploads/vehiclerent/': '/uploads/posts/',
     '/uploads/toolrent/': '/uploads/posts/',
@@ -66,7 +68,7 @@ export const getFixedImageUrl = (url) => {
     '/uploads/jobvacancy/': '/uploads/posts/',
   };
   let fixed = url;
-  for (const [old, next] of Object.entries(fixes)) {
+  for (const [old, next] of Object.entries(legacyPaths)) {
     if (fixed.includes(old)) { fixed = fixed.replace(old, next); break; }
   }
   return fixed;
@@ -107,10 +109,3 @@ export const getSearchableText = (post) => {
 };
 
 // Ensures post.postType and post.post_type are both set consistently
-export const normalizePostFields = (post) => {
-  if (!post) return post;
-  const out = { ...post };
-  if (!out.post_type && out.category) out.post_type = out.category;
-  if (!out.postType && out.category) out.postType = out.category;
-  return out;
-};

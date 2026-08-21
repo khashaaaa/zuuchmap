@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { spacing, typography, radius, shadows } from '../design/theme';
+import { spacing, typography, radius } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 import { getStatusConfig } from '../utils/postUtils';
@@ -21,7 +21,8 @@ const StatusBadge = ({
 
     const statusConfig = status ? getStatusConfig(status, colors) : null;
     const bgColor = color || statusConfig?.color || colors.primary;
-    const displayLabel = label || (status ? t('status.' + status.toLowerCase()) : '');
+    const fgColor = bgColor === colors.primary ? colors.onPrimary : colors.text.onColor;
+    const displayLabel = label || (status ? t('status.' + status.toLowerCase(), { defaultValue: status }) : '');
 
     if (!displayLabel && !status) return null;
 
@@ -47,17 +48,17 @@ const StatusBadge = ({
             { backgroundColor: bgColor }
         ]}>
             {showIndicator && !isInline && (
-                <View style={styles.indicator} />
+                <View style={[styles.indicator, { backgroundColor: fgColor }]} />
             )}
             {showIcon && (
                 <Ionicons
                     name={getStatusIcon()}
                     size={12}
-                    color={colors.text.inverse}
+                    color={fgColor}
                     style={styles.icon}
                 />
             )}
-            <Text style={styles.badgeText}>{displayLabel}</Text>
+            <Text style={[styles.badgeText, { color: fgColor }]}>{displayLabel}</Text>
         </View>
     );
 };
@@ -91,16 +92,15 @@ const createStyles = (colors) => StyleSheet.create({
     indicator: {
         width: 6,
         height: 6,
-        borderRadius: 3,
-        backgroundColor: colors.text.inverse,
+        borderRadius: radius.full,
+        backgroundColor: colors.text.onColor,
     },
     icon: {
         marginRight: spacing.xxs,
     },
     badgeText: {
-        fontSize: typography.xs,
-        color: colors.text.inverse,
-        fontWeight: '700',
+        ...typography.styles.badge,
+        color: colors.text.onColor,
     },
 });
 

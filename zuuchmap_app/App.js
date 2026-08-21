@@ -13,7 +13,7 @@ import userService from './src/services/api/userService';
 import apiClient from './src/services/api/apiClient';
 import { API_CONFIG } from './src/config/api.config';
 import { queryClient, invalidatePostData } from './src/services/queryClient';
-import { palettes, dimensions, typography, spacing } from './src/design/theme';
+import { palettes, dimensions, typography, spacing, fonts, animations } from './src/design/theme';
 
 // Splash and the pre-provider loading screen render before AppContext
 // (and the stored theme preference) is available — they commit to dark.
@@ -50,7 +50,7 @@ const splashStyles = StyleSheet.create({
   },
   title: {
     fontSize: 36,
-    fontWeight: '800',
+    fontFamily: fonts.extrabold,
     color: colors.primary,
     letterSpacing: 1,
     marginBottom: spacing.sm,
@@ -65,12 +65,18 @@ import { getDashboardScreen } from './src/utils/navigationUtils';
 import { logger } from './src/utils/logger';
 import { AppProvider } from './src/context/AppContext';
 import { useNotificationSync } from './src/hooks/useNotificationSync';
+import { reportError } from './src/services/analytics';
+import { useFonts } from 'expo-font';
+import { fontAssets } from './src/design/theme';
 import './src/i18n'; // initialize i18next
 
 if (global.ErrorUtils) {
   const prevHandler = global.ErrorUtils.getGlobalHandler();
   global.ErrorUtils.setGlobalHandler((error, isFatal) => {
+    // logger is compiled out of release builds, so reportError is the only way
+    // a crash on a real user's phone ever reaches us.
     logger.error(`Uncaught JS error [fatal=${isFatal}]: ${error?.message}`);
+    reportError(error, isFatal ? 'global.fatal' : 'global.nonfatal');
     prevHandler?.(error, isFatal);
   });
 }
@@ -116,21 +122,18 @@ import ProviderDashboard from './src/screens/provider/ProviderDashboard';
 import ProviderLocationSelection from './src/screens/provider/ProviderLocationSelection';
 import ProviderPostForm from './src/screens/provider/ProviderPostForm';
 import ProviderProfile from './src/screens/provider/ProviderProfile';
-import ProviderEditProfile from './src/screens/provider/ProviderEditProfile';
+import EditProfileScreen from './src/screens/shared/EditProfileScreen';
 import ProviderCompany from './src/screens/provider/ProviderCompany'
-import ProviderCompanyCreate from './src/screens/provider/ProviderCompanyCreate';
 
 import CustomerDashboard from './src/screens/customer/CustomerDashboard';
 import CustomerProfile from './src/screens/customer/CustomerProfile';
-import CustomerEditProfile from './src/screens/customer/CustomerEditProfile';
 import CustomerPostList from './src/screens/customer/CustomerPostList';
 import CustomerLikeList from './src/screens/customer/CustomerLikeList';
 
 import CategorySelectScreen from './src/screens/shared/CategorySelectScreen';
 import SubcategorySelectScreen from './src/screens/shared/SubcategorySelectScreen';
 import PostDetailScreen from './src/screens/shared/PostDetailScreen';
-import PrivacyPolicyScreen from './src/screens/shared/PrivacyPolicyScreen';
-import TermsScreen from './src/screens/shared/TermsScreen';
+import PolicyScreen from './src/screens/shared/PolicyScreen';
 import HelpSupportScreen from './src/screens/shared/HelpSupportScreen';
 import NotificationsScreen from './src/screens/shared/NotificationsScreen';
 import BookingListScreen from './src/screens/shared/BookingListScreen';
@@ -149,14 +152,23 @@ AppState.addEventListener('change', (state) => {
 });
 
 const App = () => {
+  // Commissioner is bundled, so this resolves in milliseconds — but the JS
+  // splash below is itself set in Commissioner, so we hold on the native splash
+  // (return null) until it is registered rather than flashing a fallback face.
+  // A load failure is not fatal: we report it and continue on the system font.
+  const [fontsLoaded, fontError] = useFonts(fontAssets);
+
   const [showSplash, setShowSplash] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [authState, setAuthState] = useState({
     isAuthenticated: false,
     userType: null,
     isAdmin: false,
-    hasStoredUserInfo: false,
   });
+
+  useEffect(() => {
+    if (fontError) reportError(fontError, 'fonts.load');
+  }, [fontError]);
 
   useEffect(() => {
     if (!showSplash) {
@@ -181,7 +193,6 @@ const App = () => {
           isAuthenticated: false,
           userType: storedUserType,
           isAdmin: storedIsAdmin,
-          hasStoredUserInfo: true,
         });
         setIsLoading(false);
         return;
@@ -196,24 +207,24 @@ const App = () => {
               isAuthenticated: true,
               userType: authResult.userType || null,
               isAdmin: storedIsAdmin,
-              hasStoredUserInfo: !!storedUserInfo,
             });
             registerForPushNotifications().then(token => {
               if (token) {
-                apiClient.put(API_CONFIG.ENDPOINTS.USER.SAVE_PUSH_TOKEN, { push_token: token }).catch(() => {});
+                apiClient.put(API_CONFIG.ENDPOINTS.USER.SAVE_PUSH_TOKEN, { push_token: token })
+                  .catch((err) => logger.warn?.('Push token registration failed:', err?.message));
               }
             });
           } else if (authResult?.rateLimited) {
             setAuthState({
               isAuthenticated: false,
               userType: null,
-              hasStoredUserInfo: false,
+              isAdmin: false,
             });
           } else {
             setAuthState({
               isAuthenticated: false,
               userType: storedUserType,
-              hasStoredUserInfo: !!storedUserInfo,
+              isAdmin: storedIsAdmin,
             });
           }
         } catch (error) {
@@ -221,14 +232,14 @@ const App = () => {
           setAuthState({
             isAuthenticated: false,
             userType: storedUserType,
-            hasStoredUserInfo: !!storedUserInfo,
+            isAdmin: storedIsAdmin,
           });
         }
       } else {
         setAuthState({
           isAuthenticated: false,
           userType: storedUserType,
-          hasStoredUserInfo: !!storedUserInfo,
+          isAdmin: storedIsAdmin,
         });
       }
     } catch (error) {
@@ -236,7 +247,7 @@ const App = () => {
       setAuthState({
         isAuthenticated: false,
         userType: null,
-        hasStoredUserInfo: false,
+        isAdmin: false,
       });
     } finally {
       setIsLoading(false);
@@ -307,6 +318,8 @@ const App = () => {
     return 'PhoneNumber';
   };
 
+  if (!fontsLoaded && !fontError) return null;
+
   if (showSplash) {
     return <SplashStart onFinish={handleSplashFinish} />;
   }
@@ -361,7 +374,13 @@ const ThemedApp = ({ initialRoute }) => {
             initialRouteName={initialRoute}
             screenOptions={{
               headerShown: false,
-              cardStyle: { backgroundColor: colors.background }
+              cardStyle: { backgroundColor: colors.background },
+              // Screen transitions were the platform default with no declared
+              // timing; drive them from the motion tokens so a push feels like
+              // the same system as a press or a list entrance.
+              animation: 'slide_from_right',
+              animationDuration: animations.duration.slow,
+              gestureEnabled: true,
             }}
           >
             <Stack.Screen name="PhoneNumber" component={PhoneNumber} />
@@ -373,13 +392,13 @@ const ThemedApp = ({ initialRoute }) => {
             <Stack.Screen name="ProviderPostCreate" component={ProviderPostForm} />
             <Stack.Screen name="ProviderPostEdit" component={ProviderPostForm} />
             <Stack.Screen name="ProviderProfile" component={ProviderProfile} />
-            <Stack.Screen name="ProviderEditProfile" component={ProviderEditProfile} />
-            <Stack.Screen name="ProviderCompanyCreate" component={ProviderCompanyCreate} />
+            <Stack.Screen name="ProviderEditProfile" component={EditProfileScreen} />
+            <Stack.Screen name="ProviderCompanyCreate" component={ProviderCompany} />
             <Stack.Screen name="ProviderCompany" component={ProviderCompany} />
 
             <Stack.Screen name="CustomerDashboard" component={CustomerDashboard} />
             <Stack.Screen name="CustomerProfile" component={CustomerProfile} />
-            <Stack.Screen name="CustomerEditProfile" component={CustomerEditProfile} />
+            <Stack.Screen name="CustomerEditProfile" component={EditProfileScreen} />
             <Stack.Screen name="CustomerPostList" component={CustomerPostList} />
             <Stack.Screen name="CustomerLikeList" component={CustomerLikeList} />
 
@@ -387,8 +406,8 @@ const ThemedApp = ({ initialRoute }) => {
             <Stack.Screen name="CategorySelectScreen" component={CategorySelectScreen} />
             <Stack.Screen name="SubcategorySelectScreen" component={SubcategorySelectScreen} />
             <Stack.Screen name="PostDetailScreen" component={PostDetailScreen} />
-            <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
-            <Stack.Screen name="Terms" component={TermsScreen} />
+            <Stack.Screen name="PrivacyPolicy" component={PolicyScreen} initialParams={{ doc: 'privacy' }} />
+            <Stack.Screen name="Terms" component={PolicyScreen} initialParams={{ doc: 'terms' }} />
             <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
             <Stack.Screen name="Notifications" component={NotificationsScreen} />
             <Stack.Screen name="BookingList" component={BookingListScreen} />

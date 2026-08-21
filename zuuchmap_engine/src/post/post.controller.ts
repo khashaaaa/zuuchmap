@@ -1,11 +1,12 @@
 import {
   Controller, Get, Post, Patch, Delete, Put,
   Param, Body, Query, Req, UseGuards, UseInterceptors,
-  UploadedFiles, ParseIntPipe, Logger,
+  UploadedFiles, ParseIntPipe, Logger, NotFoundException,
 } from '@nestjs/common';
+import { publicUser } from '../utils/public-user';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
-import { AdminGuard } from '../admin/admin.guard';
+import { AdminGuard, isAdmin } from '../admin/admin.guard';
 import { PostService } from './post.service';
 import { CategoryService } from './category.service';
 import { CreatePostDto } from './dto/create-post.dto';
@@ -38,19 +39,21 @@ export class PostController {
 
   @Get()
   @UseGuards(OptionalJwtAuthGuard)
-  findAll(@Query() query: Record<string, string>) {
+  findAll(@Query() query: Record<string, string>, @Req() req) {
     const { category, subcategory, province, district, approval_status, status, page, limit, q, ...rest } = query;
     // Attribute filters arrive as attr.<key>=value (or attr.<key>_min / attr.<key>_max)
     const attrs: Record<string, string> = {};
     for (const [k, v] of Object.entries(rest)) {
       if (k.startsWith('attr.')) attrs[k.slice(5)] = v;
     }
+    // Moderation gate: only admins may browse beyond APPROVED posts.
+    const requesterIsAdmin = isAdmin(req.user?.phone_number);
     return this.postService.findAll({
       category,
       subcategory,
       province,
       district,
-      approval_status,
+      approval_status: requesterIsAdmin ? approval_status : 'APPROVED',
       status,
       page: page ? +page : undefined,
       limit: limit ? +limit : undefined,
@@ -64,6 +67,15 @@ export class PostController {
     return this.postService.findForMap();
   }
 
+  /**
+   * Public marketplace counters for the landing page. Declared above `:id` so
+   * the param route does not swallow it.
+   */
+  @Get('stats')
+  publicStats() {
+    return this.postService.publicStats();
+  }
+
   @Get('mine')
   @UseGuards(JwtAuthGuard)
   findMine(
@@ -75,17 +87,24 @@ export class PostController {
   }
 
   @Get(':id')
+  @UseGuards(OptionalJwtAuthGuard)
   async findOne(
     @Param('id', ParseIntPipe) id: number,
     @Query('increment_view') increment?: string,
     @Req() req?,
   ) {
     const post = await this.postService.findOne(id);
+    // Unapproved posts are visible only to their owner and admins. 404 (not
+    // 403) so unmoderated content doesn't leak its existence.
+    const isOwner = !!req?.user?.id && post.user?.id === req.user.id;
+    if (post.approval_status !== 'APPROVED' && !isOwner && !isAdmin(req?.user?.phone_number)) {
+      throw new NotFoundException(`Post #${id} not found`);
+    }
     if (increment === 'true') {
       const userId = req?.user?.id;
       await this.postService.incrementViews(id, userId).catch((err) => this.logger.warn(`incrementViews failed for post ${id}`, err?.message));
     }
-    return post;
+    return { ...post, user: publicUser(post.user) };
   }
 
   @Put(':id/views')

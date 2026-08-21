@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import i18n from '../i18n';
 
@@ -60,11 +60,16 @@ export const AppProvider = ({ children }) => {
 
     const clearNotifications = useCallback(() => setNotifications([]), []);
 
+    // Memoized: this context backs useAppTheme, so a fresh object every render
+    // used to re-render nearly every themed component on each notification.
+    const value = useMemo(() => ({
+        themeMode, setThemeMode, locale, setLocale, ready,
+        notifications, unreadCount, addNotification, markAllRead, clearNotifications,
+    }), [themeMode, setThemeMode, locale, setLocale, ready,
+        notifications, unreadCount, addNotification, markAllRead, clearNotifications]);
+
     return (
-        <AppContext.Provider value={{
-            themeMode, setThemeMode, locale, setLocale, ready,
-            notifications, unreadCount, addNotification, markAllRead, clearNotifications,
-        }}>
+        <AppContext.Provider value={value}>
             {children}
         </AppContext.Provider>
     );

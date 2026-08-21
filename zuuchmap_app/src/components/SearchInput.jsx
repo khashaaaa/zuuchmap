@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { spacing, typography, shadows, radius, interactions } from '../design/theme';
+import { spacing, typography, radius, interactions } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 
@@ -38,14 +38,14 @@ const SearchInput = ({
         <View style={[styles.searchContainer, containerStyle]}>
             <View style={[
                 styles.searchInputContainer,
-                { backgroundColor: colors.surface, borderColor: colors.border.light },
+                colors.elevation.sm, { backgroundColor: colors.surface, borderColor: colors.border.light },
                 isFocused && { borderColor: colors.border.focus, borderWidth: 2, backgroundColor: colors.surfaceLight }
             ]}>
                 <View style={[styles.searchIcon, { backgroundColor: colors.opacity.background.primary }]}>
                     <Ionicons name="search" size={20} color={colors.primary} />
                 </View>
                 <TextInput
-                    style={[styles.searchInput, { color: colors.text.inverse }, inputStyle]}
+                    style={[styles.searchInput, { color: colors.text.primary }, inputStyle]}
                     placeholder={resolvedPlaceholder}
                     placeholderTextColor={colors.text.placeholder}
                     value={value}
@@ -54,7 +54,12 @@ const SearchInput = ({
                     onBlur={handleBlur}
                 />
                 {showClearButton && value.length > 0 && (
-                    <TouchableOpacity onPress={handleClear} style={styles.clearButton} activeOpacity={interactions.activeOpacityLight}>
+                    <TouchableOpacity
+                        onPress={handleClear}
+                        style={styles.clearButton}
+                        activeOpacity={interactions.activeOpacityLight}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
                         <Ionicons name="close-circle" size={20} color={colors.primary} />
                     </TouchableOpacity>
                 )}
@@ -74,7 +79,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacing.lg,
         borderWidth: 1,
         minHeight: 52,
-        ...shadows.small,
     },
     searchIcon: {
         marginRight: spacing.md,
@@ -83,7 +87,7 @@ const styles = StyleSheet.create({
     },
     searchInput: {
         flex: 1,
-        fontSize: typography.md,
+        ...typography.styles.body,
     },
     clearButton: {
         padding: spacing.xs,

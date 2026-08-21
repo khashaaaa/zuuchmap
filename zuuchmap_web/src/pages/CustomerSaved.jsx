@@ -6,13 +6,15 @@ import { getPostCategory } from '@/lib/utils'
 import PostCard from '@/components/PostCard'
 import EmptyState from '@/components/EmptyState'
 import PageHeader from '@/components/PageHeader'
+import PostGrid from '@/components/PostGrid'
+import Button from '@/components/Button'
 import { toast } from 'sonner'
 
 export default function CustomerSaved() {
   const { t } = useTranslation()
   const qc = useQueryClient()
 
-  const { data: posts = [], isLoading } = useQuery({
+  const { data: posts = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['liked-posts'],
     queryFn: likesApi.getLiked,
   })
@@ -30,36 +32,37 @@ export default function CustomerSaved() {
   return (
     <div>
       <PageHeader title={t('posts.savedTitle')} description={t('posts.total', { count: posts.length })} />
-      {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-64 bg-surface2 rounded-card animate-pulse" />
-          ))}
-        </div>
-      ) : posts.length === 0 ? (
-        <EmptyState icon={Heart} title={t('posts.noSaved')} description={t('posts.noSavedDesc')} />
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-          {posts.map((post) => {
-            const isPendingThis = unlikeMut.isPending && unlikeMut.variables?.postId === post.id
-            return (
-              <PostCard
-                key={post.id}
-                post={post}
-                actions={
-                  <button
-                    onClick={() => unlikeMut.mutate({ postType: getPostCategory(post), postId: post.id })}
-                    disabled={isPendingThis}
-                    className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium border border-danger/30 text-danger rounded-btn hover:bg-danger/10 disabled:opacity-50 transition-colors"
-                  >
-                    <Heart size={12} className={isPendingThis ? 'animate-pulse' : ''} fill="currentColor" /> {t('posts.unsave')}
-                  </button>
-                }
-              />
-            )
-          })}
-        </div>
-      )}
+      <PostGrid
+        isLoading={isLoading}
+        isError={isError}
+        onRetry={refetch}
+        isEmpty={posts.length === 0}
+        emptyState={<EmptyState icon={Heart} title={t('posts.noSaved')} description={t('posts.noSavedDesc')} />}
+        cols={3}
+        skeletonCount={6}
+      >
+        {posts.map((post, i) => {
+          const isPendingThis = unlikeMut.isPending && unlikeMut.variables?.postId === post.id
+          return (
+            <PostCard
+              key={post.id}
+              post={post}
+              index={i}
+              actions={
+                <Button
+                  variant="danger-outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => unlikeMut.mutate({ postType: getPostCategory(post), postId: post.id })}
+                  disabled={isPendingThis}
+                >
+                  <Heart size={12} className={isPendingThis ? 'animate-pulse' : ''} fill="currentColor" /> {t('posts.unsave')}
+                </Button>
+              }
+            />
+          )
+        })}
+      </PostGrid>
     </div>
   )
 }

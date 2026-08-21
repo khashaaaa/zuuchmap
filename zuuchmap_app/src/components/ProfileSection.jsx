@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { spacing, typography, radius, shadows, interactions } from '../design/theme';
+import { spacing, typography, radius, interactions } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
 
 /**
@@ -21,7 +21,7 @@ export const ProfileSection = ({ title, icon, children, style }) => {
                     {title && <Text style={[styles.sectionTitle, { color: colors.text.primary }]}>{title}</Text>}
                 </View>
             )}
-            <View style={[styles.sectionContent, { backgroundColor: colors.surface }]}>{children}</View>
+            <View style={[styles.sectionContent, colors.elevation.sm, { backgroundColor: colors.surface }]}>{children}</View>
         </View>
     );
 };
@@ -38,7 +38,7 @@ export const ProfileInfoRow = ({ icon, label, text }) => {
             </View>
             <View style={styles.infoContent}>
                 <Text style={[styles.infoLabel, { color: colors.text.secondary }]}>{label}</Text>
-                <Text style={[styles.infoText, { color: colors.text.inverse }]}>{text}</Text>
+                <Text style={[styles.infoText, { color: colors.text.primary }]}>{text}</Text>
             </View>
         </View>
     );
@@ -66,7 +66,7 @@ export const ProfileActionRow = ({
                     color={isDanger ? colors.danger : colors.primary}
                 />
             </View>
-            <Text style={[styles.actionText, { color: isDanger ? colors.danger : colors.text.inverse }, isDanger && styles.dangerText]}>
+            <Text style={[styles.actionText, { color: isDanger ? colors.danger : colors.text.primary }, isDanger && styles.dangerText]}>
                 {text}
             </Text>
             {badgeCount != null && badgeCount > 0 && (
@@ -78,7 +78,7 @@ export const ProfileActionRow = ({
             )}
             <Ionicons
                 name="chevron-forward"
-                size={16}
+                size={20}
                 color={isDanger ? colors.danger : colors.text.secondary}
             />
         </>
@@ -110,19 +110,17 @@ const styles = StyleSheet.create({
     sectionIconContainer: {
         width: 32,
         height: 32,
-        borderRadius: radius.card,
+        borderRadius: radius.full,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: spacing.sm,
     },
     sectionTitle: {
-        fontSize: typography.md,
-        fontWeight: 'bold',
+        ...typography.styles.title,
     },
     sectionContent: {
         borderRadius: radius.card,
         overflow: 'hidden',
-        ...shadows.small,
     },
     infoItem: {
         flexDirection: 'row',
@@ -142,13 +140,11 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     infoLabel: {
-        fontSize: typography.xs,
+        ...typography.styles.micro,
         marginBottom: spacing.xs,
-        fontWeight: '500',
     },
     infoText: {
-        fontSize: typography.md,
-        lineHeight: 20,
+        ...typography.styles.body,
     },
     actionItem: {
         flexDirection: 'row',
@@ -167,11 +163,10 @@ const styles = StyleSheet.create({
     },
     actionText: {
         flex: 1,
-        fontSize: typography.md,
-        fontWeight: '500',
+        ...typography.styles.bodyMedium,
     },
     dangerText: {
-        fontWeight: '600',
+        ...typography.styles.bodyBold,
     },
     badge: {
         borderRadius: radius.badge,
@@ -182,8 +177,7 @@ const styles = StyleSheet.create({
         marginRight: spacing.sm,
     },
     badgeText: {
-        fontSize: typography.xs,
-        fontWeight: 'bold',
+        ...typography.styles.badge,
         paddingHorizontal: spacing.xs,
     },
 });

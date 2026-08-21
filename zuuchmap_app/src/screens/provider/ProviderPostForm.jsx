@@ -8,7 +8,6 @@ import {
     KeyboardAvoidingView,
     Keyboard,
     StyleSheet,
-    ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,7 +18,7 @@ import i18n from '../../i18n';
 import postService from '../../services/api/postService';
 import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 
-import { ScreenHeader } from '../../components';
+import { ScreenHeader, ScreenLoading } from '../../components';
 import ImageUploadSection from '../../components/ImageUploadSection';
 import LocationSection from '../../components/LocationSection';
 import ContactSection from '../../components/ContactSection';
@@ -173,7 +172,7 @@ const ProviderPostForm = ({ route, navigation }) => {
                     : base;
                 showErrorModal(t('common.validationError'), msg);
             } else {
-                showErrorModal(t('common.error'), t(isEdit ? 'provider.updating' : 'posts.createNew') + ' ' + t('common.error').toLowerCase());
+                showErrorModal(t('common.error'), t(isEdit ? 'posts.updateError' : 'posts.createError'));
             }
         } finally {
             setIsLoading(false);
@@ -187,12 +186,7 @@ const ProviderPostForm = ({ route, navigation }) => {
                     title={t(isEdit ? 'provider.postEdit' : 'provider.postCreate')}
                     onBack={handleBack}
                 />
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                    <ActivityIndicator color={colors.primary} size="large" />
-                    <Text style={{ marginTop: spacing.lg, fontSize: typography.md, fontWeight: '600', color: colors.text.primary }}>
-                        {t('common.loading')}
-                    </Text>
-                </View>
+                <ScreenLoading />
             </CustomSafeAreaView>
         );
     }
@@ -335,7 +329,7 @@ const createStyles = (colors) => StyleSheet.create({
     infoIcon: {
         width: 32,
         height: 32,
-        borderRadius: radius.card,
+        borderRadius: radius.full,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: spacing.md,
@@ -343,10 +337,9 @@ const createStyles = (colors) => StyleSheet.create({
     infoIconCreate: { backgroundColor: colors.opacity.background.primary },
     infoIconEdit: { backgroundColor: colors.opacity.background.warning },
     infoText: {
-        fontSize: typography.md,
+        ...typography.styles.bodyMedium,
         color: colors.text.primary,
         flex: 1,
-        fontWeight: '500',
     },
 });
 

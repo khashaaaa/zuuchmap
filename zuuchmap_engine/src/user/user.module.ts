@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 import { UserService } from './user.service';
 import { UserController } from './user.controller';
+import { UserAdminController } from './user-admin.controller';
 import { User } from './entities/user.entity';
 import { Post } from '../post/entities/post.entity';
 import { AuthModule } from 'src/auth/auth.module';
@@ -13,7 +14,9 @@ import { AuthModule } from 'src/auth/auth.module';
     ConfigModule,
     AuthModule
   ],
-  controllers: [UserController],
+  // UserAdminController shares the `user` prefix — it must stay last so its
+  // `:id` routes don't shadow UserController's literal paths.
+  controllers: [UserController, UserAdminController],
   providers: [UserService],
   exports: [UserService],
 })

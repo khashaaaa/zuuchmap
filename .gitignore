@@ -1,2 +1,10 @@
 .aider*
 .superpowers/
+
+# secrets — never commit
+zuuchmap_engine/config/variables/*.env
+zuuchmap_web/.env
+zuuchmap_web/.env.*
+
+# Claude Code local (per-machine) settings
+.claude/settings.local.json

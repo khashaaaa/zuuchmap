@@ -76,7 +76,7 @@ const PickerField = ({ value, options = [], onSelect, placeholder, error, title 
                                     {t('common.cancel')}
                                 </Text>
                             </TouchableOpacity>
-                            <Text style={[gStyles.modalTitle, { color: colors.text.inverse }]}>
+                            <Text style={[gStyles.modalTitle, { color: colors.text.primary }]}>
                                 {title || placeholder}
                             </Text>
                             <TouchableOpacity
@@ -84,7 +84,7 @@ const PickerField = ({ value, options = [], onSelect, placeholder, error, title 
                                 style={gStyles.modalButton}
                                 activeOpacity={interactions.activeOpacity}
                             >
-                                <Text style={[gStyles.modalButtonText, { color: colors.primary, fontWeight: typography.weight.semibold }]}>
+                                <Text style={[gStyles.modalButtonText, { ...typography.styles.bodyBold, color: colors.primary }]}>
                                     {t('common.done')}
                                 </Text>
                             </TouchableOpacity>
@@ -93,8 +93,8 @@ const PickerField = ({ value, options = [], onSelect, placeholder, error, title 
                             <Picker
                                 selectedValue={tempValue}
                                 onValueChange={setTempValue}
-                                style={[styles.picker, { color: colors.text.inverse }]}
-                                itemStyle={[styles.pickerItem, { color: colors.text.inverse }]}
+                                style={[styles.picker, { color: colors.text.primary }]}
+                                itemStyle={[styles.pickerItem, { color: colors.text.primary }]}
                             >
                                 {normalizedOptions.map((option) => (
                                     <Picker.Item
@@ -126,8 +126,8 @@ const createStyles = (colors) => StyleSheet.create({
         minHeight: 52,
     },
     pickerButtonText: {
-        fontSize: typography.md,
-        color: colors.text.inverse,
+        ...typography.styles.body,
+        color: colors.text.primary,
     },
     pickerContainer: {
         height: 200,
@@ -137,7 +137,7 @@ const createStyles = (colors) => StyleSheet.create({
         width: '100%',
     },
     pickerItem: {
-        fontSize: typography.md,
+        ...typography.styles.body,
         height: 200,
         color: colors.text.primary,
     },

@@ -10,6 +10,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { isAdmin } from '../admin/admin.guard';
+import { jwtSecret } from '../utils/jwt-secret';
 
 @WebSocketGateway({
   cors: { origin: process.env.ALLOWED_ORIGIN ?? 'https://zuuchmap.com', credentials: true },
@@ -27,28 +28,39 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (!token) return;
     try {
       const payload = this.jwtService.verify(token, {
-        secret: process.env.JWT_SECRET || '4623892d1eeb3f4ac12a306e5da110ab',
+        secret: jwtSecret(),
       });
       client.data.userId = payload.sub;
       client.data.isAdmin = isAdmin(payload.phone);
     } catch {
-      // invalid/expired token — client stays unauthenticated, room joins below are rejected
+      // Invalid/expired token: tell the client so it can stop retrying with the
+      // same credentials, then drop it. A server-initiated disconnect is not
+      // auto-reconnected by socket.io-client, so this can't loop.
+      client.emit('auth_error', { reason: 'invalid_token' });
+      client.disconnect(true);
     }
   }
 
   handleDisconnect(_client: Socket) {}
 
+  // Returns an ack (when the client passes a callback) so a rejected join is
+  // visible client-side instead of silently delivering nothing.
   @SubscribeMessage('join')
   handleJoin(@ConnectedSocket() client: Socket, @MessageBody() room: string) {
-    if (typeof room !== 'string' || room.length >= 100) return;
+    if (typeof room !== 'string' || room.length >= 100) {
+      return { ok: false, reason: 'invalid_room' };
+    }
 
     if (room === 'admin') {
-      if (!client.data?.isAdmin) return;
+      if (!client.data?.isAdmin) return { ok: false, reason: 'unauthorized' };
     } else if (room.startsWith('provider:')) {
-      if (client.data?.userId !== room.slice('provider:'.length)) return;
+      if (client.data?.userId !== room.slice('provider:'.length)) {
+        return { ok: false, reason: 'unauthorized' };
+      }
     }
 
     client.join(room);
+    return { ok: true };
   }
 
   private emit(room: string, event: string, data?: unknown) {

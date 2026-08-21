@@ -1,22 +1,30 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Plus, Pencil, X, GripVertical, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Plus, Pencil, X, GripVertical, ToggleLeft, ToggleRight, Tag } from 'lucide-react'
 import { categoryApi } from '@/lib/api'
-import { PRICE_UNITS } from '@/lib/utils'
+import { PRICE_UNITS, CATEGORY_COLORS, getCategoryColor, apiErrorMessage } from '@/lib/utils'
 import { LANGUAGES } from '@/i18n'
 import PageHeader from '@/components/PageHeader'
+import ErrorState from '@/components/ErrorState'
+import EmptyState from '@/components/EmptyState'
+import ConfirmModal from '@/components/ConfirmModal'
+import { useMinDisplayTime } from '@/hooks/useMinDisplayTime'
 import TabBar from '@/components/TabBar'
 import Input from '@/components/Input'
 import Modal from '@/components/Modal'
 import Button from '@/components/Button'
+import StatusBadge from '@/components/StatusBadge'
+import DensityToggle from '@/components/DensityToggle'
+import { useTableDensity } from '@/hooks/useTableDensity'
 import { toast } from 'sonner'
 
 const FIELD_TYPES = ['text', 'textarea', 'number', 'select', 'date', 'phone']
 const LOCALES = LANGUAGES.map((l) => l.code)
+const DEFAULT_COLOR = CATEGORY_COLORS.construction
 
 const emptySchema = () => ({
-  key: '', label: '', labels: {}, icon: '', color: '#9BA1A6',
+  key: '', label: '', labels: {}, icon: '', color: DEFAULT_COLOR,
   active: true, sort_order: 0,
   has_rental_status: false, has_availability_dates: false, has_price: false, default_price_unit: '',
   subcategories: [], fields: [],
@@ -27,7 +35,7 @@ const emptySubcat = () => ({ value: '', display: '', labels: {} })
 
 function LabelsEditor({ value = {}, onChange }) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+    <div className="grid grid-cols-2 gap-2">
       {LOCALES.map((lng) => (
         <Input key={lng} value={value?.[lng] ?? ''} placeholder={lng.toUpperCase()}
           onChange={(e) => onChange({ ...(value ?? {}), [lng]: e.target.value })} className="bg-background" />
@@ -41,6 +49,7 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
   const isNew = !schema?.key || schema._isNew
   const [form, setForm] = useState(() => schema ? { ...schema, subcategories: [...(schema.subcategories ?? [])], fields: [...(schema.fields ?? [])] } : emptySchema())
   const [tab, setTab] = useState('basic')
+  const [showErrors, setShowErrors] = useState(false)
 
   function setF(k, v) { setForm((f) => ({ ...f, [k]: v })) }
 
@@ -56,16 +65,22 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
     setForm((f) => ({ ...f, subcategories: f.subcategories.map((s, idx) => idx === i ? { ...s, [k]: v } : s) }))
   }
 
+  // Validation failures switch to the offending tab and mark the rows —
+  // a toast about a field on a hidden tab is a dead end.
   function handleSave() {
-    if (!form.key || !form.label) { toast.error(t('admin.categoryRequired')); return }
+    if (!form.key || !form.label) {
+      setShowErrors(true); setTab('basic'); toast.error(t('admin.categoryRequired')); return
+    }
     if (form.subcategories.some((s) => !s.value.trim() || !s.display.trim())) {
-      toast.error(t('admin.subcatRowRequired')); return
+      setShowErrors(true); setTab('subcategories'); toast.error(t('admin.subcatRowRequired')); return
     }
     if (form.fields.some((f) => !f.key.trim() || !f.label.trim())) {
-      toast.error(t('admin.fieldRowRequired')); return
+      setShowErrors(true); setTab('fields'); toast.error(t('admin.fieldRowRequired')); return
     }
     onSave(form)
   }
+
+  const errClass = (bad) => (showErrors && bad ? 'border-danger' : '')
 
   const tabs = [
     { id: 'basic', label: t('admin.tabBasic') },
@@ -88,7 +103,7 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
       }
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>
+          <Button variant="secondary" onClick={onClose} disabled={isSaving}>
             {t('common.cancel')}
           </Button>
           <Button onClick={handleSave} disabled={isSaving}>
@@ -105,24 +120,25 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
                     {t('admin.categoryKeyHint')}{isNew && <span className="text-danger"> *</span>}
                   </label>
                   <Input value={form.key} onChange={(e) => setF('key', e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''))}
-                    placeholder="vehiclerent" disabled={!isNew} className="bg-background" />
+                    placeholder="vehiclerent" disabled={!isNew} className={`bg-background ${errClass(!form.key)}`} />
                 </div>
                 <div>
                   <label className="text-xs text-muted block mb-1">
                     {t('admin.categoryLabel')} <span className="text-danger">*</span>
                   </label>
-                  <Input value={form.label} onChange={(e) => setF('label', e.target.value)} placeholder="Vehicle Rental" className="bg-background" />
+                  <Input value={form.label} onChange={(e) => setF('label', e.target.value)} placeholder="Vehicle Rental" className={`bg-background ${errClass(!form.label)}`} />
                 </div>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="text-xs text-muted block mb-1">{t('admin.categoryIcon')}</label>
-                  <Input value={form.icon ?? ''} onChange={(e) => setF('icon', e.target.value)} placeholder="🚗" className="bg-background" />
+                  <Input value={form.icon ?? ''} onChange={(e) => setF('icon', e.target.value)} placeholder="car-outline" className="bg-background" />
+                  <p className="text-xs text-muted mt-1">{t('admin.categoryIconHint')}</p>
                 </div>
                 <div>
                   <label className="text-xs text-muted block mb-1">{t('admin.categoryColor')}</label>
                   <div className="flex gap-2 items-center">
-                    <input type="color" value={form.color ?? '#9BA1A6'} onChange={(e) => setF('color', e.target.value)}
+                    <input type="color" value={form.color ?? DEFAULT_COLOR} onChange={(e) => setF('color', e.target.value)}
                       className="w-10 h-10 rounded border border-border/50 cursor-pointer bg-surface2" />
                     <Input value={form.color ?? ''} onChange={(e) => setF('color', e.target.value)} className="bg-background flex-1" />
                   </div>
@@ -133,7 +149,7 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
                 </div>
               </div>
               <div>
-                <label className="text-xs text-muted block mb-1">{t('admin.categoryTranslations', { defaultValue: 'Label translations' })}</label>
+                <label className="text-xs text-muted block mb-1">{t('admin.categoryTranslations')}</label>
                 <LabelsEditor value={form.labels} onChange={(v) => setF('labels', v)} />
               </div>
               <label className="flex items-center gap-2 text-sm text-text cursor-pointer">
@@ -141,22 +157,22 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
                 {t('admin.categoryActive')}
               </label>
               <div className="pt-2 border-t border-border/50 space-y-2">
-                <p className="text-xs text-muted">{t('admin.categoryBehavior', { defaultValue: 'Behavior' })}</p>
+                <p className="text-xs text-muted">{t('admin.categoryBehavior')}</p>
                 <label className="flex items-center gap-2 text-sm text-text cursor-pointer">
                   <input type="checkbox" checked={form.has_rental_status ?? false} onChange={(e) => setF('has_rental_status', e.target.checked)} className="accent-primary" />
-                  {t('admin.hasRentalStatus', { defaultValue: 'Has rental status (active/rented)' })}
+                  {t('admin.hasRentalStatus')}
                 </label>
                 <label className="flex items-center gap-2 text-sm text-text cursor-pointer">
                   <input type="checkbox" checked={form.has_availability_dates ?? false} onChange={(e) => setF('has_availability_dates', e.target.checked)} className="accent-primary" />
-                  {t('admin.hasAvailabilityDates', { defaultValue: 'Has availability dates' })}
+                  {t('admin.hasAvailabilityDates')}
                 </label>
                 <label className="flex items-center gap-2 text-sm text-text cursor-pointer">
                   <input type="checkbox" checked={form.has_price ?? false} onChange={(e) => setF('has_price', e.target.checked)} className="accent-primary" />
-                  {t('admin.hasPrice', { defaultValue: 'Has price' })}
+                  {t('admin.hasPrice')}
                 </label>
                 {form.has_price && (
                   <div>
-                    <label className="text-xs text-muted block mb-1">{t('admin.defaultPriceUnit', { defaultValue: 'Default price unit' })}</label>
+                    <label className="text-xs text-muted block mb-1">{t('admin.defaultPriceUnit')}</label>
                     <Input as="select" value={form.default_price_unit ?? ''} onChange={(e) => setF('default_price_unit', e.target.value)} className="bg-background w-auto">
                       <option value="">—</option>
                       {PRICE_UNITS.map((u) => <option key={u} value={u}>{t(`priceUnit.${u.toLowerCase()}`, { defaultValue: u })}</option>)}
@@ -174,16 +190,16 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
                   <div className="flex gap-2 items-center">
                     <GripVertical size={14} className="text-muted shrink-0" />
                     <Input value={sub.value} onChange={(e) => updateSubcat(i, 'value', e.target.value)}
-                      placeholder="key_value" className="bg-background flex-1" />
+                      placeholder="key_value" className={`bg-background flex-1 ${errClass(!sub.value.trim())}`} />
                     <Input value={sub.display} onChange={(e) => updateSubcat(i, 'display', e.target.value)}
-                      placeholder="Display name" className="bg-background flex-1" />
-                    <button onClick={() => removeSubcat(i)} className="min-w-9 min-h-9 flex items-center justify-center text-muted hover:text-danger shrink-0 rounded-btn hover:bg-danger/10 transition-colors"><X size={14} /></button>
+                      placeholder={t('admin.subcatDisplayPlaceholder')} className={`bg-background flex-1 ${errClass(!sub.display.trim())}`} />
+                    <button onClick={() => removeSubcat(i)} aria-label={t('common.delete')} className="min-w-[44px] min-h-[44px] flex items-center justify-center text-muted hover:text-danger shrink-0 rounded-btn hover:bg-danger/10 transition-colors"><X size={14} /></button>
                   </div>
                   <LabelsEditor value={sub.labels} onChange={(v) => updateSubcat(i, 'labels', v)} />
                 </div>
               ))}
               <button onClick={addSubcat}
-                className="flex items-center gap-1.5 text-xs text-primary hover:underline mt-2">
+                className="flex items-center gap-1.5 text-xs text-primary-text hover:underline mt-2 transition-colors">
                 <Plus size={13} /> {t('admin.addSubcategory')}
               </button>
             </div>
@@ -193,19 +209,19 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
             <div className="space-y-3">
               {form.fields.map((fld, i) => (
                 <div key={i} className="p-3 bg-surface2 rounded-lg space-y-2 relative">
-                  <button onClick={() => removeField(i)} className="absolute top-1 right-1 min-w-9 min-h-9 flex items-center justify-center text-muted hover:text-danger rounded-btn hover:bg-danger/10 transition-colors"><X size={14} /></button>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pr-9">
+                  <button onClick={() => removeField(i)} aria-label={t('common.delete')} className="absolute top-1 right-1 min-w-[44px] min-h-[44px] flex items-center justify-center text-muted hover:text-danger rounded-btn hover:bg-danger/10 transition-colors"><X size={14} /></button>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pr-12">
                     <Input value={fld.key} onChange={(e) => updateField(i, 'key', e.target.value)}
-                      placeholder="field_key" className="bg-background" />
+                      placeholder="field_key" className={`bg-background ${errClass(!fld.key.trim())}`} />
                     <Input value={fld.label} onChange={(e) => updateField(i, 'label', e.target.value)}
-                      placeholder="Field label" className="bg-background" />
+                      placeholder={t('admin.fieldLabelPlaceholder')} className={`bg-background ${errClass(!fld.label.trim())}`} />
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <Input as="select" value={fld.type} onChange={(e) => updateField(i, 'type', e.target.value)} className="bg-background">
                       {FIELD_TYPES.map((ft) => <option key={ft} value={ft}>{ft}</option>)}
                     </Input>
                     <Input value={fld.placeholder ?? ''} onChange={(e) => updateField(i, 'placeholder', e.target.value)}
-                      placeholder="Placeholder..." className="bg-background" />
+                      placeholder={t('admin.fieldPlaceholderPlaceholder')} className="bg-background" />
                   </div>
                   <LabelsEditor value={fld.labels} onChange={(v) => updateField(i, 'labels', v)} />
                   <div className="flex items-center gap-4">
@@ -217,7 +233,7 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
                     <label className="flex items-center gap-1.5 text-xs text-muted cursor-pointer">
                       <input type="checkbox" checked={fld.filterable ?? false}
                         onChange={(e) => updateField(i, 'filterable', e.target.checked)} className="accent-primary" />
-                      {t('admin.fieldFilterable', { defaultValue: 'Filterable in browse' })}
+                      {t('admin.fieldFilterable')}
                     </label>
                   </div>
                   {fld.type === 'select' && (
@@ -226,14 +242,14 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
                       <Input
                         value={Array.isArray(fld.options) ? fld.options.join(', ') : ''}
                         onChange={(e) => updateField(i, 'options', e.target.value.split(',').map((s) => s.trim()).filter(Boolean))}
-                        placeholder="Option A, Option B, Option C"
+                        placeholder={t('admin.fieldOptionsPlaceholder')}
                         className="bg-background"
                       />
                     </div>
                   )}
                 </div>
               ))}
-              <button onClick={addField} className="flex items-center gap-1.5 text-xs text-primary hover:underline mt-2">
+              <button onClick={addField} className="flex items-center gap-1.5 text-xs text-primary-text hover:underline mt-2 transition-colors">
                 <Plus size={13} /> {t('admin.addField')}
               </button>
             </div>
@@ -246,8 +262,11 @@ export default function AdminCategories() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [editing, setEditing] = useState(null)
+  const [confirmDeactivate, setConfirmDeactivate] = useState(null)
+  const [density, toggleDensity] = useTableDensity()
+  const cellPad = density === 'compact' ? 'px-4 py-1.5' : 'px-4 py-3'
 
-  const { data: schemas = [], isLoading } = useQuery({
+  const { data: schemas = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['categories', 'admin'],
     queryFn: categoryApi.getAllForAdmin,
     staleTime: 60_000,
@@ -256,20 +275,25 @@ export default function AdminCategories() {
   const createMut = useMutation({
     mutationFn: (body) => categoryApi.create(body),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['categories'] }); setEditing(null); toast.success(t('admin.categoryCreated')) },
-    onError: (e) => toast.error(e.response?.data?.message || t('common.error')),
+    onError: (e) => toast.error(apiErrorMessage(e, t, t('common.error'))),
   })
 
   const updateMut = useMutation({
     mutationFn: ({ key, body }) => categoryApi.update(key, body),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['categories'] }); setEditing(null); toast.success(t('admin.categoryUpdated')) },
-    onError: (e) => toast.error(e.response?.data?.message || t('common.error')),
+    onError: (e) => toast.error(apiErrorMessage(e, t, t('common.error'))),
   })
 
   const toggleMut = useMutation({
     mutationFn: ({ key, active }) => categoryApi.update(key, { active }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['categories'] }),
-    onError: (e) => toast.error(e.response?.data?.message || t('common.error')),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['categories'] })
+      toast.success(t('admin.categoryUpdated'))
+    },
+    onError: (e) => toast.error(apiErrorMessage(e, t, t('common.error'))),
   })
+
+  const showSkeleton = useMinDisplayTime(isLoading)
 
   function handleSave(form) {
     if (form._isNew) {
@@ -291,68 +315,76 @@ export default function AdminCategories() {
         title={t('admin.categoriesTitle')}
         description={t('common.total', { count: schemas.length })}
         action={
-          <button
-            onClick={() => setEditing({ ...emptySchema(), _isNew: true })}
-            className="flex items-center gap-1.5 px-4 py-2 bg-primary text-on-primary rounded-btn text-sm font-semibold hover:bg-primary/90 transition-colors"
-          >
+          <Button onClick={() => setEditing({ ...emptySchema(), _isNew: true })}>
             <Plus size={15} /> {t('admin.addCategory')}
-          </button>
+          </Button>
         }
       />
 
-      {isLoading ? (
+      <div className="flex justify-end mb-5">
+        <DensityToggle density={density} onToggle={toggleDensity} />
+      </div>
+
+      {showSkeleton ? (
         <div className="space-y-2">
           {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-14 bg-surface2 rounded-card animate-pulse" />)}
         </div>
+      ) : isError ? (
+        <ErrorState onRetry={refetch} />
+      ) : schemas.length === 0 ? (
+        <EmptyState icon={Tag} title={t('common.noData')} />
       ) : (
         <div className="bg-surface border border-border/20 shadow-card rounded-card overflow-hidden">
           <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[480px]">
             <thead>
               <tr className="border-b border-border/50">
-                <th className="text-left px-4 py-3 text-xs text-muted font-medium">Key</th>
-                <th className="text-left px-4 py-3 text-xs text-muted font-medium">Label</th>
-                <th className="text-left px-4 py-3 text-xs text-muted font-medium hidden sm:table-cell">Fields</th>
-                <th className="text-left px-4 py-3 text-xs text-muted font-medium hidden sm:table-cell">Subcategories</th>
-                <th className="text-left px-4 py-3 text-xs text-muted font-medium">Status</th>
+                <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('admin.categoryKey')}</th>
+                <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('admin.categoryLabel')}</th>
+                <th className="text-left px-4 py-3 text-xs text-muted font-medium hidden sm:table-cell">{t('admin.tabFields')}</th>
+                <th className="text-left px-4 py-3 text-xs text-muted font-medium hidden sm:table-cell">{t('admin.tabSubcategories')}</th>
+                <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('common.status')}</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody>
               {sorted.map((schema) => (
                 <tr key={schema.key} className="border-b border-border/50 last:border-b-0 hover:bg-surface2/50 transition-colors">
-                  <td className="px-4 py-3">
+                  <td className={cellPad}>
                     <div className="flex items-center gap-2">
                       {schema.icon && <span>{schema.icon}</span>}
                       <code className="text-xs bg-surface2 px-1.5 py-0.5 rounded text-muted">{schema.key}</code>
                     </div>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className={cellPad}>
                     <div className="flex items-center gap-2">
-                      {schema.color && <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: schema.color }} />}
+                      {getCategoryColor(schema.key, sorted) && <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: getCategoryColor(schema.key, sorted) }} />}
                       <span className="text-text font-medium">{schema.label}</span>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-muted hidden sm:table-cell">{schema.fields?.length ?? 0}</td>
-                  <td className="px-4 py-3 text-muted hidden sm:table-cell">{schema.subcategories?.length ?? 0}</td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-md border ${schema.active ? 'text-success bg-success/10 border-success/20' : 'text-muted bg-surface2 border-border/50'}`}>
-                      {schema.active ? t('status.active') : t('status.inactive')}
-                    </span>
+                  <td className={`${cellPad} text-muted hidden sm:table-cell`}>{schema.fields?.length ?? 0}</td>
+                  <td className={`${cellPad} text-muted hidden sm:table-cell`}>{schema.subcategories?.length ?? 0}</td>
+                  <td className={cellPad}>
+                    <StatusBadge status={schema.active ? 'ACTIVE' : 'INACTIVE'} />
                   </td>
-                  <td className="px-4 py-3">
+                  <td className={cellPad}>
                     <div className="flex items-center gap-1.5">
                       <button
-                        onClick={() => toggleMut.mutate({ key: schema.key, active: !schema.active })}
-                        disabled={toggleMut.isPending}
-                        className={`min-w-9 min-h-9 flex items-center justify-center rounded-btn transition-colors ${schema.active ? 'text-success hover:text-danger hover:bg-danger/10' : 'text-muted hover:text-success hover:bg-success/10'}`}
+                        onClick={() => schema.active
+                          ? setConfirmDeactivate(schema)
+                          : toggleMut.mutate({ key: schema.key, active: true })}
+                        disabled={toggleMut.isPending && toggleMut.variables?.key === schema.key}
+                        className={`min-w-[44px] min-h-[44px] flex items-center justify-center rounded-btn transition-colors disabled:opacity-50 ${schema.active ? 'text-success hover:text-danger hover:bg-danger/10' : 'text-muted hover:text-success hover:bg-success/10'}`}
                         title={schema.active ? t('common.deactivate') : t('common.activate')}
+                        aria-label={schema.active ? t('common.deactivate') : t('common.activate')}
                       >
                         {schema.active ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
                       </button>
                       <button
                         onClick={() => setEditing(schema)}
-                        className="min-w-9 min-h-9 flex items-center justify-center text-muted hover:text-primary hover:bg-primary/10 rounded-btn transition-colors"
+                        title={t('common.edit')}
+                        aria-label={t('common.edit')}
+                        className="min-w-[44px] min-h-[44px] flex items-center justify-center text-muted hover:text-primary-text hover:bg-primary/10 rounded-btn transition-colors"
                       >
                         <Pencil size={14} />
                       </button>
@@ -374,6 +406,21 @@ export default function AdminCategories() {
           isSaving={isSaving}
         />
       )}
+
+      {/* Deactivating hides a whole vertical from the marketplace — confirm it. */}
+      <ConfirmModal
+        open={Boolean(confirmDeactivate)}
+        onClose={() => setConfirmDeactivate(null)}
+        title={`${t('common.deactivate')}: ${confirmDeactivate?.label ?? ''}`}
+        message={t('admin.confirmDeactivateCategory')}
+        confirmLabel={t('common.deactivate')}
+        cancelLabel={t('common.cancel')}
+        onConfirm={() => {
+          toggleMut.mutate({ key: confirmDeactivate.key, active: false })
+          setConfirmDeactivate(null)
+        }}
+        isPending={toggleMut.isPending}
+      />
     </div>
   )
 }

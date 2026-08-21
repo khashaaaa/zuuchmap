@@ -1,11 +1,12 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { spacing, typography, radius } from '../design/theme';
+import { spacing, typography, radius, withAlpha, toneForTheme } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
-import { getPostTypeConfig, normalizePostType } from '../utils/postUtils';
+import { getPostTypeConfig, normalizePostType, getSchemaLabel } from '../utils/postUtils';
+import { useCategorySchemas } from '../hooks/useCategorySchemas';
 
 const CategoryBadge = ({
     postType,
@@ -16,34 +17,29 @@ const CategoryBadge = ({
     size = 'default'
 }) => {
     const { t } = useTranslation();
-    const { colors } = useAppTheme();
+    const { colors, isDark } = useAppTheme();
+    const schemas = useCategorySchemas();
     const normalizedType = normalizePostType(postType);
-    const postTypeConfig = getPostTypeConfig(normalizedType, colors);
+    const postTypeConfig = getPostTypeConfig(normalizedType, colors, schemas);
+    const schema = schemas.find((s) => s.key === normalizedType);
 
-    const bgColor = backgroundColor || postTypeConfig?.backgroundColor || colors.primary;
+    // Every badge used to fall back to `colors.primary`, which painted all eight
+    // verticals amber — the accent colour ended up on every card in a list and
+    // stopped meaning anything. A badge now wears its own category colour as a
+    // tint, with the text re-lit for the active theme so it clears 4.5:1.
+    const categoryColor = postTypeConfig?.color || colors.primary;
+    const tinted = !backgroundColor;
+    const bgColor = backgroundColor || withAlpha(categoryColor, isDark ? 0.18 : 0.12);
+
+    // Schema labels win, then client i18n, then the raw key.
     const categoryKey = 'category.' + normalizedType
     const displayText = text || (normalizedType
-        ? (i18n.exists(categoryKey) ? t(categoryKey) : postType)
+        ? (schema ? getSchemaLabel(schema) : (i18n.exists(categoryKey) ? t(categoryKey) : postType))
         : postType) || '';
     const iconName = postTypeConfig?.iconName || 'pricetag-outline';
 
-    // Determine text color: if custom textColor provided, use it
-    // Otherwise, if background is semi-transparent (opacity), use primary color
-    // Otherwise, use inverse (white) for solid backgrounds
-    const isSemiTransparent = bgColor && (
-        bgColor.includes('rgba') ||
-        bgColor === colors.opacity.background.primary ||
-        bgColor === colors.opacity.background.primaryLight ||
-        bgColor === colors.opacity.background.primaryMedium ||
-        bgColor === colors.opacity.background.primaryDark ||
-        bgColor === colors.opacity.background.success ||
-        bgColor === colors.opacity.background.danger ||
-        bgColor === colors.opacity.background.warning ||
-        bgColor === colors.opacity.background.info
-    );
-
-    const finalTextColor = textColor || (isSemiTransparent ? colors.primary : colors.text.onColor);
-    const finalIconColor = isSemiTransparent ? colors.primary : colors.text.onColor;
+    const foreground = textColor
+        || (tinted ? toneForTheme(categoryColor, isDark) : colors.text.onColor);
 
     return (
         <View style={[
@@ -55,14 +51,14 @@ const CategoryBadge = ({
                 <Ionicons
                     name={iconName}
                     size={size === 'small' ? 12 : 14}
-                    color={finalIconColor}
+                    color={foreground}
                     style={styles.icon}
                 />
             )}
             <Text style={[
                 styles.badgeText,
                 size === 'small' && styles.badgeTextSmall,
-                { color: finalTextColor }
+                { color: foreground }
             ]}>
                 {displayText}
             </Text>
@@ -88,11 +84,10 @@ const styles = StyleSheet.create({
         marginRight: spacing.xxs,
     },
     badgeText: {
-        fontSize: typography.xs,
-        fontWeight: '700',
+        ...typography.styles.badge,
     },
     badgeTextSmall: {
-        fontSize: typography.xs,
+        ...typography.styles.small,
     },
 });
 

@@ -7,23 +7,26 @@ import {
     Image,
     ActivityIndicator,
     ScrollView,
+    RefreshControl,
     Linking,
     StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing, typography, shadows, safeAreaHelpers, radius, interactions, isTablet, dimensions } from '../../design/theme';
+import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet, dimensions } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { useCountUp } from '../../hooks/useCountUp';
 import { useTranslation } from 'react-i18next';
 import userService from '../../services/api/userService';
 import likeService from '../../services/api/likeService';
 import { saveUserInfo } from '../../services/api/authHelpers';
-import { ScreenLayout, SettingsSection } from '../../components';
+import { ScreenLayout, SettingsSection, PressableScale } from '../../components';
 import { ProfileSection, ProfileInfoRow, ProfileActionRow } from '../../components';
 import { ProfileBadge } from '../../components';
 import { APP_CONFIG, DEFAULT_AVATAR_URL } from '../../config/app.config';
 import { API_CONFIG } from '../../config/api.config';
 import { hideErrorModal, showErrorModal } from '../../utils/errorManager';
+import { confirmLogout } from '../../utils/navigationUtils';
 import { logger } from '../../utils/logger';
 
 const CustomerProfile = ({ navigation }) => {
@@ -32,7 +35,7 @@ const CustomerProfile = ({ navigation }) => {
     const { t } = useTranslation();
     const [imageError, setImageError] = useState(false);
 
-    const { data: user = null, isLoading: loading, refetch: refetchProfile, error: profileError } = useQuery({
+    const { data: user = null, isLoading: loading, isRefetching: refreshingProfile, refetch: refetchProfile, error: profileError } = useQuery({
         queryKey: ['profile', 'me'],
         queryFn: () => userService.getUserProfile(),
         staleTime: 60 * 1000,
@@ -43,6 +46,8 @@ const CustomerProfile = ({ navigation }) => {
         queryFn: () => likeService.getLikedPostsCountSilently(),
         staleTime: 30 * 1000,
     });
+
+    const likedCountDisplay = useCountUp(liked_posts_count, !loading_liked_count);
 
     useEffect(() => {
         if (profileError) {
@@ -64,34 +69,13 @@ const CustomerProfile = ({ navigation }) => {
         setImageError(true);
     };
 
-    const handleLogout = async () => {
-        showErrorModal(
-            t('nav.logout'),
-            t('common.confirm'),
-            [
-                { text: t('common.cancel') },
-                {
-                    text: t('nav.logout'),
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            hideErrorModal();
-                            await saveUserInfo(user.phoneNumber, user.userType, {
-                                name: user.name,
-                                profilePicture: user.profilePicture
-                            });
-                            await userService.logout(true);
-                            navigation.reset({ index: 0, routes: [{ name: 'PhoneNumber' }] });
-                        } catch (error) {
-                            logger.error('Logout error:', error);
-                            showErrorModal(t('common.error'), t('common.error'));
-                        }
-                    }
-                }
-            ],
-            'warning'
-        );
-    };
+    const handleLogout = () => confirmLogout({
+        t, navigation,
+        phoneNumber: user.phoneNumber,
+        userType: user.userType,
+        name: user.name,
+        profilePicture: user.profilePicture,
+    });
 
     if (loading) {
         return (
@@ -112,7 +96,7 @@ const CustomerProfile = ({ navigation }) => {
                 error
                 errorTitle={t('common.error')}
                 errorMessage={t('common.noData')}
-                onRetry={loadUserProfile}
+                onRetry={refetchProfile}
             />
         );
     }
@@ -130,11 +114,19 @@ const CustomerProfile = ({ navigation }) => {
                         safeAreaHelpers.getBottomSafeArea(insets) + dimensions.bottomTabHeight
                     )
                 ]}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshingProfile}
+                        onRefresh={() => { refetchProfile(); refetchLikedCount(); }}
+                        tintColor={colors.primary}
+                        colors={[colors.primary]}
+                    />
+                }
                 showsVerticalScrollIndicator={false}
             >
                 <View style={styles.tabletCentering}>
                 <View style={styles.profileHeader}>
-                    <View style={[styles.profileCard, { backgroundColor: colors.surface }]}>
+                    <View style={[styles.profileCard, colors.elevation.md, { backgroundColor: colors.surface }]}>
                         <View style={styles.avatarContainer}>
                             <Image
                                 source={{
@@ -146,7 +138,7 @@ const CustomerProfile = ({ navigation }) => {
                         </View>
 
                         <View style={styles.profileInfo}>
-                            <Text style={[styles.userName, { color: colors.text.inverse }]}>{user?.name || t('common.user')}</Text>
+                            <Text style={[styles.userName, { color: colors.text.primary }]}>{user?.name || t('common.user')}</Text>
                             <View style={styles.phoneContainer}>
                                 <Ionicons name="call-outline" size={16} color={colors.primary} />
                                 <Text style={[styles.userPhone, { color: colors.text.secondary }]}>+976 {user?.phoneNumber}</Text>
@@ -159,26 +151,18 @@ const CustomerProfile = ({ navigation }) => {
                             style={[styles.editButton, { backgroundColor: colors.opacity.background.primary }]}
                             onPress={() => navigation.navigate('CustomerEditProfile', { profile: user })}
                             activeOpacity={interactions.activeOpacityLight}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            hitSlop={interactions.hitSlop}
                         >
                             <Ionicons name="create-outline" size={18} color={colors.primary} />
                         </TouchableOpacity>
                     </View>
                 </View>
 
-                <View style={[styles.statsSection, { backgroundColor: colors.surface }]}>
-                    <View style={styles.statItem}>
-                        <View style={[styles.statIconContainer, { backgroundColor: colors.opacity.background.primary }]}>
-                            <Ionicons name="eye-outline" size={20} color={colors.primary} />
-                        </View>
-                        <Text style={[styles.statValue, { color: colors.text.inverse }]}>{user?.totalViews || 0}</Text>
-                        <Text style={[styles.statLabel, { color: colors.text.secondary }]}>{t('posts.views', { count: '' }).replace(' ', '')}</Text>
-                    </View>
-
-                    <TouchableOpacity
+                <View style={[styles.statsSection, colors.elevation.md, { backgroundColor: colors.surface }]}>
+                    <PressableScale
                         style={styles.statItem}
                         onPress={() => navigation.navigate('CustomerLikeList')}
-                        activeOpacity={interactions.activeOpacityLight}
+                        accessibilityRole="button"
                     >
                         <View style={[styles.statIconContainer, { backgroundColor: colors.opacity.background.primary }]}>
                             <Ionicons name="heart-outline" size={20} color={colors.primary} />
@@ -186,18 +170,18 @@ const CustomerProfile = ({ navigation }) => {
                         {loading_liked_count ? (
                             <ActivityIndicator size="small" color={colors.primary} />
                         ) : (
-                            <Text style={[styles.statValue, { color: colors.text.inverse }]}>
-                                {liked_posts_count}
+                            <Text style={[styles.statValue, { color: colors.text.primary }]}>
+                                {likedCountDisplay}
                             </Text>
                         )}
                         <Text style={[styles.statLabel, { color: colors.text.secondary }]}>{t('nav.saved')}</Text>
-                    </TouchableOpacity>
+                    </PressableScale>
 
                     <View style={styles.statItem}>
                         <View style={[styles.statIconContainer, { backgroundColor: colors.opacity.background.primary }]}>
                             <Ionicons name="calendar-outline" size={20} color={colors.primary} />
                         </View>
-                        <Text style={[styles.statValue, { color: colors.text.inverse }]}>{user?.memberSince || '2024'}</Text>
+                        <Text style={[styles.statValue, { color: colors.text.primary }]}>{user?.memberSince || '2024'}</Text>
                         <Text style={[styles.statLabel, { color: colors.text.secondary }]}>{t('profile.title')}</Text>
                     </View>
                 </View>
@@ -264,29 +248,27 @@ const styles = StyleSheet.create({
         padding: spacing.xl,
         flexDirection: 'row',
         alignItems: 'center',
-        ...shadows.medium,
     },
     avatarContainer: { position: 'relative', marginRight: spacing.lg },
     avatar: { width: isTablet ? 110 : 80, height: isTablet ? 110 : 80, borderRadius: radius.pill, borderWidth: 3 },
     profileInfo: { flex: 1 },
-    userName: { fontSize: typography.lg, fontWeight: 'bold', marginBottom: spacing.xs },
+    userName: { ...typography.styles.h3, marginBottom: spacing.xs },
     phoneContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm },
-    userPhone: { fontSize: typography.sm, marginLeft: spacing.xs },
+    userPhone: { ...typography.styles.caption, marginLeft: spacing.xs },
     editButton: { width: 36, height: 36, borderRadius: radius.xl, justifyContent: 'center', alignItems: 'center' },
     statsSection: {
         flexDirection: 'row',
         borderRadius: radius.xxl,
         padding: spacing.lg,
         marginBottom: spacing.xl,
-        ...shadows.medium,
     },
     statItem: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     statIconContainer: {
-        width: 40, height: 40, borderRadius: radius.xxl,
+        width: 40, height: 40, borderRadius: radius.full,
         justifyContent: 'center', alignItems: 'center', marginBottom: spacing.sm,
     },
-    statValue: { fontSize: typography.xl, fontWeight: '600', marginBottom: spacing.xs },
-    statLabel: { fontSize: typography.xs, textAlign: 'center' },
+    statValue: { ...typography.styles.h2, marginBottom: spacing.xs, fontVariant: ['tabular-nums'] },
+    statLabel: { ...typography.styles.small, textAlign: 'center' },
     bottomSpacing: { height: spacing.xxxl * 3 },
 });
 

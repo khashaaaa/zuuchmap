@@ -30,25 +30,39 @@ export const useAuthStore = create((set) => ({
   isAdmin: false,
   isLoading: true,
 
+  // The login/JWT user carries only id/phone/type/is_admin. Merge the full
+  // profile so given_name, email, etc. are available (greetings, sidebar) —
+  // both on cold hydrate and immediately after login, without a refresh.
+  refreshProfile: async (token, user) => {
+    try {
+      const profile = await usersApi.getProfile()
+      const merged = { ...user, ...profile, is_admin: profile.is_admin === true }
+      persistAuth(token, merged)
+      set({ user: merged, isAdmin: profile.is_admin === true })
+    } catch {} // silent — server unreachable or token expired (401 handler redirects)
+  },
+
   hydrate: async () => {
     const token = getToken()
     const user = getUser()
     if (!token || !user) { set({ isLoading: false }); return }
     set({ token, user, isAdmin: user.is_admin === true, isLoading: false })
-    try {
-      const profile = await usersApi.getProfile()
-      if (profile.is_admin !== user.is_admin) {
-        const updated = { ...user, is_admin: profile.is_admin === true }
-        persistAuth(token, updated)
-        set({ user: updated, isAdmin: profile.is_admin === true })
-      }
-    } catch {} // silent — server unreachable or token expired (401 handler redirects)
+    await useAuthStore.getState().refreshProfile(token, user)
+  },
+
+  // Profile edits update the session user without queryClient.clear() —
+  // wiping every cached query on a name change caused a full refetch cascade.
+  setUser: (user) => {
+    const token = useAuthStore.getState().token
+    persistAuth(token, user)
+    set({ user, isAdmin: user.is_admin === true })
   },
 
   login: (token, user) => {
     queryClient.clear()
     persistAuth(token, user)
     set({ token, user, isAdmin: user.is_admin === true, isLoading: false })
+    useAuthStore.getState().refreshProfile(token, user)
   },
 
   logout: () => {

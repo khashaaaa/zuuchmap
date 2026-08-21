@@ -13,9 +13,8 @@ export function useRealtimeSync() {
   useEffect(() => {
     if (!token || !user?.id) return
 
-    const socket = connectSocket(token)
-    if (isAdmin) socket.emit('join', 'admin')
-    socket.emit('join', `provider:${user.id}`)
+    const rooms = isAdmin ? ['admin', `provider:${user.id}`] : [`provider:${user.id}`]
+    const socket = connectSocket(token, rooms)
 
     socket.on('post.created', () => {
       qc.invalidateQueries({ queryKey: ['admin-pending'], refetchType: 'none' })
@@ -27,6 +26,9 @@ export function useRealtimeSync() {
       qc.invalidateQueries({ queryKey: ['admin-pending'] })
       qc.invalidateQueries({ queryKey: ['admin-stats'] })
       qc.invalidateQueries({ queryKey: ['my-posts'] })
+      qc.invalidateQueries({ queryKey: ['posts'] })
+      qc.invalidateQueries({ queryKey: ['posts-map'] })
+      qc.invalidateQueries({ queryKey: ['public-stats'] })
       if (postId) qc.invalidateQueries({ queryKey: ['post', String(postId)] })
       if (!isAdmin) {
         toast.success(t('admin.approveSuccess'))
@@ -38,6 +40,8 @@ export function useRealtimeSync() {
       qc.invalidateQueries({ queryKey: ['admin-pending'] })
       qc.invalidateQueries({ queryKey: ['admin-stats'] })
       qc.invalidateQueries({ queryKey: ['my-posts'] })
+      qc.invalidateQueries({ queryKey: ['posts'] })
+      qc.invalidateQueries({ queryKey: ['posts-map'] })
       if (postId) qc.invalidateQueries({ queryKey: ['post', String(postId)] })
       if (!isAdmin) {
         toast.error(`${t('posts.rejectionReason')}: ${reason}`)

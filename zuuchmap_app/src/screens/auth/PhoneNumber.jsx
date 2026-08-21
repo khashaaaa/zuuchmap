@@ -19,8 +19,9 @@ import userService from '../../services/api/userService';
 import { saveUserInfo } from '../../services/api/authHelpers';
 import { getErrorMessage, showErrorModal } from '../../utils/errorManager';
 import { logger } from '../../utils/logger';
+import { track } from '../../services/analytics';
 import Button from '../../components/Button';
-import { getDeviceInfo, navigateToDashboard } from '../../utils/navigationUtils';
+import { navigateToDashboard } from '../../utils/navigationUtils';
 
 const PhoneNumber = ({ navigation }) => {
     const [phoneNumber, setPhoneNumber] = useState('');
@@ -33,38 +34,36 @@ const PhoneNumber = ({ navigation }) => {
         return /^\d{8}$/.test(number);
     };
 
-    // OTP screen is bypassed until real SMS delivery ships (server has no SMS
-    // provider yet, so there's nothing for the user to read a code from).
-    // Uses the code the send-otp endpoint already returns in its response.
-    const autoVerify = async (phoneNumber, userType) => {
-        const otpResponse = await userService.sendOtp(phoneNumber);
-        const code = otpResponse?.data?.data?.code;
-        const deviceInfo = getDeviceInfo();
-        const response = await userService.verifyOtp(phoneNumber, code, null, deviceInfo);
-        const isAdmin = response.data?.data?.is_admin === true;
-
+    const goAfterAuth = async (phone, userType, isAdmin) => {
         if (userType) {
-            await saveUserInfo(phoneNumber, userType);
+            await saveUserInfo(phone, userType);
             navigateToDashboard(navigation, userType, isAdmin);
         } else {
-            navigation.navigate('UserRoleSelection', {
-                phoneNumber,
-                userId: response.data?.data?.id,
-                token: response.data?.data?.token,
-            });
+            navigation.navigate('UserRoleSelection', { phoneNumber: phone });
         }
     };
 
     const handleContinue = async () => {
         if (!validatePhoneNumber(phoneNumber)) {
-            showErrorModal(t('auth.title'), t('auth.phonePlaceholder'));
+            showErrorModal(t('common.validationError'), t('auth.phoneError'));
             return;
         }
 
         setIsLoading(true);
+        track('auth.start');
         try {
             const userCheck = await userService.checkUserExists(phoneNumber);
-            await autoVerify(phoneNumber, userCheck.exists ? userCheck.userType : null);
+            const userType = userCheck.exists ? userCheck.userType : null;
+            const session = await userService.startVerification(phoneNumber);
+
+            // Device already proved this number on a previous session.
+            if (session.verified) {
+                track('auth.verified', { trusted_device: true });
+                await goAfterAuth(phoneNumber, userType, session.auth?.user?.is_admin === true);
+                return;
+            }
+
+            navigation.navigate('OtpVerification', { phoneNumber, userType, session });
         } catch (error) {
             logger.error('Phone number verification error:', error);
             showErrorModal(t('common.error'), getErrorMessage(error, t('auth.sendError')));
@@ -88,6 +87,7 @@ const PhoneNumber = ({ navigation }) => {
                             style={[styles.themeToggle, { backgroundColor: colors.opacity.background.primary }]}
                             onPress={() => setThemeMode(isDark ? 'light' : 'dark')}
                             activeOpacity={interactions.activeOpacityLight}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         >
                             <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={colors.primary} />
                         </TouchableOpacity>
@@ -107,10 +107,10 @@ const PhoneNumber = ({ navigation }) => {
                     <View style={styles.form}>
                         <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border.medium }]}>
                             <View style={[styles.prefixContainer, { backgroundColor: colors.background, borderRightColor: colors.border.medium }]}>
-                                <Text style={[styles.prefix, { color: colors.text.primary }]}>+976</Text>
+                                <Text style={[styles.prefix, { color: colors.text.primary }]}>{t('auth.phoneLabel')}</Text>
                             </View>
                             <TextInput
-                                style={[styles.input, { color: colors.text.inverse }]}
+                                style={[styles.input, { color: colors.text.primary }]}
                                 value={phoneNumber}
                                 onChangeText={setPhoneNumber}
                                 placeholder={t('auth.phonePlaceholder')}
@@ -118,6 +118,8 @@ const PhoneNumber = ({ navigation }) => {
                                 keyboardType="phone-pad"
                                 maxLength={8}
                                 autoFocus
+                                returnKeyType="done"
+                                onSubmitEditing={handleContinue}
                             />
                         </View>
 
@@ -130,11 +132,6 @@ const PhoneNumber = ({ navigation }) => {
                         />
                     </View>
 
-                    <View style={styles.footer}>
-                        <Text style={[styles.footerText, { color: colors.text.tertiary }]}>
-                            {t('auth.phoneSubtitle')}
-                        </Text>
-                    </View>
                 </View>
             </View>{/* end tabletCentering */}
             </KeyboardAvoidingView>
@@ -165,7 +162,7 @@ const styles = StyleSheet.create({
     themeToggle: {
         width: 36,
         height: 36,
-        borderRadius: radius.xl,
+        borderRadius: radius.full,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -184,15 +181,13 @@ const styles = StyleSheet.create({
         marginBottom: spacing.lg,
     },
     title: {
-        fontSize: typography.xxl,
-        fontWeight: 'bold',
+        ...typography.styles.h2,
         marginBottom: spacing.sm,
         textAlign: 'center',
     },
     subtitle: {
-        fontSize: typography.md,
+        ...typography.styles.body,
         textAlign: 'center',
-        lineHeight: 22,
     },
     form: {
         gap: spacing.xxl,
@@ -210,23 +205,13 @@ const styles = StyleSheet.create({
         borderRightWidth: 1,
     },
     prefix: {
-        fontSize: typography.md,
-        fontWeight: '600',
+        ...typography.styles.bodyBold,
     },
     input: {
         flex: 1,
         height: 52,
-        fontSize: typography.md,
+        ...typography.styles.body,
         paddingHorizontal: spacing.md,
-    },
-    footer: {
-        marginTop: spacing.xxl,
-        paddingHorizontal: spacing.md,
-    },
-    footerText: {
-        fontSize: typography.xs,
-        textAlign: 'center',
-        lineHeight: 18,
     },
 });
 

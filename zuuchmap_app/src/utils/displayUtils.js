@@ -1,26 +1,15 @@
 import { logger } from './logger';
 import i18n from '../i18n';
 
-export const getSubcategoryDisplayName = (subcategoryName) => {
-    if (!subcategoryName) return '';
-    return i18n.t(`subcategory.${subcategoryName}`, { defaultValue: subcategoryName });
-};
 
-export const getProvinceLabel = (provinceCode, provinces = []) => {
+export const getProvinceLabel = (provinceCode) => {
     if (!provinceCode) return i18n.t('common.locationUnknown');
-    if (!provinces || provinces.length === 0) {
-        logger.warn('getProvinceLabel: provinces array not provided');
-        return provinceCode;
-    }
-    const province = provinces.find(p => p.value === provinceCode);
-    return province ? province.label : provinceCode;
+    return i18n.t(`province.${provinceCode}`, { defaultValue: provinceCode });
 };
 
-export const getDistrictLabel = (districtCode, districts = []) => {
+export const getDistrictLabel = (districtCode) => {
     if (!districtCode) return '';
-    if (!districts || districts.length === 0) return districtCode;
-    const district = districts.find(d => d.value === districtCode);
-    return district ? district.label : districtCode;
+    return i18n.t(`district.${districtCode}`, { defaultValue: districtCode });
 };
 
 // --- Date formatting ---
@@ -66,7 +55,11 @@ export const getPriceUnitLabel = (priceUnit) => {
 
 export const formatPrice = (priceAmount, priceUnit) => {
     if (!priceAmount) return null;
-    const formattedAmount = priceAmount.toLocaleString('mn-MN');
+    // price_amount arrives as a Postgres decimal string ("250000.00"); coerce
+    // before formatting so thousands-grouping applies and the .00 tail is dropped.
+    const amount = Number(priceAmount);
+    if (Number.isNaN(amount)) return null;
+    const formattedAmount = amount.toLocaleString('mn-MN', { maximumFractionDigits: 0 });
     const unitLabel = getPriceUnitLabel(priceUnit);
     return unitLabel ? `${formattedAmount}₮ / ${unitLabel}` : `${formattedAmount}₮`;
 };

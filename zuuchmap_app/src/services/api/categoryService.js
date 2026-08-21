@@ -28,7 +28,12 @@ const categoryService = {
       return schemas;
     } catch (error) {
       logger.error('Failed to fetch categories:', error);
-      return cacheManager.getMemory(MEM_KEY) || [];
+      // Offline: fall back through memory then disk, so a forced refresh never
+      // leaves the UI with no categories at all.
+      const mem = cacheManager.getMemory(MEM_KEY);
+      if (mem?.length) return mem;
+      const stored = await cacheManager.getStorage(STORAGE_KEY).catch(() => null);
+      return stored?.length ? stored : [];
     }
   },
 

@@ -20,9 +20,9 @@ export default function UserAvatar({ src, name, size = 'sm', className = '' }) {
       {imgUrl ? (
         <img src={imgUrl} alt="" className="w-full h-full object-cover" />
       ) : initial ? (
-        <span className="font-bold text-primary">{initial}</span>
+        <span className="font-bold text-primary-text">{initial}</span>
       ) : (
-        <User size={ICON_SIZES[size] ?? 15} className="text-primary" />
+        <User size={ICON_SIZES[size] ?? 15} className="text-primary-text" />
       )}
     </div>
   )

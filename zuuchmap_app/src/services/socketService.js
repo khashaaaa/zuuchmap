@@ -11,9 +11,21 @@ const SOCKET_ORIGIN = BASE_URL.replace(/\/engine\/?$/, '');
 let socket = null;
 let currentRoom = null;
 
+// Join with an ack so a rejected join (expired JWT, wrong room) is logged
+// instead of silently delivering nothing.
+const joinRoom = (s, room) => {
+  s.emit('join', room, (res) => {
+    if (res && !res.ok) logger.warn?.(`Socket join rejected for "${room}": ${res.reason}`);
+  });
+};
+
 export const socketService = {
   connect(rooms) {
-    currentRoom = Array.isArray(rooms) ? rooms : [rooms];
+    // Merge, never overwrite: the socket is a shared singleton, and one screen
+    // joining 'admin' must not drop another consumer's 'provider:<id>' room
+    // from the rejoin-on-reconnect list.
+    const requested = Array.isArray(rooms) ? rooms : [rooms];
+    currentRoom = [...new Set([...(currentRoom || []), ...requested])];
     if (!socket) {
       socket = io(`${SOCKET_ORIGIN}/events`, {
         path: '/engine/socket.io',
@@ -26,10 +38,15 @@ export const socketService = {
       // Re-join every room after each (re)connect — otherwise a dropped connection
       // silently stops delivering room events even though the socket reconnects.
       socket.on('connect', () => {
-        currentRoom?.forEach((r) => socket.emit('join', r));
+        currentRoom?.forEach((r) => joinRoom(socket, r));
       });
       socket.on('connect_error', (err) => {
         logger.warn?.('Socket connect error (will retry):', err?.message);
+      });
+      // Server rejected the handshake JWT (expired/invalid) and is dropping us.
+      // It won't auto-reconnect; the next login (auth event) reconnects fresh.
+      socket.on('auth_error', ({ reason } = {}) => {
+        logger.warn?.('Socket auth rejected — realtime notifications paused until re-login:', reason);
       });
     }
 
@@ -38,7 +55,7 @@ export const socketService = {
         if (!socket) return;
         socket.auth = { token };
         if (!socket.connected) socket.connect();
-        else currentRoom?.forEach((r) => socket.emit('join', r));
+        else currentRoom?.forEach((r) => joinRoom(socket, r));
       })
       .catch((err) => logger.error('Socket auth token error:', err));
 

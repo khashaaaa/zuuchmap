@@ -21,7 +21,7 @@ const SelectField = ({ field, value, onChange, error }) => {
     const fallback = typeof o === 'string' ? o : (o.label || o.value);
     return { value: raw, label: t(`attrs.${toCamel(raw.toLowerCase())}`, { defaultValue: fallback }) };
   });
-  const placeholder = field.placeholder || `${label} ${t('common.select').toLowerCase()}`;
+  const placeholder = field.placeholder || t('form.selectPlaceholder', { field: label });
   return (
     <FormField
       label={label}
@@ -51,6 +51,12 @@ const DynamicForm = ({ fields = [], formData = {}, updateFormData, formErrors = 
     if (inputRefs?.current) inputRefs.current[key] = ref;
   };
 
+  // Single-line text inputs, in render order, for keyboard "next" chaining.
+  // Textareas and selects are skipped — return inserts a newline / opens a picker.
+  const chainKeys = fields
+    .filter((f) => f.type !== 'select' && f.type !== 'textarea')
+    .map((f) => f.key);
+
   return (
     <View>
       <View style={gStyles.sectionHeader}>
@@ -76,6 +82,7 @@ const DynamicForm = ({ fields = [], formData = {}, updateFormData, formErrors = 
 
         const label = fieldLabel(field, t, i18n.language);
         const isTextarea = field.type === 'textarea';
+        const nextKey = isTextarea ? undefined : chainKeys[chainKeys.indexOf(field.key) + 1];
         const keyboardType =
           field.type === 'number' ? 'numeric' :
           field.type === 'phone' ? 'phone-pad' :
@@ -91,7 +98,7 @@ const DynamicForm = ({ fields = [], formData = {}, updateFormData, formErrors = 
               <TextInput
                 style={[
                   gStyles.input,
-                  { backgroundColor: colors.surface, color: colors.text.inverse, borderColor: colors.border.light },
+                  { backgroundColor: colors.surface, color: colors.text.primary, borderColor: colors.border.light },
                   isTextarea && gStyles.inputTextArea,
                   error && gStyles.inputError,
                 ]}
@@ -102,6 +109,9 @@ const DynamicForm = ({ fields = [], formData = {}, updateFormData, formErrors = 
                 multiline={isTextarea}
                 numberOfLines={isTextarea ? 4 : 1}
                 textAlignVertical={isTextarea ? 'top' : 'auto'}
+                returnKeyType={isTextarea ? undefined : (nextKey ? 'next' : 'done')}
+                onSubmitEditing={isTextarea || !nextKey ? undefined : () => inputRefs?.current?.[nextKey]?.focus?.()}
+                blurOnSubmit={isTextarea ? undefined : !nextKey}
                 ref={(ref) => setRef(field.key, ref)}
               />
             }

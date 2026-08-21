@@ -33,7 +33,9 @@ fi
 
 STAMP=$(date +%Y%m%d_%H%M)
 echo "== 1/6 DB backup =="
-vps "PGPASSWORD=$PG_PASS pg_dump -h $PG_HOST -U $PG_USER $PG_DB | gzip > ~/zuuchmap_backup_$STAMP.sql.gz && ls -la ~/zuuchmap_backup_$STAMP.sql.gz"
+# Credentials from the engine's production.env ON the server — the local
+# PG_PASS went stale after the 2026-08-18 rotation and TCP auth fails with it.
+vps "set -o pipefail; set -a; . /var/www/zuuchmap_engine/config/variables/production.env; set +a; PGPASSWORD=\"\$PG_PWD\" pg_dump -h localhost -U \"\$PG_USER\" -d \"\$PG_NAME\" | gzip > ~/zuuchmap_backup_$STAMP.sql.gz && ls -la ~/zuuchmap_backup_$STAMP.sql.gz"
 # Retention: keep only the 10 most recent backups so these don't accumulate forever.
 vps "cd ~ && ls -t zuuchmap_backup_*.sql.gz 2>/dev/null | tail -n +11 | xargs -r rm -v"
 

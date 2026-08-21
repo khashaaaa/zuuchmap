@@ -13,7 +13,9 @@ One command, after committing:
 ```
 
 Credentials live in `~/.zuuchmap-deploy.env` (chmod 600, never committed):
-`VPS_HOST/USER/PASS`, `GH_USER/TOKEN`, `PG_HOST/USER/PASS/DB`. If missing, ask the user to recreate it.
+`VPS_HOST/USER/PASS`, `GH_USER/TOKEN`. (`PG_*` entries there are STALE since the
+2026-08-18 rotation and no longer used — both scripts read DB credentials from
+the engine's `production.env` on the server itself.) If missing, ask the user to recreate it.
 
 ## Server facts (verified 2026-08-16 — monorepo)
 
@@ -29,6 +31,48 @@ Credentials live in `~/.zuuchmap-deploy.env` (chmod 600, never committed):
   `NODE_ENV=production npx typeorm-ts-node-commonjs migration:run -d src/database/data-source.ts`
   — the package.json `migration:run` script hardcodes NODE_ENV=development. `migrationsRun: true` also runs them at boot, but run explicitly first for visibility.
 - App (`zuuchmap_app`) is mobile-only — lives in the monorepo but not deployed to the VPS.
+
+## Suspending the VPS / rebuilding on a new one
+
+Everything except four things is recoverable from GitHub + Cloudflare R2. Before
+suspending, run:
+
+```bash
+.claude/skills/deploy/snapshot.sh
+```
+
+It writes `~/zuuchmap-vps-bundle/` (chmod 700, secrets inside, never commit):
+fresh `pg_dump`, `engine.production.env`, web `.env*`, `ecosystem.config.js`,
+`nginx-zuuchmap.conf`, `server-facts.txt`. Verified 2026-08-21. Images are all
+on R2 (`/var/www/zuuchmap_engine/uploads` is empty); SSL certs are not copied —
+reissue with certbot on the new box.
+
+**Rebuild sequence on a fresh Ubuntu 24.04 VPS** (versions from server-facts.txt:
+node v24.11.1 via nvm, Postgres 16, nginx 1.24):
+
+1. `apt install nginx postgresql-16 rsync` · install nvm → `nvm install 24.11.1` · `npm i -g pm2`
+2. Postgres: create role + db matching `engine.production.env` (`PG_USER`/`PG_PWD`/`PG_NAME`),
+   then `zcat zuuchmap_suspend_*.sql.gz | psql -U <PG_USER> -d <PG_NAME>`
+3. Layout: clone monorepo to `~/zuuchmap-mono`; rsync `zuuchmap_engine/`→`/var/www/zuuchmap_engine`,
+   `zuuchmap_web/`→`/var/www/zuuchmap_web` (deploy.sh steps 3/6 do exactly this)
+4. Restore `engine.production.env` → `config/variables/`, `web.env*` → web root,
+   `ecosystem.config.js` → engine root. Update `PG_HOST` if it isn't localhost.
+5. Engine: `npm install && npm run build`, explicit `NODE_ENV=production migration:run`
+   (brings the restored DB up to current schema), `pm2 start ecosystem.config.js && pm2 save`,
+   `pm2 startup` (systemd)
+6. Web: `npm install && npm run build`
+7. nginx: restore `nginx-zuuchmap.conf` → `sites-available/zuuchmap`, symlink to
+   `sites-enabled`, point DNS A record at the new IP, `certbot --nginx -d zuuchmap.com`
+8. Update `VPS_HOST` in `~/.zuuchmap-deploy.env`; run `deploy.sh --no-push` to confirm
+   the pipeline works end-to-end
+
+**Running on localhost meanwhile:** local dev needs nothing from the VPS —
+`npm run dev:engine` + `dev:web` use the local Postgres and
+`config/variables/development.env`. For the mobile app against a local engine,
+point `API_BASE_URL` in `zuuchmap_app/src/config/api.config.js` at
+`http://<your-LAN-IP>:8282/engine` (remember to revert before a release build).
+While the VPS is suspended, anything pointing at `https://zuuchmap.com` (deployed
+web, installed apps, verify.mn callback) is down — that's expected.
 
 ## Gotchas
 

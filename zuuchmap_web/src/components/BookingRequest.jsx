@@ -17,7 +17,10 @@ export default function BookingRequest({ postId }) {
   const [message, setMessage] = useState('')
   const [sent, setSent] = useState(false)
   const [dateError, setDateError] = useState(false)
-  const today = new Date().toISOString().slice(0, 10)
+  // Local calendar day: toISOString() is UTC, which in UTC+8 hands back
+  // yesterday before 08:00 and lets a past start date through.
+  const now = new Date()
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 
   const qc = useQueryClient()
   const mut = useMutation({

@@ -11,6 +11,7 @@ const ContactRow = ({ icon, label, value, onPress, colors }) => (
     style={styles.contactRow}
     onPress={onPress}
     activeOpacity={interactions.activeOpacity}
+    accessibilityRole="link"
   >
     <View style={[styles.contactIcon, { backgroundColor: colors.opacity.background.primary }]}>
       <Ionicons name={icon} size={20} color={colors.primary} />
@@ -92,18 +93,18 @@ const HelpSupportScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   content: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxxl },
   card: { borderRadius: radius.xl, padding: spacing.lg, },
-  contactRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.sm },
-  hoursRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.sm },
+  contactRow: { flexDirection: 'row', alignItems: 'center', minHeight: 44, paddingVertical: spacing.sm },
+  hoursRow: { flexDirection: 'row', alignItems: 'center', minHeight: 44, paddingVertical: spacing.sm },
   contactIcon: { width: 36, height: 36, borderRadius: radius.full, justifyContent: 'center', alignItems: 'center', marginRight: spacing.md },
   contactText: { flex: 1 },
   contactLabel: { ...typography.styles.small, marginBottom: spacing.xxs },
   contactValue: { ...typography.styles.bodyMedium },
   hoursValue: { ...typography.styles.body },
-  divider: { height: 1, marginVertical: spacing.xs },
+  divider: { height: StyleSheet.hairlineWidth, marginVertical: spacing.xs },
   sectionHeader: { ...typography.styles.label, paddingHorizontal: spacing.xs },
   faqItem: { paddingVertical: spacing.sm },
   faqQ: { ...typography.styles.label, marginBottom: spacing.xs },
-  faqA: { ...typography.styles.caption, lineHeight: typography.sm * 1.6 },
+  faqA: { ...typography.styles.body },
   bottomSpacing: { height: spacing.xl },
 });
 

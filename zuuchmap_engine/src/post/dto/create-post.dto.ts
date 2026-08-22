@@ -78,6 +78,8 @@ export class CreatePostDto {
   })
   existingImages?: string[];
 
-  @IsOptional() @IsString()
-  user?: string;
+  // NOTE: the post owner is NEVER taken from the request body. It is bound from
+  // the authenticated JWT in the controller. A client-supplied `user` field
+  // would let any authenticated caller attribute a post to another account, so
+  // it is deliberately absent here and rejected by forbidNonWhitelisted.
 }

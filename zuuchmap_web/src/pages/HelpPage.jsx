@@ -27,7 +27,7 @@ export default function HelpPage() {
             <Phone size={16} className="text-muted shrink-0" />
             <div>
               <p className="text-xs text-muted">{t('helpSupport.phoneLabel')}</p>
-              <a href={`tel:${t('helpSupport.phoneNumber')}`} className="text-sm text-text hover:text-primary-text transition-colors">{t('helpSupport.phoneNumber')}</a>
+              <a href={`tel:${t('helpSupport.phoneNumber').replace(/[\s-]/g, '')}`} className="text-sm text-text hover:text-primary-text transition-colors">{t('helpSupport.phoneNumber')}</a>
             </div>
           </div>
           <div className="flex items-center gap-3">

@@ -41,7 +41,7 @@ export default function AdminUserDetail() {
   if (isLoading) return (
     <div className="max-w-md">
       <PageHeader title={t('admin.userDetail')} onBack={() => goBack(navigate, '/admin/users')} />
-      <div className="h-48 bg-surface2 rounded-card animate-pulse" />
+      <div className="h-48 skeleton rounded-card" />
     </div>
   )
 

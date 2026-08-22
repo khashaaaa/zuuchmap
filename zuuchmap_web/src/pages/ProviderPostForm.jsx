@@ -10,15 +10,19 @@ import { getCategoryLabel, getSubcategoryLabel, getFieldLabel, getOptionLabel, g
 import { useThemeStore } from '@/store'
 import { toast } from 'sonner'
 import Input from '../components/Input'
+import CollapsibleSection from '../components/CollapsibleSection'
 import Button from '../components/Button'
 import PageHeader from '../components/PageHeader'
 import ConfirmModal from '../components/ConfirmModal'
 import ErrorState from '../components/ErrorState'
 
 function compressImage(file) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const img = new Image()
     const url = URL.createObjectURL(file)
+    // Every exit path must revoke the blob URL and settle the promise —
+    // an undecodable file (HEIC on non-Safari, corrupt data) otherwise pins
+    // the file's bytes for the page lifetime and hangs the caller forever.
     img.onload = () => {
       const MAX = 1920
       let { width, height } = img
@@ -31,7 +35,16 @@ function compressImage(file) {
       canvas.height = height
       canvas.getContext('2d').drawImage(img, 0, 0, width, height)
       URL.revokeObjectURL(url)
-      canvas.toBlob((blob) => resolve(new File([blob], file.name, { type: 'image/jpeg' })), 'image/jpeg', 0.82)
+      canvas.toBlob(
+        (blob) => blob
+          ? resolve(new File([blob], file.name, { type: 'image/jpeg' }))
+          : reject(new Error(`Could not compress ${file.name}`)),
+        'image/jpeg', 0.82,
+      )
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error(`Could not decode ${file.name}`))
     }
     img.src = url
   })
@@ -58,8 +71,39 @@ function LocationPicker({ lat, lng, color, onChange }) {
   )
 }
 
-function DynamicField({ field, value, onChange, t }) {
-  const lbl = <>{getFieldLabel(field, t)}{field.required && <span className="text-danger"> *</span>}</>
+// Localized placeholder mirrors `labels`; the flat `placeholder` is the fallback.
+const fieldPlaceholder = (field, lng) => field.placeholders?.[lng] ?? field.placeholder ?? ''
+
+// A boolean starts false and a multiselect [] — seeding them with '' would hand
+// the checkbox a string and break the chip group's Array checks.
+export const buildAttributes = (schema, existing = {}) =>
+  Object.fromEntries((schema?.fields ?? []).map((f) => [
+    f.key,
+    existing[f.key] ?? (f.type === 'boolean' ? false : f.type === 'multiselect' ? [] : ''),
+  ]))
+
+// The engine answers a missing required attribute with a code and the field
+// keys. Without this the provider sees "MISSING_REQUIRED_ATTRIBUTES" and has no
+// way to tell which box to fill.
+function postErrorMessage(e, t, schema, fallback) {
+  const data = e?.response?.data
+  if (data?.message === 'MISSING_REQUIRED_ATTRIBUTES' && Array.isArray(data.fields)) {
+    const names = data.fields
+      .map((k) => {
+        const def = schema?.fields?.find((f) => f.key === k)
+        return def ? getFieldLabel(def, t) : k
+      })
+      .join(', ')
+    return t('posts.missingRequired', { fields: names })
+  }
+  if (data?.message === 'INVALID_PRICE_UNIT') return t('posts.invalidPriceUnit')
+  return apiErrorMessage(e, t, fallback)
+}
+
+function DynamicField({ field, value, onChange, t, lng }) {
+  const unit = field.unit ? ` (${field.unit})` : ''
+  const lbl = <>{getFieldLabel(field, t)}{unit}{field.required && <span className="text-danger"> *</span>}</>
+
   if (field.type === 'select') return (
     <div>
       <label className="text-xs text-muted block mb-1.5">{lbl}</label>
@@ -69,25 +113,73 @@ function DynamicField({ field, value, onChange, t }) {
       </Input>
     </div>
   )
+
+  if (field.type === 'boolean') return (
+    <div>
+      <label className="text-xs text-muted block mb-1.5">{lbl}</label>
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" checked={value === true}
+          onChange={(e) => onChange(e.target.checked)}
+          className="w-4 h-4 accent-primary" />
+        <span className="text-sm text-text">{value === true ? t('common.yes') : t('common.no')}</span>
+      </label>
+    </div>
+  )
+
+  if (field.type === 'multiselect') {
+    const selected = Array.isArray(value) ? value : []
+    const toggle = (opt) => onChange(selected.includes(opt) ? selected.filter((s) => s !== opt) : [...selected, opt])
+    return (
+      <div>
+        <label className="text-xs text-muted block mb-1.5">{lbl}</label>
+        <div className="flex flex-wrap gap-2">
+          {field.options?.map((opt) => (
+            <button key={opt} type="button" onClick={() => toggle(opt)}
+              aria-pressed={selected.includes(opt)}
+              className={`px-3 py-1.5 text-xs rounded-btn border transition-colors ${
+                selected.includes(opt)
+                  ? 'bg-primary text-on-primary border-primary'
+                  : 'border-border/40 text-muted hover:text-text'
+              }`}>
+              {getOptionLabel(opt, t)}
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   if (field.type === 'textarea') return (
     <div>
       <label className="text-xs text-muted block mb-1.5">{lbl}</label>
       <Input as="textarea" value={value} onChange={(e) => onChange(e.target.value)} required={field.required} rows={3}
-        className="resize-none" />
+        placeholder={fieldPlaceholder(field, lng)} className="resize-none" />
     </div>
   )
+
   const inputType = field.type === 'phone' ? 'tel' : field.type === 'text' ? 'text' : field.type
   return (
     <div>
       <label className="text-xs text-muted block mb-1.5">{lbl}</label>
       <Input type={inputType} value={value} onChange={(e) => onChange(e.target.value)}
-        required={field.required} />
+        placeholder={fieldPlaceholder(field, lng)} required={field.required} />
     </div>
   )
 }
 
+// Section card — same idiom as ProviderCompany's detail card, so the form
+// reads as a sequence of concerns instead of one unbroken column of controls.
+function FormSection({ title, children }) {
+  return (
+    <section className="bg-surface border border-border/20 shadow-card rounded-card p-5 space-y-4">
+      <h2 className="text-sm font-semibold text-text">{title}</h2>
+      {children}
+    </section>
+  )
+}
+
 export default function ProviderPostForm() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { id } = useParams()
   const navigate = useNavigate()
   const qc = useQueryClient()
@@ -165,7 +257,7 @@ export default function ProviderPostForm() {
         available_from: post.available_from ? post.available_from.slice(0, 10) : '',
         available_until: post.available_until ? post.available_until.slice(0, 10) : '',
         status: post.status ?? 'ACTIVE',
-        attributes: post.attributes ?? {},
+        attributes: buildAttributes(schemas.find((s) => s.key === post.category), post.attributes ?? {}),
       })
       setExistingImages(post.images ?? [])
     }
@@ -184,7 +276,7 @@ export default function ProviderPostForm() {
       setDirty(false)
       navigate('/provider/posts')
     },
-    onError: (e) => toast.error(apiErrorMessage(e, t, t('posts.createError'))),
+    onError: (e) => toast.error(postErrorMessage(e, t, schema, t('posts.createError'))),
   })
 
   useEffect(() => {
@@ -209,13 +301,17 @@ export default function ProviderPostForm() {
       ...f,
       category: val,
       subcategory: '',
-      attributes: {},
+      attributes: buildAttributes(next),
       price_unit: next?.default_price_unit ?? f.price_unit ?? 'DAY',
     }))
   }
 
   async function addImages(files) {
-    const compressed = await Promise.all(Array.from(files).map(compressImage))
+    // allSettled: one undecodable file must not discard the whole selection.
+    const results = await Promise.allSettled(Array.from(files).map(compressImage))
+    const compressed = results.filter((r) => r.status === 'fulfilled').map((r) => r.value)
+    if (results.some((r) => r.status === 'rejected')) toast.error(t('posts.imageCompressFailed'))
+    if (!compressed.length) return
     setDirty(true)
     setNewImages((prev) => [...prev, ...compressed])
   }
@@ -261,7 +357,7 @@ export default function ProviderPostForm() {
       <PageHeader title={t('posts.edit')} onBack={() => goBack(navigate, '/provider/posts')} />
       <div className="space-y-4">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="h-12 bg-surface2 rounded-btn animate-pulse" />
+          <div key={i} className="h-12 skeleton rounded-btn" />
         ))}
       </div>
     </div>
@@ -289,114 +385,44 @@ export default function ProviderPostForm() {
         onConfirm={() => blocker.proceed?.()}
       />
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className={schema?.subcategories?.length > 0 ? 'grid grid-cols-1 sm:grid-cols-2 gap-3' : undefined}>
-          <div>
-            <label className="text-xs text-muted block mb-1.5">{t('posts.category')} <span className="text-danger">*</span></label>
-            <Input as="select" value={form.category} onChange={(e) => handleCategoryChange(e.target.value)} required>
-              <option value="">{t('common.select')}</option>
-              {schemas.filter((s) => s.active).map((s) => (
-                <option key={s.key} value={s.key}>{getCategoryLabel(s.key, t, schemas)}</option>
-              ))}
-            </Input>
-          </div>
-
-          {schema?.subcategories?.length > 0 && (
+        <FormSection title={t('posts.basicInfo')}>
+          <div className={schema?.subcategories?.length > 0 ? 'grid grid-cols-1 sm:grid-cols-2 gap-3' : undefined}>
             <div>
-              <label className="text-xs text-muted block mb-1.5">{t('posts.subcategory')}</label>
-              <Input as="select" value={form.subcategory} onChange={(e) => set('subcategory', e.target.value)}>
+              <label className="text-xs text-muted block mb-1.5">{t('posts.category')} <span className="text-danger">*</span></label>
+              <Input as="select" value={form.category} onChange={(e) => handleCategoryChange(e.target.value)} required>
                 <option value="">{t('common.select')}</option>
-                {schema.subcategories.map((sub) => (
-                  <option key={sub.value} value={sub.value}>{getSubcategoryLabel(sub.value, t, schema)}</option>
+                {schemas.filter((s) => s.active).map((s) => (
+                  <option key={s.key} value={s.key}>{getCategoryLabel(s.key, t, schemas)}</option>
                 ))}
               </Input>
             </div>
-          )}
-        </div>
 
-        {field(t('posts.title'), 'title', 'text', { required: true })}
-        <div>
-          <label className="text-xs text-muted block mb-1.5">{t('posts.details')}</label>
-          <Input as="textarea" value={form.details} onChange={(e) => set('details', e.target.value)} rows={3} maxLength={2000} className="resize-none" />
-          <p className="text-xs text-muted text-right mt-1">{form.details?.length ?? 0}/2000</p>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {schema?.subcategories?.length > 0 && (
+              <div>
+                <label className="text-xs text-muted block mb-1.5">{t('posts.subcategory')}</label>
+                <Input as="select" value={form.subcategory} onChange={(e) => set('subcategory', e.target.value)}>
+                  <option value="">{t('common.select')}</option>
+                  {schema.subcategories.map((sub) => (
+                    <option key={sub.value} value={sub.value}>{getSubcategoryLabel(sub.value, t, schema)}</option>
+                  ))}
+                </Input>
+              </div>
+            )}
+          </div>
+
+          {field(t('posts.title'), 'title', 'text', { required: true })}
           <div>
-            <label className="text-xs text-muted block mb-1.5">{t('common.province')}</label>
-            <Input as="select" value={form.province}
-              onChange={(e) => { set('province', e.target.value); set('district', '') }}>
-              <option value="">{t('common.select')}</option>
-              {PROVINCES.map((p) => <option key={p} value={p}>{t(`province.${p}`, { defaultValue: p })}</option>)}
-            </Input>
+            <label className="text-xs text-muted block mb-1.5">{t('posts.details')}</label>
+            <Input as="textarea" value={form.details} onChange={(e) => set('details', e.target.value)} rows={3} maxLength={2000} className="resize-none" />
+            <p className="text-xs text-muted text-right mt-1">{form.details?.length ?? 0}/2000</p>
           </div>
-          {form.province === 'ULAANBAATAR' ? (
-            <div>
-              <label className="text-xs text-muted block mb-1.5">{t('common.district')}</label>
-              <Input as="select" value={form.district} onChange={(e) => set('district', e.target.value)}>
-                <option value="">{t('common.select')}</option>
-                {DISTRICTS.map((d) => <option key={d} value={d}>{t(`district.${d}`, { defaultValue: d })}</option>)}
-              </Input>
-            </div>
-          ) : <div />}
-        </div>
-        {field(t('common.address'), 'address')}
+        </FormSection>
 
-        <div>
-          <div className="text-xs text-muted mb-1.5 flex items-center gap-1">
-            <MapPin size={12} /> {t('posts.location')}
-          </div>
-          <div className="rounded-lg overflow-hidden border border-border/50">
-            <LocationPicker lat={lat} lng={lng} color={getCategoryColor(form.category, schemas)} onChange={(la, lo) => setForm((f) => ({ ...f, latitude: String(la), longitude: String(lo) }))} />
-          </div>
-          <p className="text-xs text-muted mt-1">
-            {lat && lng ? `${lat.toFixed(5)}, ${lng.toFixed(5)}` : t('posts.clickToPin')}
-          </p>
-        </div>
-
-        {schema?.has_price && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {field(t('posts.priceAmount'), 'price_amount', 'number')}
-            <div>
-              <label className="text-xs text-muted block mb-1.5">{t('posts.priceUnit')}</label>
-              <Input as="select" value={form.price_unit} onChange={(e) => set('price_unit', e.target.value)}>
-                {PRICE_UNITS.map((u) => <option key={u} value={u}>{t(`priceUnit.${u.toLowerCase()}`, { defaultValue: u })}</option>)}
-              </Input>
-            </div>
-          </div>
-        )}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {field(t('posts.contactPhone'), 'contact_phone', 'tel', { required: true, hint: t('posts.contactPhoneHint') })}
-          {field(`${t('posts.contactEmail')}`, 'contact_email', 'email')}
-        </div>
-        {field(`${t('common.website')}`, 'website')}
-        {schema?.has_availability_dates && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {field(`${t('posts.availableFrom')}`, 'available_from', 'date')}
-            {field(`${t('posts.availableUntil')}`, 'available_until', 'date')}
-          </div>
-        )}
-        {/* Rental status lets a provider mark a listing rented/paused without
-            editing content — mirrors the app's StatusSection. */}
-        {schema?.has_rental_status && (
-          <div>
-            <label className="text-xs text-muted block mb-1.5">{t('common.status')}</label>
-            <Input as="select" value={form.status} onChange={(e) => set('status', e.target.value)}>
-              {['ACTIVE', 'RENTED', 'EXPIRED'].map((s) => (
-                <option key={s} value={s}>{t(`status.${s.toLowerCase()}`, { defaultValue: s })}</option>
-              ))}
-            </Input>
-          </div>
-        )}
-
-        {schema?.fields?.map((f) => (
-          <DynamicField key={f.key} field={f} value={form.attributes[f.key] ?? ''} onChange={(v) => setAttr(f.key, v)} t={t} />
-        ))}
-
-        <div>
-          <label className="text-xs text-muted block mb-1.5">{t('posts.images')}</label>
-          <p className="text-xs text-muted mb-2">{t('posts.imagesHint')}</p>
+        <FormSection title={t('posts.images')}>
+          <p className="text-xs text-muted">{t('posts.imagesHint')}</p>
           {/* bg-black/60 + white on photography is the onMedia idiom — theme-independent by design. */}
           {existingImages.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-2">
+            <div className="flex flex-wrap gap-2">
               {existingImages.map((img) => (
                 <div key={img} className="relative w-20 h-20 rounded-lg overflow-hidden">
                   <img src={getImageUrl(img)} alt="" className="w-full h-full object-cover" />
@@ -408,7 +434,7 @@ export default function ProviderPostForm() {
             </div>
           )}
           {newImages.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-2">
+            <div className="flex flex-wrap gap-2">
               {newImages.map((f, i) => (
                 <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden">
                   <img src={newImageUrls[i]} alt="" className="w-full h-full object-cover" />
@@ -421,9 +447,114 @@ export default function ProviderPostForm() {
           )}
           <label className="flex items-center gap-2 cursor-pointer w-fit px-3 py-2 border border-dashed border-border/50 rounded-btn text-sm text-muted hover:border-primary/40 hover:text-primary-text transition-colors">
             <Upload size={14} /> {t('posts.addImage')}
-            <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => addImages(e.target.files)} />
+            <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => {
+              addImages(e.target.files)
+              // Without this, removing an image and re-picking the same file
+              // silently does nothing — the value never changed.
+              e.target.value = ''
+            }} />
           </label>
-        </div>
+        </FormSection>
+
+        <FormSection title={t('posts.location')}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted block mb-1.5">{t('common.province')}</label>
+              <Input as="select" value={form.province}
+                onChange={(e) => { set('province', e.target.value); set('district', '') }}>
+                <option value="">{t('common.select')}</option>
+                {PROVINCES.map((p) => <option key={p} value={p}>{t(`province.${p}`, { defaultValue: p })}</option>)}
+              </Input>
+            </div>
+            {form.province === 'ULAANBAATAR' ? (
+              <div>
+                <label className="text-xs text-muted block mb-1.5">{t('common.district')}</label>
+                <Input as="select" value={form.district} onChange={(e) => set('district', e.target.value)}>
+                  <option value="">{t('common.select')}</option>
+                  {DISTRICTS.map((d) => <option key={d} value={d}>{t(`district.${d}`, { defaultValue: d })}</option>)}
+                </Input>
+              </div>
+            ) : <div />}
+          </div>
+          {field(t('common.address'), 'address')}
+
+          <div>
+            <div className="text-xs text-muted mb-1.5 flex items-center gap-1">
+              <MapPin size={12} /> {t('posts.pinOnMap')}
+            </div>
+            <div className="rounded-lg overflow-hidden border border-border/50">
+              <LocationPicker lat={lat} lng={lng} color={getCategoryColor(form.category, schemas)} onChange={(la, lo) => setForm((f) => ({ ...f, latitude: String(la), longitude: String(lo) }))} />
+            </div>
+            <p className="text-xs text-muted mt-1">
+              {lat && lng ? `${lat.toFixed(5)}, ${lng.toFixed(5)}` : t('posts.clickToPin')}
+            </p>
+          </div>
+        </FormSection>
+
+        {schema?.fields?.length > 0 && (
+          <FormSection title={t('posts.categoryDetails')}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {schema.fields.filter((f) => (f.group ?? 'core') === 'core').map((f) => (
+                <div key={f.key} className={f.type === 'textarea' || f.type === 'multiselect' ? 'sm:col-span-2' : undefined}>
+                  <DynamicField field={f} value={form.attributes[f.key] ?? ''} onChange={(v) => setAttr(f.key, v)} t={t} lng={i18n.language} />
+                </div>
+              ))}
+            </div>
+            {schema.fields.some((f) => f.group === 'details') && (
+              <CollapsibleSection title={t('posts.moreDetails')} defaultOpen={false} variant="bare">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {schema.fields.filter((f) => f.group === 'details').map((f) => (
+                    <div key={f.key} className={f.type === 'textarea' || f.type === 'multiselect' ? 'sm:col-span-2' : undefined}>
+                      <DynamicField field={f} value={form.attributes[f.key] ?? ''} onChange={(v) => setAttr(f.key, v)} t={t} lng={i18n.language} />
+                    </div>
+                  ))}
+                </div>
+              </CollapsibleSection>
+            )}
+          </FormSection>
+        )}
+
+        {(schema?.has_price || schema?.has_availability_dates || schema?.has_rental_status) && (
+          <FormSection title={t('posts.pricing')}>
+            {schema?.has_price && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {field(t('posts.priceAmount'), 'price_amount', 'number')}
+                <div>
+                  <label className="text-xs text-muted block mb-1.5">{t('posts.priceUnit')}</label>
+                  <Input as="select" value={form.price_unit} onChange={(e) => set('price_unit', e.target.value)}>
+                    {PRICE_UNITS.map((u) => <option key={u} value={u}>{t(`priceUnit.${u.toLowerCase()}`, { defaultValue: u })}</option>)}
+                  </Input>
+                </div>
+              </div>
+            )}
+            {schema?.has_availability_dates && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {field(`${t('posts.availableFrom')}`, 'available_from', 'date')}
+                {field(`${t('posts.availableUntil')}`, 'available_until', 'date')}
+              </div>
+            )}
+            {/* Rental status lets a provider mark a listing rented/paused without
+                editing content — mirrors the app's StatusSection. */}
+            {schema?.has_rental_status && (
+              <div>
+                <label className="text-xs text-muted block mb-1.5">{t('common.status')}</label>
+                <Input as="select" value={form.status} onChange={(e) => set('status', e.target.value)}>
+                  {['ACTIVE', 'RENTED', 'EXPIRED'].map((s) => (
+                    <option key={s} value={s}>{t(`status.${s.toLowerCase()}`, { defaultValue: s })}</option>
+                  ))}
+                </Input>
+              </div>
+            )}
+          </FormSection>
+        )}
+
+        <FormSection title={t('posts.contactInfo')}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {field(t('posts.contactPhone'), 'contact_phone', 'tel', { required: true, hint: t('posts.contactPhoneHint') })}
+            {field(`${t('posts.contactEmail')}`, 'contact_email', 'email')}
+          </div>
+          {field(`${t('common.website')}`, 'website')}
+        </FormSection>
 
         <div className="sticky bottom-0 -mx-4 sm:mx-0 px-4 sm:px-0 py-3 bg-background/95 backdrop-blur border-t border-border/50">
           <Button type="submit" size="lg" disabled={mut.isPending} className="w-full">

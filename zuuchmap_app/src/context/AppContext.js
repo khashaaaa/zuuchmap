@@ -46,10 +46,12 @@ export const AppProvider = ({ children }) => {
         await AsyncStorage.setItem(STORAGE_KEYS.LOCALE, lang).catch(() => {});
     }, []);
 
-    const addNotification = useCallback(({ title, message, type = 'info', postId }) => {
+    // postType/role/bookingRole are the navigation hints NotificationsScreen
+    // uses to make rows tappable.
+    const addNotification = useCallback(({ title, message, type = 'info', postId, postType, role, bookingRole }) => {
         const id = ++notifIdRef.current;
         setNotifications((prev) => [
-            { id, title, message, type, postId, ts: new Date().toISOString(), read: false },
+            { id, title, message, type, postId, postType, role, bookingRole, ts: new Date().toISOString(), read: false },
             ...prev,
         ].slice(0, 50));
     }, []);

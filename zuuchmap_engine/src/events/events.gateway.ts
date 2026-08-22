@@ -12,6 +12,27 @@ import { JwtService } from '@nestjs/jwt';
 import { isAdmin } from '../admin/admin.guard';
 import { jwtSecret } from '../utils/jwt-secret';
 
+// Socket event contract. Mirrored in zuuchmap_web/src/lib/socket.js and
+// zuuchmap_app/src/services/socketService.js — change all three together.
+// Per-user payloads use { postId, category, title } — never `id`/`post_type`.
+export const SOCKET_EVENTS = {
+  POST_CREATED: 'post.created',
+  POST_APPROVED: 'post.approved',
+  POST_REJECTED: 'post.rejected',
+  STATS_UPDATED: 'stats.updated',
+  BOOKING_REQUESTED: 'booking.requested',
+  BOOKING_RESPONDED: 'booking.responded',
+  BOOKING_CANCELLED: 'booking.cancelled',
+  AUTH_ERROR: 'auth_error',
+} as const;
+
+export const ROOM_ADMIN = 'admin';
+export const USER_ROOM_PREFIX = 'user:';
+// Pre-rename app builds still join `provider:<id>` — accept their joins and
+// double-emit per-user events until those builds are gone, then delete this.
+export const LEGACY_USER_ROOM_PREFIX = 'provider:';
+export const userRoom = (userId: string) => `${USER_ROOM_PREFIX}${userId}`;
+
 @WebSocketGateway({
   cors: { origin: process.env.ALLOWED_ORIGIN ?? 'https://zuuchmap.com', credentials: true },
   namespace: '/events',
@@ -25,7 +46,13 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   handleConnection(client: Socket) {
     const token = client.handshake.auth?.token;
-    if (!token) return;
+    // No events are ever delivered to an unauthenticated socket, so don't let
+    // one idle here — reject it the same way as a bad token.
+    if (!token) {
+      client.emit(SOCKET_EVENTS.AUTH_ERROR, { reason: 'missing_token' });
+      client.disconnect(true);
+      return;
+    }
     try {
       const payload = this.jwtService.verify(token, {
         secret: jwtSecret(),
@@ -36,7 +63,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Invalid/expired token: tell the client so it can stop retrying with the
       // same credentials, then drop it. A server-initiated disconnect is not
       // auto-reconnected by socket.io-client, so this can't loop.
-      client.emit('auth_error', { reason: 'invalid_token' });
+      client.emit(SOCKET_EVENTS.AUTH_ERROR, { reason: 'invalid_token' });
       client.disconnect(true);
     }
   }
@@ -44,17 +71,21 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   handleDisconnect(_client: Socket) {}
 
   // Returns an ack (when the client passes a callback) so a rejected join is
-  // visible client-side instead of silently delivering nothing.
+  // visible client-side instead of silently delivering nothing. Only the admin
+  // room and the caller's own user room are joinable — arbitrary room names
+  // would allocate server memory for rooms nothing ever emits to.
   @SubscribeMessage('join')
   handleJoin(@ConnectedSocket() client: Socket, @MessageBody() room: string) {
     if (typeof room !== 'string' || room.length >= 100) {
       return { ok: false, reason: 'invalid_room' };
     }
 
-    if (room === 'admin') {
+    if (room === ROOM_ADMIN) {
       if (!client.data?.isAdmin) return { ok: false, reason: 'unauthorized' };
-    } else if (room.startsWith('provider:')) {
-      if (client.data?.userId !== room.slice('provider:'.length)) {
+    } else {
+      const prefix = [USER_ROOM_PREFIX, LEGACY_USER_ROOM_PREFIX].find((p) => room.startsWith(p));
+      if (!prefix) return { ok: false, reason: 'invalid_room' };
+      if (client.data?.userId !== room.slice(prefix.length)) {
         return { ok: false, reason: 'unauthorized' };
       }
     }
@@ -70,27 +101,38 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     } catch {}
   }
 
+  private emitToUser(userId: string, event: string, data?: unknown) {
+    this.emit(userRoom(userId), event, data);
+    this.emit(`${LEGACY_USER_ROOM_PREFIX}${userId}`, event, data);
+  }
+
   emitPostCreated(post: { id: number; category: string; title?: string }) {
-    this.emit('admin', 'post.created', post);
+    this.emit(ROOM_ADMIN, SOCKET_EVENTS.POST_CREATED, {
+      postId: post.id,
+      category: post.category,
+      title: post.title,
+    });
   }
 
-  emitPostApproved(postId: number, userId: string, title?: string) {
-    this.emit('admin', 'post.approved', { postId, title });
-    this.emit(`provider:${userId}`, 'post.approved', { postId, title });
+  emitPostApproved(postId: number, userId: string, title?: string, category?: string) {
+    const payload = { postId, title, category };
+    this.emit(ROOM_ADMIN, SOCKET_EVENTS.POST_APPROVED, payload);
+    this.emitToUser(userId, SOCKET_EVENTS.POST_APPROVED, payload);
   }
 
-  emitPostRejected(postId: number, userId: string, reason: string, title?: string) {
-    this.emit('admin', 'post.rejected', { postId, reason, title });
-    this.emit(`provider:${userId}`, 'post.rejected', { postId, reason, title });
+  emitPostRejected(postId: number, userId: string, reason: string, title?: string, category?: string) {
+    const payload = { postId, reason, title, category };
+    this.emit(ROOM_ADMIN, SOCKET_EVENTS.POST_REJECTED, payload);
+    this.emitToUser(userId, SOCKET_EVENTS.POST_REJECTED, payload);
   }
 
   emitStatsUpdated() {
-    this.emit('admin', 'stats.updated');
+    this.emit(ROOM_ADMIN, SOCKET_EVENTS.STATS_UPDATED);
   }
 
   // Booking lifecycle — delivered to the affected user's personal room
   emitBookingEvent(userId: string, event: string, data?: unknown) {
-    this.emit(`provider:${userId}`, event, data);
+    this.emitToUser(userId, event, data);
   }
 
 }

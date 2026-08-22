@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { InteractionManager } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG, getUploadUrl } from '../../config/api.config';
 import { DEFAULT_AVATAR_URL } from '../../config/app.config';
@@ -178,8 +179,13 @@ const userService = {
                     API_CONFIG.STORAGE_KEYS.USER_INFO,
                 ]);
             }
-            queryClient.clear();
             emitAuthChanged();
+            // Callers reset to the auth stack before calling logout, but the
+            // exit animation keeps the old screen mounted for a beat — clearing
+            // the cache while its queries are still observed refetches them
+            // tokenless (a 401 burst). Wait out the transition first.
+            await new Promise((resolve) => InteractionManager.runAfterInteractions(resolve));
+            queryClient.clear();
             return true;
         } catch (error) {
             logger.error('Logout error:', error);

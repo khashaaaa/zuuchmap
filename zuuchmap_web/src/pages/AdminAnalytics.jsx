@@ -81,7 +81,7 @@ export default function AdminAnalytics() {
         <PageHeader title={t('analytics.title')} />
         <div className="grid gap-4 md:grid-cols-2">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-64 bg-surface2 rounded-card animate-pulse" />
+            <div key={i} className="h-64 skeleton rounded-card" />
           ))}
         </div>
       </div>
@@ -129,99 +129,101 @@ export default function AdminAnalytics() {
         <StatCard label={t('analytics.acceptedBookings')} value={totals.accepted_bookings} color="text-text" align="left" />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Panel title={t('analytics.activePeople')} hint={t('analytics.activePeopleHint')}>
-          <LineChart data={series.active_people ?? []} label={t('analytics.activePeople')} unit={t('analytics.people')} />
-        </Panel>
+      <div className="space-y-4">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Panel title={t('analytics.activePeople')} hint={t('analytics.activePeopleHint')}>
+            <LineChart data={series.active_people ?? []} label={t('analytics.activePeople')} unit={t('analytics.people')} />
+          </Panel>
 
-        <Panel title={t('analytics.signups')} hint={t('analytics.signupsHint')}>
-          <LineChart data={series.signups ?? []} label={t('analytics.signups')} unit={t('analytics.people')} />
-        </Panel>
+          <Panel title={t('analytics.signups')} hint={t('analytics.signupsHint')}>
+            <LineChart data={series.signups ?? []} label={t('analytics.signups')} unit={t('analytics.people')} />
+          </Panel>
 
-        <Panel title={t('analytics.postVolume')} hint={t('analytics.postVolumeHint')}>
-          <ColumnChart data={postVolume} label={t('analytics.postVolume')} unit={t('analytics.posts')} />
-        </Panel>
+          <Panel title={t('analytics.postVolume')} hint={t('analytics.postVolumeHint')}>
+            <ColumnChart data={postVolume} label={t('analytics.postVolume')} unit={t('analytics.posts')} />
+          </Panel>
 
-        <Panel title={t('analytics.funnelTitle')} hint={t('analytics.funnelHint')}>
-          <Funnel stages={funnelStages} />
-        </Panel>
+          <Panel title={t('analytics.funnelTitle')} hint={t('analytics.funnelHint')}>
+            <Funnel stages={funnelStages} />
+          </Panel>
 
-        <Panel title={t('analytics.byCategory')} hint={t('analytics.byCategoryHint')}>
-          <BarList data={categories} label={t('analytics.byCategory')} emptyLabel={t('analytics.noData')} />
-        </Panel>
+          <Panel title={t('analytics.byCategory')} hint={t('analytics.byCategoryHint')}>
+            <BarList data={categories} label={t('analytics.byCategory')} emptyLabel={t('analytics.noData')} />
+          </Panel>
 
-        <Panel title={t('analytics.byProvince')} hint={t('analytics.byProvinceHint')}>
-          <BarList data={provinces} label={t('analytics.byProvince')} emptyLabel={t('analytics.noData')} />
-        </Panel>
-      </div>
+          <Panel title={t('analytics.byProvince')} hint={t('analytics.byProvinceHint')}>
+            <BarList data={provinces} label={t('analytics.byProvince')} emptyLabel={t('analytics.noData')} />
+          </Panel>
+        </div>
 
-      <Panel
-        title={t('analytics.topPosts')}
-        hint={t('analytics.topPostsHint')}
-        action={
-          <button
-            type="button"
-            onClick={() => setShowTables((v) => !v)}
-            aria-expanded={showTables}
-            className="text-xs text-muted hover:text-text transition-colors"
-          >
-            {showTables ? t('analytics.hideTables') : t('analytics.showTables')}
-          </button>
-        }
-      >
-        <DataTable
-          columns={[t('posts.title'), t('posts.category'), t('analytics.views')]}
-          rows={(data?.top_posts ?? []).map((p) => [
-            p.title,
-            getCategoryLabel(p.category, t, schemas),
-            p.views ?? 0,
-          ])}
-        />
-
-        {showTables && (
-          <div className="mt-6 grid gap-6 md:grid-cols-2">
-            <div>
-              <h3 className="text-xs font-semibold text-muted mb-2">{t('analytics.activePeople')}</h3>
-              <DataTable
-                columns={[t('analytics.day'), t('analytics.people')]}
-                rows={(series.active_people ?? []).map((d) => [d.day, d.value])}
-              />
-            </div>
-            <div>
-              <h3 className="text-xs font-semibold text-muted mb-2">{t('analytics.signups')}</h3>
-              <DataTable
-                columns={[t('analytics.day'), t('analytics.people')]}
-                rows={(series.signups ?? []).map((d) => [d.day, d.value])}
-              />
-            </div>
-          </div>
-        )}
-      </Panel>
-
-      {/* Crash log. Without this, `client.error` events pile up in a table
-          nobody opens — a bug on a user's phone stays invisible. */}
-      <Panel title={t('analytics.clientErrors')} hint={t('analytics.clientErrorsHint')}>
-        {(data?.client_errors ?? []).length === 0 ? (
-          <p className="text-sm text-muted py-4">{t('analytics.noErrors')}</p>
-        ) : (
+        <Panel
+          title={t('analytics.topPosts')}
+          hint={t('analytics.topPostsHint')}
+          action={
+            <button
+              type="button"
+              onClick={() => setShowTables((v) => !v)}
+              aria-expanded={showTables}
+              className="text-xs text-muted hover:text-text transition-colors"
+            >
+              {showTables ? t('analytics.hideTables') : t('analytics.showTables')}
+            </button>
+          }
+        >
           <DataTable
-            columns={[
-              t('analytics.errorMessage'),
-              t('analytics.errorPlatform'),
-              t('analytics.errorCount'),
-              t('analytics.errorPeople'),
-              t('analytics.errorLastSeen'),
-            ]}
-            rows={(data?.client_errors ?? []).map((e) => [
-              e.message,
-              e.platform,
-              e.count,
-              e.people,
-              e.last_seen,
+            columns={[t('posts.title'), t('posts.category'), t('analytics.views')]}
+            rows={(data?.top_posts ?? []).map((p) => [
+              p.title,
+              getCategoryLabel(p.category, t, schemas),
+              p.views ?? 0,
             ])}
           />
-        )}
-      </Panel>
+
+          {showTables && (
+            <div className="mt-6 grid gap-6 md:grid-cols-2">
+              <div>
+                <h3 className="text-xs font-semibold text-muted mb-2">{t('analytics.activePeople')}</h3>
+                <DataTable
+                  columns={[t('analytics.day'), t('analytics.people')]}
+                  rows={(series.active_people ?? []).map((d) => [d.day, d.value])}
+                />
+              </div>
+              <div>
+                <h3 className="text-xs font-semibold text-muted mb-2">{t('analytics.signups')}</h3>
+                <DataTable
+                  columns={[t('analytics.day'), t('analytics.people')]}
+                  rows={(series.signups ?? []).map((d) => [d.day, d.value])}
+                />
+              </div>
+            </div>
+          )}
+        </Panel>
+
+        {/* Crash log. Without this, `client.error` events pile up in a table
+            nobody opens — a bug on a user's phone stays invisible. */}
+        <Panel title={t('analytics.clientErrors')} hint={t('analytics.clientErrorsHint')}>
+          {(data?.client_errors ?? []).length === 0 ? (
+            <p className="text-sm text-muted py-4">{t('analytics.noErrors')}</p>
+          ) : (
+            <DataTable
+              columns={[
+                t('analytics.errorMessage'),
+                t('analytics.errorPlatform'),
+                t('analytics.errorCount'),
+                t('analytics.errorPeople'),
+                t('analytics.errorLastSeen'),
+              ]}
+              rows={(data?.client_errors ?? []).map((e) => [
+                e.message,
+                e.platform,
+                e.count,
+                e.people,
+                e.last_seen,
+              ])}
+            />
+          )}
+        </Panel>
+      </div>
     </div>
   )
 }

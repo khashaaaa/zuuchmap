@@ -31,7 +31,7 @@ export function Stars({ value, size = 14, onSelect }) {
             onClick={() => onSelect(i)}
             aria-label={t('review.rateStars', { count: i })}
             aria-pressed={i <= value}
-            className="cursor-pointer rounded focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary"
+            className="cursor-pointer rounded p-1.5 -m-0.5 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary"
           >
             {star}
           </button>
@@ -43,12 +43,16 @@ export function Stars({ value, size = 14, onSelect }) {
   )
 }
 
+/** Reviews shown before the list asks to be expanded. */
+const REVIEW_PREVIEW = 5
+
 // Rating summary + review list + own-review form for a provider
 export default function ProviderReviews({ providerId, canReview }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [rating, setRating] = useState(0)
   const [comment, setComment] = useState('')
+  const [showAll, setShowAll] = useState(false)
 
   const { data, isError, refetch } = useQuery({
     queryKey: ['reviews', providerId],
@@ -110,7 +114,7 @@ export default function ProviderReviews({ providerId, canReview }) {
         <p className="text-xs text-muted">{t('review.empty')}</p>
       ) : (
         <div className="space-y-2">
-          {reviews.slice(0, 10).map((r) => (
+          {(showAll ? reviews : reviews.slice(0, REVIEW_PREVIEW)).map((r) => (
             <div key={r.id} className="flex items-start gap-2.5 bg-surface2 rounded-lg p-3">
               <UserAvatar src={r.author?.profile_picture} name={r.author?.given_name} size="sm" />
               <div className="flex-1 min-w-0">
@@ -119,10 +123,19 @@ export default function ProviderReviews({ providerId, canReview }) {
                   <Stars value={r.rating} size={11} />
                   <span className="text-xs text-muted">{formatDate(r.date_updated)}</span>
                 </div>
-                {r.comment && <p className="text-xs text-muted mt-1">{r.comment}</p>}
+                {r.comment && <p className="text-sm text-text mt-1 leading-relaxed">{r.comment}</p>}
               </div>
             </div>
           ))}
+          {reviews.length > REVIEW_PREVIEW && !showAll && (
+            <button
+              type="button"
+              onClick={() => setShowAll(true)}
+              className="text-xs text-primary-text hover:underline"
+            >
+              {t('review.showAll', { count: reviews.length })}
+            </button>
+          )}
         </div>
       )}
     </InfoSection>

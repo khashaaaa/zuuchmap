@@ -4,7 +4,8 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { spacing, typography, radius, interactions } from '../design/theme';
+import { spacing, typography, radius, interactions, safeAreaHelpers } from '../design/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../hooks/useAppTheme';
 import bookingService from '../services/api/bookingService';
 import { invalidatePostData, queryClient } from '../services/queryClient';
@@ -12,10 +13,13 @@ import { showErrorModal, showInfoModal, getErrorMessage } from '../utils/errorMa
 import Button from './Button';
 import PressableScale from './PressableScale';
 
-const fmt = (d) => d.toISOString().slice(0, 10);
+// Local calendar date, not UTC: `toISOString()` in UTC+8 rolls the date back
+// a day for any time before 08:00 and would submit the wrong booking window.
+const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 const BookingRequestModal = ({ visible, onClose, postId }) => {
     const { colors, styles: gStyles } = useAppTheme();
+    const insets = useSafeAreaInsets();
     const styles = useMemo(() => createStyles(colors), [colors]);
     const { t } = useTranslation();
 
@@ -61,7 +65,7 @@ const BookingRequestModal = ({ visible, onClose, postId }) => {
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.overlay}>
-                <View style={styles.sheet}>
+                <View style={[styles.sheet, { paddingBottom: safeAreaHelpers.getBottomSafeArea(insets) + spacing.lg }]}>
                     <View style={styles.header}>
                         <Text style={styles.title}>{t('booking.request')}</Text>
                         <TouchableOpacity
@@ -134,6 +138,7 @@ const createStyles = (colors) => StyleSheet.create({
     overlay: { flex: 1, backgroundColor: colors.opacity.overlay, justifyContent: 'flex-end' },
     sheet: {
         ...colors.elevation.lg,
+        maxHeight: '85%',
         backgroundColor: colors.surface,
         borderTopLeftRadius: radius.modal,
         borderTopRightRadius: radius.modal,

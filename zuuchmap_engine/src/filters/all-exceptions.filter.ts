@@ -41,6 +41,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         ? exception.message
         : 'Internal server error';
     let code: string | undefined;
+    let fields: string[] | undefined;
     if (exception instanceof HttpException) {
       const body = exception.getResponse();
       if (body && typeof body === 'object') {
@@ -48,6 +49,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
         if (typeof b.message === 'string') message = b.message;
         else if (Array.isArray(b.message) && typeof b.message[0] === 'string') message = b.message[0];
         if (typeof b.code === 'string') code = b.code;
+        // Field-level detail (e.g. which required attributes are missing) —
+        // without this the client can only show an opaque error code.
+        if (Array.isArray(b.fields) && b.fields.every((f) => typeof f === 'string')) {
+          fields = b.fields as string[];
+        }
       }
     }
 
@@ -59,7 +65,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     if (!response.headersSent) {
-      response.status(status).json({ statusCode: status, message, ...(code ? { code } : {}) });
+      response.status(status).json({
+        statusCode: status,
+        message,
+        ...(code ? { code } : {}),
+        ...(fields ? { fields } : {}),
+      });
     }
   }
 }

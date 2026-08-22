@@ -45,6 +45,10 @@ export function useProfileForm() {
     onSuccess: (updated) => {
       setUser({ ...user, ...updated })
       qc.setQueryData(['profile'], (old) => ({ ...old, ...updated }))
+      // Drop the staged file. Without this every later save re-uploads the same
+      // image — new R2 object each time, old one deleted — and the local blob
+      // preview keeps masking whatever the server actually stored.
+      setAvatar(null)
       toast.success(t('profile.saveSuccess'))
     },
     onError: (e) => toast.error(apiErrorMessage(e, t, t('profile.saveError'))),

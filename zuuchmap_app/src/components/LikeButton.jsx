@@ -175,7 +175,7 @@ const LikeButton = ({
             } else if (error.code === 'AUTH_TOKEN_MISSING') {
                 setIsAuthenticated(false);
                 setIsLiked(false);
-                showErrorModal(t('auth.title'), t('auth.loginRequired'), [], 'warning');
+                showErrorModal(t('auth.title'), t('auth.loginRequired'), [{ text: t('common.close') }], 'warning');
             } else {
                 showErrorModal(t('common.error'), t('posts.likeError'));
             }

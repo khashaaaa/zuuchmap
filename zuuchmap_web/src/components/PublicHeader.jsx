@@ -41,7 +41,7 @@ export default function PublicHeader() {
                 type="button"
                 onClick={() => i18n.changeLanguage(lang.code)}
                 aria-pressed={i18n.resolvedLanguage === lang.code}
-                className={`relative px-2.5 py-1 text-xs font-medium transition-colors ${
+                className={`relative min-h-[36px] px-3 py-2 text-xs font-medium transition-colors ${
                   i18n.resolvedLanguage === lang.code
                     ? 'text-text'
                     : 'text-muted hover:text-text'

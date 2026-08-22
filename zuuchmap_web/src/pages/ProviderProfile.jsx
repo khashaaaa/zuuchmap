@@ -25,7 +25,8 @@ export default function ProviderProfile() {
   })
 
   const totalPosts = myPosts?.length ?? 0
-  const activePosts = myPosts?.filter((p) => p.status === 'ACTIVE').length ?? 0
+  // Matches the engine's counter: approved AND active, not merely active.
+  const activePosts = myPosts?.filter((p) => p.approval_status === 'APPROVED' && p.status === 'ACTIVE').length ?? 0
 
   return (
     <ProfileBase

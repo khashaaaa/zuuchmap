@@ -1,5 +1,7 @@
 export const API_CONFIG = {
-  BASE_URL: process.env.API_BASE_URL || 'https://zuuchmap.com/engine',
+  // Dev builds hit the LAN engine for device testing; release builds compile
+  // with __DEV__ === false and get production. API_BASE_URL overrides both.
+  BASE_URL: process.env.API_BASE_URL || (__DEV__ ? 'http://192.168.1.32:8282/engine' : 'https://zuuchmap.com/engine'),
 
   ENDPOINTS: {
     AUTH: {

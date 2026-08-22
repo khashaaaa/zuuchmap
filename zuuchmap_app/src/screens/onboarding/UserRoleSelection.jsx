@@ -98,7 +98,7 @@ const UserRoleSelection = ({ route, navigation }) => {
             style={[styles.themeToggle, { backgroundColor: colors.opacity.background.primary }]}
             onPress={() => navigation.goBack()}
             activeOpacity={interactions.activeOpacityLight}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            hitSlop={interactions.hitSlop}
             accessibilityRole="button"
             accessibilityLabel={t('common.back')}
         >
@@ -116,7 +116,7 @@ const UserRoleSelection = ({ route, navigation }) => {
                         style={[styles.themeToggle, { backgroundColor: colors.opacity.background.primary }]}
                         onPress={() => setThemeMode(isDark ? 'light' : 'dark')}
                         activeOpacity={interactions.activeOpacityLight}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        hitSlop={interactions.hitSlop}
                     >
                         <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={colors.primary} />
                     </TouchableOpacity>
@@ -136,7 +136,7 @@ const UserRoleSelection = ({ route, navigation }) => {
                         style={[styles.themeToggle, { backgroundColor: colors.opacity.background.primary }]}
                         onPress={() => setThemeMode(isDark ? 'light' : 'dark')}
                         activeOpacity={interactions.activeOpacityLight}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        hitSlop={interactions.hitSlop}
                     >
                         <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={colors.primary} />
                     </TouchableOpacity>
@@ -295,7 +295,9 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         borderRadius: radius.lg,
         padding: spacing.lg,
-        height: 120,
+        // Content-driven: a fixed 120 clips the description at the current
+        // type scale (same failure the saved-post cards had).
+        minHeight: 120,
         justifyContent: 'center',
     },
     optionContent: {

@@ -20,6 +20,9 @@ export const showInfoModal = (title, message, buttons) =>
 export const showWarningModal = (title, message, buttons) =>
     showErrorModal(title, message, buttons || [{ text: i18n.t('common.ok') }], 'warning');
 
+export const showSuccessModal = (title, message, buttons) =>
+    showErrorModal(title, message, buttons || [{ text: i18n.t('common.ok') }], 'success');
+
 // --- Error message extraction ---
 const getDefaultMessages = () => ({
     400: i18n.t('errors.badRequest'),
@@ -41,6 +44,8 @@ export const getErrorMessage = (error) => {
         const localized = i18n.t(`errors.codes.${code}`, { defaultValue: '' });
         if (localized) return localized;
     }
+    // Throttler 429s carry no code and an English-only message — localize them.
+    if (error?.response?.status === 429) return i18n.t('errors.tooManyRequests');
     if (error?.response?.data?.message) return error.response.data.message;
     if (!error?.response && error?.code === 'ECONNABORTED') return i18n.t('errors.timeout');
     if (!error?.response && (error?.code === 'ERR_NETWORK' || error?.message === 'Network Error')) return i18n.t('errors.network');

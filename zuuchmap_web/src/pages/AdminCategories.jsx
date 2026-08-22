@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Plus, Pencil, X, GripVertical, ToggleLeft, ToggleRight, Tag } from 'lucide-react'
+import { Plus, Pencil, X, ChevronUp, ChevronDown, ToggleLeft, ToggleRight, Tag } from 'lucide-react'
 import { categoryApi } from '@/lib/api'
 import { PRICE_UNITS, CATEGORY_COLORS, getCategoryColor, apiErrorMessage } from '@/lib/utils'
 import { LANGUAGES } from '@/i18n'
@@ -19,7 +19,7 @@ import DensityToggle from '@/components/DensityToggle'
 import { useTableDensity } from '@/hooks/useTableDensity'
 import { toast } from 'sonner'
 
-const FIELD_TYPES = ['text', 'textarea', 'number', 'select', 'date', 'phone']
+const FIELD_TYPES = ['text', 'textarea', 'number', 'select', 'multiselect', 'boolean', 'date', 'phone']
 const LOCALES = LANGUAGES.map((l) => l.code)
 const DEFAULT_COLOR = CATEGORY_COLORS.construction
 
@@ -27,10 +27,11 @@ const emptySchema = () => ({
   key: '', label: '', labels: {}, icon: '', color: DEFAULT_COLOR,
   active: true, sort_order: 0,
   has_rental_status: false, has_availability_dates: false, has_price: false, default_price_unit: '',
+  emphasized: false, post_expiry_days: null,
   subcategories: [], fields: [],
 })
 
-const emptyField = () => ({ key: '', label: '', labels: {}, type: 'text', required: false, filterable: false, placeholder: '', options: [] })
+const emptyField = () => ({ key: '', label: '', labels: {}, type: 'text', required: false, filterable: false, group: 'core', unit: '', placeholder: '', options: [] })
 const emptySubcat = () => ({ value: '', display: '', labels: {} })
 
 function LabelsEditor({ value = {}, onChange }) {
@@ -58,6 +59,17 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
   function updateField(i, k, v) {
     setForm((f) => ({ ...f, fields: f.fields.map((fld, idx) => idx === i ? { ...fld, [k]: v } : fld) }))
   }
+  // Order is meaning: provider forms render fields and subcategories in array
+  // order, so the editor must be able to arrange them.
+  function move(list, i, dir) {
+    const j = i + dir
+    if (j < 0 || j >= list.length) return list
+    const next = [...list]
+    ;[next[i], next[j]] = [next[j], next[i]]
+    return next
+  }
+  function moveField(i, dir) { setForm((f) => ({ ...f, fields: move(f.fields, i, dir) })) }
+  function moveSubcat(i, dir) { setForm((f) => ({ ...f, subcategories: move(f.subcategories, i, dir) })) }
 
   function addSubcat() { setForm((f) => ({ ...f, subcategories: [...f.subcategories, emptySubcat()] })) }
   function removeSubcat(i) { setForm((f) => ({ ...f, subcategories: f.subcategories.filter((_, idx) => idx !== i) })) }
@@ -76,6 +88,9 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
     }
     if (form.fields.some((f) => !f.key.trim() || !f.label.trim())) {
       setShowErrors(true); setTab('fields'); toast.error(t('admin.fieldRowRequired')); return
+    }
+    if (form.fields.some((f) => (f.type === 'select' || f.type === 'multiselect') && !(f.options?.length > 0))) {
+      setShowErrors(true); setTab('fields'); toast.error(t('admin.fieldOptionsRequired')); return
     }
     onSave(form)
   }
@@ -179,6 +194,16 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
                     </Input>
                   </div>
                 )}
+                <label className="flex items-center gap-2 text-sm text-text cursor-pointer">
+                  <input type="checkbox" checked={form.emphasized ?? false} onChange={(e) => setF('emphasized', e.target.checked)} className="accent-primary" />
+                  {t('admin.emphasized')}
+                </label>
+                <div>
+                  <label className="text-xs text-muted block mb-1">{t('admin.postExpiryDays')}</label>
+                  <Input type="number" min="1" max="365" value={form.post_expiry_days ?? ''} placeholder="30"
+                    onChange={(e) => setF('post_expiry_days', e.target.value === '' ? null : Number(e.target.value))}
+                    className="bg-background w-28" />
+                </div>
               </div>
             </div>
           )}
@@ -188,7 +213,10 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
               {form.subcategories.map((sub, i) => (
                 <div key={i} className="p-2 bg-surface2 rounded-lg space-y-2">
                   <div className="flex gap-2 items-center">
-                    <GripVertical size={14} className="text-muted shrink-0" />
+                    <div className="flex flex-col shrink-0">
+                      <button onClick={() => moveSubcat(i, -1)} disabled={i === 0} aria-label={t('common.moveUp')} className="text-muted hover:text-text disabled:opacity-30 p-1"><ChevronUp size={13} /></button>
+                      <button onClick={() => moveSubcat(i, 1)} disabled={i === form.subcategories.length - 1} aria-label={t('common.moveDown')} className="text-muted hover:text-text disabled:opacity-30 p-1"><ChevronDown size={13} /></button>
+                    </div>
                     <Input value={sub.value} onChange={(e) => updateSubcat(i, 'value', e.target.value)}
                       placeholder="key_value" className={`bg-background flex-1 ${errClass(!sub.value.trim())}`} />
                     <Input value={sub.display} onChange={(e) => updateSubcat(i, 'display', e.target.value)}
@@ -209,17 +237,29 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
             <div className="space-y-3">
               {form.fields.map((fld, i) => (
                 <div key={i} className="p-3 bg-surface2 rounded-lg space-y-2 relative">
-                  <button onClick={() => removeField(i)} aria-label={t('common.delete')} className="absolute top-1 right-1 min-w-[44px] min-h-[44px] flex items-center justify-center text-muted hover:text-danger rounded-btn hover:bg-danger/10 transition-colors"><X size={14} /></button>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pr-12">
+                  <div className="absolute top-1 right-1 flex items-center">
+                    <button onClick={() => moveField(i, -1)} disabled={i === 0} aria-label={t('common.moveUp')} className="min-w-[36px] min-h-[44px] flex items-center justify-center text-muted hover:text-text disabled:opacity-30 rounded-btn transition-colors"><ChevronUp size={14} /></button>
+                    <button onClick={() => moveField(i, 1)} disabled={i === form.fields.length - 1} aria-label={t('common.moveDown')} className="min-w-[36px] min-h-[44px] flex items-center justify-center text-muted hover:text-text disabled:opacity-30 rounded-btn transition-colors"><ChevronDown size={14} /></button>
+                    <button onClick={() => removeField(i)} aria-label={t('common.delete')} className="min-w-[36px] min-h-[44px] flex items-center justify-center text-muted hover:text-danger rounded-btn hover:bg-danger/10 transition-colors"><X size={14} /></button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pr-28">
                     <Input value={fld.key} onChange={(e) => updateField(i, 'key', e.target.value)}
                       placeholder="field_key" className={`bg-background ${errClass(!fld.key.trim())}`} />
                     <Input value={fld.label} onChange={(e) => updateField(i, 'label', e.target.value)}
                       placeholder={t('admin.fieldLabelPlaceholder')} className={`bg-background ${errClass(!fld.label.trim())}`} />
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <Input as="select" value={fld.type} onChange={(e) => updateField(i, 'type', e.target.value)} className="bg-background">
                       {FIELD_TYPES.map((ft) => <option key={ft} value={ft}>{ft}</option>)}
                     </Input>
+                    {/* Where the field appears on the provider form: upfront, or
+                        behind the "More details" disclosure. */}
+                    <Input as="select" value={fld.group ?? 'core'} onChange={(e) => updateField(i, 'group', e.target.value)} className="bg-background">
+                      <option value="core">{t('admin.fieldGroupCore')}</option>
+                      <option value="details">{t('admin.fieldGroupDetails')}</option>
+                    </Input>
+                    <Input value={fld.unit ?? ''} onChange={(e) => updateField(i, 'unit', e.target.value)}
+                      placeholder={t('admin.fieldUnitPlaceholder')} className="bg-background" />
                     <Input value={fld.placeholder ?? ''} onChange={(e) => updateField(i, 'placeholder', e.target.value)}
                       placeholder={t('admin.fieldPlaceholderPlaceholder')} className="bg-background" />
                   </div>
@@ -236,14 +276,14 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
                       {t('admin.fieldFilterable')}
                     </label>
                   </div>
-                  {fld.type === 'select' && (
+                  {(fld.type === 'select' || fld.type === 'multiselect') && (
                     <div>
                       <p className="text-xs text-muted mb-1">{t('admin.fieldOptions')}</p>
                       <Input
                         value={Array.isArray(fld.options) ? fld.options.join(', ') : ''}
                         onChange={(e) => updateField(i, 'options', e.target.value.split(',').map((s) => s.trim()).filter(Boolean))}
                         placeholder={t('admin.fieldOptionsPlaceholder')}
-                        className="bg-background"
+                        className={`bg-background ${errClass(!(fld.options?.length > 0))}`}
                       />
                     </div>
                   )}
@@ -327,7 +367,7 @@ export default function AdminCategories() {
 
       {showSkeleton ? (
         <div className="space-y-2">
-          {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-14 bg-surface2 rounded-card animate-pulse" />)}
+          {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-14 skeleton rounded-card" />)}
         </div>
       ) : isError ? (
         <ErrorState onRetry={refetch} />

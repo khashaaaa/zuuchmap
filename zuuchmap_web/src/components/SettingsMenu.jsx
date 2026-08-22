@@ -6,20 +6,20 @@ export default function SettingsMenu({ items, className = '' }) {
     <div className={`bg-surface border border-border/20 shadow-card rounded-card overflow-hidden ${className}`}>
       {items.map((item, i) => {
         const isLast = i === items.length - 1
-        const baseClass = `flex items-center justify-between w-full px-4 py-3 text-sm transition-colors ${isLast ? '' : 'border-b border-border/50'}`
+        const baseClass = `flex items-center justify-between w-full min-h-[44px] px-4 py-3 text-sm transition-colors ${isLast ? '' : 'border-b border-border/50'}`
 
         if (item.to) {
           return (
             <Link
               key={item.key ?? item.to}
               to={item.to}
-              className={`${baseClass} text-muted hover:text-text hover:bg-surface2`}
+              className={`${baseClass} text-text hover:bg-surface2`}
             >
               <span className="flex items-center gap-2">
                 {item.icon && <item.icon size={14} />}
                 {item.label}
               </span>
-              <ChevronRight size={14} />
+              <ChevronRight size={14} className="text-muted shrink-0" />
             </Link>
           )
         }
@@ -29,13 +29,13 @@ export default function SettingsMenu({ items, className = '' }) {
             key={item.key ?? item.label}
             type="button"
             onClick={item.onClick}
-            className={`${baseClass} ${item.variant === 'danger' ? 'text-danger hover:bg-danger/10' : 'text-muted hover:text-text hover:bg-surface2'}`}
+            className={`${baseClass} ${item.variant === 'danger' ? 'text-danger hover:bg-danger/10' : 'text-text hover:bg-surface2'}`}
           >
             <span className="flex items-center gap-2">
               {item.icon && <item.icon size={14} />}
               {item.label}
             </span>
-            <ChevronRight size={14} />
+            <ChevronRight size={14} className="text-muted shrink-0" />
           </button>
         )
       })}

@@ -3,7 +3,8 @@ import i18n from '@/i18n'
 
 export const cn = (...classes) => classes.filter(Boolean).join(' ')
 
-export const PRICE_UNITS = ['HOUR', 'DAY', 'WEEK', 'MONTH', 'PROJECT', 'UNIT', 'PIECE', 'SQM']
+// Mirrors zuuchmap_engine/src/enums/priceunit.ts — keep in sync.
+export const PRICE_UNITS = ['HOUR', 'MOTO_HOUR', 'DAY', 'WEEK', 'MONTH', 'PROJECT', 'UNIT', 'PIECE', 'SQM', 'TRIP', 'TOTAL']
 
 /**
  * Message to show for a failed API call. Server rule errors carry a stable
@@ -16,14 +17,18 @@ export const apiErrorMessage = (error, t, fallback) => {
     const localized = t(`errors.codes.${code}`, { defaultValue: '' })
     if (localized) return localized
   }
+  // Throttler 429s carry no code and an English-only message — localize them.
+  if (error?.response?.status === 429) return t('errors.tooManyRequests')
   return error?.response?.data?.message || fallback
 }
 
-const PRICE_UNIT_KEYS = { HOUR: 'priceUnit.hour', DAY: 'priceUnit.day', WEEK: 'priceUnit.week', MONTH: 'priceUnit.month', PROJECT: 'priceUnit.project', UNIT: 'priceUnit.unit', PIECE: 'priceUnit.piece', SQM: 'priceUnit.sqm' }
+const PRICE_UNIT_KEYS = { HOUR: 'priceUnit.hour', MOTO_HOUR: 'priceUnit.moto_hour', DAY: 'priceUnit.day', WEEK: 'priceUnit.week', MONTH: 'priceUnit.month', PROJECT: 'priceUnit.project', UNIT: 'priceUnit.unit', PIECE: 'priceUnit.piece', SQM: 'priceUnit.sqm', TRIP: 'priceUnit.trip', TOTAL: 'priceUnit.total' }
 
 export const formatPrice = (amount, unit, t) => {
   if (!amount) return null
   const formatted = Number(amount).toLocaleString()
+  // A total (sale) price is the whole amount — a "/unit" suffix would misread as recurring
+  if (unit === 'TOTAL') return `${formatted}₮`
   const unitLabel = t ? t(PRICE_UNIT_KEYS[unit] ?? '', { defaultValue: unit ?? '' }) : (unit ?? '')
   return unitLabel ? `${formatted}₮/${unitLabel}` : `${formatted}₮`
 }
@@ -116,8 +121,16 @@ export const getCompanyLogoUrl = (v) =>
 
 export const debounce = (fn, ms = 300) => {
   let t
-  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms) }
+  const debounced = (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms) }
+  // Lets consumers drop a pending call on unmount instead of firing setState
+  // into a dead component.
+  debounced.cancel = () => clearTimeout(t)
+  return debounced
 }
+
+// User-entered URLs are stored raw; without a scheme the browser treats them
+// as relative paths and the SPA catch-all swallows them into "/".
+export const externalHref = (v) => (/^https?:\/\//i.test(v) ? v : `https://${v}`)
 
 /**
  * Back navigation with a safety net: `navigate(-1)` on the first entry of a
@@ -149,6 +162,11 @@ export const CATEGORY_COLORS = {
   jobvacancy: '#BC5CA9',
   factory: '#3A8E5C',
   sos: '#D25562',
+  usedequipment: '#C16546',
+  transport: '#4984B4',
+  designservice: '#8473C3',
+  miningsupport: '#967A54',
+  winterservice: '#4C869E',
 }
 
 const srgbToLinear = (v) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4))

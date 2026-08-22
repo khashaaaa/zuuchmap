@@ -91,12 +91,17 @@ const BaseModal = ({
     const getModalStyle = () => {
         switch (variant) {
             case 'bottomSheet':
+                // A flex child of the flex-end container — NOT absolutely
+                // positioned. Absolute + maxHeight (no definite height) gives the
+                // inner flex:1 ScrollView nothing to bound against, so tall
+                // content overflows the cap and clips the pinned footer off the
+                // bottom. As a shrinkable flex child its height resolves to a
+                // definite value, so the ScrollView scrolls and the footer stays.
                 return {
                     ...colors.elevation.lg,
-                    position: 'absolute',
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
+                    width: '100%',
+                    flexShrink: 1,
+                    overflow: 'hidden',
                     borderTopLeftRadius: radius.modal,
                     borderTopRightRadius: radius.modal,
                     backgroundColor: colors.surface,

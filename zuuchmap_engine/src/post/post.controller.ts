@@ -33,14 +33,15 @@ export class PostController {
     @UploadedFiles() files: Express.Multer.File[],
     @Req() req,
   ) {
-    if (!dto.user) dto.user = req.user?.id;
-    return this.postService.create(dto, files);
+    // Ownership is bound from the token, never the body: `if (!dto.user)` used to
+    // let a caller pre-set `user` and plant a post on another account.
+    return this.postService.create(dto, files, req.user?.id);
   }
 
   @Get()
   @UseGuards(OptionalJwtAuthGuard)
   findAll(@Query() query: Record<string, string>, @Req() req) {
-    const { category, subcategory, province, district, approval_status, status, page, limit, q, ...rest } = query;
+    const { category, subcategory, province, district, approval_status, status, page, limit, q, sort, price_min, price_max, ...rest } = query;
     // Attribute filters arrive as attr.<key>=value (or attr.<key>_min / attr.<key>_max)
     const attrs: Record<string, string> = {};
     for (const [k, v] of Object.entries(rest)) {
@@ -59,6 +60,9 @@ export class PostController {
       limit: limit ? +limit : undefined,
       q: q || undefined,
       attrs,
+      sort,
+      price_min,
+      price_max,
     });
   }
 

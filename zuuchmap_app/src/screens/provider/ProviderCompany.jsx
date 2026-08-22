@@ -101,13 +101,6 @@ const ProviderCompany = ({ route, navigation }) => {
 
     useEffect(() => {
         if (!isCreate) loadCompany();
-
-        const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', () => {});
-        const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {});
-        return () => {
-            keyboardDidShowListener.remove();
-            keyboardDidHideListener.remove();
-        };
     }, []);
 
     const loadCompany = async () => {
@@ -191,7 +184,7 @@ const ProviderCompany = ({ route, navigation }) => {
         Keyboard.dismiss();
 
         if (!validateForm()) {
-            showErrorModal(isCreate ? t('common.error') : t('common.validationError'), t('company.formError'));
+            showErrorModal(t('common.validationError'), t('company.formError'));
             return;
         }
 
@@ -260,10 +253,10 @@ const ProviderCompany = ({ route, navigation }) => {
         ]);
     };
 
-    const renderInfoField = (icon, label, value) => {
+    const renderInfoField = (icon, label, value, isLast = false) => {
         if (!value) return null;
         return (
-            <View key={label} style={styles.infoItem}>
+            <View key={label} style={[styles.infoItem, isLast && styles.infoItemLast]}>
                 <View style={styles.infoIcon}>
                     <Ionicons name={icon} size={20} color={colors.primary} />
                 </View>
@@ -362,7 +355,7 @@ const ProviderCompany = ({ route, navigation }) => {
                     {form.is_verified && (
                         <View style={styles.verificationSection}>
                             <View style={styles.verificationBadge}>
-                                <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+                                <Ionicons name="checkmark-circle" size={20} color={colors.success} />
                                 <Text style={styles.verificationText}>{t('company.verified')}</Text>
                             </View>
                         </View>
@@ -375,6 +368,9 @@ const ProviderCompany = ({ route, navigation }) => {
                                     style={[styles.inlineEditButton, { backgroundColor: colors.opacity.background.primary }]}
                                     onPress={() => setIsEditing(true)}
                                     activeOpacity={interactions.activeOpacityLight}
+                                    hitSlop={interactions.hitSlop}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={t('common.edit')}
                                 >
                                     <Ionicons name="create-outline" size={16} color={colors.primary} />
                                 </TouchableOpacity>
@@ -448,28 +444,32 @@ const ProviderCompany = ({ route, navigation }) => {
                         </View>
                     </View>
 
-                    {SECTIONS.map((section) => (
-                        <View key={section.titleKey} style={styles.formSection}>
-                            {isCreate && (
+                    {SECTIONS.map((section) => {
+                        // Read-only mode drops empty values, so a section with
+                        // nothing filled in would render as a blank card.
+                        const filled = section.fields.filter((f) => form[f.key]);
+                        if (!isEditing && filled.length === 0) return null;
+                        return (
+                            <View key={section.titleKey} style={styles.formSection}>
                                 <View style={gStyles.sectionHeader}>
                                     <Text style={[gStyles.sectionSubtitle, { color: colors.text.secondary }]}>
                                         {t(section.titleKey)}
                                     </Text>
                                 </View>
-                            )}
-                            {isEditing ? (
-                                <View style={styles.formCard}>
-                                    {section.fields.map((field, i) => renderField(field, i === section.fields.length - 1))}
-                                </View>
-                            ) : (
-                                <View style={styles.infoCard}>
-                                    {section.fields.map((field) =>
-                                        renderInfoField(field.icon, t(field.labelKey), form[field.key])
-                                    )}
-                                </View>
-                            )}
-                        </View>
-                    ))}
+                                {isEditing ? (
+                                    <View style={styles.formCard}>
+                                        {section.fields.map((field, i) => renderField(field, i === section.fields.length - 1))}
+                                    </View>
+                                ) : (
+                                    <View style={styles.infoCard}>
+                                        {filled.map((field, i) =>
+                                            renderInfoField(field.icon, t(field.labelKey), form[field.key], i === filled.length - 1)
+                                        )}
+                                    </View>
+                                )}
+                            </View>
+                        );
+                    })}
 
                     <View style={styles.bottomSpacing} />
                     </View>
@@ -517,7 +517,7 @@ const createStyles = (colors) => StyleSheet.create({
         borderRadius: radius.card,
         alignSelf: 'flex-start',
         borderWidth: 1,
-        borderColor: colors.opacity.background.success,
+        borderColor: colors.opacity.border.success,
     },
     verificationText: {
         marginLeft: spacing.sm,
@@ -540,8 +540,8 @@ const createStyles = (colors) => StyleSheet.create({
         position: 'absolute',
         top: spacing.sm,
         right: spacing.sm,
-        width: 32,
-        height: 32,
+        width: 36,
+        height: 36,
         borderRadius: radius.full,
         justifyContent: 'center',
         alignItems: 'center',
@@ -613,8 +613,10 @@ const createStyles = (colors) => StyleSheet.create({
     changeLogoButton: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: 44,
         backgroundColor: colors.opacity.background.primary,
-        paddingHorizontal: spacing.md,
+        paddingHorizontal: spacing.lg,
         paddingVertical: spacing.sm,
         borderRadius: radius.xxl,
         alignSelf: 'flex-start',
@@ -643,6 +645,11 @@ const createStyles = (colors) => StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: colors.border.light,
         marginBottom: spacing.sm,
+    },
+    infoItemLast: {
+        borderBottomWidth: 0,
+        marginBottom: 0,
+        paddingBottom: 0,
     },
     infoIcon: {
         width: 36,
@@ -682,7 +689,8 @@ const createStyles = (colors) => StyleSheet.create({
         height: spacing.xl,
     },
     saveButtonContainer: {
-        ...colors.elevation.md,
+        // A bar pinned to the bottom needs an upward separator; elevation casts
+        // its shadow downward, off-screen. Hairline only — one idiom, not both.
         backgroundColor: colors.surface,
         borderTopWidth: 1,
         borderTopColor: colors.border.light,

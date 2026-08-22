@@ -5,13 +5,15 @@ export default function TabBar({ tabs, value, onChange, className = '' }) {
   const indicatorId = useId()
   const shouldReduceMotion = useReducedMotion()
   return (
-    <div className={`flex gap-1 bg-surface2 rounded-lg p-1 w-fit max-w-full overflow-x-auto ${className}`}>
+    <div role="tablist" className={`flex gap-1 bg-surface2 rounded-lg p-1 w-fit max-w-full overflow-x-auto ${className}`}>
       {tabs.map((tab) => (
         <button
           type="button"
           key={tab.key}
+          role="tab"
+          aria-selected={value === tab.key}
           onClick={() => onChange(tab.key)}
-          className={`relative px-4 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+          className={`relative min-h-[36px] px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
             value === tab.key ? 'text-on-primary' : 'text-muted hover:text-text'
           }`}
         >

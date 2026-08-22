@@ -76,16 +76,19 @@ const styles = StyleSheet.create({
     },
     badge: {
         position: 'absolute',
-        top: spacing.xs,
-        right: spacing.xs,
-        minWidth: 16,
-        height: 16,
+        top: spacing.xxs,
+        right: spacing.xxs,
+        minWidth: 18,
+        height: 18,
         borderRadius: radius.badge,
         alignItems: 'center',
         justifyContent: 'center',
         paddingHorizontal: spacing.xxs,
     },
     badgeText: {
-        ...typography.styles.overline,
+        // `badge` is the role built for pills; `overline`'s wide tracking pushes
+        // the digit off-centre inside a circle this small.
+        ...typography.styles.badge,
+        textAlign: 'center',
     },
 });

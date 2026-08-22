@@ -28,13 +28,24 @@ import ScreenError from '../../components/ScreenError';
 import { SkeletonItem, FadeSlideIn, PressableScale } from '../../components';
 import { showErrorModal } from '../../utils/errorManager';
 import { logger } from '../../utils/logger';
-import { getFixedImageUrl, getPostTitle, normalizePostType, getPostPrice } from '../../utils/postUtils';
+import { getFixedImageUrl, getPostTitle, normalizePostType, getPostPrice, getSchemaLabel } from '../../utils/postUtils';
+import { useCategorySchemas } from '../../hooks/useCategorySchemas';
 
 const CustomerLikeList = ({ navigation }) => {
     const insets = useSafeAreaInsets();
     const { colors, isDark, styles: gStyles } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
+
     const { t } = useTranslation();
+
+    // Labels come from the schema (admin-editable, covers new verticals with no
+    // app release); the i18n key is only the fallback for a missing schema.
+    const schemas = useCategorySchemas();
+    const categoryLabel = useCallback((type) => {
+        const key = normalizePostType(type);
+        const schema = schemas.find((s) => s.key === key);
+        return schema ? getSchemaLabel(schema) : t('category.' + key, { defaultValue: key });
+    }, [schemas, t]);
     const qc = useQueryClient();
     // null = auth check in flight
     const [isAuthenticated, setIsAuthenticated] = useState(null);
@@ -187,7 +198,7 @@ const CustomerLikeList = ({ navigation }) => {
                 </View>
 
                 <Text style={[styles.category_text, { color: colors.text.secondary }]}>
-                    {t('category.' + normalizePostType(item.post_type || item.category))}
+                    {categoryLabel(item.post_type || item.category)}
                 </Text>
 
                 {getPostPrice(item) && (
@@ -209,7 +220,9 @@ const CustomerLikeList = ({ navigation }) => {
         </PressableScale>
         </FadeSlideIn>
     );
-    }, [handlePostPress, handleUnlike]);
+    // styles/colors/t must be deps — a stale closure here kept rendering the
+    // old palette after a theme switch (and old strings after a locale switch).
+    }, [handlePostPress, handleUnlike, styles, colors, t, isAuthenticated, categoryLabel]);
 
     const renderEmptyState = () => {
         if (!authChecked) {
@@ -325,22 +338,34 @@ const createStyles = (colors) => StyleSheet.create({
         marginBottom: spacing.md,
         overflow: 'hidden',
         flexDirection: 'row',
-        height: 120,
+        // Content-driven height: a 2-line title plus price/footer at the
+        // current type scale outgrows any fixed height and gets clipped.
+        minHeight: 120,
         borderWidth: 1,
         borderColor: colors.border.light,
     },
     image_container: {
         width: 100,
-        height: 120,
+        alignSelf: 'stretch',
+        overflow: 'hidden',
     },
+    // Absolutely positioned so the image can never dictate the card's height:
+    // a percentage height inside a stretch-sized box falls back to the image's
+    // intrinsic size (800px seed photos → screen-tall cards).
     post_image: {
-        width: '100%',
-        height: '100%',
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
         backgroundColor: colors.background,
     },
     no_image_container: {
-        width: '100%',
-        height: '100%',
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
         backgroundColor: colors.background,
         justifyContent: 'center',
         alignItems: 'center',

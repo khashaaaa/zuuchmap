@@ -19,17 +19,15 @@ import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import postService from '../../services/api/postService';
 import userService from '../../services/api/userService';
-import { getUserId } from '../../services/api/authHelpers';
-import { socketService } from '../../services/socketService';
 import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import ScreenHeader from '../../components/ScreenHeader';
 import PressableScale from '../../components/PressableScale';
 import NotificationBell from '../../components/NotificationBell';
 import { CategoryBadge, StatusBadge, SkeletonItem, EmptyState, FadeSlideIn } from '../../components';
 import ScreenError from '../../components/ScreenError';
-import { getPriceUnitLabel, formatPrice } from '../../utils/displayUtils';
+import { getPriceUnitLabel, formatPrice, formatDateYYYYMMDD } from '../../utils/displayUtils';
 import { getPostTitle, getFixedImageUrl, getPostImage } from '../../utils/postUtils';
-import { showErrorModal } from '../../utils/errorManager';
+import { showErrorModal, showInfoModal } from '../../utils/errorManager';
 import { logger } from '../../utils/logger';
 import { invalidatePostData } from '../../services/queryClient';
 
@@ -51,7 +49,7 @@ const PostItem = React.memo(({
     const imageUri = getFixedImageUrl(getPostImage(item));
 
     const handleMenuPress = useCallback(() => {
-        showErrorModal(
+        showInfoModal(
             getPostTitle(item, item.postType),
             null,
             [
@@ -59,7 +57,6 @@ const PostItem = React.memo(({
                 { text: t('common.delete'), style: 'destructive', onPress: () => onDelete(item) },
                 { text: t('common.cancel'), style: 'cancel' },
             ],
-            'info'
         );
     }, [item, onEdit, onDelete, getPostTitle, t]);
 
@@ -107,12 +104,12 @@ const PostItem = React.memo(({
 
                 {item.approval_status === 'PENDING' && (
                     <View style={styles.approvalBadgePending}>
-                        <Text style={styles.approvalBadgeText}>{t('posts.approval.pending')}</Text>
+                        <Text style={[styles.approvalBadgeText, { color: colors.warning }]}>{t('posts.approval.pending')}</Text>
                     </View>
                 )}
                 {item.approval_status === 'REJECTED' && (
                     <View style={styles.approvalBadgeRejected}>
-                        <Text style={styles.approvalBadgeText}>{t('posts.approval.rejected')}</Text>
+                        <Text style={[styles.approvalBadgeText, { color: colors.danger }]}>{t('posts.approval.rejected')}</Text>
                         {item.rejection_reason && (
                             <Text style={styles.rejectionReason} numberOfLines={2}>{item.rejection_reason}</Text>
                         )}
@@ -126,7 +123,7 @@ const PostItem = React.memo(({
                 )}
 
                 <Text style={styles.postDate}>
-                    {item.date_created ? new Date(item.date_created).toLocaleDateString('mn-MN') : ''}
+                    {item.date_created ? formatDateYYYYMMDD(item.date_created) : ''}
                 </Text>
                 {item.expires_at && (() => {
                     const days = Math.ceil((new Date(item.expires_at) - Date.now()) / 86400000);
@@ -191,33 +188,6 @@ const ProviderPostList = ({ navigation }) => {
                 navigation.reset({ index: 0, routes: [{ name: 'UserRoleSelection' }] });
             }
         }).catch(err => logger.error('Error checking user role:', err));
-    }, []);
-
-    // Real-time socket updates for post approval/rejection
-    useEffect(() => {
-        const socketRef = { s: null, handleApproved: null, handleRejected: null };
-
-        getUserId().then((userId) => {
-            if (!userId) return;
-            const s = socketService.connect(`provider:${userId}`);
-
-            const handleApproved = () => { invalidatePostData(); };
-            const handleRejected = () => { invalidatePostData(); };
-
-            s.on('post.approved', handleApproved);
-            s.on('post.rejected', handleRejected);
-
-            socketRef.s = s;
-            socketRef.handleApproved = handleApproved;
-            socketRef.handleRejected = handleRejected;
-        }).catch(err => logger.error('Socket connect error:', err));
-
-        return () => {
-            if (socketRef.s) {
-                socketRef.s.off('post.approved', socketRef.handleApproved);
-                socketRef.s.off('post.rejected', socketRef.handleRejected);
-            }
-        };
     }, []);
 
     // Reload posts every time this screen is focused (handles create/edit/delete/approve)
@@ -337,7 +307,7 @@ const ProviderPostList = ({ navigation }) => {
                     <Text style={[styles.statValue, { color: colors.success }]}>{stats.active}</Text>
                     <Text style={[styles.statLabel, { color: colors.text.secondary }]}>{t('posts.stats.active')}</Text>
                 </View>
-                <View style={[styles.statCard, styles.statCardMiddle, { backgroundColor: colors.surface }]}>
+                <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
                     <Text style={[styles.statValue, { color: colors.primary }]}>{stats.views.toLocaleString()}</Text>
                     <Text style={[styles.statLabel, { color: colors.text.secondary }]}>{t('posts.stats.totalViews')}</Text>
                 </View>
@@ -535,7 +505,6 @@ const createStyles = (colors) => StyleSheet.create({
     },
     approvalBadgeText: {
         ...typography.styles.badge,
-        color: colors.text.secondary,
     },
     rejectionReason: {
         ...typography.styles.small,
@@ -554,9 +523,6 @@ const createStyles = (colors) => StyleSheet.create({
         borderRadius: radius.card,
         paddingVertical: spacing.md,
         alignItems: 'center',
-    },
-    statCardMiddle: {
-        marginHorizontal: 0,
     },
     statValue: {
         ...typography.styles.h2,

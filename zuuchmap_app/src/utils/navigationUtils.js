@@ -1,3 +1,17 @@
+import { createNavigationContainerRef } from '@react-navigation/native';
+
+// Shared with App.js's NavigationContainer so non-component code (the 401
+// interceptor) can route to the auth stack when a session dies outside any
+// screen's control.
+export const navigationRef = createNavigationContainerRef();
+
+const AUTH_SCREENS = ['PhoneNumber', 'OtpVerification', 'UserRoleSelection'];
+
+export const resetToLogin = () => {
+    if (!navigationRef.isReady()) return;
+    if (AUTH_SCREENS.includes(navigationRef.getCurrentRoute()?.name)) return;
+    navigationRef.reset({ index: 0, routes: [{ name: 'PhoneNumber' }] });
+};
 
 export const getDashboardScreen = (userType, isAdmin = false) => {
     if (isAdmin) return 'AdminDashboard';
@@ -45,8 +59,13 @@ export const confirmLogout = ({ t, navigation, phoneNumber, userType, name, prof
                         const { saveUserInfo } = require('../services/api/authHelpers');
                         const userService = require('../services/api/userService').default;
                         await saveUserInfo(phoneNumber, userType, { name, profilePicture });
-                        await userService.logout(true);
+                        // Navigate FIRST: logout's queryClient.clear() makes every
+                        // still-mounted screen refetch token-less (a burst of 401s).
+                        // Resetting to the auth stack unmounts them, so the clear
+                        // finds no active observers. logout() itself only needs the
+                        // stored token, which is untouched until it runs.
                         navigation.reset({ index: 0, routes: [{ name: 'PhoneNumber' }] });
+                        await userService.logout(true);
                     } catch (error) {
                         const { logger } = require('./logger');
                         logger.error('Logout error:', error);

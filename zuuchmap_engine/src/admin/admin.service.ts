@@ -64,9 +64,9 @@ export class AdminService {
         [userId],
         'Зар зөвшөөрөгдлөө',
         `"${post.title}" нийтлэгдлээ. Та одоо харагдаж байна.`,
-        { postId, notifType: 'approved' },
+        { postId, post_type: post.category, notifType: 'approved' },
       );
-      this.events.emitPostApproved(postId, userId, post.title);
+      this.events.emitPostApproved(postId, userId, post.title, post.category);
     }
     this.events.emitStatsUpdated();
     invalidatePostReadCaches();
@@ -88,9 +88,9 @@ export class AdminService {
         [userId],
         `"${post.title}" зөвшөөрөгдсөнгүй`,
         `Шалтгаан: ${reason.trim()}`,
-        { postId, reason: reason.trim(), notifType: 'rejected' },
+        { postId, post_type: post.category, reason: reason.trim(), notifType: 'rejected' },
       );
-      this.events.emitPostRejected(postId, userId, reason.trim(), post.title);
+      this.events.emitPostRejected(postId, userId, reason.trim(), post.title, post.category);
     }
     this.events.emitStatsUpdated();
     invalidatePostReadCaches();

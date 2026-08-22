@@ -19,7 +19,7 @@ const TYPE_COLOR = (colors) => ({
     info: colors.primary,
 });
 
-function NotifItem({ item, colors }) {
+function NotifItem({ item, colors, onPress }) {
     const iconName = TYPE_ICON[item.type] || TYPE_ICON.info;
     const iconColor = TYPE_COLOR(colors)[item.type] || colors.primary;
     const ts = useMemo(() => {
@@ -28,11 +28,8 @@ function NotifItem({ item, colors }) {
             ' · ' + d.toLocaleDateString([], { month: 'short', day: 'numeric' });
     }, [item.ts]);
 
-    return (
-        <View style={[
-            styles.item,
-            { backgroundColor: item.read ? 'transparent' : withAlpha(iconColor, 0.07), borderBottomColor: colors.border.light },
-        ]}>
+    const content = (
+        <>
             <View style={[styles.iconWrap, { backgroundColor: withAlpha(iconColor, 0.09) }]}>
                 <Ionicons name={iconName} size={20} color={iconColor} />
             </View>
@@ -44,7 +41,19 @@ function NotifItem({ item, colors }) {
                 <Text style={[styles.ts, { color: colors.text.tertiary }]}>{ts}</Text>
             </View>
             {!item.read && <View style={[styles.dot, { backgroundColor: iconColor }]} />}
-        </View>
+        </>
+    );
+
+    const itemStyle = [
+        styles.item,
+        { backgroundColor: item.read ? 'transparent' : withAlpha(iconColor, 0.07), borderBottomColor: colors.border.light },
+    ];
+    // Rows without a target (generic info) stay plain views.
+    if (!onPress) return <View style={itemStyle}>{content}</View>;
+    return (
+        <TouchableOpacity style={itemStyle} onPress={onPress} activeOpacity={interactions.activeOpacityLight}>
+            {content}
+        </TouchableOpacity>
     );
 }
 
@@ -53,9 +62,25 @@ const NotificationsScreen = ({ navigation }) => {
     const { colors } = useAppTheme();
     const { notifications, unreadCount, markAllRead } = useAppContext();
 
-    useEffect(() => {
-        if (unreadCount > 0) markAllRead();
-    }, []);
+    // Mark read on the way out, not on arrival — clearing on mount erases the
+    // unread tint before it has been seen and hides the header action entirely.
+    useEffect(() => () => { markAllRead(); }, [markAllRead]);
+
+    // Mirrors the push-tap routing in App.js: post events open the post,
+    // booking events open the booking list on the relevant side.
+    const pressHandlerFor = (item) => {
+        if (item.postId) {
+            return () => navigation.navigate('PostDetailScreen', {
+                postId: item.postId,
+                postType: item.postType,
+                role: item.role || 'customer',
+            });
+        }
+        if (item.bookingRole) {
+            return () => navigation.navigate('BookingList', { role: item.bookingRole });
+        }
+        return null;
+    };
 
     return (
         <ScreenLayout
@@ -67,7 +92,7 @@ const NotificationsScreen = ({ navigation }) => {
                     onPress={markAllRead}
                     style={styles.readBtn}
                     activeOpacity={interactions.activeOpacityLight}
-                    hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+                    hitSlop={interactions.hitSlop}
                 >
                     <Text style={[styles.readBtnText, { color: colors.primary }]}>{t('notifications.markAllRead')}</Text>
                 </TouchableOpacity>
@@ -85,7 +110,7 @@ const NotificationsScreen = ({ navigation }) => {
                     keyExtractor={(item) => String(item.id)}
                     renderItem={({ item, index }) => (
                         <FadeSlideIn index={index}>
-                            <NotifItem item={item} colors={colors} />
+                            <NotifItem item={item} colors={colors} onPress={pressHandlerFor(item)} />
                         </FadeSlideIn>
                     )}
                     contentContainerStyle={styles.list}
@@ -115,7 +140,7 @@ const styles = StyleSheet.create({
     },
     body: { flex: 1 },
     title: { ...typography.styles.title, marginBottom: spacing.xxs },
-    message: { ...typography.styles.small, lineHeight: typography.xs * 1.5, marginBottom: spacing.xs },
+    message: { ...typography.styles.small, marginBottom: spacing.xs },
     ts: { ...typography.styles.small },
     dot: { width: 8, height: 8, borderRadius: radius.full, marginTop: spacing.xs },
     readBtn: { paddingHorizontal: spacing.sm, paddingVertical: spacing.sm },

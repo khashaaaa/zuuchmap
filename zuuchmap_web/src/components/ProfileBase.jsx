@@ -26,7 +26,7 @@ export default function ProfileBase({ stats = null, extraMenuItems = [] }) {
       <PageHeader title={t('profile.title')} />
       <div className="space-y-4">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="h-12 bg-surface2 rounded-btn animate-pulse" />
+          <div key={i} className="h-12 skeleton rounded-btn" />
         ))}
       </div>
     </div>
@@ -57,18 +57,20 @@ export default function ProfileBase({ stats = null, extraMenuItems = [] }) {
           name={src?.given_name}
           onChange={setAvatar}
         />
+        {/* The 4th slot is the input type — a bare "text" email field gets the
+            wrong mobile keyboard and no browser-side validation. */}
         {[
-          [t('profile.parentName'), 'parent_name', true],
-          [t('profile.givenName'), 'given_name', true],
-          [t('profile.emailAddress'), 'email'],
-          [t('profile.address'), 'address'],
-        ].map(([label, key, req]) => (
+          [t('profile.parentName'), 'parent_name', true, 'text'],
+          [t('profile.givenName'), 'given_name', true, 'text'],
+          [t('profile.emailAddress'), 'email', false, 'email'],
+          [t('profile.address'), 'address', false, 'text'],
+        ].map(([label, key, req, inputType]) => (
           <div key={key}>
             <label className="text-xs text-muted block mb-1.5">
               {label}{req && <span className="text-danger"> *</span>}
             </label>
             <Input
-              type="text"
+              type={inputType}
               value={form[key]}
               required={Boolean(req)}
               onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}

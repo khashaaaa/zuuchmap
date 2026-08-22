@@ -14,11 +14,10 @@ import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet, d
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 import userService from '../../services/api/userService';
-import { saveUserInfo } from '../../services/api/authHelpers';
 import { ScreenLayout, SettingsSection } from '../../components';
-import { ProfileSection, ProfileActionRow } from '../../components';
+import { ProfileSection, ProfileActionRow, ProfileBadge } from '../../components';
 import { DEFAULT_AVATAR_URL } from '../../config/app.config';
-import { hideErrorModal, showErrorModal } from '../../utils/errorManager';
+import { showErrorModal } from '../../utils/errorManager';
 import { confirmLogout } from '../../utils/navigationUtils';
 import { logger } from '../../utils/logger';
 
@@ -67,7 +66,7 @@ const AdminProfile = ({ navigation }) => {
     if (loading) {
         return (
             <ScreenLayout
-                title={t('nav.profile')}
+                title={t('profile.title')}
                 showBack={false}
                 loading
                 loadingMessage={t('profile.loading')}
@@ -78,7 +77,7 @@ const AdminProfile = ({ navigation }) => {
     if (!user) {
         return (
             <ScreenLayout
-                title={t('nav.profile')}
+                title={t('profile.title')}
                 showBack={false}
                 error
                 errorTitle={t('common.error')}
@@ -89,7 +88,7 @@ const AdminProfile = ({ navigation }) => {
     }
 
     return (
-        <ScreenLayout title={t('nav.profile')} showBack={false}>
+        <ScreenLayout title={t('profile.title')} showBack={false}>
             <ScrollView
                 contentContainerStyle={[
                     styles.content,
@@ -117,16 +116,13 @@ const AdminProfile = ({ navigation }) => {
                                     +976 {user.phoneNumber}
                                 </Text>
                             </View>
-                            <View style={[styles.adminBadge, { backgroundColor: colors.opacity.background.warning }]}>
-                                <Ionicons name="shield-checkmark-outline" size={13} color={colors.warning} />
-                                <Text style={[styles.adminBadgeText, { color: colors.warning }]}>ADMIN</Text>
-                            </View>
+                            <ProfileBadge type="admin" />
                         </View>
                         <TouchableOpacity
                             style={[styles.editBtn, { backgroundColor: colors.opacity.background.primary }]}
                             onPress={() => navigation.navigate('CustomerEditProfile', { profile: user })}
                             activeOpacity={interactions.activeOpacityLight}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            hitSlop={interactions.hitSlop}
                         >
                             <Ionicons name="create-outline" size={18} color={colors.primary} />
                         </TouchableOpacity>
@@ -211,18 +207,6 @@ const styles = StyleSheet.create({
         marginBottom: spacing.xs,
     },
     userPhone: { ...typography.styles.caption },
-    adminBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        alignSelf: 'flex-start',
-        gap: spacing.xs,
-        paddingHorizontal: spacing.sm,
-        paddingVertical: spacing.xs,
-        borderRadius: radius.lg,
-    },
-    adminBadgeText: {
-        ...typography.styles.badge,
-    },
     editBtn: {
         width: 36,
         height: 36,

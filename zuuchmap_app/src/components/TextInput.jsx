@@ -114,11 +114,15 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacing.md,
         paddingVertical: spacing.md,
         ...typography.styles.body,
+        // Android bottom-aligns single-line TextInput text when lineHeight is
+        // set — drop the role's lineHeight here, restore it for multiline.
+        lineHeight: undefined,
         minHeight: 52,
     },
     textarea: {
         minHeight: 100,
         paddingTop: spacing.md,
+        lineHeight: typography.styles.body.lineHeight,
     },
     disabled: {
         opacity: 0.5,

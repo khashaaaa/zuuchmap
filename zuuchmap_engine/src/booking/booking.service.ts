@@ -7,7 +7,7 @@ import { CreateBookingDto } from './dto/create-booking.dto';
 import { BookingStatus } from '../enums/bookingstatus';
 import { PostNotificationService } from '../post/post-notification.service';
 import { CategoryService } from '../post/category.service';
-import { EventsGateway } from '../events/events.gateway';
+import { EventsGateway, SOCKET_EVENTS } from '../events/events.gateway';
 
 // Strip sensitive user fields; phone is only shared once a booking is ACCEPTED
 const safeUser = (u: any, includePhone: boolean) => u && ({
@@ -85,12 +85,12 @@ export class BookingService {
     });
     const saved = await this.bookingRepository.save(booking);
 
-    this.events?.emitBookingEvent(post.user.id, 'booking.requested', { bookingId: saved.id, postId: post.id });
+    this.events?.emitBookingEvent(post.user.id, SOCKET_EVENTS.BOOKING_REQUESTED, { bookingId: saved.id, postId: post.id });
     this.notifications.notifyUsers(
       [post.user.id],
       'Шинэ захиалгын хүсэлт',
       `"${post.title ?? schema.label}" зарт захиалгын хүсэлт ирлээ.`,
-      { bookingId: saved.id, notifType: 'booking_requested' },
+      { bookingId: saved.id, notifType: SOCKET_EVENTS.BOOKING_REQUESTED },
     ).catch(err => this.logger.warn(`booking notify backstop: ${err?.message}`));
 
     const full = await this.findOwn(saved.id);
@@ -147,7 +147,7 @@ export class BookingService {
     booking.response_message = responseMessage ?? booking.response_message;
     const saved = await this.bookingRepository.save(booking);
 
-    this.events?.emitBookingEvent(booking.customer.id, 'booking.responded', {
+    this.events?.emitBookingEvent(booking.customer.id, SOCKET_EVENTS.BOOKING_RESPONDED, {
       bookingId: saved.id, status: saved.status,
     });
     this.notifications.notifyUsers(
@@ -156,7 +156,7 @@ export class BookingService {
       accept
         ? `"${booking.post.title ?? ''}" захиалгын хүсэлт зөвшөөрөгдлөө.`
         : `"${booking.post.title ?? ''}" захиалгын хүсэлт татгалзагдлаа.`,
-      { bookingId: saved.id, notifType: 'booking_responded' },
+      { bookingId: saved.id, notifType: SOCKET_EVENTS.BOOKING_RESPONDED },
     ).catch(err => this.logger.warn(`booking notify backstop: ${err?.message}`));
 
     return this.sanitize(saved);
@@ -173,12 +173,12 @@ export class BookingService {
     booking.status = BookingStatus.CANCELLED;
     const saved = await this.bookingRepository.save(booking);
 
-    this.events?.emitBookingEvent(booking.provider.id, 'booking.cancelled', { bookingId: saved.id });
+    this.events?.emitBookingEvent(booking.provider.id, SOCKET_EVENTS.BOOKING_CANCELLED, { bookingId: saved.id });
     this.notifications.notifyUsers(
       [booking.provider.id],
       'Захиалга цуцлагдлаа',
       `"${booking.post.title ?? ''}" захиалга цуцлагдлаа.`,
-      { bookingId: saved.id, notifType: 'booking_cancelled' },
+      { bookingId: saved.id, notifType: SOCKET_EVENTS.BOOKING_CANCELLED },
     ).catch(err => this.logger.warn(`booking notify backstop: ${err?.message}`));
 
     return this.sanitize(saved);

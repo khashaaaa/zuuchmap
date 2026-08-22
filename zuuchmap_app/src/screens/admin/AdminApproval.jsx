@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -11,9 +11,11 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing, typography, radius, isTablet } from '../../design/theme';
+import { spacing, typography, radius, isTablet, withAlpha } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
+import { useCategorySchemas } from '../../hooks/useCategorySchemas';
+import { getSchemaLabel } from '../../utils/postUtils';
 import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import ScreenHeader from '../../components/ScreenHeader';
 import ScreenError from '../../components/ScreenError';
@@ -22,12 +24,10 @@ import Button from '../../components/Button';
 import PressableScale from '../../components/PressableScale';
 import postService from '../../services/api/postService';
 import FadeSlideIn from '../../components/FadeSlideIn';
-import { socketService } from '../../services/socketService';
-import { invalidatePostData } from '../../services/queryClient';
 
 
 const StatCard = ({ label, value, color, colors }) => (
-    <View style={[styles.statCard, colors.elevation.sm, { borderColor: color + '44', backgroundColor: colors.surface }]}>
+    <View style={[styles.statCard, colors.elevation.sm, { borderColor: withAlpha(color, 0.27), backgroundColor: colors.surface }]}>
         <Text style={[styles.statValue, { color }]}>{value}</Text>
         <Text style={[styles.statLabel, { color: colors.text.tertiary }]}>{label}</Text>
     </View>
@@ -37,6 +37,13 @@ const AdminApproval = ({ navigation }) => {
     const insets = useSafeAreaInsets();
     const { colors, isDark } = useAppTheme();
     const { t } = useTranslation();
+    // Labels come from the schema (covers admin-added categories with no app
+    // release); client i18n is only the missing-schema fallback.
+    const schemas = useCategorySchemas();
+    const categoryLabel = (key) => {
+        const schema = schemas.find((c) => c.key === key);
+        return schema ? getSchemaLabel(schema) : t('category.' + key, { defaultValue: key });
+    };
     const { data: stats, isLoading: loading, isRefetching: refreshing, isError, refetch } = useQuery({
         queryKey: ['admin', 'stats'],
         queryFn: async () => (await postService.getAdminStats()).data,
@@ -44,21 +51,6 @@ const AdminApproval = ({ navigation }) => {
     });
 
     useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
-
-    useEffect(() => {
-        const s = socketService.connect('admin');
-        const handleDataChanged = () => invalidatePostData();
-
-        s.on('stats.updated', handleDataChanged);
-        s.on('post.created', handleDataChanged);
-
-        return () => {
-            socketService.off('stats.updated', handleDataChanged);
-            socketService.off('post.created', handleDataChanged);
-            // Do not disconnect — the socket is shared with useNotificationSync;
-            // its lifecycle ends at logout (userService.logout), not screen unmount.
-        };
-    }, []);
 
     const totalPending = stats?.totals?.pending ?? 0;
 
@@ -107,7 +99,7 @@ const AdminApproval = ({ navigation }) => {
                                 onPress={() => navigation.navigate('AdminPostList', { filterType: row.postType })}
                                 accessibilityRole="button"
                             >
-                                <Text style={[styles.typeLabel, { color: colors.text.primary }]}>{row.postType ? t(`category.${row.postType}`, { defaultValue: row.postType }) : ''}</Text>
+                                <Text style={[styles.typeLabel, { color: colors.text.primary }]}>{row.postType ? categoryLabel(row.postType) : ''}</Text>
                                 <View style={styles.typeBadges}>
                                     {row.pending > 0 && (
                                         <View style={[styles.badgeWarning, { backgroundColor: colors.opacity.background.warning }]}>

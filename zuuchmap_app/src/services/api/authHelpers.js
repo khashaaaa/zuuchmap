@@ -126,6 +126,11 @@ export const saveUserInfo = async (phoneNumber, userType, additionalInfo = {}) =
 
 export const clearAuthData = async () => {
     try {
+        // Re-entrancy guard: with no token stored there is no session to clear,
+        // and each queryClient.clear() refetches every mounted query tokenless —
+        // their 401s would call back into here and loop the wipe.
+        const token = await AsyncStorage.getItem(API_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
+        if (!token) return;
         await AsyncStorage.multiRemove([
             API_CONFIG.STORAGE_KEYS.AUTH_TOKEN,
             API_CONFIG.STORAGE_KEYS.USER_ID,

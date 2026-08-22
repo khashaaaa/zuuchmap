@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { spacing, typography } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
 
-const FormField = ({ label, component, required = true, error }) => {
+const FormField = ({ label, component, required = false, error }) => {
     const { colors, styles: gStyles } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
 

@@ -28,7 +28,13 @@ export default function AvatarPicker({ previewUrl, profilePicture, name, onChang
         type="file"
         accept="image/*"
         className="hidden"
-        onChange={(e) => onChange?.(e.target.files[0])}
+        onChange={(e) => {
+          onChange?.(e.target.files[0])
+          // Reset the value, or picking the SAME file again is not a change and
+          // fires no event at all — the picker silently does nothing the second
+          // time. Must run after onChange, which already holds the File object.
+          e.target.value = ''
+        }}
       />
     </div>
   )

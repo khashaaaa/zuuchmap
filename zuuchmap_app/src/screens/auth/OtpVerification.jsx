@@ -26,6 +26,9 @@ import Button from '../../components/Button';
 /** Client poll cadence; the engine throttles its own upstream calls to 3s. */
 const POLL_MS = 2000;
 
+/** Letter-spacing on the code, mirrored as a margin so it stays centred. */
+const CODE_TRACKING = 8;
+
 /**
  * verify.mn is Mobile-Originated: we never send the user an SMS. We show a code
  * they text to the shortcode from the number they are claiming, and possession
@@ -37,12 +40,15 @@ const OtpVerification = ({ route, navigation }) => {
     const [status, setStatus] = useState('PENDING');
     const [now, setNow] = useState(() => Date.now());
     const settled = useRef(false);
+    // Pinned once: deriving the fallback from the ticking clock would keep the
+    // countdown frozen at five minutes forever when the session omits an expiry.
+    const fallbackExpiry = useRef(Date.now() + 300000);
 
     const { colors, isDark } = useAppTheme();
     const { setThemeMode } = useAppContext();
     const { t } = useTranslation();
 
-    const expiresAt = session?.expires_at ? Date.parse(session.expires_at) : now + 300000;
+    const expiresAt = session?.expires_at ? Date.parse(session.expires_at) : fallbackExpiry.current;
     const secondsLeft = Math.max(0, Math.round((expiresAt - now) / 1000));
     const view = status === 'PENDING' && secondsLeft <= 0 ? 'EXPIRED' : status;
 
@@ -118,7 +124,7 @@ const OtpVerification = ({ route, navigation }) => {
                             style={styles.backButton}
                             onPress={() => navigation.goBack()}
                             activeOpacity={interactions.activeOpacityLight}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            hitSlop={interactions.hitSlop}
                         >
                             <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
                         </TouchableOpacity>
@@ -126,7 +132,7 @@ const OtpVerification = ({ route, navigation }) => {
                             style={[styles.themeToggle, { backgroundColor: colors.opacity.background.primary }]}
                             onPress={() => setThemeMode(isDark ? 'light' : 'dark')}
                             activeOpacity={interactions.activeOpacityLight}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            hitSlop={interactions.hitSlop}
                         >
                             <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={colors.primary} />
                         </TouchableOpacity>
@@ -147,7 +153,7 @@ const OtpVerification = ({ route, navigation }) => {
                             <Text style={[styles.codeLabel, { color: colors.text.secondary }]}>
                                 {t('auth.yourCode')}
                             </Text>
-                            <Text style={[styles.code, { color: colors.text.primary }]}>
+                            <Text selectable style={[styles.code, { color: colors.text.primary }]}>
                                 {session?.code}
                             </Text>
                         </View>
@@ -157,10 +163,19 @@ const OtpVerification = ({ route, navigation }) => {
                         {view === 'PENDING' && (
                             <>
                                 <Button title={t('auth.openSms')} onPress={openSms} />
+                                <Text style={[styles.manualHint, { color: colors.text.secondary }]}>
+                                    {t('auth.manualHint', {
+                                        code: session?.code,
+                                        shortcode: session?.shortcode ?? '144773',
+                                    })}
+                                </Text>
                                 <View style={styles.waitingRow}>
                                     <ActivityIndicator size="small" color={colors.primary} />
                                     <Text style={[styles.waitingText, { color: colors.text.secondary }]}>
-                                        {t('auth.waiting')} {mins}:{secs}
+                                        {t('auth.waiting')}
+                                    </Text>
+                                    <Text style={[styles.countdown, { color: colors.text.secondary }]}>
+                                        {mins}:{secs}
                                     </Text>
                                 </View>
                                 <Text style={[styles.costNote, { color: colors.text.secondary }]}>
@@ -250,7 +265,11 @@ const styles = StyleSheet.create({
     codeLabel: { ...typography.styles.caption, marginBottom: spacing.xs },
     code: {
         ...typography.styles.display,
-        letterSpacing: 8,
+        letterSpacing: CODE_TRACKING,
+        // Tracking is applied after the last glyph too, so centred text sits
+        // half a space off; pull it back by the same amount.
+        marginLeft: CODE_TRACKING,
+        fontVariant: ['tabular-nums'],
     },
     form: {
         gap: spacing.lg,
@@ -263,6 +282,8 @@ const styles = StyleSheet.create({
         gap: spacing.sm,
     },
     waitingText: { ...typography.styles.caption },
+    countdown: { ...typography.styles.caption, fontVariant: ['tabular-nums'] },
+    manualHint: { ...typography.styles.small, textAlign: 'center' },
     costNote: {
         ...typography.styles.small,
         textAlign: 'center',

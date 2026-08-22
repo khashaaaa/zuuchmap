@@ -5,8 +5,16 @@ import { spacing, typography, radius } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 
+// Tint and ink always come from the same hue — a green pill with amber text
+// reads as two unrelated signals stacked on one another.
+const VARIANTS = (colors) => ({
+    provider: { icon: 'business-outline', bg: colors.opacity.background.primary, fg: colors.primary },
+    customer: { icon: 'person-outline', bg: colors.opacity.background.success, fg: colors.success },
+    admin: { icon: 'shield-checkmark-outline', bg: colors.opacity.background.warning, fg: colors.warning },
+});
+
 const ProfileBadge = ({
-    type = 'customer', // 'customer' | 'provider'
+    type = 'customer', // 'customer' | 'provider' | 'admin'
     text,
     icon,
     backgroundColor,
@@ -15,27 +23,23 @@ const ProfileBadge = ({
     const { colors } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
     const { t } = useTranslation();
-    const isProvider = type === 'provider';
-    const defaultIcon = isProvider ? 'business-outline' : 'person-outline';
-    const defaultText = isProvider ? t('onboarding.provider').toUpperCase() : t('onboarding.customer').toUpperCase();
-    const defaultBg = isProvider
-        ? colors.opacity.background.primary
-        : colors.opacity.background.success;
-    const defaultIconColor = iconColor || colors.primary;
+    const variant = VARIANTS(colors)[type] ?? VARIANTS(colors).customer;
+    const labelKey = { provider: 'onboarding.provider', customer: 'onboarding.customer', admin: 'admin.role' }[type]
+        ?? 'onboarding.customer';
+    const fg = iconColor || variant.fg;
 
     return (
         <View style={[
             styles.badge,
-            { backgroundColor: backgroundColor || defaultBg }
+            { backgroundColor: backgroundColor || variant.bg }
         ]}>
             <Ionicons
-                name={icon || defaultIcon}
+                name={icon || variant.icon}
                 size={14}
-                color={defaultIconColor}
-                style={styles.icon}
+                color={fg}
             />
-            <Text style={styles.badgeText}>
-                {text || defaultText}
+            <Text style={[styles.badgeText, { color: fg }]}>
+                {text || t(labelKey).toUpperCase()}
             </Text>
         </View>
     );
@@ -51,12 +55,8 @@ const createStyles = (colors) => StyleSheet.create({
         borderRadius: radius.lg,
         gap: spacing.xs,
     },
-    icon: {
-        marginRight: spacing.xxs,
-    },
     badgeText: {
         ...typography.styles.badge,
-        color: colors.primary,
     },
 });
 

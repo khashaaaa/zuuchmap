@@ -9,7 +9,7 @@ import { useAppTheme } from '../../hooks/useAppTheme';
 // namespace the route asks for.
 const DOCS = {
   privacy: ['data', 'use', 'share', 'delete'],
-  terms: ['accept', 'users', 'content', 'liability'],
+  terms: ['accept', 'users', 'listingLifetime', 'content', 'liability'],
 };
 
 // Serves the Privacy and Terms routes — same layout, different i18n namespace.
@@ -50,9 +50,9 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxxl },
   card: { borderRadius: radius.xl, padding: spacing.lg, },
   effective: { ...typography.styles.small, marginBottom: spacing.sm },
-  intro: { ...typography.styles.caption, lineHeight: typography.sm * 1.6 },
+  intro: { ...typography.styles.body },
   sectionTitle: { ...typography.styles.title, marginBottom: spacing.sm },
-  sectionText: { ...typography.styles.caption, lineHeight: typography.sm * 1.6 },
+  sectionText: { ...typography.styles.body },
 });
 
 export default PolicyScreen;

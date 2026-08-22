@@ -27,9 +27,15 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
     (response) => response,
     async (error) => {
-        if (error.response?.status === 401) {
+        // A 401 on a request that carried a token means the session itself is
+        // dead (expired or rotated JWT) — the mounted screens can't recover, so
+        // wipe the session and land on the login screen. Tokenless 401s (refetch
+        // stragglers while a logout is already in flight) are left alone.
+        if (error.response?.status === 401 && error.config?.headers?.Authorization) {
             const { clearAuthData } = await import('./authHelpers');
             await clearAuthData();
+            const { resetToLogin } = await import('../../utils/navigationUtils');
+            resetToLogin();
         }
         return Promise.reject(error);
     }

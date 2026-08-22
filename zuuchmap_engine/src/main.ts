@@ -9,6 +9,8 @@ import { ConfigService } from '@nestjs/config';
 import { CategoryService } from './post/category.service';
 import * as express from 'express';
 import { AllExceptionsFilter } from './filters/all-exceptions.filter';
+import { redisEnabled } from './utils/redis';
+import { RedisIoAdapter } from './utils/redis-io.adapter';
 
 async function ensureUploadDirs() {
   const uploadDirs = [
@@ -92,8 +94,21 @@ async function bootstrap() {
     }),
   );
 
+  // Route Socket.io broadcasts through Redis so events reach clients on any
+  // pm2 instance. No-op without Redis (single-node dev keeps the default).
+  if (redisEnabled()) {
+    const redisIoAdapter = new RedisIoAdapter(app);
+    redisIoAdapter.connectToRedis();
+    app.useWebSocketAdapter(redisIoAdapter);
+    logger.log('Socket.io Redis adapter enabled');
+  }
+
   try {
-    await app.listen(port, '0.0.0.0');
+    // Production sits behind nginx on the same host — bind loopback so the
+    // engine can't be reached on :8282 directly (where a spoofed X-Real-IP
+    // would bypass per-IP rate buckets). Dev binds all interfaces so the
+    // Expo app can reach it over LAN.
+    await app.listen(port, isProd ? '127.0.0.1' : '0.0.0.0');
     logger.log(`Running on port ${port} [${isProd ? 'production' : 'development'}]`);
   } catch (err) {
     logger.error(`Failed to start server: ${err.message}`);

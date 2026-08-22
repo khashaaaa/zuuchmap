@@ -6,25 +6,35 @@ import { useTranslation } from 'react-i18next';
 import { spacing, typography, radius, interactions } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
 import bookingService from '../services/api/bookingService';
-import { showErrorModal, getErrorMessage } from '../utils/errorManager';
+import { showErrorModal, showSuccessModal, getErrorMessage } from '../utils/errorManager';
 import { formatDateYYYYMMDD } from '../utils/displayUtils';
 import Button from './Button';
 
+// Read-only by default; only the rating input (onSelect set) is interactive, so
+// the summary/row stars stay plain Views instead of stacks of dead touch areas.
 const Stars = ({ value, size = 14, color, onSelect }) => (
     <View style={{ flexDirection: 'row', gap: spacing.xxs }}>
-        {[1, 2, 3, 4, 5].map((i) => (
-            <TouchableOpacity
-                key={i}
-                disabled={!onSelect}
-                onPress={() => onSelect?.(i)}
-                activeOpacity={interactions.activeOpacityLight}
-                hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
-            >
-                <Ionicons name={i <= value ? 'star' : 'star-outline'} size={size} color={color} />
-            </TouchableOpacity>
-        ))}
+        {[1, 2, 3, 4, 5].map((i) => {
+            const star = <Ionicons name={i <= value ? 'star' : 'star-outline'} size={size} color={color} />;
+            return onSelect ? (
+                <TouchableOpacity
+                    key={i}
+                    onPress={() => onSelect(i)}
+                    activeOpacity={interactions.activeOpacityLight}
+                    hitSlop={interactions.hitSlop}
+                    accessibilityRole="button"
+                >
+                    {star}
+                </TouchableOpacity>
+            ) : (
+                <View key={i}>{star}</View>
+            );
+        })}
     </View>
 );
+
+/** Reviews shown before the list offers to expand. Mirrors the web section. */
+const REVIEW_PREVIEW = 5;
 
 // Provider rating summary + review list + submit form (customers only)
 const ReviewSection = ({ providerId, canReview }) => {
@@ -34,6 +44,7 @@ const ReviewSection = ({ providerId, canReview }) => {
     const qc = useQueryClient();
 
     const [showForm, setShowForm] = useState(false);
+    const [showAll, setShowAll] = useState(false);
     const [rating, setRating] = useState(0);
     const [comment, setComment] = useState('');
 
@@ -56,6 +67,7 @@ const ReviewSection = ({ providerId, canReview }) => {
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ['reviews', providerId] });
             setShowForm(false);
+            showSuccessModal(t('review.title'), t('review.submitted'));
         },
         onError: (e) => {
             const status = e?.response?.status;
@@ -113,16 +125,27 @@ const ReviewSection = ({ providerId, canReview }) => {
             {data.reviews.length === 0 ? (
                 <Text style={styles.empty}>{t('review.empty')}</Text>
             ) : (
-                data.reviews.slice(0, 5).map((r) => (
-                    <View key={r.id} style={styles.reviewRow}>
-                        <View style={styles.reviewHead}>
-                            <Text style={styles.reviewAuthor}>{r.author?.given_name || '—'}</Text>
-                            <Stars value={r.rating} size={11} color={colors.warning} />
-                            <Text style={styles.reviewDate}>{formatDateYYYYMMDD(r.date_updated)}</Text>
+                <>
+                    {(showAll ? data.reviews : data.reviews.slice(0, REVIEW_PREVIEW)).map((r) => (
+                        <View key={r.id} style={styles.reviewRow}>
+                            <View style={styles.reviewHead}>
+                                <Text style={styles.reviewAuthor}>{r.author?.given_name || '—'}</Text>
+                                <Stars value={r.rating} size={11} color={colors.warning} />
+                                <Text style={styles.reviewDate}>{formatDateYYYYMMDD(r.date_updated)}</Text>
+                            </View>
+                            {r.comment ? <Text style={styles.reviewComment}>{r.comment}</Text> : null}
                         </View>
-                        {r.comment ? <Text style={styles.reviewComment}>{r.comment}</Text> : null}
-                    </View>
-                ))
+                    ))}
+                    {data.reviews.length > REVIEW_PREVIEW && !showAll && (
+                        <TouchableOpacity
+                            onPress={() => setShowAll(true)}
+                            activeOpacity={interactions.activeOpacityLight}
+                            hitSlop={interactions.hitSlop}
+                        >
+                            <Text style={styles.showAll}>{t('review.showAll', { count: data.reviews.length })}</Text>
+                        </TouchableOpacity>
+                    )}
+                </>
             )}
         </View>
     );
@@ -147,7 +170,10 @@ const createStyles = (colors) => StyleSheet.create({
     reviewHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
     reviewAuthor: { ...typography.styles.label, color: colors.text.primary },
     reviewDate: { ...typography.styles.small, color: colors.text.tertiary },
-    reviewComment: { ...typography.styles.caption, color: colors.text.secondary },
+    // The review body is the content of the card; read it at body weight, not as
+    // the faintest line on it.
+    reviewComment: { ...typography.styles.body, color: colors.text.primary },
+    showAll: { ...typography.styles.labelStrong, color: colors.primary },
 });
 
 export default ReviewSection;

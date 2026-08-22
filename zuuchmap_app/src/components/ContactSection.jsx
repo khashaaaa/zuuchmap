@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, Text, TextInput } from 'react-native';
 import FormField from './FormField';
-import {  } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 
@@ -21,7 +20,7 @@ const ContactSection = ({
 
             <FormField
                 label={t('form.contactPhone')}
-                field="contact_phone"
+                required
                 error={error}
                 component={
                     <TextInput

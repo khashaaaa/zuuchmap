@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next';
 import { ScreenLayout } from '../../components';
 import { spacing, typography, radius, interactions } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_CONFIG } from '../../config/api.config';
 import { hideErrorModal, showErrorModal, showWarningModal } from '../../utils/errorManager';
 import userService from '../../services/api/userService';
 import { logger } from '../../utils/logger';
@@ -38,8 +40,17 @@ const AccountDeletionScreen = ({ navigation }) => {
                       hideErrorModal();
                       setDeleting(true);
                       await userService.deleteAccount();
-                      await userService.logout(false);
+                      // PhoneNumber reads USER_INFO at mount — wipe the display
+                      // keys before it mounts so the deleted account's welcome
+                      // block can't appear. Then navigate BEFORE logout, so its
+                      // deferred cache clear runs with the old screens unmounted.
+                      await AsyncStorage.multiRemove([
+                        API_CONFIG.STORAGE_KEYS.USER_INFO,
+                        API_CONFIG.STORAGE_KEYS.PHONE_NUMBER,
+                        API_CONFIG.STORAGE_KEYS.USER_TYPE,
+                      ]);
                       navigation.reset({ index: 0, routes: [{ name: 'PhoneNumber' }] });
+                      await userService.logout(false);
                     } catch (error) {
                       logger.error('Delete account error:', error);
                       setDeleting(false);
@@ -59,7 +70,7 @@ const AccountDeletionScreen = ({ navigation }) => {
   return (
     <ScreenLayout title={t('accountDeletion.title')} showBack onBack={() => navigation.goBack()}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={[styles.warningCard, { backgroundColor: colors.danger + '15', borderColor: colors.danger + '40' }]}>
+        <View style={[styles.warningCard, { backgroundColor: colors.opacity.background.danger, borderColor: colors.opacity.border.danger }]}>
           <Ionicons name="warning-outline" size={22} color={colors.danger} style={styles.warningIcon} />
           <View style={{ flex: 1 }}>
             <Text style={[styles.warningTitle, { color: colors.danger }]}>{t('accountDeletion.warningTitle')}</Text>
@@ -100,10 +111,10 @@ const styles = StyleSheet.create({
   warningCard: { borderWidth: 1, borderRadius: radius.xl, padding: spacing.lg, flexDirection: 'row', gap: spacing.md },
   warningIcon: { marginTop: spacing.xxs },
   warningTitle: { ...typography.styles.labelStrong, marginBottom: spacing.xs },
-  warningText: { ...typography.styles.caption, lineHeight: typography.sm * 1.5 },
+  warningText: { ...typography.styles.body },
   card: { borderRadius: radius.xl, padding: spacing.lg, },
   sectionTitle: { ...typography.styles.title, marginBottom: spacing.sm },
-  sectionText: { ...typography.styles.caption, lineHeight: typography.sm * 1.6 },
+  sectionText: { ...typography.styles.body },
   deleteBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: spacing.sm, padding: spacing.lg, borderRadius: radius.xl, marginTop: spacing.sm,

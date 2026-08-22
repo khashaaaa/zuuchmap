@@ -1,5 +1,6 @@
 // Common
 export { default as CategoryBadge } from './CategoryBadge';
+export { default as CollapsibleSection } from './CollapsibleSection';
 export { default as FadeSlideIn } from './FadeSlideIn';
 export { default as CustomSafeAreaView } from './CustomSafeAreaView';
 export { default as EmptyState } from './EmptyState';

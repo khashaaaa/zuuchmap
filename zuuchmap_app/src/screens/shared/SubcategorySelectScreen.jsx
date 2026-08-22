@@ -12,9 +12,8 @@ import EmptyState from '../../components/EmptyState';
 import PressableScale from '../../components/PressableScale';
 import FadeSlideIn from '../../components/FadeSlideIn';
 
-const SubcategoryCard = ({ item, isSelected, onSelect, colors, styles, t }) => {
-    const value = typeof item === 'object' ? item.value : item;
-    const displayName = t(`subcategory.${value}`, { defaultValue: typeof item === 'object' ? item.display : item });
+const SubcategoryCard = ({ item, isSelected, onSelect, colors, styles, label }) => {
+    const displayName = label;
 
     return (
         <PressableScale
@@ -41,8 +40,17 @@ const SubcategoryCard = ({ item, isSelected, onSelect, colors, styles, t }) => {
 const SubcategorySelectScreen = ({ route, navigation }) => {
     const { colors, isDark, styles: gStyles } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const { role, category, categoryDisplayName, subcategories } = route.params;
+
+    // Schema labels win (admin-editable, localized); client i18n is only the
+    // fallback for older hardcoded keys. Items are schema subcategory objects.
+    const subLabel = (item) => {
+        const value = typeof item === 'object' ? item.value : item;
+        const labels = typeof item === 'object' ? item.labels : null;
+        return labels?.[i18n.language]
+            ?? t(`subcategory.${value}`, { defaultValue: (typeof item === 'object' && item.label) || value });
+    };
     const insets = useSafeAreaInsets();
     const [selected, setSelected] = useState(null);
     const [search, setSearch] = useState('');
@@ -53,10 +61,9 @@ const SubcategorySelectScreen = ({ route, navigation }) => {
         if (!q) return subcategories;
         return subcategories.filter(item => {
             const value = typeof item === 'object' ? item.value : item;
-            const translated = t(`subcategory.${value}`, { defaultValue: typeof item === 'object' ? item.display : item });
-            return translated.toLowerCase().includes(q) || value.toLowerCase().includes(q);
+            return subLabel(item).toLowerCase().includes(q) || value.toLowerCase().includes(q);
         });
-    }, [subcategories, search, t]);
+    }, [subcategories, search, t, i18n.language]);
 
     const handleSelect = (subcategory) => {
         // Double-taps land before the transition starts — push only one screen.
@@ -65,7 +72,6 @@ const SubcategorySelectScreen = ({ route, navigation }) => {
         setTimeout(() => { navigatingRef.current = false; }, 800);
         setSelected(subcategory);
         const subValue = typeof subcategory === 'object' ? subcategory.value : subcategory;
-        const subDisplay = typeof subcategory === 'object' ? subcategory.display : subcategory;
 
         if (role === 'provider') {
             navigation.navigate('ProviderLocationSelection', { category, subcategory: subValue });
@@ -74,7 +80,7 @@ const SubcategorySelectScreen = ({ route, navigation }) => {
                 category,
                 subcategory: subValue,
                 categoryDisplayName,
-                subcategoryDisplayName: t(`subcategory.${subValue}`, { defaultValue: subValue }),
+                subcategoryDisplayName: subLabel(subcategory),
             });
         }
     };
@@ -120,7 +126,7 @@ const SubcategorySelectScreen = ({ route, navigation }) => {
                                     onSelect={handleSelect}
                                     colors={colors}
                                     styles={styles}
-                                    t={t}
+                                    label={subLabel(item)}
                                 />
                             </FadeSlideIn>
                         )}

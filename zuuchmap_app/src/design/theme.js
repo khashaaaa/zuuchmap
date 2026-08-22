@@ -196,6 +196,11 @@ export const categoryColors = {
     jobvacancy:    '#BC5CA9',
     factory:       '#3A8E5C',
     sos:           '#D25562',
+    usedequipment: '#C16546',
+    transport:     '#4984B4',
+    designservice: '#8473C3',
+    miningsupport: '#967A54',
+    winterservice: '#4C869E',
 };
 
 const srgbToLinear = (v) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));

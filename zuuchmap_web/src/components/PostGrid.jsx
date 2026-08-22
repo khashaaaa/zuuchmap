@@ -17,7 +17,7 @@ export default function PostGrid({ isLoading, isError, onRetry, isEmpty, emptySt
     return (
       <div className={`grid ${colsClass} gap-4 ${className}`}>
         {Array.from({ length: count }).map((_, i) => (
-          <div key={i} className="h-64 bg-surface2 rounded-card animate-pulse" />
+          <div key={i} className="h-64 skeleton rounded-card" />
         ))}
       </div>
     )

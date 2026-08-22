@@ -1,7 +1,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { Platform, View } from 'react-native';
+import { Platform } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useTranslation } from 'react-i18next';
@@ -21,9 +21,6 @@ const AdminDashboard = () => {
 
     return (
         <SafeAreaProvider>
-            {Platform.OS === 'android' && (
-                <View style={{ height: 0, backgroundColor: colors.surface, position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1000 }} />
-            )}
             <StatusBar style={isDark ? 'light' : 'dark'} backgroundColor={colors.surface} translucent={false} />
 
             <Tab.Navigator
@@ -42,7 +39,7 @@ const AdminDashboard = () => {
                     tabBarStyle: {
                         ...colors.elevation.md,
                         height: Platform.OS === 'ios' ? 88 : 65 + insets.bottom,
-                        paddingBottom: Platform.OS === 'ios' ? 25 : spacing.sm + insets.bottom,
+                        paddingBottom: Platform.OS === 'ios' ? spacing.xxl : spacing.sm + insets.bottom,
                         paddingTop: spacing.xs,
                         backgroundColor: colors.surface,
                         borderTopWidth: 1,
@@ -52,8 +49,8 @@ const AdminDashboard = () => {
                         left: 0,
                         right: 0,
                     },
-                    tabBarItemStyle: { paddingVertical: spacing.xs },
-                    tabBarLabelStyle: { ...typography.styles.micro, marginTop: spacing.xxs },
+                    tabBarItemStyle: { paddingVertical: spacing.xs, paddingHorizontal: spacing.sm },
+                    tabBarLabelStyle: { ...typography.styles.micro, marginTop: spacing.xs },
                     tabBarHideOnKeyboard: Platform.OS === 'android',
                 })}
                 safeAreaInsets={{ bottom: Platform.OS === 'android' ? insets.bottom : 0 }}
@@ -66,7 +63,7 @@ const AdminDashboard = () => {
                 <Tab.Screen
                     name="Approval"
                     component={AdminApproval}
-                    options={{ tabBarLabel: t('admin.dashboard') }}
+                    options={{ tabBarLabel: t('admin.pendingPosts') }}
                 />
                 <Tab.Screen
                     name="Profile"

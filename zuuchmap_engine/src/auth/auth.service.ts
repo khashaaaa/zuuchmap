@@ -7,7 +7,7 @@ import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from 'src/user/entities/user.entity';
 import { LessThan, Repository } from 'typeorm';
-import { SimpleCache } from 'src/utils/cache';
+import { incrAndCheckOverLimit } from 'src/utils/rate-counter';
 import { isAdmin } from 'src/admin/admin.guard';
 import { jwtSecret } from 'src/utils/jwt-secret';
 import * as crypto from 'crypto';
@@ -47,7 +47,6 @@ export interface StartResult {
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
-  private readonly rateCache = new SimpleCache();
 
   constructor(
     @InjectRepository(User)
@@ -101,15 +100,17 @@ export class AuthService {
       }
     }
 
-    const rateKey = `rate:${phone_number}`;
-    const count = this.rateCache.get<number>(rateKey) ?? 0;
-    if (count >= RATE_LIMIT) {
+    // Per-phone hourly cap on paid SMS verifications — shared across instances
+    // via Redis (falls back to in-process when Redis is off).
+    if (await incrAndCheckOverLimit(phone_number, RATE_LIMIT, RATE_TTL)) {
       throw new HttpException(
-        'Too many verification attempts. Try again in an hour.',
+        {
+          message: 'Too many verification attempts. Try again in an hour.',
+          code: 'TOO_MANY_VERIFICATIONS',
+        },
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
-    this.rateCache.set(rateKey, count + 1, RATE_TTL);
 
     const code = crypto.randomInt(100000, 999999).toString();
     const expires_at = new Date(Date.now() + SESSION_TTL);

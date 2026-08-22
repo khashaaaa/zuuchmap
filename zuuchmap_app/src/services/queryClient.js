@@ -32,13 +32,24 @@ export const queryClient = new QueryClient({
   mutationCache,
   defaultOptions: {
     queries: {
-      retry: 2,
+      // Auth failures are terminal, not transient: the interceptor has already
+      // cleared the session on 401, so retrying just spams the engine (and the
+      // logs) with more guaranteed-401s. 403 is a permission answer, same deal.
+      retry: (failureCount, error) => {
+        const status = error?.response?.status;
+        if (status === 401 || status === 403) return false;
+        return failureCount < 2;
+      },
       staleTime: 5 * 60 * 1000,
       gcTime: 30 * 60 * 1000,
       refetchOnReconnect: true,
     },
     mutations: {
-      retry: 1,
+      retry: (failureCount, error) => {
+        const status = error?.response?.status;
+        if (status === 401 || status === 403) return false;
+        return failureCount < 1;
+      },
     },
   },
 });

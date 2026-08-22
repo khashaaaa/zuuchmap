@@ -49,7 +49,12 @@ const mapService = {
     const max = priceRange.max ?? Infinity;
     if (min === -Infinity && max === Infinity) return posts;
     return posts.filter(p => {
-      const price = p.price_amount || 0;
+      // A post with no price is not a free post. `|| 0` used to make every
+      // unpriced listing (job vacancies, factories, material stores) match any
+      // range starting at zero, so "under 50,000₮" was mostly priceless posts.
+      if (p.price_amount === null || p.price_amount === undefined || p.price_amount === '') return false;
+      const price = Number(p.price_amount);
+      if (Number.isNaN(price)) return false;
       return price >= min && price <= max;
     });
   },

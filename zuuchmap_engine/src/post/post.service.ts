@@ -4,6 +4,8 @@ import { Repository } from 'typeorm';
 import { Cron } from '@nestjs/schedule';
 import { Status } from '../enums/status';
 import { Post } from './entities/post.entity';
+import { CategorySchema, FieldDef } from './entities/category-schema.entity';
+import { isPriceUnit } from '../enums/priceunit';
 import { User } from '../user/entities/user.entity';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
@@ -22,6 +24,70 @@ const TTL = {
   posts: 30_000,   // 30 s
   map: 60_000,     // 60 s
 } as const;
+
+// Returns the keys of required fields the payload does not answer.
+// The false/0 cases are the whole reason this is not a truthiness check:
+// "operator not included" and "capacity 0" are answers, not omissions.
+export function validateRequiredAttributes(
+  schema: { fields?: FieldDef[] },
+  attributes: Record<string, any>,
+): string[] {
+  const attrs = attributes ?? {};
+  return (schema?.fields ?? [])
+    .filter((f) => f.required)
+    .filter((f) => {
+      const v = attrs[f.key];
+      if (v === undefined || v === null) return true;
+      if (typeof v === 'string') return v.trim() === '';
+      if (Array.isArray(v)) return v.length === 0;
+      return false;
+    })
+    .map((f) => f.key);
+}
+
+// Builds the `attr.<key>` WHERE clauses onto a query builder.
+// Exported for unit testing. `fieldTypes` maps a field key to its FieldDef type.
+export function buildAttrFilter(
+  qb: { andWhere: (sql: string, params: Record<string, any>) => any },
+  attrs: Record<string, any>,
+  fieldTypes: Map<string, string>,
+): void {
+  let i = 0;
+  for (const [rawKey, val] of Object.entries(attrs ?? {})) {
+    if (val === undefined || val === '') continue;
+    const m = rawKey.match(/^([a-z0-9_]+?)(_min|_max)?$/);
+    if (!m) continue;
+    const [, key, range] = m;
+    const p = `attr${i}`;
+    const type = fieldTypes.get(key);
+
+    if (range) {
+      const num = Number(val);
+      if (Number.isNaN(num)) continue;
+      qb.andWhere(
+        `post.attributes->>'${key}' ~ '^[0-9]+\\.?[0-9]*$' AND (post.attributes->>'${key}')::numeric ${range === '_min' ? '>=' : '<='} :${p}`,
+        { [p]: num },
+      );
+    } else if (type === 'boolean') {
+      // A real JSON boolean, not the string "true" — containment hits the GIN index.
+      qb.andWhere(`post.attributes @> :${p}::jsonb`, {
+        [p]: JSON.stringify({ [key]: String(val) === 'true' }),
+      });
+    } else if (type === 'multiselect') {
+      // `?` asks whether the stored array contains this value.
+      qb.andWhere(`post.attributes->:${p}_k ? :${p}`, { [`${p}_k`]: key, [p]: String(val) });
+    } else if (type === 'select') {
+      // Enumerated fields match by containment so the GIN index can serve them.
+      qb.andWhere(`post.attributes @> :${p}::jsonb`, {
+        [p]: JSON.stringify({ [key]: String(val) }),
+      });
+    } else {
+      // Free text stays a substring scan.
+      qb.andWhere(`post.attributes->>'${key}' ILIKE :${p}`, { [p]: `%${String(val)}%` });
+    }
+    i++;
+  }
+}
 
 @Injectable()
 export class PostService {
@@ -61,12 +127,19 @@ export class PostService {
     return types;
   }
 
+  /** `price_unit` is a plain varchar column, so the enum is only enforced here. */
+  private assertPriceUnit(unit?: string | null): void {
+    if (unit !== undefined && unit !== null && unit !== '' && !isPriceUnit(unit)) {
+      throw new BadRequestException('INVALID_PRICE_UNIT');
+    }
+  }
+
   // ─── Posts ────────────────────────────────────────────────────────────────
 
-  /** Rejects categories/subcategories that no schema defines, and bad statuses. */
+  /** Rejects categories/subcategories that no schema defines, and bad statuses. Returns the schema. */
   private async validateCategoryAndStatus(
     category: string, subcategory?: string, status?: string,
-  ): Promise<void> {
+  ): Promise<CategorySchema> {
     const schema = await this.categoryService.getCategory(category).catch(() => null);
     if (!schema || schema.active === false) {
       throw new BadRequestException(`Unknown category '${category}'`);
@@ -79,6 +152,7 @@ export class PostService {
       throw new BadRequestException(`Unknown subcategory '${subcategory}' for category '${category}'`);
     }
     this.validateStatus(status);
+    return schema;
   }
 
   private validateStatus(status?: string): void {
@@ -87,8 +161,14 @@ export class PostService {
     }
   }
 
-  async create(dto: CreatePostDto, files: Express.Multer.File[]): Promise<Post> {
-    await this.validateCategoryAndStatus(dto.category, dto.subcategory ?? dto.secondcategory, dto.status);
+  async create(dto: CreatePostDto, files: Express.Multer.File[], ownerId: string): Promise<Post> {
+    const schema = await this.validateCategoryAndStatus(dto.category, dto.subcategory ?? dto.secondcategory, dto.status);
+    this.assertPriceUnit(dto.price_unit);
+    const missing = validateRequiredAttributes(schema, dto.attributes ?? {});
+    if (missing.length) {
+      throw new BadRequestException({ message: 'MISSING_REQUIRED_ATTRIBUTES', fields: missing });
+    }
+    const expiryDays = schema.post_expiry_days || POST_EXPIRY_DAYS;
     const postData: Partial<Post> = {
       category: dto.category,
       subcategory: dto.subcategory ?? dto.secondcategory,
@@ -111,12 +191,12 @@ export class PostService {
       images: [],
       status: dto.status ?? Status.ACTIVE,
       approval_status: 'PENDING',
-      expires_at: new Date(Date.now() + POST_EXPIRY_DAYS * 24 * 60 * 60 * 1000),
+      expires_at: new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000),
     };
     const post = this.postRepository.create(postData as Post);
 
-    if (dto.user) {
-      const user = await this.userRepository.findOne({ where: { id: dto.user } });
+    if (ownerId) {
+      const user = await this.userRepository.findOne({ where: { id: ownerId } });
       if (user) post.user = user;
     }
 
@@ -132,7 +212,7 @@ export class PostService {
     this.events?.emitPostCreated({ id: saved.id, category: saved.category, title: saved.title });
 
     // Push notification to admins (fires async, doesn't block response)
-    this.notifications.notifyAdmins(saved.id, saved.title)
+    this.notifications.notifyAdmins(saved.id, saved.title, saved.category)
       .catch(err => this.logger.warn(`notifyAdmins backstop: ${err?.message}`));
 
     return saved;
@@ -149,13 +229,21 @@ export class PostService {
     limit?: number;
     q?: string;
     attrs?: Record<string, string>;
+    sort?: string;
+    price_min?: string;
+    price_max?: string;
   } = {}): Promise<{ items: Post[]; total: number }> {
     const hasAttrs = filters.attrs && Object.keys(filters.attrs).length > 0;
     const useCache = !filters.q && !hasAttrs;
+    // Clamp pagination before anything touches SQL: Postgres rejects negative
+    // LIMIT/OFFSET outright, and an uncapped limit lets one request drag the
+    // whole table (with user+company joins) into memory.
+    const limit = Math.min(Math.max(Math.floor(filters.limit || 50) || 50, 1), 100);
+    const page = Math.max(Math.floor(filters.page || 1) || 1, 1);
     // encodeURIComponent each part so a ':' inside a query param can't
     // collide with the key separator.
     const k = (v: unknown) => encodeURIComponent(String(v ?? ''));
-    const cacheKey = `posts:list:${k(filters.category)}:${k(filters.subcategory)}:${k(filters.province)}:${k(filters.district)}:${k(filters.approval_status)}:${k(filters.status)}:${filters.page ?? 1}:${filters.limit ?? 50}`;
+    const cacheKey = `posts:list:${k(filters.category)}:${k(filters.subcategory)}:${k(filters.province)}:${k(filters.district)}:${k(filters.approval_status)}:${k(filters.status)}:${page}:${limit}:${k(filters.sort)}:${k(filters.price_min)}:${k(filters.price_max)}`;
     if (useCache) {
       const cached = this.cache.get<{ items: Post[]; total: number }>(cacheKey);
       if (cached) return cached;
@@ -163,8 +251,32 @@ export class PostService {
 
     const qb = this.postRepository.createQueryBuilder('post')
       .leftJoinAndSelect('post.user', 'user')
-      .leftJoinAndSelect('user.company', 'company')
-      .orderBy('post.date_created', 'DESC');
+      .leftJoinAndSelect('user.company', 'company');
+
+    // Whitelisted sort orders — anything else falls back to newest-first.
+    // Price sorts push unpriced posts last so "cheapest" never means "no price".
+    switch (filters.sort) {
+      case 'price_asc':
+        qb.orderBy('post.price_amount', 'ASC', 'NULLS LAST').addOrderBy('post.date_created', 'DESC');
+        break;
+      case 'price_desc':
+        qb.orderBy('post.price_amount', 'DESC', 'NULLS LAST').addOrderBy('post.date_created', 'DESC');
+        break;
+      case 'views':
+        qb.orderBy('post.views', 'DESC').addOrderBy('post.date_created', 'DESC');
+        break;
+      default:
+        qb.orderBy('post.date_created', 'DESC');
+    }
+
+    const priceMin = Number(filters.price_min);
+    if (filters.price_min !== undefined && filters.price_min !== '' && !Number.isNaN(priceMin)) {
+      qb.andWhere('post.price_amount >= :priceMin', { priceMin });
+    }
+    const priceMax = Number(filters.price_max);
+    if (filters.price_max !== undefined && filters.price_max !== '' && !Number.isNaN(priceMax)) {
+      qb.andWhere('post.price_amount <= :priceMax', { priceMax });
+    }
 
     if (filters.category) qb.andWhere('post.category = :category', { category: filters.category });
     if (filters.subcategory) qb.andWhere('post.subcategory = :subcategory', { subcategory: filters.subcategory });
@@ -180,8 +292,10 @@ export class PostService {
     }
 
     if (filters.q) {
+      // A duplicated ?q= param arrives as an array — take the first value
+      const raw = String(Array.isArray(filters.q) ? filters.q[0] : filters.q);
       // Prefix-matching full-text search on the generated search_vector column
-      const terms = filters.q.trim().substring(0, 100).split(/\s+/)
+      const terms = raw.trim().substring(0, 100).split(/\s+/)
         .map((t) => t.replace(/[^\p{L}\p{N}]/gu, ''))
         .filter(Boolean)
         .slice(0, 8);
@@ -192,39 +306,11 @@ export class PostService {
     }
 
     if (hasAttrs) {
-      // Enumerated fields are matched by containment so the GIN index on
-      // `attributes` can serve them; free-text stays a substring scan.
       const fieldTypes = await this.attributeFieldTypes(filters.category);
-
-      let i = 0;
-      for (const [rawKey, val] of Object.entries(filters.attrs ?? {})) {
-        if (val === undefined || val === '') continue;
-        const m = rawKey.match(/^([a-z0-9_]+?)(_min|_max)?$/);
-        if (!m) continue;
-        const [, key, range] = m;
-        const p = `attr${i++}`;
-
-        if (range) {
-          const num = Number(val);
-          if (Number.isNaN(num)) continue;
-          const op = range === '_min' ? '>=' : '<=';
-          qb.andWhere(
-            `post.attributes->>'${key}' ~ '^[0-9]+\\.?[0-9]*$' AND (post.attributes->>'${key}')::numeric ${op} :${p}`,
-            { [p]: num },
-          );
-        } else if (fieldTypes.get(key) === 'select') {
-          qb.andWhere(`post.attributes @> :${p}::jsonb`, {
-            [p]: JSON.stringify({ [key]: String(val) }),
-          });
-        } else {
-          qb.andWhere(`post.attributes->>'${key}' ILIKE :${p}`, { [p]: `%${String(val)}%` });
-        }
-      }
+      buildAttrFilter(qb, filters.attrs ?? {}, fieldTypes);
     }
 
-    const limit = filters.limit || 50;
-    const offset = ((filters.page || 1) - 1) * limit;
-    qb.take(limit).skip(offset);
+    qb.take(limit).skip((page - 1) * limit);
 
     const [items, total] = await qb.getManyAndCount();
     // Never let raw User entities (push_token, device_info, …) reach clients.
@@ -265,11 +351,13 @@ export class PostService {
   }
 
   async findByUser(userId: string, page = 1, limit = 50): Promise<Post[]> {
+    const take = Math.min(Math.max(Math.floor(limit || 50) || 50, 1), 100);
+    const safePage = Math.max(Math.floor(page || 1) || 1, 1);
     return this.postRepository.find({
       where: { user: { id: userId } },
       order: { date_created: 'DESC' },
-      take: limit,
-      skip: (page - 1) * limit,
+      take,
+      skip: (safePage - 1) * take,
     });
   }
 
@@ -297,6 +385,16 @@ export class PostService {
       throw new ForbiddenException('You can only update your own posts');
     }
     this.validateStatus(dto.status);
+    this.assertPriceUnit(dto.price_unit);
+
+    if (dto.attributes !== undefined) {
+      const schemas = await this.categoryService.getCategories();
+      const schema = schemas.find((c) => c.key === post.category);
+      const missing = schema ? validateRequiredAttributes(schema, dto.attributes) : [];
+      if (missing.length) {
+        throw new BadRequestException({ message: 'MISSING_REQUIRED_ATTRIBUTES', fields: missing });
+      }
+    }
 
     const existingImages: string[] = dto.existingImages || post.images || [];
 

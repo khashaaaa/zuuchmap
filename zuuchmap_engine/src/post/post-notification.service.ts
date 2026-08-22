@@ -21,7 +21,7 @@ export class PostNotificationService {
     private readonly userRepository: Repository<User>,
   ) {}
 
-  async notifyAdmins(postId: number, title: string): Promise<void> {
+  async notifyAdmins(postId: number, title: string, category?: string): Promise<void> {
     try {
       const adminPhones = getAdminPhones();
       if (!adminPhones.length) return;
@@ -33,7 +33,7 @@ export class PostNotificationService {
         admins,
         'Шинэ зар бүртгэгдлээ',
         `"${title}" – шинэ зар шалгана уу.`,
-        { postId, notifType: 'new_post' },
+        { postId, post_type: category, notifType: 'new_post' },
       );
     } catch (err) {
       this.logger.warn(`notifyAdmins failed (non-fatal): ${err?.message}`);

@@ -60,6 +60,8 @@ export const formatPrice = (priceAmount, priceUnit) => {
     const amount = Number(priceAmount);
     if (Number.isNaN(amount)) return null;
     const formattedAmount = amount.toLocaleString('mn-MN', { maximumFractionDigits: 0 });
+    // A total (sale) price is the whole amount — a "/unit" suffix would misread as recurring
+    if (priceUnit === 'TOTAL') return `${formattedAmount}₮`;
     const unitLabel = getPriceUnitLabel(priceUnit);
     return unitLabel ? `${formattedAmount}₮ / ${unitLabel}` : `${formattedAmount}₮`;
 };

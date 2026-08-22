@@ -3,8 +3,12 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { envconfig } from 'config/envconfig';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import { APP_GUARD } from '@nestjs/core';
+import { createRedis, redisEnabled } from './utils/redis';
+import { CacheCoordinator } from './utils/cache-coordinator';
+import { AppThrottlerGuard } from './utils/throttler.guard';
 import { LoggerMiddleware } from 'src/utils/logger';
 import { UserModule } from './user/user.module';
 import { CompanyModule } from './company/company.module';
@@ -23,10 +27,20 @@ import { AnalyticsModule } from './analytics/analytics.module';
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (cs: ConfigService) => [{
-        ttl: cs.get<number>('THROTTLER_TTL') ?? 60000,
-        limit: cs.get<number>('THROTTLER_LIMIT') ?? 100,
-      }],
+      useFactory: (cs: ConfigService) => ({
+        throttlers: [{
+          ttl: cs.get<number>('THROTTLER_TTL') ?? 60000,
+          limit: cs.get<number>('THROTTLER_LIMIT') ?? 100,
+        }],
+        // Redis-backed when configured — the default in-memory store keeps one
+        // record per client IP per window with no size cap, so high IP
+        // cardinality (a distributed flood) grows memory unbounded until pm2's
+        // 1G restart trips. Redis moves that off-heap and shares the count
+        // across instances. Falls back to in-memory for localhost dev.
+        storage: redisEnabled()
+          ? new ThrottlerStorageRedisService(createRedis('throttler'))
+          : undefined,
+      }),
     }),
     ConfigModule.forRoot({
       envFilePath: `${process.cwd()}/config/variables/${process.env.NODE_ENV}.env`,
@@ -66,7 +80,10 @@ import { AnalyticsModule } from './analytics/analytics.module';
     AnalyticsModule,
   ],
   controllers: [],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [
+    { provide: APP_GUARD, useClass: AppThrottlerGuard },
+    CacheCoordinator,
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

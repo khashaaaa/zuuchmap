@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Image, ActivityIndicator, Platform, ActionSheetIOS, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Image, ActivityIndicator, Platform, ActionSheetIOS, Linking, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useTranslation } from 'react-i18next';
@@ -25,7 +25,10 @@ const ImageUploadSection = ({
             const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
             if (!permissionResult.granted) {
-                showErrorModal(t('upload.permissionTitle'), t('upload.galleryPermission'), [], 'warning');
+                showErrorModal(t('upload.permissionTitle'), t('upload.galleryPermission'), [
+                    { text: t('common.cancel'), style: 'cancel' },
+                    { text: t('upload.openSettings'), onPress: () => Linking.openSettings() },
+                ], 'warning');
                 return;
             }
 
@@ -68,7 +71,10 @@ const ImageUploadSection = ({
             const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
 
             if (!permissionResult.granted) {
-                showErrorModal(t('upload.permissionTitle'), t('upload.cameraPermission'), [], 'warning');
+                showErrorModal(t('upload.permissionTitle'), t('upload.cameraPermission'), [
+                    { text: t('common.cancel'), style: 'cancel' },
+                    { text: t('upload.openSettings'), onPress: () => Linking.openSettings() },
+                ], 'warning');
                 return;
             }
 

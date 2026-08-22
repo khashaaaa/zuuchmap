@@ -56,6 +56,8 @@ export default function SettingsSection() {
                                 ]}
                                 onPress={() => setLocale(lang.code)}
                                 activeOpacity={interactions.activeOpacityLight}
+                                accessibilityRole="radio"
+                                accessibilityState={{ selected: isActive }}
                             >
                                 <Text style={styles.flag}>{lang.flag}</Text>
                                 <Text style={[styles.langLabel, { color: isActive ? colors.primary : colors.text.secondary }]}>
@@ -109,9 +111,11 @@ const styles = StyleSheet.create({
     langBtn: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: 44,
         gap: spacing.xs,
         paddingVertical: spacing.sm,
-        paddingHorizontal: spacing.md,
+        paddingHorizontal: spacing.lg,
         borderRadius: radius.md,
         borderWidth: 1.5,
     },

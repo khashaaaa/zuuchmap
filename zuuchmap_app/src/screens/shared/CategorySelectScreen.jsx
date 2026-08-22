@@ -12,6 +12,7 @@ import ScreenHeader from '../../components/ScreenHeader';
 import ScreenError from '../../components/ScreenError';
 import ScreenLoading from '../../components/ScreenLoading';
 import EmptyState from '../../components/EmptyState';
+import { getSchemaLabel } from '../../utils/postUtils';
 import PressableScale from '../../components/PressableScale';
 import FadeSlideIn from '../../components/FadeSlideIn';
 import categoryService from '../../services/api/categoryService';
@@ -28,7 +29,7 @@ const CategoryCard = ({ item, isSelected, onSelect, colors, styles, t }) => (
             <Ionicons name={item.icon} size={isTablet ? 40 : 32} color={colors.primary} />
         </View>
         <View style={styles.cardContent}>
-            <Text style={[styles.cardName, { color: colors.text.primary }]}>{t('category.' + item.i18nKey)}</Text>
+            <Text style={[styles.cardName, { color: colors.text.primary }]}>{getSchemaLabel(item.schema)}</Text>
             <View style={[styles.subBadge, { backgroundColor: colors.background, borderColor: colors.border.medium }]}>
                 <Text style={[styles.subBadgeText, { color: colors.text.secondary }]}>{t('category.subcategoryCount', { count: item.subcategories.length })}</Text>
             </View>
@@ -63,12 +64,15 @@ const CategorySelectScreen = ({ route, navigation }) => {
         i18nKey: s.key,
         icon: s.icon || 'grid-outline',
         subcategories: s.subcategories || [],
+        // Labels resolve from the schema at render time (admin-editable, and
+        // reacts to locale switches without rebuilding this list).
+        schema: s,
     })), [schemas]);
 
     const filtered = useMemo(() => {
         const q = search.toLowerCase().trim();
         if (!q) return categories;
-        return categories.filter(c => t('category.' + c.i18nKey, { defaultValue: c.i18nKey }).toLowerCase().includes(q));
+        return categories.filter(c => getSchemaLabel(c.schema).toLowerCase().includes(q));
     }, [categories, search, t]);
 
     const handleSelect = (category) => {
@@ -80,7 +84,7 @@ const CategorySelectScreen = ({ route, navigation }) => {
         navigation.navigate('SubcategorySelectScreen', {
             role,
             category: category.name,
-            categoryDisplayName: t('category.' + category.i18nKey),
+            categoryDisplayName: getSchemaLabel(category.schema),
             subcategories: category.subcategories,
         });
     };

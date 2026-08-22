@@ -63,7 +63,7 @@ export default function AppHeader({ onMenuClick }) {
           >
             <Bell size={18} />
             {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 w-4 h-4 flex items-center justify-center bg-primary text-on-primary text-[10px] font-bold rounded-full">
+              <span className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center bg-danger text-on-color text-[10px] font-bold rounded-full">
                 {unreadCount > 9 ? '9+' : unreadCount}
               </span>
             )}
@@ -132,7 +132,7 @@ export default function AppHeader({ onMenuClick }) {
                   <button
                     key={lang.code}
                     onClick={() => changeLang(lang.code)}
-                    className={`flex items-center gap-2 w-full px-3 py-2 text-sm transition-colors hover:bg-surface2 ${lang.code === i18n.language ? 'text-primary-text font-medium' : 'text-text'}`}
+                    className={`flex items-center gap-2 w-full min-h-[44px] px-3 py-2 text-sm transition-colors hover:bg-surface2 ${lang.code === i18n.language ? 'text-primary-text font-medium' : 'text-text'}`}
                   >
                     <span>{lang.flag}</span>
                     <span>{lang.label}</span>

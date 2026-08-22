@@ -1,17 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { QueryClientProvider, focusManager } from '@tanstack/react-query';
-import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
-
-const navigationRef = createNavigationContainerRef();
+import { NavigationContainer } from '@react-navigation/native';
+import { navigationRef } from './src/utils/navigationUtils';
 import { createStackNavigator } from '@react-navigation/stack';
 import { View, ActivityIndicator, Text, StyleSheet, Platform, Animated, AppState } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
 import userService from './src/services/api/userService';
-import apiClient from './src/services/api/apiClient';
-import { API_CONFIG } from './src/config/api.config';
 import { queryClient, invalidatePostData } from './src/services/queryClient';
 import { palettes, dimensions, typography, spacing, fonts, animations } from './src/design/theme';
 
@@ -65,6 +61,7 @@ import { getDashboardScreen } from './src/utils/navigationUtils';
 import { logger } from './src/utils/logger';
 import { AppProvider } from './src/context/AppContext';
 import { useNotificationSync } from './src/hooks/useNotificationSync';
+import { socketService } from './src/services/socketService';
 import { reportError } from './src/services/analytics';
 import { useFonts } from 'expo-font';
 import { fontAssets } from './src/design/theme';
@@ -83,35 +80,21 @@ if (global.ErrorUtils) {
 
 try {
   Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-    }),
+    handleNotification: async () => {
+      // While the realtime socket is live the same event already lands in the
+      // in-app bell — suppress the duplicate OS banner. Backgrounded (or
+      // disconnected) the socket is down, so pushes surface normally.
+      const realtimeLive = socketService.isConnected();
+      return {
+        shouldShowBanner: !realtimeLive,
+        shouldShowList: true,
+        shouldPlaySound: !realtimeLive,
+        shouldSetBadge: false,
+      };
+    },
   });
 } catch {
   // Expo Go does not support push notifications; silently skip
-}
-
-async function registerForPushNotifications() {
-  if (!Device.isDevice) return null;
-  try {
-    const { status: existing } = await Notifications.getPermissionsAsync();
-    let finalStatus = existing;
-    if (existing !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
-    if (finalStatus !== 'granted') return null;
-    const tokenData = await Notifications.getExpoPushTokenAsync({
-      projectId: '40d1a5b1-f537-4097-88f7-ffad9545f7d0',
-    });
-    return tokenData.data;
-  } catch {
-    // Push notifications not available in Expo Go
-    return null;
-  }
 }
 
 import PhoneNumber from './src/screens/auth/PhoneNumber';
@@ -208,12 +191,8 @@ const App = () => {
               userType: authResult.userType || null,
               isAdmin: storedIsAdmin,
             });
-            registerForPushNotifications().then(token => {
-              if (token) {
-                apiClient.put(API_CONFIG.ENDPOINTS.USER.SAVE_PUSH_TOKEN, { push_token: token })
-                  .catch((err) => logger.warn?.('Push token registration failed:', err?.message));
-              }
-            });
+            // Push-token registration lives in useNotificationSync — it runs on
+            // this same startup path AND on fresh logins (auth events).
           } else if (authResult?.rateLimited) {
             setAuthState({
               isAuthenticated: false,
@@ -271,10 +250,13 @@ const App = () => {
       if (!data?.postId) return;
       invalidatePostData();
       if (!navigationRef.isReady()) return;
+      // post_type is carried by newer engine payloads; PostDetailScreen also
+      // falls back to the fetched post's category when it's absent.
+      const params = { postId: data.postId, postType: data.post_type };
       if (data.notifType === 'new_post') {
-        navigationRef.navigate('PostDetailScreen', { postId: data.postId, role: 'admin' });
+        navigationRef.navigate('PostDetailScreen', { ...params, role: 'admin' });
       } else {
-        navigationRef.navigate('PostDetailScreen', { postId: data.postId, role: 'provider' });
+        navigationRef.navigate('PostDetailScreen', { ...params, role: 'provider' });
       }
     };
 

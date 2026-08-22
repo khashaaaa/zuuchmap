@@ -1,10 +1,19 @@
 import postService from '../services/api/postService';
 
 // Attribute values initialized from the category schema's field definitions
+// A boolean must start `false` and a multiselect `[]` — seeding them with ''
+// hands <Switch> a string and breaks the chip toggle's Array checks.
+const emptyAttribute = (f) => {
+    if (f.type === 'boolean') return false;
+    if (f.type === 'multiselect') return [];
+    if (f.type === 'select') return f.options?.[0] ?? '';
+    return '';
+};
+
 const buildAttributes = (schema, existing = {}) =>
     Object.fromEntries((schema?.fields ?? []).map((f) => [
         f.key,
-        existing[f.key] ?? (f.type === 'select' ? (f.options?.[0] ?? '') : ''),
+        existing[f.key] ?? emptyAttribute(f),
     ]));
 
 const oneMonthAhead = () => new Date(new Date().setMonth(new Date().getMonth() + 1));

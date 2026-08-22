@@ -1,10 +1,47 @@
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { socketService } from '../services/socketService';
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
+import { socketService, SOCKET_EVENTS, ROOM_ADMIN, userRoom } from '../services/socketService';
 import { useAppContext } from '../context/AppContext';
 import { getAuthToken, getUserId, getUserInfo, onAuthChanged } from '../services/api/authHelpers';
 import { queryClient, invalidatePostData } from '../services/queryClient';
+import apiClient from '../services/api/apiClient';
+import { API_CONFIG } from '../config/api.config';
 import { logger } from '../utils/logger';
+
+const EAS_PROJECT_ID = '40d1a5b1-f537-4097-88f7-ffad9545f7d0';
+
+// Register this device's Expo push token for the logged-in account. Runs on
+// every auth event (cold start with a stored session AND fresh login), so a
+// user who just verified gets pushes without restarting the app. Idempotent
+// server-side; each account switch re-binds the token to the new account.
+async function registerPushToken() {
+    if (!Device.isDevice) return;
+    try {
+        if (Platform.OS === 'android') {
+            // Android 8+ drops notifications without a channel; Expo's push
+            // service targets 'default' when the message names none.
+            await Notifications.setNotificationChannelAsync('default', {
+                name: 'default',
+                importance: Notifications.AndroidImportance.MAX,
+            });
+        }
+        const { status: existing } = await Notifications.getPermissionsAsync();
+        let status = existing;
+        if (existing !== 'granted') {
+            ({ status } = await Notifications.requestPermissionsAsync());
+        }
+        if (status !== 'granted') return;
+        const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId: EAS_PROJECT_ID });
+        if (!token) return;
+        await apiClient.put(API_CONFIG.ENDPOINTS.USER.SAVE_PUSH_TOKEN, { push_token: token });
+    } catch (err) {
+        // Expo Go / simulator / denied permission — push simply stays off.
+        logger.warn?.('Push token registration failed:', err?.message);
+    }
+}
 
 export function useNotificationSync() {
     const { t } = useTranslation();
@@ -24,21 +61,28 @@ export function useNotificationSync() {
             if (!userId || !mounted) return null;
 
             const isAdmin = user?.is_admin === true;
-            const rooms = isAdmin ? ['admin', `provider:${userId}`] : [`provider:${userId}`];
+            const rooms = isAdmin ? [ROOM_ADMIN, userRoom(userId)] : [userRoom(userId)];
+
+            registerPushToken();
 
             const socket = socketService.connect(rooms);
 
-            const onPostCreated = ({ title } = {}) => {
+            // postId/postType/role and bookingRole make the rows on
+            // NotificationsScreen tappable — they mirror the push-tap routing.
+            const onPostCreated = ({ postId, category, title } = {}) => {
                 if (!mounted) return;
                 invalidatePostData();
                 addNotification({
                     title: t('notifications.postCreated'),
                     message: title || t('notifications.postCreatedDesc'),
                     type: 'info',
+                    postId,
+                    postType: category,
+                    role: 'admin',
                 });
             };
 
-            const onPostApproved = ({ postId, title } = {}) => {
+            const onPostApproved = ({ postId, title, category } = {}) => {
                 if (!mounted) return;
                 invalidatePostData();
                 addNotification({
@@ -48,10 +92,12 @@ export function useNotificationSync() {
                         : t('notifications.postApprovedDesc'),
                     type: 'success',
                     postId,
+                    postType: category,
+                    role: 'provider',
                 });
             };
 
-            const onPostRejected = ({ postId, reason } = {}) => {
+            const onPostRejected = ({ postId, reason, category } = {}) => {
                 if (!mounted) return;
                 invalidatePostData();
                 addNotification({
@@ -59,6 +105,8 @@ export function useNotificationSync() {
                     message: reason || t('notifications.postRejectedDesc'),
                     type: 'error',
                     postId,
+                    postType: category,
+                    role: 'provider',
                 });
             };
 
@@ -69,6 +117,7 @@ export function useNotificationSync() {
                     title: t('notifications.bookingRequested'),
                     message: t('notifications.bookingRequestedDesc'),
                     type: 'info',
+                    bookingRole: 'provider',
                 });
             };
 
@@ -80,6 +129,7 @@ export function useNotificationSync() {
                     title: accepted ? t('notifications.bookingAccepted') : t('notifications.bookingDeclined'),
                     message: accepted ? t('notifications.bookingAcceptedDesc') : t('notifications.bookingDeclinedDesc'),
                     type: accepted ? 'success' : 'error',
+                    bookingRole: 'customer',
                 });
             };
 
@@ -90,23 +140,31 @@ export function useNotificationSync() {
                     title: t('notifications.bookingCancelled'),
                     message: t('notifications.bookingCancelledDesc'),
                     type: 'info',
+                    bookingRole: 'provider',
                 });
             };
 
-            socket.on('post.created', onPostCreated);
-            socket.on('post.approved', onPostApproved);
-            socket.on('post.rejected', onPostRejected);
-            socket.on('booking.requested', onBookingRequested);
-            socket.on('booking.responded', onBookingResponded);
-            socket.on('booking.cancelled', onBookingCancelled);
+            const onStatsUpdated = () => {
+                if (!mounted) return;
+                invalidatePostData();
+            };
+
+            socket.on(SOCKET_EVENTS.POST_CREATED, onPostCreated);
+            socket.on(SOCKET_EVENTS.POST_APPROVED, onPostApproved);
+            socket.on(SOCKET_EVENTS.POST_REJECTED, onPostRejected);
+            socket.on(SOCKET_EVENTS.BOOKING_REQUESTED, onBookingRequested);
+            socket.on(SOCKET_EVENTS.BOOKING_RESPONDED, onBookingResponded);
+            socket.on(SOCKET_EVENTS.BOOKING_CANCELLED, onBookingCancelled);
+            socket.on(SOCKET_EVENTS.STATS_UPDATED, onStatsUpdated);
 
             return () => {
-                socket.off('post.created', onPostCreated);
-                socket.off('post.approved', onPostApproved);
-                socket.off('post.rejected', onPostRejected);
-                socket.off('booking.requested', onBookingRequested);
-                socket.off('booking.responded', onBookingResponded);
-                socket.off('booking.cancelled', onBookingCancelled);
+                socket.off(SOCKET_EVENTS.POST_CREATED, onPostCreated);
+                socket.off(SOCKET_EVENTS.POST_APPROVED, onPostApproved);
+                socket.off(SOCKET_EVENTS.POST_REJECTED, onPostRejected);
+                socket.off(SOCKET_EVENTS.BOOKING_REQUESTED, onBookingRequested);
+                socket.off(SOCKET_EVENTS.BOOKING_RESPONDED, onBookingResponded);
+                socket.off(SOCKET_EVENTS.BOOKING_CANCELLED, onBookingCancelled);
+                socket.off(SOCKET_EVENTS.STATS_UPDATED, onStatsUpdated);
             };
         };
 

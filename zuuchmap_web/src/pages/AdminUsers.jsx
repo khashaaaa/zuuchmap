@@ -68,7 +68,7 @@ export default function AdminUsers() {
       {showSkeleton ? (
         <div className="space-y-3">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-16 bg-surface2 rounded-card animate-pulse" />
+            <div key={i} className="h-16 skeleton rounded-card" />
           ))}
         </div>
       ) : isError ? (

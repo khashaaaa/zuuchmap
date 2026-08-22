@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -22,13 +22,11 @@ import ScreenHeader from '../../components/ScreenHeader';
 import { EmptyState, SkeletonItem, FadeSlideIn, PressableScale, SelectionPop } from '../../components';
 import ScreenError from '../../components/ScreenError';
 import postService from '../../services/api/postService';
-import { API_CONFIG, getPostImageUrl } from '../../config/api.config';
+import { getPostImageUrl } from '../../config/api.config';
 import { getPostTitle } from '../../utils/postUtils';
-import { socketService } from '../../services/socketService';
-import { invalidatePostData } from '../../services/queryClient';
+import { formatDateYYYYMMDD } from '../../utils/displayUtils';
 import categoryService from '../../services/api/categoryService';
 
-const resolveThumb = (_postType, filename) => getPostImageUrl(filename);
 
 const AdminPostList = ({ navigation, route }) => {
     const insets = useSafeAreaInsets();
@@ -59,24 +57,12 @@ const AdminPostList = ({ navigation, route }) => {
 
     useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
 
-    useEffect(() => {
-        const s = socketService.connect('admin');
-        const handlePostCreated = () => invalidatePostData();
-
-        s.on('post.created', handlePostCreated);
-
-        return () => {
-            socketService.off('post.created', handlePostCreated);
-            // Do not disconnect here — the socket is shared app-wide; it ends at logout
-        };
-    }, []);
-
     const handleRefresh = refetch;
 
     const renderItem = useCallback(({ item, index }) => {
         const imgKey = `${item.postType}-${item.id}`;
         const hasErr = imageErrors[imgKey];
-        const thumb = resolveThumb(item.postType, item.images?.[0]);
+        const thumb = getPostImageUrl(item.images?.[0]);
         const title = getPostTitle(item, item.postType);
 
         return (
@@ -108,7 +94,7 @@ const AdminPostList = ({ navigation, route }) => {
                             </Text>
                         )}
                         <Text style={styles.cardDate}>
-                            {new Date(item.date_created).toLocaleDateString('mn-MN')}
+                            {formatDateYYYYMMDD(item.date_created)}
                         </Text>
                     </View>
                     <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} style={styles.chevron} />
@@ -144,7 +130,7 @@ const AdminPostList = ({ navigation, route }) => {
                             <Text style={[
                                 styles.filterText,
                                 { color: colors.text.secondary },
-                                activeFilter === type && { ...typography.styles.labelStrong, color: colors.primary },
+                                activeFilter === type && { color: colors.primary },
                             ]}>
                                 {type === 'all' ? t('filter.all') : t(`category.${type}`)}
                             </Text>
@@ -166,8 +152,8 @@ const AdminPostList = ({ navigation, route }) => {
                 <EmptyState
                     icon="checkmark-circle-outline"
                     iconSize={64}
-                    title={t('posts.empty')}
-                    subtitle={t('posts.browseEmpty')}
+                    title={t('admin.noPending')}
+                    subtitle={t('admin.noPendingDesc')}
                 />
             ) : (
                 <FlatList
@@ -196,8 +182,10 @@ const AdminPostList = ({ navigation, route }) => {
 const createStyles = (colors) => StyleSheet.create({
     filterBar: { maxHeight: 52, borderBottomWidth: 1, borderBottomColor: colors.border.light },
     filterContent: { paddingHorizontal: spacing.md, alignItems: 'center', paddingVertical: spacing.sm, gap: spacing.sm },
-    filterChip: { height: 32, paddingHorizontal: spacing.md, borderRadius: radius.pill, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-    filterText: { ...typography.styles.caption, includeFontPadding: false, textAlignVertical: 'center' },
+    filterChip: { height: 36, paddingHorizontal: spacing.md, borderRadius: radius.pill, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+    // Weight stays fixed across states: swapping it re-measures the chip and
+    // shifts every sibling in the row on tap.
+    filterText: { ...typography.styles.label, includeFontPadding: false, textAlignVertical: 'center' },
     list: { padding: spacing.lg },
     card: { ...colors.elevation.sm, flexDirection: 'row', borderRadius: radius.card, marginBottom: spacing.md, overflow: 'hidden', alignItems: 'center', backgroundColor: colors.surface, },
     imgBox: { width: 100, height: 100, backgroundColor: colors.border.light },

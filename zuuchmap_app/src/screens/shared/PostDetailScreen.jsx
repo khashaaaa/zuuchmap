@@ -18,7 +18,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet, fonts, animations } from '../../design/theme';
+import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet, fonts, animations, toneForTheme } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useTranslation } from 'react-i18next';
@@ -31,7 +31,7 @@ import LikeButton from '../../components/LikeButton';
 import { Button } from '../../components';
 import { TextInput } from '../../components';
 import { formatPrice, formatDateYYYYMMDD, formatDateTimeYYYYMMDD, getProvinceLabel, getDistrictLabel } from '../../utils/displayUtils';
-import { normalizePostType, getPostTypeConfig, getPostTitle } from '../../utils/postUtils';
+import { normalizePostType, getPostTypeConfig, getPostTitle, getSchemaLabel, getSubcategoryLabel } from '../../utils/postUtils';
 import { processPostImages } from '../../utils/imageUtils';
 import { logger } from '../../utils/logger';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -96,11 +96,10 @@ const PostDetailScreen = ({ route, navigation }) => {
     const insets = useSafeAreaInsets();
     const { colors, isDark, styles: gStyles } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const { postId, postType: rawPostType, role = 'customer' } = route.params;
     const isProvider = role === 'provider';
     const isAdmin = role === 'admin';
-    const postType = normalizePostType(rawPostType);
 
     const qc = useQueryClient();
 
@@ -122,6 +121,11 @@ const PostDetailScreen = ({ route, navigation }) => {
     });
     const loading = isLoading || deleting;
 
+    // Deep links (push taps, notification rows) may arrive without postType —
+    // fall back to the fetched post's category so like stats and the category
+    // schema still resolve.
+    const postType = normalizePostType(rawPostType) || (post ? normalizePostType(post.category) : null);
+
     const {
         editMode, setEditMode,
         editedTitle, setEditedTitle,
@@ -134,7 +138,7 @@ const PostDetailScreen = ({ route, navigation }) => {
 
     const { data: likeStats = { total_likes: 0, recent_likes: 0 }, isLoading: loadingLikes } = useQuery({
         queryKey: ['post', postId, 'likeStats'],
-        enabled: isProvider,
+        enabled: isProvider && Boolean(postType),
         queryFn: () => likeService.getLikeStats(postType, postId),
         staleTime: 60 * 1000,
     });
@@ -355,7 +359,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                                 onChangeText={setEditedTitle}
                                 placeholder={t('admin.editTitlePlaceholder')}
                                 maxLength={200}
-                                style={typography.styles.bodyBold}
+                                style={{ ...typography.styles.bodyBold, lineHeight: undefined }}
                             />
                             <Text style={[styles.editFieldLabel, { color: colors.text.tertiary, marginTop: spacing.md }]}>{t('common.description')}</Text>
                             <TextInput
@@ -380,10 +384,10 @@ const PostDetailScreen = ({ route, navigation }) => {
                                 <View style={{ flex: 1 }}>
                                     <Text style={[styles.title, { color: colors.text.primary }]}>{isAdmin ? (editedTitle || postTitle) : postTitle}</Text>
                                     <View style={styles.postTypeRow}>
-                                        <Ionicons name={postTypeConfig.iconName} size={20} color={postTypeConfig.color} />
+                                        <Ionicons name={postTypeConfig.iconName} size={20} color={toneForTheme(postTypeConfig.color, isDark)} />
                                         <Text style={[styles.postTypeText, { color: colors.text.secondary }]}>
-                                            {t('category.' + postType)}
-                                            {post.subcategory ? ` → ${t(`subcategory.${post.subcategory}`, { defaultValue: post.subcategory })}` : ''}
+                                            {schema ? getSchemaLabel(schema) : t('category.' + postType, { defaultValue: postType })}
+                                            {post.subcategory ? ` → ${getSubcategoryLabel(post.subcategory, schema) || t(`subcategory.${post.subcategory}`, { defaultValue: post.subcategory })}` : ''}
                                         </Text>
                                     </View>
                                 </View>
@@ -555,9 +559,25 @@ const PostDetailScreen = ({ route, navigation }) => {
                     <CollapsibleSectionCard title={t('form.categoryDetails')} colors={colors} styles={styles}>
                         <View style={styles.detailsGrid}>
                             {Object.entries(post.attributes).map(([key, value]) => {
-                                if (!value && value !== 0) return null;
-                                const label = ATTR_I18N_KEYS[key] ? t(ATTR_I18N_KEYS[key]) : key;
+                                // Skip genuine absences only. `false` and `0` are
+                                // answers — "no operator included" must render.
+                                if (value === undefined || value === null || value === '') return null;
+                                if (Array.isArray(value) && value.length === 0) return null;
+                                // Schema field labels win (admin-editable, covers new
+                                // verticals); the hardcoded map is the legacy fallback.
+                                const fieldDef = schema?.fields?.find((f) => f.key === key);
+                                const label = fieldDef?.labels?.[i18n.language]
+                                    ?? (ATTR_I18N_KEYS[key] ? t(ATTR_I18N_KEYS[key]) : (fieldDef?.label || key));
                                 const icon = ATTR_ICONS[key] || 'information-circle-outline';
+                                // Select values are enum tokens (GOOD, FULL_TIME…) —
+                                // translate them the same way the form's picker does.
+                                const display = typeof value === 'boolean' || fieldDef?.type === 'boolean'
+                                    ? (value === true ? t('common.yes') : t('common.no'))
+                                    : fieldDef?.type === 'select' && typeof value === 'string'
+                                        ? t('attrs.' + value.toLowerCase().replace(/_([a-z])/g, (_, c) => c.toUpperCase()), { defaultValue: value })
+                                        : fieldDef?.unit
+                                            ? `${value} ${fieldDef.unit}`
+                                            : value;
                                 if (Array.isArray(value)) {
                                     return (
                                         <DetailItem key={key} icon={icon} label={label} colors={colors} styles={styles}>
@@ -565,7 +585,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                                         </DetailItem>
                                     );
                                 }
-                                return <DetailItem key={key} icon={icon} label={label} colors={colors} styles={styles}>{String(value)}</DetailItem>;
+                                return <DetailItem key={key} icon={icon} label={label} colors={colors} styles={styles}>{String(display)}</DetailItem>;
                             })}
                         </View>
                     </CollapsibleSectionCard>
@@ -945,8 +965,11 @@ const createStyles = (colors) => StyleSheet.create({
         gap: spacing.lg,
     },
     statItem: {
-        flex: 1,
-        minWidth: '33%',
+        // 28% basis leaves room for the row's gaps: three stats share one row
+        // (33% + gaps overflowed and wrapped the third onto its own giant row);
+        // four stats still wrap into an even 2×2.
+        flexGrow: 1,
+        flexBasis: '28%',
         alignItems: 'center',
         justifyContent: 'center',
         minHeight: 70,
@@ -1154,7 +1177,9 @@ const createStyles = (colors) => StyleSheet.create({
     adminInfoLabel: { ...typography.styles.caption, flex: 1 },
     adminInfoValue: { ...typography.styles.label, flex: 2, textAlign: 'right' },
     rejectBtn: {
-        flex: 1,
+        // flex:1 splits the tablet row; in the phone column the footer's height
+        // is content-driven, so flex:1 would collapse the button to its padding.
+        flex: isTablet ? 1 : undefined,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
@@ -1166,7 +1191,7 @@ const createStyles = (colors) => StyleSheet.create({
     rejectBtnText: { ...typography.styles.bodyBold },
     approveBtn: {
         ...colors.elevation.md,
-        flex: 1,
+        flex: isTablet ? 1 : undefined,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',

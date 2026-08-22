@@ -1,5 +1,6 @@
 import { HttpException } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { __resetLocalRateCounter } from '../utils/rate-counter';
 
 /**
  * Covers the verify.mn Mobile-Originated flow. The security property under test
@@ -14,6 +15,9 @@ describe('AuthService — phone verification', () => {
   const OLD_ENV = process.env;
 
   beforeEach(() => {
+    // Module-level rate counter persists across cases (prod uses a singleton
+    // service, so this only matters for tests).
+    __resetLocalRateCounter();
     process.env = {
       ...OLD_ENV,
       NODE_ENV: 'test',
@@ -131,6 +135,17 @@ describe('AuthService — phone verification', () => {
     expect(started.verified).toBe(true);
     expect(started.auth?.token).toBe('signed.jwt.token');
     expect(verifyMn.createSession).not.toHaveBeenCalled();
+  });
+
+  it('locks the 6th verification attempt with a 429 and a stable machine code', async () => {
+    for (let i = 0; i < 5; i++) await service.startVerification('99112233');
+
+    await expect(service.startVerification('99112233')).rejects.toMatchObject({
+      status: 429,
+      // Clients localize by `code` — the raw English message must never be
+      // the only thing they can show.
+      response: expect.objectContaining({ code: 'TOO_MANY_VERIFICATIONS' }),
+    });
   });
 
   it('throttles upstream polling to stay under the provider rate limit', async () => {

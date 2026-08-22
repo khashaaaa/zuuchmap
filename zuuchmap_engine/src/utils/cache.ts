@@ -65,14 +65,47 @@ export class SimpleCache {
  */
 export const sharedCache = new SimpleCache();
 
+// ─── Cross-instance invalidation ────────────────────────────────────────────
+// The cache stays a per-process L1 (reads are synchronous, no async rewrite of
+// every call site). Only *invalidation events* need to be global: when one pm2
+// instance approves a post, the others must drop their stale list caches too.
+// A Redis pub/sub broadcaster is injected at boot (CacheCoordinator); with no
+// Redis it stays a no-op and behaviour is exactly single-process.
+
+export type CacheInvalidationScope = 'post' | 'category';
+
+let broadcast: (scope: CacheInvalidationScope) => void = () => {};
+
+/** Wired by CacheCoordinator when Redis is enabled. */
+export function setCacheBroadcaster(fn: (scope: CacheInvalidationScope) => void): void {
+  broadcast = fn;
+}
+
+/** Local-only clear — used both by the local write path and the Redis subscriber. */
+export function applyCacheInvalidation(scope: CacheInvalidationScope): void {
+  if (scope === 'post') {
+    sharedCache.invalidatePrefix('posts:list:');
+    sharedCache.del('posts:map');
+    sharedCache.del('posts:public-stats');
+    sharedCache.del('admin:stats');
+  } else if (scope === 'category') {
+    sharedCache.del('categories');
+    sharedCache.invalidatePrefix('category:');
+  }
+}
+
 /**
  * Every post write (create/update/delete/approve/reject/expire) must clear all
- * derived read models, wherever they are served from. One helper so a new
- * cached view can't be forgotten at five call sites.
+ * derived read models, wherever they are served from — locally and on every
+ * other instance. One helper so a new cached view can't be forgotten.
  */
 export function invalidatePostReadCaches(): void {
-  sharedCache.invalidatePrefix('posts:list:');
-  sharedCache.del('posts:map');
-  sharedCache.del('posts:public-stats');
-  sharedCache.del('admin:stats');
+  applyCacheInvalidation('post');
+  broadcast('post');
+}
+
+/** Category schema writes — clear the category caches everywhere. */
+export function invalidateCategoryCaches(): void {
+  applyCacheInvalidation('category');
+  broadcast('category');
 }

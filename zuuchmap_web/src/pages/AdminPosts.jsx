@@ -111,7 +111,7 @@ export default function AdminPosts() {
       {showSkeleton ? (
         <div className="space-y-3">
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-16 bg-surface2 rounded-card animate-pulse" />
+            <div key={i} className="h-16 skeleton rounded-card" />
           ))}
         </div>
       ) : isError ? (

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams, useNavigate } from 'react-router-dom'
@@ -39,6 +39,9 @@ export default function CustomerBrowse() {
   const [search, setSearch] = useState('')
   const [attrInputs, setAttrInputs] = useState({})
   const [attrFilters, setAttrFilters] = useState({})
+  const [sort, setSort] = useState('')
+  const [priceInputs, setPriceInputs] = useState({})
+  const [priceFilters, setPriceFilters] = useState({})
 
   const setPage = useCallback((p) => {
     setSearchParams((prev) => {
@@ -85,6 +88,23 @@ export default function CustomerBrowse() {
     else applyAttr(key, val)
   }, [applyAttr, resetPage])
 
+  const applyPrice = useMemo(
+    () => debounce((key, val) => { setPriceFilters((p) => ({ ...p, [key]: val })); resetPage() }, 400),
+    [resetPage] // eslint-disable-line
+  )
+  const handlePriceChange = useCallback((key, val) => {
+    setPriceInputs((p) => ({ ...p, [key]: val }))
+    applyPrice(key, val)
+  }, [applyPrice])
+
+  // Drop pending debounced calls on unmount (or identity change) — they would
+  // otherwise fire setState/setSearchParams into a dead component.
+  useEffect(() => () => {
+    debouncedSearch.cancel()
+    applyAttr.cancel()
+    applyPrice.cancel()
+  }, [debouncedSearch, applyAttr, applyPrice])
+
   const handleProvince = useCallback((val) => {
     setProvince(val)
     setDistrict('')
@@ -97,6 +117,9 @@ export default function CustomerBrowse() {
   if (province) queryParams.province = province
   if (district) queryParams.district = district
   if (search) queryParams.q = search
+  if (sort) queryParams.sort = sort
+  if (priceFilters.min) queryParams.price_min = priceFilters.min
+  if (priceFilters.max) queryParams.price_max = priceFilters.max
   if (category) {
     for (const [k, v] of Object.entries(attrFilters)) {
       if (v) queryParams[`attr.${k}`] = v
@@ -145,13 +168,15 @@ export default function CustomerBrowse() {
     setSubcat(''); setProvince(''); setDistrict('')
     setSearchInput(''); setSearch('')
     setAttrInputs({}); setAttrFilters({})
+    setSort(''); setPriceInputs({}); setPriceFilters({})
     setSearchParams({}) // drops category + page together
   }, [setSearchParams])
 
   const schema = useMemo(() => schemas.find((s) => s.key === category), [schemas, category])
   const filterFields = useMemo(() => schema?.fields?.filter((f) => f.filterable) ?? [], [schema])
 
-  const hasFilters = category || subcat || province || district || search || Object.values(attrFilters).some(Boolean)
+  const hasFilters = category || subcat || province || district || search || sort
+    || Object.values(priceFilters).some(Boolean) || Object.values(attrFilters).some(Boolean)
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 items-start">
@@ -162,6 +187,21 @@ export default function CustomerBrowse() {
           placeholder={t('filter.searchPlaceholder')}
           className="w-full"
         />
+
+        <Input as="select" value={sort} onChange={(e) => { setSort(e.target.value); resetPage() }} className="bg-surface rounded-btn w-full">
+          <option value="">{t('sort.newest')}</option>
+          <option value="price_asc">{t('sort.priceAsc')}</option>
+          <option value="price_desc">{t('sort.priceDesc')}</option>
+          <option value="views">{t('sort.views')}</option>
+        </Input>
+
+        <div>
+          <p className="text-xs text-muted mb-1">{t('filter.price')}</p>
+          <div className="flex gap-2">
+            <Input type="number" inputMode="numeric" value={priceInputs.min ?? ''} placeholder={t('filter.min')} onChange={(e) => handlePriceChange('min', e.target.value)} className="bg-surface rounded-btn w-full" />
+            <Input type="number" inputMode="numeric" value={priceInputs.max ?? ''} placeholder={t('filter.max')} onChange={(e) => handlePriceChange('max', e.target.value)} className="bg-surface rounded-btn w-full" />
+          </div>
+        </div>
 
         <div>
           <p className="text-xs text-muted mb-2">{t('posts.category')}</p>
@@ -196,6 +236,14 @@ export default function CustomerBrowse() {
                 <option value="">{getFieldLabel(f, t)}</option>
                 {f.options?.map((o) => <option key={o} value={o}>{getOptionLabel(o, t)}</option>)}
               </Input>
+            ) : f.type === 'number' ? (
+              <div key={f.key}>
+                <p className="text-xs text-muted mb-1">{getFieldLabel(f, t)}</p>
+                <div className="flex gap-2">
+                  <Input type="number" inputMode="numeric" value={attrInputs[`${f.key}_min`] ?? ''} placeholder={t('filter.min')} onChange={(e) => handleAttrChange(`${f.key}_min`, e.target.value)} className="bg-surface rounded-btn w-full" />
+                  <Input type="number" inputMode="numeric" value={attrInputs[`${f.key}_max`] ?? ''} placeholder={t('filter.max')} onChange={(e) => handleAttrChange(`${f.key}_max`, e.target.value)} className="bg-surface rounded-btn w-full" />
+                </div>
+              </div>
             ) : (
               <Input key={f.key} value={attrInputs[f.key] ?? ''} placeholder={getFieldLabel(f, t)} onChange={(e) => handleAttrChange(f.key, e.target.value)} className="bg-surface rounded-btn w-full" />
             ))}
@@ -266,7 +314,8 @@ export default function CustomerBrowse() {
           })}
         </PostGrid>
         {!isLoading && posts.length > 0 && (
-          <Pagination page={page} total={total} limit={LIMIT} onChange={setPage} />
+          <Pagination page={page} total={total} limit={LIMIT} onChange={setPage}
+            labels={{ previous: t('common.previousPage'), next: t('common.nextPage') }} />
         )}
       </div>
     </div>

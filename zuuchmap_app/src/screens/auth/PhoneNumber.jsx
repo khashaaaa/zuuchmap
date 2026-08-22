@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     View,
     Text,
@@ -8,7 +8,9 @@ import {
     Platform,
     StatusBar,
     StyleSheet,
+    Image,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { spacing, typography, radius, interactions, isTablet } from '../../design/theme';
@@ -16,7 +18,8 @@ import { useAppTheme } from '../../hooks/useAppTheme';
 import { useAppContext } from '../../context/AppContext';
 import { useTranslation } from 'react-i18next';
 import userService from '../../services/api/userService';
-import { saveUserInfo } from '../../services/api/authHelpers';
+import { saveUserInfo, getUserInfo } from '../../services/api/authHelpers';
+import { API_CONFIG } from '../../config/api.config';
 import { getErrorMessage, showErrorModal } from '../../utils/errorManager';
 import { logger } from '../../utils/logger';
 import { track } from '../../services/analytics';
@@ -26,9 +29,43 @@ import { navigateToDashboard } from '../../utils/navigationUtils';
 const PhoneNumber = ({ navigation }) => {
     const [phoneNumber, setPhoneNumber] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    // The identity confirmLogout keeps behind: name/photo/phone of the person
+    // who signed out, shown as a "welcome back" block with the number prefilled
+    // (a trusted device then signs them back in with one tap, no SMS).
+    const [savedUser, setSavedUser] = useState(null);
+    const inputRef = useRef(null);
     const { colors, isDark } = useAppTheme();
     const { setThemeMode } = useAppContext();
     const { t } = useTranslation();
+
+    useEffect(() => {
+        let mounted = true;
+        getUserInfo()
+            .then((info) => {
+                if (!mounted) return;
+                if (info?.phoneNumber && (info.name || info.profilePicture)) {
+                    setSavedUser(info);
+                    setPhoneNumber(info.phoneNumber);
+                } else {
+                    // Fresh visitor: open the keyboard for them. Returning users
+                    // get the welcome block instead — their number is prefilled.
+                    inputRef.current?.focus();
+                }
+            })
+            .catch(() => {});
+        return () => { mounted = false; };
+    }, []);
+
+    const handleDifferentAccount = async () => {
+        setSavedUser(null);
+        setPhoneNumber('');
+        await AsyncStorage.multiRemove([
+            API_CONFIG.STORAGE_KEYS.USER_INFO,
+            API_CONFIG.STORAGE_KEYS.PHONE_NUMBER,
+            API_CONFIG.STORAGE_KEYS.USER_TYPE,
+        ]).catch(() => {});
+        inputRef.current?.focus();
+    };
 
     const validatePhoneNumber = (number) => {
         return /^\d{8}$/.test(number);
@@ -87,20 +124,27 @@ const PhoneNumber = ({ navigation }) => {
                             style={[styles.themeToggle, { backgroundColor: colors.opacity.background.primary }]}
                             onPress={() => setThemeMode(isDark ? 'light' : 'dark')}
                             activeOpacity={interactions.activeOpacityLight}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            hitSlop={interactions.hitSlop}
                         >
                             <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={colors.primary} />
                         </TouchableOpacity>
                     </View>
                     <View style={styles.header}>
-                        <View style={[styles.iconContainer, { backgroundColor: colors.opacity.background.primary }]}>
-                            <Ionicons name="call-outline" size={64} color={colors.primary} />
-                        </View>
+                        {savedUser?.profilePicture ? (
+                            <Image
+                                source={{ uri: savedUser.profilePicture }}
+                                style={[styles.avatar, { backgroundColor: colors.opacity.background.primary }]}
+                            />
+                        ) : (
+                            <View style={[styles.iconContainer, { backgroundColor: colors.opacity.background.primary }]}>
+                                <Ionicons name={savedUser ? 'person-outline' : 'call-outline'} size={64} color={colors.primary} />
+                            </View>
+                        )}
                         <Text style={[styles.title, { color: colors.text.primary }]}>
-                            {t('auth.phoneTitle')}
+                            {savedUser ? t('auth.welcomeBack') : t('auth.phoneTitle')}
                         </Text>
                         <Text style={[styles.subtitle, { color: colors.text.secondary }]}>
-                            {t('auth.phoneSubtitle')}
+                            {savedUser ? (savedUser.name || savedUser.phoneNumber) : t('auth.phoneSubtitle')}
                         </Text>
                     </View>
 
@@ -110,6 +154,7 @@ const PhoneNumber = ({ navigation }) => {
                                 <Text style={[styles.prefix, { color: colors.text.primary }]}>{t('auth.phoneLabel')}</Text>
                             </View>
                             <TextInput
+                                ref={inputRef}
                                 style={[styles.input, { color: colors.text.primary }]}
                                 value={phoneNumber}
                                 onChangeText={setPhoneNumber}
@@ -117,7 +162,6 @@ const PhoneNumber = ({ navigation }) => {
                                 placeholderTextColor={colors.text.placeholder}
                                 keyboardType="phone-pad"
                                 maxLength={8}
-                                autoFocus
                                 returnKeyType="done"
                                 onSubmitEditing={handleContinue}
                             />
@@ -130,6 +174,18 @@ const PhoneNumber = ({ navigation }) => {
                             loading={isLoading}
                             fullWidth
                         />
+
+                        {savedUser && (
+                            <TouchableOpacity
+                                onPress={handleDifferentAccount}
+                                activeOpacity={interactions.activeOpacityLight}
+                                hitSlop={interactions.hitSlop}
+                            >
+                                <Text style={[styles.differentAccount, { color: colors.text.link }]}>
+                                    {t('auth.continueDifferent')}
+                                </Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
 
                 </View>
@@ -180,6 +236,16 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: spacing.lg,
     },
+    avatar: {
+        width: 120,
+        height: 120,
+        borderRadius: radius.pill,
+        marginBottom: spacing.lg,
+    },
+    differentAccount: {
+        ...typography.styles.labelStrong,
+        textAlign: 'center',
+    },
     title: {
         ...typography.styles.h2,
         marginBottom: spacing.sm,
@@ -211,6 +277,7 @@ const styles = StyleSheet.create({
         flex: 1,
         height: 52,
         ...typography.styles.body,
+        lineHeight: undefined,
         paddingHorizontal: spacing.md,
     },
 });

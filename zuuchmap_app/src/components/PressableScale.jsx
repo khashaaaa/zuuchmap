@@ -3,6 +3,8 @@ import { Animated, Pressable } from 'react-native';
 import { animations } from '../design/theme';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
 /**
  * A pressable that dips slightly under the finger instead of only fading.
  *
@@ -53,18 +55,21 @@ const PressableScale = ({
     const handlePressIn = useCallback(() => { if (!reduced) spring(scaleTo); }, [reduced, scaleTo, spring]);
     const handlePressOut = useCallback(() => { if (!reduced) spring(1); }, [reduced, spring]);
 
+    // One node carries style AND transform: the Pressable itself is the layout
+    // node its parent measures, so `flex`/`width` in `style` keep working —
+    // a wrapper view would swallow them (that bug shipped once: dialog button
+    // rows overflowed their card because flex:1 landed on an inner view).
     return (
-        <Pressable
+        <AnimatedPressable
             onPress={onPress}
             onPressIn={handlePressIn}
             onPressOut={handlePressOut}
             disabled={disabled}
+            style={[style, !reduced && { transform: [{ scale }] }]}
             {...rest}
         >
-            <Animated.View style={[style, !reduced && { transform: [{ scale }] }]}>
-                {children}
-            </Animated.View>
-        </Pressable>
+            {children}
+        </AnimatedPressable>
     );
 };
 

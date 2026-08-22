@@ -41,7 +41,7 @@ export default function CustomerMap() {
     [posts, selectedCategory]
   )
 
-  if (isLoading) return <div className="h-[calc(100vh-8rem)] bg-surface2 rounded-card animate-pulse" />
+  if (isLoading) return <div className="h-[calc(100vh-8rem)] skeleton rounded-card" />
 
   // An empty map and an unreachable engine look identical once the pins are gone.
   if (isError) return <ErrorState onRetry={refetch} />

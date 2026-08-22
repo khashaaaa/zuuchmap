@@ -475,7 +475,7 @@ const CustomerMapView = ({ navigation, route }) => {
 
                 {loading && (
                     <View style={styles.loadingOverlay}>
-                        <ActivityIndicator size="large" color={colors.primary} />
+                        <ActivityIndicator size="large" color={MAP_OVERLAY.icon} />
                         <Text style={styles.loadingText}>{t('common.loading')}</Text>
                     </View>
                 )}
@@ -487,21 +487,21 @@ const CustomerMapView = ({ navigation, route }) => {
                     return (
                         <>
                             <PressableScale
-                                style={[styles.floatingButton, { bottom: base, right: spacing.lg, backgroundColor: colors.surface }]}
+                                style={[styles.floatingButton, { bottom: base, right: spacing.lg }]}
                                 onPress={centerOnUserLocation}
                                 accessibilityRole="button"
                                 accessibilityLabel={t('map.title')}
                             >
-                                <Ionicons name="locate" size={20} color={colors.primary} />
+                                <Ionicons name="locate" size={20} color={MAP_OVERLAY.icon} />
                             </PressableScale>
 
                             <PressableScale
-                                style={[styles.floatingButton, { bottom: base + 60, right: spacing.lg, backgroundColor: colors.surface }]}
+                                style={[styles.floatingButton, { bottom: base + 60, right: spacing.lg }]}
                                 onPress={fitToMarkers}
                                 accessibilityRole="button"
                                 accessibilityLabel={t('map.autoFit')}
                             >
-                                <Ionicons name="expand" size={20} color={colors.primary} />
+                                <Ionicons name="expand" size={20} color={MAP_OVERLAY.icon} />
                             </PressableScale>
                         </>
                     );
@@ -646,9 +646,31 @@ const CustomerMapView = ({ navigation, route }) => {
                 onApplyFilters={handleApplyFilters}
                 initialFilters={activeFilters}
                 userLocation={userLocation}
+                posts={posts}
             />
         </CustomSafeAreaView>
     );
+};
+
+// Map furniture sits on Google's tiles, which do not change with the app
+// theme — so these colours are fixed in both modes (same idiom as the map
+// pins' white ring / the web `.map-pin`). Amber is the dark-palette primary
+// (the brightest accent); icons on white use the light chart amber, the
+// darkest amber that still clears 3:1 on white.
+const MAP_OVERLAY = {
+    accent: '#F5A623',
+    onAccent: '#1A1200',
+    surface: '#FFFFFF',
+    icon: '#C87206',
+    text: '#1A1C1E',
+    scrim: 'rgba(255, 255, 255, 0.75)',
+    shadow: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 6,
+        elevation: 4,
+    },
 };
 
 const makeStyles = themedStyles((colors) => ({
@@ -685,64 +707,64 @@ const makeStyles = themedStyles((colors) => ({
         flex: 1,
     },
     singleMarkerContainer: {
-        ...colors.elevation.md,
+        ...MAP_OVERLAY.shadow,
         width: 32,
         height: 32,
         borderRadius: radius.full,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 2,
-        borderColor: colors.text.onMedia,
+        borderColor: MAP_OVERLAY.surface,
     },
     clusterMarkerContainer: {
-        ...colors.elevation.md,
-        backgroundColor: colors.primary,
+        ...MAP_OVERLAY.shadow,
+        backgroundColor: MAP_OVERLAY.accent,
         borderRadius: radius.xxl,
         minWidth: 40,
         height: 40,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 3,
-        borderColor: colors.text.onMedia,
+        borderColor: MAP_OVERLAY.surface,
     },
-    clusterText: { ...typography.styles.labelStrong, color: colors.onPrimary, },
+    clusterText: { ...typography.styles.labelStrong, color: MAP_OVERLAY.onAccent, },
     loadingOverlay: {
         position: 'absolute',
         top: 0,
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: colors.opacity.whiteOverlayLight,
+        backgroundColor: MAP_OVERLAY.scrim,
         justifyContent: 'center',
         alignItems: 'center',
     },
     loadingText: {
         marginTop: spacing.sm,
         ...typography.styles.caption,
-        color: colors.text.secondary,
+        color: MAP_OVERLAY.text,
     },
     floatingButton: {
-        ...colors.elevation.md,
+        ...MAP_OVERLAY.shadow,
         position: 'absolute',
         width: 48,
         height: 48,
         borderRadius: radius.full,
-        // backgroundColor set inline (reactive to theme)
+        backgroundColor: MAP_OVERLAY.surface,
         justifyContent: 'center',
         alignItems: 'center',
     },
     postCountBadge: {
-        ...colors.elevation.md,
+        ...MAP_OVERLAY.shadow,
         position: 'absolute',
         top: spacing.lg,
         left: spacing.lg,
-        backgroundColor: colors.primary,
+        backgroundColor: MAP_OVERLAY.accent,
         paddingHorizontal: spacing.md,
         paddingVertical: spacing.sm,
         borderRadius: radius.xxl,
     },
     postCountText: {
-        color: colors.onPrimary,
+        color: MAP_OVERLAY.onAccent,
         ...typography.styles.labelStrong,
     },
     clusterPostList: {

@@ -1,9 +1,12 @@
 import { memo } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, useReducedMotion } from 'framer-motion'
+import { useQuery } from '@tanstack/react-query'
 import { MapPin, Eye } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { getImageUrl, getPostTitle, getPostCategory, formatPrice, formatDate } from '../lib/utils'
+import { categoryApi } from '../lib/api'
+import { getImageUrl, getPostTitle, getPostCategory, getCategoryLabel, getCategoryColor, toneForTheme, withAlpha, formatPrice, formatDate } from '../lib/utils'
+import { useThemeStore } from '../store'
 import CategoryBadge from './CategoryBadge'
 import StatusBadge from './StatusBadge'
 
@@ -14,6 +17,24 @@ function PostCard({ post, actions, to, index = 0 }) {
   const title = getPostTitle(post, t)
   const price = formatPrice(post.price_amount, post.price_unit, t)
   const location = [post.district, post.province].filter(Boolean).join(', ')
+
+  // Emphasis is an admin-set schema flag (CategorySchema.emphasized) — no
+  // hardcoded category keys. Same key/staleTime as every other consumer, so
+  // this reads the shared cache rather than refetching per card.
+  const { data: schemas = [] } = useQuery({
+    queryKey: ['categories'],
+    queryFn: categoryApi.getAll,
+    staleTime: 5 * 60_000,
+  })
+  const category = getPostCategory(post)
+  const emphasized = !!schemas.find((s) => s.key === category)?.emphasized
+
+  // Photo-less posts get a quiet category-tinted ground instead of a flat grey
+  // slab — same colour discipline as CategoryBadge (fill from the stored hex,
+  // text re-lit for the active theme).
+  const theme = useThemeStore((s) => s.theme)
+  const isDark = theme !== 'light'
+  const catBase = getCategoryColor(category, schemas)
 
   return (
     <motion.div
@@ -26,7 +47,7 @@ function PostCard({ post, actions, to, index = 0 }) {
       }}
       whileHover={shouldReduceMotion ? undefined : { y: -3 }}
       transition={{ duration: shouldReduceMotion ? 0 : 0.15 }}
-      className="bg-surface border border-border/20 shadow-card hover:shadow-card-hover transition-shadow duration-200 rounded-card overflow-hidden flex flex-col"
+      className={`group bg-surface border ${emphasized ? 'border-danger/50' : 'border-border/20'} shadow-card hover:shadow-card-hover transition-shadow duration-200 rounded-card overflow-hidden flex flex-col`}
     >
       <Link to={to ?? `/posts/${post.id}`} className="block">
         <div className="relative h-44 bg-surface2 overflow-hidden">
@@ -36,11 +57,14 @@ function PostCard({ post, actions, to, index = 0 }) {
               alt={title}
               loading="lazy"
               decoding="async"
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-muted text-sm">
-              {t('posts.noImage')}
+            <div
+              className="w-full h-full flex items-center justify-center text-sm"
+              style={catBase ? { backgroundColor: withAlpha(catBase, isDark ? 0.14 : 0.1), color: toneForTheme(catBase, isDark) } : undefined}
+            >
+              <span className={catBase ? 'opacity-80' : 'text-muted'}>{t('posts.noImage')}</span>
             </div>
           )}
           {/* Approved is the norm on every public/customer card — only surface
@@ -48,6 +72,15 @@ function PostCard({ post, actions, to, index = 0 }) {
           {post.approval_status && post.approval_status !== 'APPROVED' && (
             <div className="absolute top-2 right-2">
               <StatusBadge status={post.approval_status} />
+            </div>
+          )}
+          {/* Attention strip for emphasized categories — mirrors the app's
+              CustomerPostList badge (danger fill, caps label over the photo). */}
+          {emphasized && (
+            <div className="absolute inset-x-0 bottom-0 bg-danger px-2 py-0.5 text-center">
+              <span className="block text-[10px] font-semibold uppercase tracking-wider text-on-color truncate">
+                {getCategoryLabel(category, t, schemas)}
+              </span>
             </div>
           )}
         </div>

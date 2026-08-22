@@ -137,8 +137,8 @@ const createStyles = (colors) => StyleSheet.create({
         width: '100%',
     },
     pickerItem: {
+        // iOS-only: this is the height of ONE wheel row, not the wheel.
         ...typography.styles.body,
-        height: 200,
         color: colors.text.primary,
     },
 });

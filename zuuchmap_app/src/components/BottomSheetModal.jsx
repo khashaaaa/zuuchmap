@@ -21,7 +21,7 @@ const BottomSheetModal = ({
     style,
 }) => {
     const insets = useSafeAreaInsets();
-    const { colors, styles: gStyles } = useAppTheme();
+    const { colors } = useAppTheme();
     const { t } = useTranslation();
     const reduced = useReducedMotion();
     const panY = useRef(new Animated.Value(0)).current;
@@ -85,7 +85,7 @@ const BottomSheetModal = ({
             ]}
         >
             <KeyboardAvoidingView
-                style={gStyles.keyboardAvoidingView}
+                style={styles.sheetBody}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             >
                 {showHeader && (
@@ -164,8 +164,17 @@ const styles = StyleSheet.create({
         padding: spacing.xs,
         marginLeft: spacing.md,
     },
+    // The sheet (BaseModal bottomSheet variant) is an auto-height flex child
+    // capped by maxHeight — nothing inside it may use flex:1 (flex-basis 0
+    // collapses an auto-height parent to zero). Content sizes the sheet;
+    // flexShrink lets the ScrollView give way when the cap bites, keeping the
+    // footer pinned on screen.
+    sheetBody: {
+        flexShrink: 1,
+    },
     content: {
-        flex: 1,
+        flexGrow: 0,
+        flexShrink: 1,
     },
     contentContainer: {
         padding: spacing.lg,

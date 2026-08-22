@@ -6,38 +6,31 @@ import {
     TouchableOpacity,
     ScrollView,
     RefreshControl,
-    ActionSheetIOS,
-    Platform,
-    Linking,
     StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { pickProfileImage, takeProfilePhoto } from '../../utils/imageUtils';
 import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet, dimensions } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useCountUp } from '../../hooks/useCountUp';
 import { useTranslation } from 'react-i18next';
 import userService from '../../services/api/userService';
-import { saveUserInfo } from '../../services/api/authHelpers';
 import { ScreenLayout, SettingsSection, PressableScale } from '../../components';
-import { ProfileSection, ProfileInfoRow, ProfileActionRow } from '../../components';
+import { ProfileSection, ProfileActionRow } from '../../components';
 import { ProfileBadge } from '../../components';
-import { APP_CONFIG, DEFAULT_AVATAR_URL } from '../../config/app.config';
-import { API_CONFIG } from '../../config/api.config';
-import { hideErrorModal, showErrorModal, showInfoModal } from '../../utils/errorManager';
+import { DEFAULT_AVATAR_URL } from '../../config/app.config';
+import { showErrorModal } from '../../utils/errorManager';
 import { confirmLogout } from '../../utils/navigationUtils';
 import { logger } from '../../utils/logger';
 
 const ProviderProfile = ({ navigation }) => {
     const insets = useSafeAreaInsets();
-    const { colors, isDark, styles: gStyles } = useAppTheme();
+    const { colors, styles: gStyles } = useAppTheme();
     const { t } = useTranslation();
     const [profile, setProfile] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [imageError, setImageError] = useState(false);
     const [companyImageError, setCompanyImageError] = useState(false);
-    const [isUploadingImage, setIsUploadingImage] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const totalPostsDisplay = useCountUp(profile?.totalPosts || 0, !!profile);
     const activePostsDisplay = useCountUp(profile?.activePosts || 0, !!profile);
@@ -81,54 +74,6 @@ const ProviderProfile = ({ navigation }) => {
 
     const handleImageError = () => setImageError(true);
     const handleCompanyImageError = () => setCompanyImageError(true);
-
-    const showImagePickerOptions = () => {
-        if (Platform.OS === 'ios') {
-            ActionSheetIOS.showActionSheetWithOptions(
-                { options: [t('common.edit'), t('common.cancel')], cancelButtonIndex: 1 },
-                (i) => { if (i === 0) openImageLibrary(); }
-            );
-        } else {
-            showInfoModal(
-                t('common.edit'),
-                t('common.details'),
-                [
-                    { text: t('common.edit'), onPress: openImageLibrary },
-                    { text: t('common.cancel'), style: 'cancel' }
-                ]
-            );
-        }
-    };
-
-    const openCamera = async () => {
-        const uri = await takeProfilePhoto();
-        if (uri) uploadProfileImage({ uri, type: 'image/jpeg', fileName: 'profile.jpg' });
-    };
-
-    const openImageLibrary = async () => {
-        const uri = await pickProfileImage();
-        if (uri) uploadProfileImage({ uri, type: 'image/jpeg', fileName: 'profile.jpg' });
-    };
-
-    const uploadProfileImage = async (imageAsset) => {
-        setIsUploadingImage(true);
-        try {
-            const formData = new FormData();
-            formData.append('profile_picture', {
-                uri: imageAsset.uri,
-                type: imageAsset.type || 'image/jpeg',
-                name: imageAsset.fileName || 'profile.jpg',
-            });
-            const updatedProfile = await userService.updateProfileImage(formData);
-            setProfile(prev => ({ ...prev, profilePicture: updatedProfile.profilePicture }));
-            setImageError(false);
-        } catch (error) {
-            logger.error('Image upload error:', error);
-            showErrorModal(t('common.error'), t('profile.saveError'));
-        } finally {
-            setIsUploadingImage(false);
-        }
-    };
 
     const handleEditProfile = () => navigation.navigate('ProviderEditProfile', { profile });
     const handleCompanyDetails = () => navigation.navigate('ProviderCompany', { companyId: profile.companyId });
@@ -202,7 +147,7 @@ const ProviderProfile = ({ navigation }) => {
                             <Text style={[styles.profileName, { color: colors.text.primary }]}>{profile.name}</Text>
                             <View style={styles.phoneContainer}>
                                 <Ionicons name="call-outline" size={16} color={colors.primary} />
-                                <Text style={[styles.profilePhone, { color: colors.text.secondary }]}>{profile.phoneNumber}</Text>
+                                <Text style={[styles.profilePhone, { color: colors.text.secondary }]}>+976 {profile.phoneNumber}</Text>
                             </View>
                             <ProfileBadge type="provider" />
                         </View>
@@ -251,7 +196,7 @@ const ProviderProfile = ({ navigation }) => {
                             accessibilityRole="button"
                         >
                             <View style={styles.createCompanyIcon}>
-                                <Ionicons name="add-circle-outline" size={32} color={colors.primary} />
+                                <Ionicons name="add-circle-outline" size={32} color={colors.success} />
                             </View>
                             <View style={styles.createCompanyInfo}>
                                 <Text style={[styles.createCompanyTitle, { color: colors.success }]}>
@@ -261,7 +206,7 @@ const ProviderProfile = ({ navigation }) => {
                                     {t('company.createDesc')}
                                 </Text>
                             </View>
-                            <Ionicons name="chevron-forward" size={20} color={colors.primary} />
+                            <Ionicons name="chevron-forward" size={20} color={colors.success} />
                         </PressableScale>
                     )}
                 </View>
@@ -285,9 +230,9 @@ const ProviderProfile = ({ navigation }) => {
 
                     <View style={styles.statItem}>
                         <View style={[styles.statIconContainer, { backgroundColor: colors.opacity.background.primary }]}>
-                            <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+                            <Ionicons name="calendar-outline" size={20} color={colors.primary} />
                         </View>
-                        <Text style={[styles.statValue, { color: colors.text.primary }]}>{profile.memberSince || '2024'}</Text>
+                        <Text style={[styles.statValue, { color: colors.text.primary }]}>{profile.memberSince || '—'}</Text>
                         <Text style={[styles.statLabel, { color: colors.text.secondary }]}>{t('profile.memberSince')}</Text>
                     </View>
                 </View>
@@ -333,7 +278,6 @@ const ProviderProfile = ({ navigation }) => {
 
                 <SettingsSection />
 
-                <View style={styles.bottomSpacing} />
                 </View>{/* end tabletCentering */}
             </ScrollView>
         </ScreenLayout>
@@ -393,12 +337,11 @@ const styles = StyleSheet.create({
     },
     statItem: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     statIconContainer: {
-        width: 36, height: 36, borderRadius: radius.xl,
+        width: 40, height: 40, borderRadius: radius.full,
         justifyContent: 'center', alignItems: 'center', marginBottom: spacing.sm,
     },
     statValue: { ...typography.styles.h2, marginBottom: spacing.xs, fontVariant: ['tabular-nums'] },
     statLabel: { ...typography.styles.small, textAlign: 'center' },
-    bottomSpacing: { height: spacing.xxxl * 3 },
 });
 
 export default ProviderProfile;

@@ -9,7 +9,7 @@ import {
 import { MapContainer, TileLayer, Marker } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import { postsApi, adminApi, likesApi, categoryApi } from '@/lib/api'
-import { formatDate, formatPrice, getImageUrl, getCompanyLogoUrl, getPostTitle, getPostCategory, getCategoryColor, categoryPin, getFieldLabel, goBack } from '@/lib/utils'
+import { formatDate, formatPrice, getImageUrl, getCompanyLogoUrl, getPostTitle, getPostCategory, getCategoryColor, categoryPin, getFieldLabel, getOptionLabel, goBack, externalHref } from '@/lib/utils'
 import UserAvatar from '@/components/UserAvatar'
 import AlertBanner from '@/components/AlertBanner'
 import BookingRequest from '@/components/BookingRequest'
@@ -26,6 +26,17 @@ import InfoSection from '@/components/InfoSection'
 import CollapsibleSection from '@/components/CollapsibleSection'
 import CategoryBadge from '@/components/CategoryBadge'
 import ErrorState from '@/components/ErrorState'
+
+// React renders a raw boolean as nothing and an array as concatenated text, so
+// every attribute value goes through here before display.
+function attrDisplay(def, v, t) {
+  if (typeof v === 'boolean' || def?.type === 'boolean') {
+    return v === true ? t('common.yes') : t('common.no')
+  }
+  if (Array.isArray(v)) return v.map((x) => getOptionLabel(x, t)).join(', ')
+  if (def?.type === 'select') return getOptionLabel(v, t)
+  return def?.unit ? `${v} ${def.unit}` : String(v)
+}
 
 export default function PostDetail() {
   const { id } = useParams()
@@ -141,9 +152,9 @@ export default function PostDetail() {
 
   if (isLoading) return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-3">
-      <div className="h-56 bg-surface2 rounded-card animate-pulse" />
-      <div className="h-6 bg-surface2 rounded animate-pulse w-3/4" />
-      <div className="h-4 bg-surface2 rounded animate-pulse w-1/2" />
+      <div className="h-56 skeleton rounded-card" />
+      <div className="h-6 skeleton rounded w-3/4" />
+      <div className="h-4 skeleton rounded w-1/2" />
     </div>
   )
 
@@ -308,14 +319,21 @@ export default function PostDetail() {
                 )}
                 {post.attributes && Object.keys(post.attributes).length > 0 && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {Object.entries(post.attributes).map(([k, v]) => v && (
-                      <div key={k} className="bg-surface2 rounded-lg px-3 py-2">
-                        <p className="text-xs text-muted">
-                          {getFieldLabel(schema?.fields?.find((f) => f.key === k) ?? { key: k, label: k.replace(/_/g, ' ') }, t)}
-                        </p>
-                        <p className="text-sm text-text font-medium">{v}</p>
-                      </div>
-                    ))}
+                    {Object.entries(post.attributes).map(([k, v]) => {
+                      const def = schema?.fields?.find((f) => f.key === k)
+                      // Skip only genuine absences. `false` and `0` are answers —
+                      // "no operator included" must render, not vanish.
+                      if (v === undefined || v === null || v === '') return null
+                      if (Array.isArray(v) && v.length === 0) return null
+                      return (
+                        <div key={k} className="bg-surface2 rounded-lg px-3 py-2">
+                          <p className="text-xs text-muted">
+                            {getFieldLabel(def ?? { key: k, label: k.replace(/_/g, ' ') }, t)}
+                          </p>
+                          <p className="text-sm text-text font-medium">{attrDisplay(def, v, t)}</p>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </CollapsibleSection>
@@ -371,7 +389,7 @@ export default function PostDetail() {
                         </a>
                       )}
                       {post.user.company.website && (
-                        <a href={post.user.company.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-muted hover:text-primary-text transition-colors mt-0.5">
+                        <a href={externalHref(post.user.company.website)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-muted hover:text-primary-text transition-colors mt-0.5">
                           <Globe size={11} /> {post.user.company.website}
                         </a>
                       )}
@@ -416,7 +434,7 @@ export default function PostDetail() {
                   </a>
                 )}
                 {post.website && (
-                  <a href={post.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-text hover:text-primary-text transition-colors">
+                  <a href={externalHref(post.website)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-text hover:text-primary-text transition-colors">
                     <Globe size={14} className="text-muted" /> {post.website}
                   </a>
                 )}

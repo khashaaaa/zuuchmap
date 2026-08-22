@@ -2,7 +2,6 @@ import React, { useMemo } from 'react';
 import { View, Text } from 'react-native';
 import FormField from './FormField';
 import PickerField from './PickerField';
-import {  } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 
@@ -25,7 +24,6 @@ const StatusSection = ({ status, onStatusChange, error }) => {
 
             <FormField
                 label={t('posts.status')}
-                field="status"
                 error={error}
                 component={
                     <PickerField

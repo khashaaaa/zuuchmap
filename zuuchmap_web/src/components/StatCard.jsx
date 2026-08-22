@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion, animate, useReducedMotion } from 'framer-motion'
 
-function CountUp({ value }) {
+export function CountUp({ value }) {
   const shouldReduceMotion = useReducedMotion()
   const played = useRef(false)
   const [display, setDisplay] = useState(() => (shouldReduceMotion ? value : 0))

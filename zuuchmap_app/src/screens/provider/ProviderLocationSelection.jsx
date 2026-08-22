@@ -17,8 +17,7 @@ import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import Button from '../../components/Button';
 import ScreenHeader from '../../components/ScreenHeader';
 import ScreenLoading from '../../components/ScreenLoading';
-import ScreenError from '../../components/ScreenError';
-import { showErrorModal, showWarningModal } from '../../utils/errorManager';
+import { showErrorModal } from '../../utils/errorManager';
 
 const { width, height } = Dimensions.get('window');
 const ASPECT_RATIO = width / height;
@@ -45,63 +44,65 @@ const ProviderLocationSelection = ({ route, navigation }) => {
         longitudeDelta: LONGITUDE_DELTA,
     };
 
-    useEffect(() => {
-        (async () => {
-            try {
-                const { status } = await Location.requestForegroundPermissionsAsync();
-                if (status !== 'granted') {
-                    setErrorMsg(t('provider.locationPermission'));
-                    setIsLoading(false);
-                    showWarningModal(
-                        t('upload.permissionTitle'),
-                        t('provider.locationPermission'),
-                        [{ text: t('common.confirm'), onPress: () => setSelectedLocation(defaultLocation) }]
-                    );
-                    return;
-                }
+    // GPS is a convenience here, never a gate: the point of this screen is to
+    // tap a spot on the map. A denied permission or a failed fix falls back to
+    // Ulaanbaatar and leaves the map interactive, with an inline notice — an
+    // error screen would strand the provider mid-way through creating a post.
+    const fallBackToDefault = (message) => {
+        setErrorMsg(message);
+        setLocation(defaultLocation);
+        setSelectedLocation({
+            latitude: defaultLocation.latitude,
+            longitude: defaultLocation.longitude,
+        });
+        setLocationName(t('provider.ulaanbaatar'));
+    };
 
-                const currentLocation = await Location.getCurrentPositionAsync({
-                    accuracy: Location.Accuracy.Balanced,
-                });
-
-                const region = {
-                    latitude: currentLocation.coords.latitude,
-                    longitude: currentLocation.coords.longitude,
-                    latitudeDelta: LATITUDE_DELTA,
-                    longitudeDelta: LONGITUDE_DELTA,
-                };
-
-                setLocation(region);
-                setSelectedLocation({
-                    latitude: currentLocation.coords.latitude,
-                    longitude: currentLocation.coords.longitude,
-                });
-
-                try {
-                    const addresses = await Location.reverseGeocodeAsync({
-                        latitude: currentLocation.coords.latitude,
-                        longitude: currentLocation.coords.longitude,
-                    });
-                    if (addresses && addresses.length > 0) {
-                        const address = addresses[0];
-                        setLocationName(formatAddress(address));
-                    }
-                } catch (geocodeError) {
-                    setLocationName(t('provider.locationSelected'));
-                }
-            } catch (error) {
-                setErrorMsg(t('provider.locationCurrentFail'));
-                setIsLoading(false);
-                setLocation(defaultLocation);
-                setSelectedLocation({
-                    latitude: defaultLocation.latitude,
-                    longitude: defaultLocation.longitude,
-                });
-                setLocationName(t('provider.ulaanbaatar'));
-            } finally {
-                setIsLoading(false);
+    const locate = async () => {
+        setIsLoading(true);
+        setErrorMsg(null);
+        try {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== 'granted') {
+                fallBackToDefault(t('provider.locationPermission'));
+                return;
             }
-        })();
+
+            const currentLocation = await Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.Balanced,
+            });
+
+            setLocation({
+                latitude: currentLocation.coords.latitude,
+                longitude: currentLocation.coords.longitude,
+                latitudeDelta: LATITUDE_DELTA,
+                longitudeDelta: LONGITUDE_DELTA,
+            });
+            setSelectedLocation({
+                latitude: currentLocation.coords.latitude,
+                longitude: currentLocation.coords.longitude,
+            });
+
+            try {
+                const addresses = await Location.reverseGeocodeAsync({
+                    latitude: currentLocation.coords.latitude,
+                    longitude: currentLocation.coords.longitude,
+                });
+                if (addresses && addresses.length > 0) {
+                    setLocationName(formatAddress(addresses[0]));
+                }
+            } catch (geocodeError) {
+                setLocationName(t('provider.locationSelected'));
+            }
+        } catch (error) {
+            fallBackToDefault(t('provider.locationCurrentFail'));
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        locate();
     }, []);
 
     const formatAddress = (address) => {
@@ -150,68 +151,12 @@ const ProviderLocationSelection = ({ route, navigation }) => {
         });
     };
 
-    const handleRetryLocation = () => {
-        setIsLoading(true);
-        setErrorMsg(null);
-
-        (async () => {
-            try {
-                const currentLocation = await Location.getCurrentPositionAsync({
-                    accuracy: Location.Accuracy.Balanced,
-                });
-
-                const region = {
-                    latitude: currentLocation.coords.latitude,
-                    longitude: currentLocation.coords.longitude,
-                    latitudeDelta: LATITUDE_DELTA,
-                    longitudeDelta: LONGITUDE_DELTA,
-                };
-
-                setLocation(region);
-                setSelectedLocation({
-                    latitude: currentLocation.coords.latitude,
-                    longitude: currentLocation.coords.longitude,
-                });
-
-                try {
-                    const addresses = await Location.reverseGeocodeAsync({
-                        latitude: currentLocation.coords.latitude,
-                        longitude: currentLocation.coords.longitude,
-                    });
-                    if (addresses && addresses.length > 0) {
-                        const address = addresses[0];
-                        setLocationName(formatAddress(address));
-                    }
-                } catch (geocodeError) {
-                    setLocationName(t('provider.locationSelected'));
-                }
-            } catch (error) {
-                setErrorMsg(t('provider.locationFail'));
-                setLocation(defaultLocation);
-                setSelectedLocation({
-                    latitude: defaultLocation.latitude,
-                    longitude: defaultLocation.longitude,
-                });
-                setLocationName(t('provider.ulaanbaatar'));
-            } finally {
-                setIsLoading(false);
-            }
-        })();
-    };
-
     return (
         <CustomSafeAreaView backgroundColor={colors.background} statusBarColor={colors.surface} statusBarStyle={isDark ? 'light-content' : 'dark-content'}>
             <ScreenHeader title={t('provider.locationTitle')} onBack={() => navigation.goBack()} />
 
             {isLoading ? (
                 <ScreenLoading message={t('provider.locationLoading')} />
-            ) : errorMsg ? (
-                <ScreenError
-                    icon="warning-outline"
-                    title={t('provider.locationNotFound')}
-                    message={errorMsg}
-                    onRetry={handleRetryLocation}
-                />
             ) : (
                 <>
                     <MapView
@@ -267,18 +212,32 @@ const ProviderLocationSelection = ({ route, navigation }) => {
                             </View>
                         )}
 
-                        <View style={styles.instructionContainer}>
-                            <Ionicons name="information-circle-outline" size={16} color={colors.primary} />
-                            <Text style={styles.instructionText}>
-                                {t('provider.locationInstruction')}
-                            </Text>
-                        </View>
+                        {errorMsg ? (
+                            <View style={styles.noticeContainer}>
+                                <Ionicons name="warning-outline" size={16} color={colors.warning} />
+                                <Text style={styles.noticeText}>{errorMsg}</Text>
+                                <TouchableOpacity
+                                    onPress={locate}
+                                    activeOpacity={interactions.activeOpacityLight}
+                                    hitSlop={interactions.hitSlop}
+                                >
+                                    <Text style={styles.noticeAction}>{t('common.retry')}</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ) : (
+                            <View style={styles.instructionContainer}>
+                                <Ionicons name="information-circle-outline" size={16} color={colors.primary} />
+                                <Text style={styles.instructionText}>
+                                    {t('provider.locationInstruction')}
+                                </Text>
+                            </View>
+                        )}
 
                         <Button
                             title={t('provider.locationConfirm')}
                             onPress={handleConfirmLocation}
                             disabled={!selectedLocation}
-                            icon={<Ionicons name="checkmark-circle-outline" size={20} color={colors.primary} />}
+                            icon="checkmark-circle-outline"
                             iconPosition="left"
                             fullWidth
                         />
@@ -301,8 +260,8 @@ const createStyles = (colors) => StyleSheet.create({
         right: 0,
         backgroundColor: colors.surface,
         padding: spacing.xl,
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
+        borderTopLeftRadius: radius.modal,
+        borderTopRightRadius: radius.modal,
     },
     locationHeader: {
         flexDirection: 'row',
@@ -356,10 +315,23 @@ const createStyles = (colors) => StyleSheet.create({
         color: colors.text.secondary,
         flex: 1,
     },
-    buttonContent: {
+    noticeContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
+        backgroundColor: colors.opacity.background.warning,
+        padding: spacing.md,
+        borderRadius: radius.md,
+        marginBottom: spacing.xl,
+        gap: spacing.sm,
+    },
+    noticeText: {
+        ...typography.styles.caption,
+        color: colors.text.secondary,
+        flex: 1,
+    },
+    noticeAction: {
+        ...typography.styles.labelStrong,
+        color: colors.primary,
     },
 });
 

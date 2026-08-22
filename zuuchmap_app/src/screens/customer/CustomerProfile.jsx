@@ -8,7 +8,6 @@ import {
     ActivityIndicator,
     ScrollView,
     RefreshControl,
-    Linking,
     StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,13 +18,11 @@ import { useCountUp } from '../../hooks/useCountUp';
 import { useTranslation } from 'react-i18next';
 import userService from '../../services/api/userService';
 import likeService from '../../services/api/likeService';
-import { saveUserInfo } from '../../services/api/authHelpers';
 import { ScreenLayout, SettingsSection, PressableScale } from '../../components';
-import { ProfileSection, ProfileInfoRow, ProfileActionRow } from '../../components';
+import { ProfileSection, ProfileActionRow } from '../../components';
 import { ProfileBadge } from '../../components';
-import { APP_CONFIG, DEFAULT_AVATAR_URL } from '../../config/app.config';
-import { API_CONFIG } from '../../config/api.config';
-import { hideErrorModal, showErrorModal } from '../../utils/errorManager';
+import { DEFAULT_AVATAR_URL } from '../../config/app.config';
+import { showErrorModal } from '../../utils/errorManager';
 import { confirmLogout } from '../../utils/navigationUtils';
 import { logger } from '../../utils/logger';
 
@@ -181,8 +178,8 @@ const CustomerProfile = ({ navigation }) => {
                         <View style={[styles.statIconContainer, { backgroundColor: colors.opacity.background.primary }]}>
                             <Ionicons name="calendar-outline" size={20} color={colors.primary} />
                         </View>
-                        <Text style={[styles.statValue, { color: colors.text.primary }]}>{user?.memberSince || '2024'}</Text>
-                        <Text style={[styles.statLabel, { color: colors.text.secondary }]}>{t('profile.title')}</Text>
+                        <Text style={[styles.statValue, { color: colors.text.primary }]}>{user?.memberSince || '—'}</Text>
+                        <Text style={[styles.statLabel, { color: colors.text.secondary }]}>{t('profile.memberSince')}</Text>
                     </View>
                 </View>
 
@@ -227,7 +224,6 @@ const CustomerProfile = ({ navigation }) => {
 
                 <SettingsSection />
 
-                <View style={styles.bottomSpacing} />
                 </View>{/* end tabletCentering */}
             </ScrollView>
         </ScreenLayout>
@@ -269,7 +265,6 @@ const styles = StyleSheet.create({
     },
     statValue: { ...typography.styles.h2, marginBottom: spacing.xs, fontVariant: ['tabular-nums'] },
     statLabel: { ...typography.styles.small, textAlign: 'center' },
-    bottomSpacing: { height: spacing.xxxl * 3 },
 });
 
 export default CustomerProfile;

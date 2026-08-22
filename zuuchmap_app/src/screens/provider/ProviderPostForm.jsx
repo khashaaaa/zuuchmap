@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
     View,
     Text,
+    TextInput,
     ScrollView,
     Platform,
     KeyboardAvoidingView,
@@ -25,13 +26,19 @@ import ContactSection from '../../components/ContactSection';
 import StatusSection from '../../components/StatusSection';
 import DynamicForm from '../../components/DynamicForm';
 import Button from '../../components/Button';
+import FormField from '../../components/FormField';
+import PickerField from '../../components/PickerField';
+import { PressableScale } from '../../components';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { PRICE_UNITS } from '../../config/app.config';
+import { getPriceUnitLabel } from '../../utils/displayUtils';
 import { useFocusField } from '../../hooks/useFocusField';
 import categoryService from '../../services/api/categoryService';
 import { invalidatePostData } from '../../services/queryClient';
 import { getInitialFormData, getEditFormData, formatFormDataForApi } from '../../utils/formUtils';
 import { navigateToProviderPostList } from '../../utils/navigationUtils';
 import { logger } from '../../utils/logger';
-import { showErrorModal, showWarningModal } from '../../utils/errorManager';
+import { showErrorModal, showWarningModal, showSuccessModal } from '../../utils/errorManager';
 import { getSchemaLabel, getSubcategoryLabel } from '../../utils/postUtils';
 
 const ProviderPostForm = ({ route, navigation }) => {
@@ -53,6 +60,8 @@ const ProviderPostForm = ({ route, navigation }) => {
     const [formData, setFormData] = useState(null);
     const [formErrors, setFormErrors] = useState({});
     const [dirty, setDirty] = useState(false);
+    // Which availability date the picker edits: 'from' | 'until' | null
+    const [pickerFor, setPickerFor] = useState(null);
 
     const { data: schema = null, isFetched: schemaFetched } = useQuery({
         queryKey: ['categories', 'byKey', resolvedPostType],
@@ -96,6 +105,9 @@ const ProviderPostForm = ({ route, navigation }) => {
 
     const validateForm = (data) => {
         const errors = {};
+        if (!data.title || !data.title.trim()) {
+            errors.title = i18n.t('form.titleRequired');
+        }
         if (!data.images || data.images.length === 0) {
             errors.images = i18n.t('form.imageRequired');
         }
@@ -154,12 +166,15 @@ const ProviderPostForm = ({ route, navigation }) => {
                 } else {
                     navigation.navigate('ProviderDashboard', { screen: 'Posts', params: { refresh: true } });
                 }
+                showSuccessModal(t('posts.updateSuccess'), t('posts.updateSuccessDesc'));
             } else {
                 const formattedData = formatFormDataForApi(formData);
                 await postService.create(resolvedPostType, formattedData);
                 invalidatePostData();
                 setDirty(false);
                 navigateToProviderPostList(navigation);
+                // Posts land in PENDING — without this, a provider can think the post vanished
+                showSuccessModal(t('posts.createSuccess'), t('posts.createSuccessDesc'));
             }
         } catch (error) {
             logger.error(isEdit ? 'Зар шинэчлэх алдаа:' : 'Зар үүсгэх алдаа:', error);
@@ -245,6 +260,52 @@ const ProviderPostForm = ({ route, navigation }) => {
                         )}
                     </View>
 
+                    {/* Base listing info — title feeds search + every list card;
+                        these are Post columns, not schema attributes. */}
+                    <View style={gStyles.sectionHeader}>
+                        <Text style={[gStyles.sectionSubtitle, { color: colors.text.secondary }]}>{t('form.basicInfo')}</Text>
+                    </View>
+                    <FormField
+                        label={t('form.postTitle')}
+                        required
+                        error={formErrors.title}
+                        component={
+                            <TextInput
+                                style={[
+                                    gStyles.input,
+                                    { backgroundColor: colors.surface, color: colors.text.primary, borderColor: colors.border.light },
+                                    formErrors.title && gStyles.inputError,
+                                ]}
+                                value={formData.title}
+                                onChangeText={(v) => updateFormData('title', v)}
+                                placeholder={t('form.postTitlePlaceholder')}
+                                placeholderTextColor={colors.text.placeholder}
+                                maxLength={200}
+                                ref={(ref) => { inputRefs.current.title = ref; }}
+                            />
+                        }
+                    />
+                    <FormField
+                        label={t('form.postDetails')}
+                        component={
+                            <TextInput
+                                style={[
+                                    gStyles.input,
+                                    gStyles.inputTextArea,
+                                    { backgroundColor: colors.surface, color: colors.text.primary, borderColor: colors.border.light },
+                                ]}
+                                value={formData.details}
+                                onChangeText={(v) => updateFormData('details', v)}
+                                placeholder={t('form.postDetailsPlaceholder')}
+                                placeholderTextColor={colors.text.placeholder}
+                                maxLength={2000}
+                                multiline
+                                numberOfLines={4}
+                                textAlignVertical="top"
+                            />
+                        }
+                    />
+
                     <ImageUploadSection
                         images={formData.images}
                         onImagesChange={(images) => updateFormData('images', images)}
@@ -269,6 +330,79 @@ const ProviderPostForm = ({ route, navigation }) => {
                         formErrors={formErrors}
                         inputRefs={inputRefs}
                     />
+
+                    {/* Price and availability are schema-flag driven, same as web. */}
+                    {schema?.has_price && (
+                        <View>
+                            <View style={gStyles.sectionHeader}>
+                                <Text style={[gStyles.sectionSubtitle, { color: colors.text.secondary }]}>{t('form.priceSection')}</Text>
+                            </View>
+                            <FormField
+                                label={t('form.priceAmount')}
+                                error={formErrors.price_amount}
+                                component={
+                                    <TextInput
+                                        style={[
+                                            gStyles.input,
+                                            { backgroundColor: colors.surface, color: colors.text.primary, borderColor: colors.border.light },
+                                        ]}
+                                        value={String(formData.price_amount ?? '')}
+                                        onChangeText={(v) => updateFormData('price_amount', v.replace(/[^0-9]/g, ''))}
+                                        placeholder="0"
+                                        placeholderTextColor={colors.text.placeholder}
+                                        keyboardType="numeric"
+                                        ref={(ref) => { inputRefs.current.price_amount = ref; }}
+                                    />
+                                }
+                            />
+                            <FormField
+                                label={t('form.priceUnit')}
+                                component={
+                                    <PickerField
+                                        value={formData.price_unit}
+                                        options={PRICE_UNITS.map((u) => ({ value: u, label: getPriceUnitLabel(u) }))}
+                                        onSelect={(v) => updateFormData('price_unit', v)}
+                                        placeholder={t('form.priceUnit')}
+                                        title={t('form.priceUnit')}
+                                    />
+                                }
+                            />
+                        </View>
+                    )}
+
+                    {schema?.has_availability_dates && (
+                        <View>
+                            <View style={gStyles.sectionHeader}>
+                                <Text style={[gStyles.sectionSubtitle, { color: colors.text.secondary }]}>{t('form.availabilitySection')}</Text>
+                            </View>
+                            <View style={styles.dateRow}>
+                                <PressableScale style={[styles.dateBox, { backgroundColor: colors.surface, borderColor: colors.border.light }]} onPress={() => setPickerFor('from')} accessibilityRole="button">
+                                    <Text style={[styles.dateLabel, { color: colors.text.secondary }]}>{t('posts.availableFrom')}</Text>
+                                    <Text style={[styles.dateValue, { color: colors.text.primary }]}>{new Date(formData.available_from).toLocaleDateString()}</Text>
+                                </PressableScale>
+                                <PressableScale style={[styles.dateBox, { backgroundColor: colors.surface, borderColor: colors.border.light }]} onPress={() => setPickerFor('until')} accessibilityRole="button">
+                                    <Text style={[styles.dateLabel, { color: colors.text.secondary }]}>{t('posts.availableUntil')}</Text>
+                                    <Text style={[styles.dateValue, { color: colors.text.primary }]}>{new Date(formData.available_until).toLocaleDateString()}</Text>
+                                </PressableScale>
+                            </View>
+                            {pickerFor && (
+                                <DateTimePicker
+                                    value={new Date(pickerFor === 'from' ? formData.available_from : formData.available_until)}
+                                    mode="date"
+                                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                    minimumDate={pickerFor === 'until' ? new Date(formData.available_from) : new Date()}
+                                    onChange={(event, selected) => {
+                                        if (Platform.OS !== 'ios') setPickerFor(null);
+                                        if (event.type === 'dismissed' || !selected) return;
+                                        updateFormData(pickerFor === 'from' ? 'available_from' : 'available_until', selected);
+                                    }}
+                                />
+                            )}
+                            {pickerFor && Platform.OS === 'ios' && (
+                                <Button title={t('common.done', { defaultValue: 'OK' })} onPress={() => setPickerFor(null)} size="small" />
+                            )}
+                        </View>
+                    )}
 
                     <ContactSection
                         contactPhone={formData.contact_phone}
@@ -304,6 +438,24 @@ const ProviderPostForm = ({ route, navigation }) => {
 
 const createStyles = (colors) => StyleSheet.create({
     scrollView: { flex: 1 },
+    dateRow: {
+        flexDirection: 'row',
+        gap: spacing.md,
+        marginBottom: spacing.md,
+    },
+    dateBox: {
+        flex: 1,
+        borderWidth: 1,
+        borderRadius: radius.input,
+        padding: spacing.md,
+        gap: spacing.xxs,
+    },
+    dateLabel: {
+        ...typography.styles.label,
+    },
+    dateValue: {
+        ...typography.styles.bodyBold,
+    },
     scrollContent: { padding: spacing.lg },
     tabletContainer: { maxWidth: 680, alignSelf: 'center', width: '100%' },
     headerInfo: {

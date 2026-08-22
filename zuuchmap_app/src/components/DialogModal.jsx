@@ -24,7 +24,7 @@ const DialogModal = ({
     const { t } = useTranslation();
     const reduced = useReducedMotion();
     const iconScale = useRef(new Animated.Value(1)).current;
-    const defaultButtons = buttons || [{ text: t('common.confirm'), onPress: onClose, variant: 'primary' }];
+    const defaultButtons = buttons?.length ? buttons : [{ text: t('common.confirm'), onPress: onClose, variant: 'primary' }];
 
     useEffect(() => {
         if (!visible) return;
@@ -68,7 +68,7 @@ const DialogModal = ({
 
             {children}
 
-            <View style={styles.buttonContainer}>
+            <View style={[styles.buttonContainer, defaultButtons.length > 2 && styles.buttonContainerStacked]}>
                 {defaultButtons.map((button, index) => (
                     <Button
                         key={index}
@@ -83,9 +83,9 @@ const DialogModal = ({
                         }}
                         variant={button.variant || 'primary'}
                         size="medium"
-                        fullWidth={defaultButtons.length === 1}
+                        fullWidth={defaultButtons.length !== 2}
                         style={[
-                            defaultButtons.length > 1 && styles.buttonMultiple,
+                            defaultButtons.length === 2 && styles.buttonMultiple,
                             button.style,
                         ]}
                     />
@@ -120,6 +120,11 @@ const styles = StyleSheet.create({
         width: '100%',
         gap: spacing.md,
         marginTop: spacing.md,
+    },
+    // Three or more actions side by side squeeze their labels to nothing;
+    // stack them instead, the way an action sheet would.
+    buttonContainerStacked: {
+        flexDirection: 'column',
     },
     buttonMultiple: {
         flex: 1,

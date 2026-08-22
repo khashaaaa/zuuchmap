@@ -291,12 +291,21 @@ const EditProfileScreen = ({ route, navigation }) => {
 
                     <View style={styles.profilePictureSection}>
                         <View style={styles.profilePictureCard}>
-                            <View style={styles.imageContainer}>
+                            <TouchableOpacity
+                                style={styles.imageContainer}
+                                onPress={selectProfileImage}
+                                activeOpacity={interactions.activeOpacityLight}
+                                accessibilityRole="button"
+                                accessibilityLabel={t('profile.changePicture')}
+                            >
                                 <Image
                                     source={{ uri: profileImage || DEFAULT_AVATAR_URL }}
                                     style={styles.profileImage}
                                 />
-                            </View>
+                                <View style={styles.imageOverlay} pointerEvents="none">
+                                    <Ionicons name="camera-outline" size={16} color={colors.onPrimary} />
+                                </View>
+                            </TouchableOpacity>
                             <View style={styles.profilePictureInfo}>
                                 <Text style={styles.profilePictureTitle}>{t('profile.picture')}</Text>
                                 <Text style={styles.profilePictureSubtitle}>
@@ -324,19 +333,21 @@ const EditProfileScreen = ({ route, navigation }) => {
                         <>
                             <View style={styles.profilePictureSection}>
                                 <View style={styles.profilePictureCard}>
-                                    <View style={styles.imageContainer}>
+                                    <TouchableOpacity
+                                        style={styles.imageContainer}
+                                        onPress={selectCompanyLogo}
+                                        activeOpacity={interactions.activeOpacityLight}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={t('company.logoChange')}
+                                    >
                                         <Image
                                             source={{ uri: companyLogo || DEFAULT_AVATAR_URL }}
                                             style={styles.companyLogo}
                                         />
-                                        <TouchableOpacity
-                                            style={styles.imageOverlay}
-                                            onPress={selectCompanyLogo}
-                                            activeOpacity={interactions.activeOpacityLight}
-                                        >
-                                            <Ionicons name="camera-outline" size={20} color={colors.primary} />
-                                        </TouchableOpacity>
-                                    </View>
+                                        <View style={styles.imageOverlay} pointerEvents="none">
+                                            <Ionicons name="camera-outline" size={16} color={colors.onPrimary} />
+                                        </View>
+                                    </TouchableOpacity>
                                     <View style={styles.profilePictureInfo}>
                                         <Text style={styles.profilePictureTitle}>{t('company.logo')}</Text>
                                         <Text style={styles.profilePictureSubtitle}>
@@ -426,12 +437,13 @@ const createStyles = (colors) => StyleSheet.create({
         position: 'absolute',
         bottom: -4,
         right: -4,
-        width: 24,
-        height: 24,
-        borderRadius: radius.card,
+        width: 28,
+        height: 28,
+        borderRadius: radius.full,
         backgroundColor: colors.primary,
         justifyContent: 'center',
         alignItems: 'center',
+        borderWidth: 2,
         borderColor: colors.surface,
     },
     profilePictureInfo: {
@@ -450,8 +462,10 @@ const createStyles = (colors) => StyleSheet.create({
     changePhotoButton: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: 44,
         backgroundColor: colors.opacity.background.primary,
-        paddingHorizontal: spacing.md,
+        paddingHorizontal: spacing.lg,
         paddingVertical: spacing.sm,
         borderRadius: radius.xxl,
         alignSelf: 'flex-start',
@@ -471,7 +485,8 @@ const createStyles = (colors) => StyleSheet.create({
         marginBottom: 0,
     },
     buttonContainer: {
-        ...colors.elevation.md,
+        // A bar pinned to the bottom needs an upward separator; elevation casts
+        // its shadow downward, off-screen. Hairline only — one idiom, not both.
         backgroundColor: colors.surface,
         borderTopWidth: 1,
         borderTopColor: colors.border.light,

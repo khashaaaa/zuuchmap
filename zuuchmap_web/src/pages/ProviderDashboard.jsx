@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Plus, FileText, Eye } from 'lucide-react'
+import { Plus, FileText, CheckCircle2, Eye } from 'lucide-react'
 import { postsApi } from '@/lib/api'
 import { BarList } from '@/components/Charts'
 import { useAuthStore as useStore } from '@/store'
@@ -12,6 +12,9 @@ import PostCard from '@/components/PostCard'
 import EmptyState from '@/components/EmptyState'
 import PostGrid from '@/components/PostGrid'
 import Button from '@/components/Button'
+
+/** Rows in the views chart; the rest are reachable from the posts list. */
+const CHART_ROWS = 8
 
 export default function ProviderDashboard() {
   const { t } = useTranslation()
@@ -25,11 +28,12 @@ export default function ProviderDashboard() {
   const totalViews = useMemo(() => posts.reduce((sum, p) => sum + (p.views ?? 0), 0), [posts])
   const approved = useMemo(() => posts.filter((p) => p.approval_status === 'APPROVED').length, [posts])
   // BarList truncates via CSS and shows the full title on hover — no manual clipping.
-  const chartData = useMemo(() => posts.map((p) => ({
-    key: p.id,
-    label: p.title || '—',
-    value: p.views ?? 0,
-  })), [posts])
+  // Only the busiest handful: an unsorted bar per post is a wall of empty rows
+  // once a provider has more than a page of listings.
+  const chartData = useMemo(() => posts
+    .map((p) => ({ key: p.id, label: p.title || '—', value: p.views ?? 0 }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, CHART_ROWS), [posts])
 
   return (
     <div>
@@ -43,7 +47,7 @@ export default function ProviderDashboard() {
       />
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
         <StatCard icon={FileText} label={t('profile.totalPosts')} value={posts.length} />
-        <StatCard icon={FileText} label={t('status.approved')} value={approved} color="text-success" />
+        <StatCard icon={CheckCircle2} label={t('status.approved')} value={approved} color="text-success" />
         <StatCard icon={Eye} label={t('posts.totalViews')} value={totalViews} />
       </div>
       <div className="bg-surface border border-border/20 shadow-card rounded-card p-5 md:p-6 mb-8">
@@ -75,7 +79,7 @@ export default function ProviderDashboard() {
           />
         }
         cols={3}
-        skeletonCount={3}
+        skeletonCount={6}
       >
         {posts.slice(0, 6).map((post, i) => (
           <PostCard key={post.id} post={post} to={`/provider/posts/${post.id}`} index={i} />

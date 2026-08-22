@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 
 /**
  * Hand-rolled SVG charts.
@@ -103,6 +104,7 @@ function GridAndAxis({ max, ticks, points, everyNth }) {
 
 /** Change over time, one series. Crosshair + tooltip on hover. */
 export function LineChart({ data = [], label, unit }) {
+  const { t } = useTranslation()
   const { ref, index, onMove, onLeave } = useHoverIndex(data.length)
   if (!data.length) return <ChartEmpty />
 
@@ -127,7 +129,9 @@ export function LineChart({ data = [], label, unit }) {
       viewBox={`0 0 ${W} ${H}`}
       className="w-full h-auto"
       role="img"
-      aria-label={`${label}: ${total} total over ${data.length} days, peaking at ${Math.max(...data.map((d) => d.value))}`}
+      aria-label={t('chart.summaryPeak', {
+        label, total, days: data.length, peak: Math.max(...data.map((d) => d.value)),
+      })}
       onMouseMove={onMove}
       onMouseLeave={onLeave}
     >
@@ -165,6 +169,7 @@ export function LineChart({ data = [], label, unit }) {
 
 /** Volume over time. Same data shape as LineChart, discrete reading. */
 export function ColumnChart({ data = [], label, unit }) {
+  const { t } = useTranslation()
   const [hover, setHover] = useState(null)
   if (!data.length) return <ChartEmpty />
 
@@ -184,7 +189,7 @@ export function ColumnChart({ data = [], label, unit }) {
       viewBox={`0 0 ${W} ${H}`}
       className="w-full h-auto"
       role="img"
-      aria-label={`${label}: ${total} total over ${data.length} days`}
+      aria-label={t('chart.summary', { label, total, days: data.length })}
       onMouseLeave={() => setHover(null)}
     >
       <GridAndAxis

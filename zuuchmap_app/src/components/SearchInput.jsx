@@ -58,7 +58,7 @@ const SearchInput = ({
                         onPress={handleClear}
                         style={styles.clearButton}
                         activeOpacity={interactions.activeOpacityLight}
-                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        hitSlop={interactions.hitSlop}
                     >
                         <Ionicons name="close-circle" size={20} color={colors.primary} />
                     </TouchableOpacity>
@@ -88,6 +88,7 @@ const styles = StyleSheet.create({
     searchInput: {
         flex: 1,
         ...typography.styles.body,
+        lineHeight: undefined,
     },
     clearButton: {
         padding: spacing.xs,

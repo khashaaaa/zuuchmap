@@ -13,7 +13,7 @@ import Slider from '@react-native-community/slider';
 import BottomSheetModal from './BottomSheetModal';
 import Button from './Button';
 import SelectionPop from './SelectionPop';
-import { spacing, typography, radius, interactions } from '../design/theme';
+import { spacing, typography, radius, interactions, toneForTheme } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useActiveCategorySchemas } from '../hooks/useCategorySchemas';
 import { getSchemaLabel } from '../utils/postUtils';
@@ -26,11 +26,12 @@ const MapFilterModal = ({
     onClose,
     onApplyFilters,
     initialFilters = {},
-    userLocation = null
+    userLocation = null,
+    posts = []
 }) => {
-    const { colors } = useAppTheme();
+    const { colors, isDark } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
 
     // Filter chips are whatever the admin has active, in their sort order —
     // never a list baked into the build.
@@ -40,11 +41,20 @@ const MapFilterModal = ({
         icon: schema.icon || 'pricetag-outline',
         color: schema.color || colors.primary,
         label: getSchemaLabel(schema),
-    })), [schemas, colors]);
+    // i18n.language: labels must recompute when the locale switches.
+    })), [schemas, colors, i18n.language]);
 
     const [selectedCategories, setSelectedCategories] = useState(
         initialFilters.selectedCategories || []
     );
+    // Slider ceiling follows the actual data — a fixed cap silently excluded
+    // high-total sale posts (e.g. used machinery) once TOTAL pricing existed.
+    const sliderMax = useMemo(() => {
+        const top = Math.max(0, ...posts.map((p) => Number(p.price_amount) || 0));
+        const padded = Math.max(top, 10_000_000);
+        const magnitude = 10 ** Math.max(6, String(Math.round(padded)).length - 1);
+        return Math.ceil(padded / magnitude) * magnitude;
+    }, [posts]);
     const [priceRange, setPriceRange] = useState({
         min: initialFilters.priceRange?.min ?? null,
         max: initialFilters.priceRange?.max ?? null,
@@ -133,7 +143,7 @@ const MapFilterModal = ({
                     <Ionicons
                         name={category.icon}
                         size={20}
-                        color={isSelected ? colors.text.primary : colors.text.secondary}
+                        color={isSelected ? colors.text.onColor : colors.text.secondary}
                     />
                 </View>
                 <Text style={[
@@ -146,13 +156,13 @@ const MapFilterModal = ({
                     <Ionicons
                         name="checkmark-circle"
                         size={20}
-                        color={category.color}
+                        color={toneForTheme(category.color, isDark)}
                     />
                 )}
             </TouchableOpacity>
             </SelectionPop>
         );
-    }, [selectedCategories, toggleCategory, styles, colors]);
+    }, [selectedCategories, toggleCategory, styles, colors, isDark, t]);
 
     const titleComponent = (
         <View style={styles.headerLeft}>
@@ -200,7 +210,7 @@ const MapFilterModal = ({
                             onPress={selectAllCategories}
                             style={styles.categoryAction}
                             activeOpacity={interactions.activeOpacityLight}
-                            hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+                            hitSlop={interactions.hitSlop}
                         >
                             <Text style={styles.categoryActionText}>{t('filter.all')}</Text>
                         </TouchableOpacity>
@@ -208,7 +218,7 @@ const MapFilterModal = ({
                             onPress={clearAllCategories}
                             style={styles.categoryAction}
                             activeOpacity={interactions.activeOpacityLight}
-                            hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+                            hitSlop={interactions.hitSlop}
                         >
                             <Text style={styles.categoryActionText}>{t('common.clear')}</Text>
                         </TouchableOpacity>
@@ -262,7 +272,7 @@ const MapFilterModal = ({
                                         setPriceRange(prev => ({ ...prev, max: value }));
                                     }}
                                     keyboardType="numeric"
-                                    placeholder="10,000,000"
+                                    placeholder={sliderMax.toLocaleString()}
                                 />
                             </View>
                         </View>
@@ -274,14 +284,14 @@ const MapFilterModal = ({
                             <Slider
                                 style={styles.slider}
                                 minimumValue={0}
-                                maximumValue={10000000}
-                                value={priceRange.max ?? 10000000}
+                                maximumValue={sliderMax}
+                                value={priceRange.max ?? sliderMax}
                                 onValueChange={(value) =>
                                     setPriceRange(prev => ({ ...prev, max: Math.round(value) }))
                                 }
                                 minimumTrackTintColor={colors.primary}
                                 maximumTrackTintColor={colors.border.medium}
-                                thumbStyle={{ backgroundColor: colors.primary }}
+                                thumbTintColor={colors.primary}
                             />
                         </View>
                     </View>
@@ -322,7 +332,7 @@ const MapFilterModal = ({
                                     }
                                     minimumTrackTintColor={colors.primary}
                                     maximumTrackTintColor={colors.border.medium}
-                                    thumbStyle={{ backgroundColor: colors.primary }}
+                                    thumbTintColor={colors.primary}
                                 />
                             </View>
                         </View>
@@ -339,11 +349,6 @@ const createStyles = (colors) => StyleSheet.create({
         alignItems: 'center',
         flex: 1,
     },
-    modalTitle: {
-        ...typography.styles.h3,
-        color: colors.text.primary,
-        marginRight: spacing.sm,
-    },
     filterCountBadge: {
         backgroundColor: colors.primary,
         borderRadius: radius.badge,
@@ -352,26 +357,18 @@ const createStyles = (colors) => StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         paddingHorizontal: spacing.xs,
+        marginLeft: spacing.sm,
     },
     filterCountText: {
-        color: colors.text.primary,
+        // On the amber fill the ink is onPrimary, not text.primary — near-white
+        // on amber fails contrast in dark mode.
         ...typography.styles.badge,
-    },
-    headerButtons: {
-        flexDirection: 'row',
-        alignItems: 'center',
+        color: colors.onPrimary,
     },
     resetButton: {
         marginRight: spacing.md,
         paddingVertical: spacing.xs,
         paddingHorizontal: spacing.sm,
-    },
-    resetButtonText: {
-        color: colors.primary,
-        ...typography.styles.labelStrong,
-    },
-    closeButton: {
-        padding: spacing.xs,
     },
     section: {
         marginBottom: spacing.xl,
@@ -459,6 +456,7 @@ const createStyles = (colors) => StyleSheet.create({
         borderRadius: radius.sm,
         padding: spacing.md,
         ...typography.styles.body,
+        lineHeight: undefined,
         color: colors.text.primary,
         backgroundColor: colors.background,
     },

@@ -1,11 +1,11 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { View, Text, FlatList, RefreshControl, StyleSheet } from 'react-native';
+import { View, Text, FlatList, RefreshControl, TouchableOpacity, Linking, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { spacing, typography, radius, isTablet } from '../../design/theme';
+import { spacing, typography, radius, isTablet, withAlpha, interactions } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useMinDisplayTime } from '../../hooks/useMinDisplayTime';
 import CustomSafeAreaView from '../../components/CustomSafeAreaView';
@@ -33,7 +33,7 @@ const BookingListScreen = ({ route, navigation }) => {
     const styles = useMemo(() => createStyles(colors), [colors]);
     const { t } = useTranslation();
     const qc = useQueryClient();
-    const [busyId, setBusyId] = useState(null);
+    const [busy, setBusy] = useState(null); // `${id}:${action}` while in flight
 
     const { data: bookings = [], isLoading, isRefetching, isError, refetch } = useQuery({
         queryKey: ['bookings', role],
@@ -49,8 +49,8 @@ const BookingListScreen = ({ route, navigation }) => {
             if (action === 'decline') return bookingService.decline(id);
             return bookingService.cancel(id);
         },
-        onMutate: ({ id }) => setBusyId(id),
-        onSettled: () => setBusyId(null),
+        onMutate: ({ id, action }) => setBusy(`${id}:${action}`),
+        onSettled: () => setBusy(null),
         onSuccess: () => qc.invalidateQueries({ queryKey: ['bookings'] }),
         onError: (e) => showErrorModal(t('common.error'), getErrorMessage(e) || t('common.error')),
     });
@@ -74,7 +74,8 @@ const BookingListScreen = ({ route, navigation }) => {
         const statusColor = STATUS_COLORS(colors)[item.status] ?? colors.text.tertiary;
         const isPending = item.status === 'PENDING';
         const canCancel = !isProviderView && (item.status === 'PENDING' || item.status === 'ACCEPTED');
-        const busy = busyId === item.id;
+        const busyAction = busy?.startsWith(`${item.id}:`) ? busy.split(':')[1] : null;
+        const anyBusy = Boolean(busyAction);
 
         return (
             <FadeSlideIn index={index}>
@@ -88,7 +89,7 @@ const BookingListScreen = ({ route, navigation }) => {
                     <Text style={styles.cardTitle} numberOfLines={1}>
                         {item.post?.title || t(`category.${item.post?.category}`, { defaultValue: item.post?.category })}
                     </Text>
-                    <View style={[styles.statusChip, { borderColor: statusColor + '55', backgroundColor: statusColor + '18' }]}>
+                    <View style={[styles.statusChip, { borderColor: withAlpha(statusColor, 0.33), backgroundColor: withAlpha(statusColor, 0.1) }]}>
                         <Text style={[styles.statusText, { color: statusColor }]}>
                             {t(`booking.${item.status.toLowerCase()}`, { defaultValue: item.status })}
                         </Text>
@@ -104,9 +105,16 @@ const BookingListScreen = ({ route, navigation }) => {
 
                 <View style={styles.metaRow}>
                     <Ionicons name="person-outline" size={14} color={colors.text.tertiary} />
-                    <Text style={styles.metaText}>{other?.given_name || '—'}</Text>
+                    <Text style={styles.metaText} numberOfLines={1}>{other?.given_name || '—'}</Text>
                     {other?.phone_number ? (
-                        <Text style={[styles.metaText, { color: colors.primary }]}>{other.phone_number}</Text>
+                        <TouchableOpacity
+                            onPress={() => Linking.openURL(`tel:${String(other.phone_number).replace(/[\s-]/g, '')}`)}
+                            hitSlop={interactions.hitSlop}
+                            accessibilityRole="link"
+                            accessibilityLabel={other.phone_number}
+                        >
+                            <Text style={[styles.metaText, styles.phoneLink]}>{other.phone_number}</Text>
+                        </TouchableOpacity>
                     ) : null}
                 </View>
 
@@ -123,8 +131,8 @@ const BookingListScreen = ({ route, navigation }) => {
                             title={t('booking.accept')}
                             size="small"
                             variant="success"
-                            disabled={busy}
-                            loading={busy}
+                            disabled={anyBusy}
+                            loading={busyAction === 'accept'}
                             onPress={() => actionMut.mutate({ action: 'accept', id: item.id })}
                             style={styles.actionBtn}
                         />
@@ -132,8 +140,8 @@ const BookingListScreen = ({ route, navigation }) => {
                             title={t('booking.decline')}
                             size="small"
                             variant="danger"
-                            disabled={busy}
-                            loading={busy}
+                            disabled={anyBusy}
+                            loading={busyAction === 'decline'}
                             onPress={() => confirmDecline(item.id)}
                             style={styles.actionBtn}
                         />
@@ -145,8 +153,8 @@ const BookingListScreen = ({ route, navigation }) => {
                             title={t('booking.cancel')}
                             size="small"
                             variant="secondary"
-                            disabled={busy}
-                            loading={busy}
+                            disabled={anyBusy}
+                            loading={busyAction === 'cancel'}
                             onPress={() => confirmCancel(item.id)}
                             style={styles.actionBtn}
                         />
@@ -216,7 +224,8 @@ const createStyles = (colors) => StyleSheet.create({
     statusChip: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xxs, borderRadius: radius.pill, borderWidth: 1 },
     statusText: { ...typography.styles.badge },
     metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-    metaText: { ...typography.styles.caption, color: colors.text.secondary },
+    metaText: { ...typography.styles.caption, color: colors.text.secondary, flexShrink: 1 },
+    phoneLink: { color: colors.primary, textDecorationLine: 'underline' },
     message: { ...typography.styles.caption, color: colors.text.tertiary, backgroundColor: colors.background, borderRadius: radius.card, padding: spacing.md },
     actions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.xs },
     actionBtn: { flex: 1 },

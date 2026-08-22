@@ -38,19 +38,17 @@ import likeService from '../../services/api/likeService';
 import userService from '../../services/api/userService';
 import NotificationBell from '../../components/NotificationBell';
 
-const PRICE_RANGES = [
+const SORT_OPTIONS = [
     { value: '' },
-    { value: '0-50000', label: '0 - 50,000₮' },
-    { value: '50000-100000', label: '50,000 - 100,000₮' },
-    { value: '100000-500000', label: '100,000 - 500,000₮' },
-    { value: '500000-1000000', label: '500,000 - 1,000,000₮' },
-    { value: '1000000+', label: '1,000,000₮+' },
+    { value: 'price_asc' },
+    { value: 'price_desc' },
+    { value: 'views' },
 ];
 
+// Mirrors the engine's Status enum (ACTIVE/RENTED; EXPIRED is filtered out server-side)
 const STATUS_OPTIONS = [
     { value: '' },
     { value: 'active' },
-    { value: 'paused' },
     { value: 'rented' },
 ];
 
@@ -66,6 +64,8 @@ const PostItem = React.memo(({
     onLikeChange,
     colors,
     showLike = true,
+    emphasized = false,
+    emphasisLabel = '',
 }) => {
     const styles = useMemo(() => createStyles(colors), [colors]);
     const [imageError, setImageError] = useState(false);
@@ -73,14 +73,12 @@ const PostItem = React.memo(({
     const title = getPostTitle(item);
     const price = getPostPrice(item);
     const imageUri = getPostImage(item);
-    const isSos = (item.post_type || '').toLowerCase() === 'sos';
-
     const handleImageError = useCallback(() => setImageError(true), []);
     const handlePress = useCallback(() => onPress(item), [item, onPress]);
 
     return (
         <PressableScale
-            style={[styles.postCard, { backgroundColor: colors.surface }, isSos && styles.sosCard]}
+            style={[styles.postCard, { backgroundColor: colors.surface }, emphasized && styles.emphasizedCard]}
             onPress={handlePress}
             accessibilityRole="button"
         >
@@ -105,9 +103,9 @@ const PostItem = React.memo(({
                         showIndicator={false}
                     />
                 )}
-                {isSos && (
-                    <View style={styles.sosBadge}>
-                        <Text style={styles.sosBadgeText}>SOS</Text>
+                {emphasized && (
+                    <View style={styles.emphasizedBadge}>
+                        <Text style={styles.emphasizedBadgeText} numberOfLines={1}>{emphasisLabel}</Text>
                     </View>
                 )}
             </View>
@@ -170,7 +168,7 @@ const PostItem = React.memo(({
 const CustomerPostList = ({ route, navigation }) => {
     const { colors, isDark, styles: gStyles } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const insets = useSafeAreaInsets();
 
     // Route params are optional — when used as a tab component (CustomerDashboard),
@@ -197,7 +195,9 @@ const CustomerPostList = ({ route, navigation }) => {
     const [filters, setFilters] = useState({
         category: routeCategory || '',
         subcategory: routeSubcategory || '',
-        priceRange: '',
+        priceMin: '',
+        priceMax: '',
+        sort: '',
         location: '',
         status: isFilterMode ? '' : 'active',
     });
@@ -317,16 +317,18 @@ const CustomerPostList = ({ route, navigation }) => {
         const locationQuery = filters.location?.toLowerCase();
         const statusUpper = filters.status?.toUpperCase();
 
-        return posts.filter(post => {
+        const priceMin = Number(filters.priceMin);
+        const priceMax = Number(filters.priceMax);
+        const hasMin = filters.priceMin !== '' && !Number.isNaN(priceMin);
+        const hasMax = filters.priceMax !== '' && !Number.isNaN(priceMax);
+
+        const result = posts.filter(post => {
             if (filters.category && post.post_type !== filters.category) return false;
-            if (filters.priceRange) {
-                const price = post.price_amount;
+            if (hasMin || hasMax) {
+                const price = Number(post.price_amount);
                 if (!price) return false;
-                if (filters.priceRange === '0-50000' && price > 50000) return false;
-                if (filters.priceRange === '50000-100000' && (price <= 50000 || price > 100000)) return false;
-                if (filters.priceRange === '100000-500000' && (price <= 100000 || price > 500000)) return false;
-                if (filters.priceRange === '500000-1000000' && (price <= 500000 || price > 1000000)) return false;
-                if (filters.priceRange === '1000000+' && price <= 1000000) return false;
+                if (hasMin && price < priceMin) return false;
+                if (hasMax && price > priceMax) return false;
             }
             if (locationQuery) {
                 const loc = [post.location, post.address, post.province, post.district]
@@ -339,6 +341,22 @@ const CustomerPostList = ({ route, navigation }) => {
             }
             return true;
         });
+
+        // Unpriced posts sink to the bottom of price sorts so "cheapest" never means "no price"
+        if (filters.sort === 'price_asc' || filters.sort === 'price_desc') {
+            const dir = filters.sort === 'price_asc' ? 1 : -1;
+            result.sort((a, b) => {
+                const pa = Number(a.price_amount) || null;
+                const pb = Number(b.price_amount) || null;
+                if (pa === null && pb === null) return 0;
+                if (pa === null) return 1;
+                if (pb === null) return -1;
+                return (pa - pb) * dir;
+            });
+        } else if (filters.sort === 'views') {
+            result.sort((a, b) => (b.views || 0) - (a.views || 0));
+        }
+        return result;
     }, [isFilterMode, posts, debouncedSearchQuery, filters]);
 
     // --- Callbacks ---
@@ -373,7 +391,9 @@ const CustomerPostList = ({ route, navigation }) => {
         setFilters({
             category: isFilterMode ? (routeCategory || '') : '',
             subcategory: isFilterMode ? (routeSubcategory || '') : '',
-            priceRange: '',
+            priceMin: '',
+            priceMax: '',
+            sort: '',
             location: '',
             status: '',
         });
@@ -384,6 +404,7 @@ const CustomerPostList = ({ route, navigation }) => {
         if (isFilterMode) return searchQuery ? 1 : 0;
         const nonDefaultFilters = {
             ...filters,
+            sort: '', // an ordering, not a filter — the badge counts narrowing only
             status: filters.status === 'active' ? '' : filters.status,
         };
         return Object.values(nonDefaultFilters).filter(v => v && v !== '').length + (searchQuery ? 1 : 0);
@@ -394,6 +415,16 @@ const CustomerPostList = ({ route, navigation }) => {
     const handleLikeChange = useCallback((post_key, liked) => {
         setLikedPostsStatus(prev => ({ ...prev, [post_key]: liked }));
     }, []);
+
+    // Emphasis is an admin-set schema flag (CategorySchema.emphasized) — no hardcoded category keys
+    const emphasisByKey = useMemo(() => {
+        const map = {};
+        for (const c of categorySchemas) {
+            if (c.emphasized) map[c.key] = getSchemaLabel(c);
+        }
+        return map;
+    // i18n.language: emphasis labels must recompute when the locale switches.
+    }, [categorySchemas, i18n.language]);
 
     const renderPostItem = useCallback(({ item, index }) => {
         const post_key = `${item.post_type || 'construction'}-${item.id}`;
@@ -411,10 +442,12 @@ const CustomerPostList = ({ route, navigation }) => {
                     onLikeChange={(liked) => handleLikeChange(post_key, liked)}
                     showLike={isCustomer}
                     colors={colors}
+                    emphasized={!!emphasisByKey[item.post_type]}
+                    emphasisLabel={emphasisByKey[item.post_type] || ''}
                 />
             </FadeSlideIn>
         );
-    }, [handlePostPress, getPostTitleMemo, getPostPriceMemo, getPostImageMemo, likedPostsStatus, isAuthenticated, handleLikeChange, colors]);
+    }, [handlePostPress, getPostTitleMemo, getPostPriceMemo, getPostImageMemo, likedPostsStatus, isAuthenticated, handleLikeChange, colors, emphasisByKey]);
 
     const keyExtractor = useCallback((item) => item.id.toString(), []);
 
@@ -518,27 +551,57 @@ const CustomerPostList = ({ route, navigation }) => {
                 </View>
 
                 <View style={styles.filterSection}>
-                    <Text style={[styles.filterLabel, { color: colors.text.secondary }]}>{t('filter.priceRange')}</Text>
+                    <Text style={[styles.filterLabel, { color: colors.text.secondary }]}>{t('filter.sortBy')}</Text>
                     <View style={styles.filterOptionsContainer}>
-                        {PRICE_RANGES.map((range) => (
-                            <SelectionPop key={range.value} selected={filters.priceRange === range.value}>
+                        {SORT_OPTIONS.map((opt) => (
+                            <SelectionPop key={opt.value} selected={filters.sort === opt.value}>
                                 <TouchableOpacity
                                     style={[
                                         styles.filterOption,
-                                        filters.priceRange === range.value && styles.filterOptionActive,
+                                        filters.sort === opt.value && styles.filterOptionActive,
                                     ]}
-                                    onPress={() => setFilters(prev => ({ ...prev, priceRange: range.value }))}
+                                    onPress={() => setFilters(prev => ({ ...prev, sort: opt.value }))}
                                     activeOpacity={interactions.activeOpacity}
                                 >
                                     <Text style={[
                                         styles.filterOptionText,
-                                        filters.priceRange === range.value && styles.filterOptionTextActive,
+                                        filters.sort === opt.value && styles.filterOptionTextActive,
                                     ]}>
-                                        {range.value ? range.label : t('filter.allPrices')}
+                                        {t(`sort.${opt.value || 'newest'}`)}
                                     </Text>
                                 </TouchableOpacity>
                             </SelectionPop>
                         ))}
+                    </View>
+                </View>
+
+                <View style={styles.filterSection}>
+                    <Text style={[styles.filterLabel, { color: colors.text.secondary }]}>{t('filter.priceRange')}</Text>
+                    <View style={styles.priceRangeRow}>
+                        <TextInput
+                            style={[styles.locationInput, styles.priceRangeInput, {
+                                backgroundColor: colors.background,
+                                borderColor: colors.border.light,
+                                color: colors.text.primary,
+                            }]}
+                            value={filters.priceMin}
+                            onChangeText={(text) => setFilters(prev => ({ ...prev, priceMin: text.replace(/[^0-9]/g, '') }))}
+                            placeholder={t('filter.minPrice')}
+                            placeholderTextColor={colors.text.placeholder}
+                            keyboardType="number-pad"
+                        />
+                        <TextInput
+                            style={[styles.locationInput, styles.priceRangeInput, {
+                                backgroundColor: colors.background,
+                                borderColor: colors.border.light,
+                                color: colors.text.primary,
+                            }]}
+                            value={filters.priceMax}
+                            onChangeText={(text) => setFilters(prev => ({ ...prev, priceMax: text.replace(/[^0-9]/g, '') }))}
+                            placeholder={t('filter.maxPrice')}
+                            placeholderTextColor={colors.text.placeholder}
+                            keyboardType="number-pad"
+                        />
                     </View>
                 </View>
 
@@ -863,7 +926,7 @@ const createStyles = (colors) => StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.border.light,
     },
-    sosCard: {
+    emphasizedCard: {
         borderColor: colors.danger,
     },
     imageContainer: {
@@ -871,17 +934,18 @@ const createStyles = (colors) => StyleSheet.create({
         alignSelf: 'stretch',
         backgroundColor: colors.border.light,
     },
-    sosBadge: {
+    emphasizedBadge: {
         position: 'absolute',
         bottom: 0,
         left: 0,
         right: 0,
         backgroundColor: colors.danger,
         paddingVertical: spacing.xxs,
+        paddingHorizontal: spacing.xxs,
         alignItems: 'center',
     },
-    sosBadgeText: {
-        // "SOS" is set in caps, which is exactly what `overline` is tuned for.
+    emphasizedBadgeText: {
+        // The badge label is set in caps, which is exactly what `overline` is tuned for.
         ...typography.styles.overline,
         color: colors.text.onColor,
     },
@@ -994,8 +1058,16 @@ const createStyles = (colors) => StyleSheet.create({
         borderRadius: radius.input,
         padding: spacing.md,
         ...typography.styles.body,
+        lineHeight: undefined,
         color: colors.text.primary,
         backgroundColor: colors.background,
+    },
+    priceRangeRow: {
+        flexDirection: 'row',
+        gap: spacing.sm,
+    },
+    priceRangeInput: {
+        flex: 1,
     },
     modalFooterButtons: {
         flexDirection: 'row',

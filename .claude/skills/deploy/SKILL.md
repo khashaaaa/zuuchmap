@@ -55,8 +55,10 @@ node v24.11.1 via nvm, Postgres 16, nginx 1.24):
    then `zcat zuuchmap_suspend_*.sql.gz | psql -U <PG_USER> -d <PG_NAME>`
 3. Layout: clone monorepo to `~/zuuchmap-mono`; rsync `zuuchmap_engine/`→`/var/www/zuuchmap_engine`,
    `zuuchmap_web/`→`/var/www/zuuchmap_web` (deploy.sh steps 3/6 do exactly this)
-4. Restore `engine.production.env` → `config/variables/`, `web.env*` → web root,
-   `ecosystem.config.js` → engine root. Update `PG_HOST` if it isn't localhost.
+4. Restore `engine.production.env` → `config/variables/`, `web.env*` → web root.
+   `ecosystem.config.js` comes from the repo now (no longer carries DB creds —
+   the app reads `PG_*` from `production.env`). Update `PG_HOST` in that env file
+   if Postgres isn't localhost.
 5. Engine: `npm install && npm run build`, explicit `NODE_ENV=production migration:run`
    (brings the restored DB up to current schema), `pm2 start ecosystem.config.js && pm2 save`,
    `pm2 startup` (systemd)
@@ -65,6 +67,16 @@ node v24.11.1 via nvm, Postgres 16, nginx 1.24):
    `sites-enabled`, point DNS A record at the new IP, `certbot --nginx -d zuuchmap.com`
 8. Update `VPS_HOST` in `~/.zuuchmap-deploy.env`; run `deploy.sh --no-push` to confirm
    the pipeline works end-to-end
+
+**Optional — scale the engine past 1 instance (needs Redis):** `apt install
+redis-server`, uncomment `REDIS_URL=redis://127.0.0.1:6379` in `production.env`,
+set `PM2_INSTANCES=<n>` (or in the pm2 env), `pm2 reload ecosystem.config.js`.
+That flips throttler storage, cache invalidation and Socket.io broadcasts onto
+Redis so N workers stay consistent. Without Redis, keep `instances: 1` — the
+engine runs fine single-node (in-memory), it just can't be horizontally scaled.
+Redis also removes the throttler's unbounded-memory behaviour under a
+high-cardinality IP flood (verified: 40k distinct IPs → engine RSS flat at
+~220MB, counts off-heap in Redis).
 
 **Running on localhost meanwhile:** local dev needs nothing from the VPS —
 `npm run dev:engine` + `dev:web` use the local Postgres and

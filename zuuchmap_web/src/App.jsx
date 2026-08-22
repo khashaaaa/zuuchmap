@@ -6,6 +6,7 @@ import { useAuthStore, useThemeStore } from './store'
 import AppLayout from './components/AppLayout'
 import { AdminRoute, ProviderRoute, CustomerRoute } from './components/ProtectedRoute'
 import ErrorBoundary from './components/ErrorBoundary'
+import { useRealtimeSync } from './hooks/useRealtimeSync'
 import { trackPageView } from './lib/analytics'
 
 import LandingPage from './pages/LandingPage'
@@ -69,6 +70,11 @@ export default function App() {
   const location = useLocation()
   const qc = useQueryClient()
   const shouldReduceMotion = useReducedMotion()
+
+  // Lives here, above the pathname-keyed <Routes> — inside AppLayout it was
+  // remounted on every navigation, tearing down and re-handshaking the
+  // WebSocket each time (dropped events + a connect storm on the server).
+  useRealtimeSync()
 
   useEffect(() => { hydrate() }, []) // eslint-disable-line
 

@@ -4,11 +4,22 @@ export interface FieldDef {
   key: string;
   label: string;
   labels?: Record<string, string>;
-  type: 'text' | 'textarea' | 'number' | 'select' | 'date' | 'phone';
+  type:
+    | 'text' | 'textarea' | 'number' | 'select' | 'date' | 'phone'
+    // Stores a real JSON boolean. Filtered by jsonb containment.
+    | 'boolean'
+    // Stores a JSON array of `options` values. Filtered by the `?` operator.
+    | 'multiselect';
   options?: string[];
   required?: boolean;
+  // Required fields render upfront; 'details' fields sit behind a collapsible.
+  // Omitted means 'core'.
+  group?: 'core' | 'details';
   placeholder?: string;
+  // Localized placeholder, mirrors `labels`. Falls back to `placeholder`.
+  placeholders?: Record<string, string>;
   filterable?: boolean;
+  // Rendered as a suffix on the field label and on the post detail row.
   unit?: string;
 }
 
@@ -50,6 +61,14 @@ export class CategorySchema {
 
   @Column({ nullable: true })
   default_price_unit: string;
+
+  // Clients render posts of this category with an attention-drawing card style
+  @Column({ default: false })
+  emphasized: boolean;
+
+  // Days until a new post expires; null falls back to the system default (30)
+  @Column({ type: 'int', nullable: true })
+  post_expiry_days: number | null;
 
   @Column({ default: true })
   active: boolean;

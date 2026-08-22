@@ -4,12 +4,10 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import AppSidebar from './AppSidebar'
 import AppHeader from './AppHeader'
-import { useRealtimeSync } from '@/hooks/useRealtimeSync'
 
 const FOCUSABLE_SELECTOR = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
 
 export default function AppLayout() {
-  useRealtimeSync()
   const [mobileOpen, setMobileOpen] = useState(false)
   const location = useLocation()
   const shouldReduceMotion = useReducedMotion()

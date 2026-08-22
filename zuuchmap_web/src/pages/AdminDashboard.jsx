@@ -54,7 +54,7 @@ export default function AdminDashboard() {
       {showSkeleton ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           {Array.from({ length: 7 }).map((_, i) => (
-            <div key={i} className="h-24 bg-surface2 rounded-card animate-pulse" />
+            <div key={i} className="h-24 skeleton rounded-card" />
           ))}
         </div>
       ) : isError ? (

@@ -1,6 +1,6 @@
 # CLAUDE.md — Zuuchmap
 
-Construction marketplace for Mongolia. Providers post rentals/services/jobs across 8 categories; admins approve posts before they go live; customers browse, filter, save, contact.
+Construction marketplace for Mongolia. Providers post rentals/services/jobs across 13 categories; admins approve posts before they go live; customers browse, filter, save, contact.
 
 | Dir | Stack |
 |---|---|
@@ -84,7 +84,9 @@ GET  /analytics/summary           JWT+AdminGuard  ?days=7|30|90
 
 **Category system (data-driven — never hardcode category behavior in clients):**
 - `CategorySchema` holds fields (`FieldDef[]`), subcategories, behavior flags
-  (`has_rental_status` `has_availability_dates` `has_price` `default_price_unit`),
+  (`has_rental_status` `has_availability_dates` `has_price` `default_price_unit`
+  `emphasized` — attention-drawing card style in lists — and `post_expiry_days`,
+  1–365, null = 30-day default applied at post creation),
   and localized `labels` (`{mn,en,zh,ru}`) on category/subcategory/field level.
 - Clients derive form sections, status toggles, filter lists, map markers, badges and labels from the schema — `icon` is an Ionicons name, `color` a hex, both admin-editable. Adding a vertical is an admin-UI operation: no deploy, no app release. Do not reintroduce a hardcoded category list anywhere.
 - `FieldDef.filterable` exposes an attribute as a browse filter (`attr.<key>` query param).
@@ -92,6 +94,8 @@ GET  /analytics/summary           JWT+AdminGuard  ?days=7|30|90
 - Post has `category` + `subcategory` only; legacy `secondcategory` still accepted as DTO input alias.
 
 **Phone verification (verify.mn, Mobile-Originated):** we never send an SMS. `verify/start` registers a code; the *user* texts it to shortcode `144773` from the number they claim, and possession is proven by the message arriving from that number — so the code is not a secret and is rendered in the UI. Costs the end user 150₮ per verification, so it runs only at signup and on a new device: `TrustedDevice` stores `sha256(device_id)` and a match short-circuits to a token. Biometrics gate the locally-stored token on the device only; the server never accepts a biometric claim.
+
+**Realtime:** `events/events.gateway.ts` — Socket.io rooms `admin` + `user:<id>` (legacy `provider:<id>` joins/emits kept for pre-rename app builds; drop when those are gone). Event names + payload shapes (`{postId, category, …}`) are exported as `SOCKET_EVENTS` and mirrored in `zuuchmap_web/src/lib/socket.js` and `zuuchmap_app/src/services/socketService.js` — change all three together. In the app, only `useNotificationSync` subscribes to the socket; screens never do.
 
 **Admin guard:** `src/admin/admin.guard.ts` — reads `ADMIN_PHONES` env, exports `isAdmin()`.  
 Web/app read `is_admin` from JWT response — they do not duplicate the list.
@@ -140,7 +144,7 @@ Customer: /customer /customer/browse /customer/map /customer/saved /customer/pro
 
 **Server state:** TanStack React Query everywhere — client from `src/services/queryClient.js` (wired in `App.js` with AppState focus manager). After any post mutation or socket event call `invalidatePostData()` from that module; it clears both React Query caches and the AsyncStorage offline fallbacks. `utils/cacheManager.js` is only the offline-fallback layer used inside services (map posts, category schemas) — never cache screen data with it.
 
-**Seeded post types:** `vehiclerent toolrent machineryrent materialstore factory construction jobvacancy sos` — but categories come from the API (`CategorySchema`); form behavior is driven by schema flags via `formUtils.getInitialFormData/getEditFormData(schema, …)`, and labels via `postUtils.getSchemaLabel/getSubcategoryLabel`.
+**Seeded post types:** `vehiclerent toolrent machineryrent materialstore factory construction jobvacancy sos usedequipment transport designservice miningsupport winterservice` — but categories come from the API (`CategorySchema`); form behavior is driven by schema flags via `formUtils.getInitialFormData/getEditFormData(schema, …)`, and labels via `postUtils.getSchemaLabel/getSubcategoryLabel`.
 
 **Category schemas:** `hooks/useCategorySchemas.js` → `useCategorySchemas()` / `useActiveCategorySchemas()`. Use these for any per-category affordance; `getPostTypeConfig(type, colors, schemas)` resolves icon+colour from the schema.
 
@@ -159,6 +163,5 @@ Customer: /customer /customer/browse /customer/map /customer/saved /customer/pro
 | 🔴 | Android `package` is still the placeholder `com.yourcompany.zuuchmap`. Cannot be changed after a Play Store release without orphaning installs — decide before the next submission | `zuuchmap_app/app.json` |
 | 🟡 | Google Maps key ships in `app.json` (unavoidable for the Maps SDK); it must be restricted by package name + SHA-1 in Google Cloud Console | `zuuchmap_app/app.json` |
 | 🟡 | Prod Postgres SSL uses `rejectUnauthorized: false` (no CA validation) | `app.module.ts:50` |
-| 🟡 | In-memory `SimpleCache`, `@nestjs/throttler` storage and Socket.io have no shared backend — pm2 must stay at **1 instance**. Raising it silently multiplies rate limits and splits cache/broadcasts; needs Redis first | `utils/cache.ts`, `app.module.ts`, `events/` |
-| 🟢 | `CustomerPostList` still hardcodes `=== 'sos'` for an emphasized card style — cosmetic only; needs a schema flag if per-vertical emphasis is wanted | `zuuchmap_app/src/screens/customer/CustomerPostList.jsx:74` |
+| 🟢 | Multi-instance is Redis-gated. With `REDIS_URL` set: throttler storage → Redis (`@nest-lab/throttler-storage-redis`), cache invalidation → Redis pub/sub (`utils/cache-coordinator.ts`, per-process L1 + cross-instance clear), Socket.io → Redis adapter (`utils/redis-io.adapter.ts`). Then raise `PM2_INSTANCES`. **Unset `REDIS_URL` ⇒ single instance only** — each worker would otherwise split rate limits/cache/broadcasts. Localhost dev runs Redis-free (in-memory). | `utils/redis.ts`, `app.module.ts`, `ecosystem.config.js` |
 | 🟡 | Web admin role is client-side routing only — backend endpoints are guarded, but the UI trusts `is_admin` from the JWT response | `web/src/App.jsx` |

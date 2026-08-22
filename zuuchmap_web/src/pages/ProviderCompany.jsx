@@ -82,7 +82,7 @@ export default function ProviderCompany() {
   if (isLoading) return (
     <div>
       <PageHeader title={t('company.title')} />
-      <div className="h-48 bg-surface2 rounded-card animate-pulse" />
+      <div className="h-48 skeleton rounded-card" />
     </div>
   )
 
@@ -110,11 +110,17 @@ export default function ProviderCompany() {
   }
 
   if (!editing && company) {
+    // A phone number you cannot tap and a website you cannot click are the two
+    // things a visitor actually came for.
+    const href = (kind, v) =>
+      kind === 'phone' ? `tel:${String(v).replace(/\s/g, '')}` :
+      kind === 'email' ? `mailto:${v}` :
+      kind === 'website' ? (/^https?:\/\//i.test(v) ? v : `https://${v}`) : null
     const details = [
-      [t('common.phone'), company.phone_number],
-      [t('common.email'), company.email],
-      [t('common.address'), company.address],
-      [t('common.website'), company.website],
+      [t('common.phone'), company.phone_number, 'phone'],
+      [t('common.email'), company.email, 'email'],
+      [t('common.address'), company.address, null],
+      [t('common.website'), company.website, 'website'],
     ]
     return (
       <div className="max-w-md">
@@ -125,21 +131,31 @@ export default function ProviderCompany() {
             <p className="font-semibold text-text text-lg">{company.name}</p>
             {company.description && <p className="text-sm text-muted mt-1">{company.description}</p>}
           </div>
-          {details.map(([l, v]) => v && (
-            <div key={l}><p className="text-xs text-muted">{l}</p><p className="text-sm text-text">{v}</p></div>
+          {details.map(([l, v, kind]) => v && (
+            <div key={l}>
+              <p className="text-xs text-muted">{l}</p>
+              {kind ? (
+                <a href={href(kind, v)} className="text-sm text-primary-text hover:underline break-all"
+                  {...(kind === 'website' ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>{v}</a>
+              ) : (
+                <p className="text-sm text-text">{v}</p>
+              )}
+            </div>
           ))}
         </div>
       </div>
     )
   }
 
+  // [label, key, required, inputType] — the type drives the mobile keyboard and
+  // the browser's built-in validation, both of which a bare "text" throws away.
   const formFields = [
-    [t('company.name'), 'name', true],
-    [t('company.description'), 'description'],
-    [t('common.phone'), 'phone_number'],
-    [t('common.email'), 'email'],
-    [t('common.address'), 'address'],
-    [t('common.website'), 'website'],
+    [t('company.name'), 'name', true, 'text'],
+    [t('company.description'), 'description', false, 'textarea'],
+    [t('common.phone'), 'phone_number', false, 'tel'],
+    [t('common.email'), 'email', false, 'email'],
+    [t('common.address'), 'address', false, 'text'],
+    [t('common.website'), 'website', false, 'url'],
   ]
 
   return (
@@ -153,16 +169,27 @@ export default function ProviderCompany() {
                company?.logo ? <img src={getCompanyLogoUrl(company.logo)} alt="" className="w-full h-full object-cover" /> :
                <Building size={20} className="text-muted" />}
             </div>
-            <input type="file" accept="image/*" className="hidden" onChange={(e) => setLogo(e.target.files[0])} />
+            <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+              setLogo(e.target.files[0])
+              // Same file re-picked is not a value change and fires no event —
+              // reset so the picker keeps working. Matches AvatarPicker.
+              e.target.value = ''
+            }} />
           </label>
           <span className="text-xs text-muted">{t('company.logo')}</span>
         </div>
-        {formFields.map(([label, key, req]) => (
+        {formFields.map(([label, key, req, inputType]) => (
           <div key={key}>
             <label className="text-xs text-muted block mb-1.5">
               {label}{req && <span className="text-danger"> *</span>}
             </label>
-            <Input type="text" value={form[key]} required={req} onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))} />
+            {inputType === 'textarea' ? (
+              <Input as="textarea" rows={3} className="resize-none" value={form[key]} required={req}
+                onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))} />
+            ) : (
+              <Input type={inputType} value={form[key]} required={req}
+                onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))} />
+            )}
           </div>
         ))}
         <div className="flex gap-2">

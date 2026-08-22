@@ -1,4 +1,5 @@
-export const PRICE_UNITS = ['HOUR', 'DAY', 'WEEK', 'MONTH', 'PROJECT', 'UNIT', 'PIECE', 'SQM'];
+// Mirrors zuuchmap_engine/src/enums/priceunit.ts — keep in sync.
+export const PRICE_UNITS = ['HOUR', 'MOTO_HOUR', 'DAY', 'WEEK', 'MONTH', 'PROJECT', 'UNIT', 'PIECE', 'SQM', 'TRIP', 'TOTAL'];
 
 export const POST_STATUSES = ['ACTIVE', 'EXPIRED', 'RENTED'];
 

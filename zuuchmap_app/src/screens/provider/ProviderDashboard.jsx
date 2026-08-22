@@ -65,9 +65,6 @@ const ProviderDashboard = ({ navigation }) => {
 
     return (
         <SafeAreaProvider>
-            {Platform.OS === 'android' && (
-                <View style={{ height: 0, backgroundColor: colors.surface, position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1000 }} />
-            )}
             <StatusBar style={isDark ? 'light' : 'dark'} backgroundColor={colors.surface} translucent={false} />
 
             <Tab.Navigator
@@ -89,11 +86,15 @@ const ProviderDashboard = ({ navigation }) => {
                     tabBarStyle: {
                         ...colors.elevation.md,
                         height: Platform.OS === 'ios' ? 88 : 65 + insets.bottom,
-                        paddingBottom: Platform.OS === 'ios' ? spacing.md : spacing.sm + insets.bottom,
+                        paddingBottom: Platform.OS === 'ios' ? spacing.xxl : spacing.sm + insets.bottom,
                         paddingTop: spacing.xs,
                         backgroundColor: colors.surface,
                         borderTopWidth: 1,
                         borderTopColor: colors.border.light,
+                        position: 'absolute',
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
                     },
                     tabBarItemStyle: { paddingVertical: spacing.xs, paddingHorizontal: spacing.sm },
                     tabBarLabelStyle: { ...typography.styles.micro, marginTop: spacing.xs },

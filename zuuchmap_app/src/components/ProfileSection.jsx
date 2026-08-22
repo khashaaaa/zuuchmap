@@ -29,10 +29,10 @@ export const ProfileSection = ({ title, icon, children, style }) => {
 /**
  * Single info row: icon + label + text (e.g. phone, email, address).
  */
-export const ProfileInfoRow = ({ icon, label, text }) => {
+export const ProfileInfoRow = ({ icon, label, text, isLast = false }) => {
     const { colors } = useAppTheme();
     return (
-        <View style={styles.infoItem}>
+        <View style={[styles.infoItem, { borderBottomColor: colors.border.light }, isLast && styles.lastActionItem]}>
             <View style={[styles.infoIcon, { backgroundColor: colors.opacity.background.primary }]}>
                 <Ionicons name={icon} size={20} color={colors.primary} />
             </View>
@@ -83,7 +83,11 @@ export const ProfileActionRow = ({
             />
         </>
     );
-    const rowStyle = [styles.actionItem, isLast && styles.lastActionItem];
+    const rowStyle = [
+        styles.actionItem,
+        { borderBottomColor: colors.border.light },
+        isLast && styles.lastActionItem,
+    ];
     if (onPress) {
         return (
             <TouchableOpacity
@@ -127,6 +131,7 @@ const styles = StyleSheet.create({
         alignItems: 'flex-start',
         paddingHorizontal: spacing.lg,
         paddingVertical: spacing.lg,
+        borderBottomWidth: StyleSheet.hairlineWidth,
     },
     infoIcon: {
         width: 36,
@@ -151,8 +156,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: spacing.lg,
         paddingHorizontal: spacing.lg,
+        borderBottomWidth: StyleSheet.hairlineWidth,
     },
-    lastActionItem: {},
+    lastActionItem: {
+        borderBottomWidth: 0,
+    },
     actionIcon: {
         width: 36,
         height: 36,

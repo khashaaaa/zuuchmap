@@ -49,7 +49,7 @@ function NavItem({ to, label, icon: Icon, end, onClick, indicatorId }) {
       end={end}
       onClick={onClick}
       className={({ isActive }) =>
-        `relative flex items-center gap-3 px-3 py-2.5 rounded-btn text-sm transition-colors ${
+        `relative flex items-center gap-3 min-h-[44px] px-3 py-2.5 rounded-btn text-sm transition-colors ${
           isActive ? 'text-primary-text font-medium' : 'text-muted hover:text-text hover:bg-surface2'
         }`
       }
@@ -118,7 +118,7 @@ export default function AppSidebar({ onNavigate }) {
         <Link
           to={profilePath}
           onClick={onNavigate}
-          className="flex items-center gap-3 px-3 py-2 mb-1 rounded-btn hover:bg-surface2 transition-colors"
+          className="flex items-center gap-3 min-h-[44px] px-3 py-2 mb-1 rounded-btn hover:bg-surface2 transition-colors"
         >
           <UserAvatar
             src={displayUser?.profile_picture}
@@ -132,7 +132,7 @@ export default function AppSidebar({ onNavigate }) {
         </Link>
         <button
           onClick={() => setShowLogoutConfirm(true)}
-          className="flex items-center gap-3 w-full px-3 py-2 rounded-btn text-sm text-muted hover:text-danger hover:bg-danger/10 transition-colors"
+          className="flex items-center gap-3 w-full min-h-[44px] px-3 py-2 rounded-btn text-sm text-muted hover:text-danger hover:bg-danger/10 transition-colors"
         >
           <LogOut size={16} />
           {t('nav.logout')}

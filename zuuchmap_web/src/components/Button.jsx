@@ -2,11 +2,10 @@ import { Link } from 'react-router-dom'
 
 const VARIANTS = {
     primary:   'bg-primary text-on-primary hover:bg-primary/90',
-    secondary: 'bg-surface2 text-text hover:bg-border',
+    secondary: 'bg-surface2 text-text hover:bg-border/20',
     danger:    'bg-danger text-on-color hover:bg-danger/90',
     outline:   'border border-border/50 text-text hover:bg-surface2',
     'danger-outline': 'border border-danger/30 text-danger hover:bg-danger/10',
-    ghost:     'text-muted hover:text-text hover:bg-surface2',
 }
 const SIZES = {
     sm: 'px-3 py-1.5 text-xs md:text-sm',

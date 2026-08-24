@@ -83,35 +83,30 @@ const likeService = {
         }
     },
 
-    batchCheckLiked: async (posts) => {
+    /**
+     * Every liked id the user has, keyed by post_type — one request, whatever is
+     * on screen. This used to fan out one request per category in the visible
+     * list and refire on every page of an infinite scroll, even though the
+     * answer never depended on the page.
+     */
+    likedIdsByType: async () => {
         try {
-            const posts_by_type = posts.reduce((acc, post) => {
-                if (!acc[post.post_type]) acc[post.post_type] = [];
-                acc[post.post_type].push(post.id);
-                return acc;
-            }, {});
-
-            const entries = Object.entries(posts_by_type);
-            const results = await Promise.all(
-                entries.map(([post_type]) => likeService.getLikedPostIds(post_type))
-            );
-
-            const liked_status = {};
-            entries.forEach(([post_type, post_ids], i) => {
-                const liked_ids = results[i];
-                post_ids.forEach(post_id => {
-                    liked_status[`${post_type}-${post_id}`] = liked_ids.includes(post_id);
-                });
-            });
-
-            return liked_status;
+            const response = await apiClient.get(API_CONFIG.ENDPOINTS.LIKE.GET_IDS);
+            return response.data.liked_by_type ?? {};
         } catch (error) {
-            if (error.response?.status === 401 || error.response?.status === 403) {
-                return {};
-            }
-            logger.error('Batch check liked error:', error);
+            if (error.response?.status === 401 || error.response?.status === 403) return {};
+            logger.error('Liked ids error:', error);
             return {};
         }
+    },
+
+    /** Flattens the grouped ids into the `${post_type}-${id}` map screens render from. */
+    likedStatusMap: (likedByType) => {
+        const map = {};
+        for (const [post_type, ids] of Object.entries(likedByType ?? {})) {
+            for (const id of ids) map[`${post_type}-${id}`] = true;
+        }
+        return map;
     },
 
     getLikedPostsCountSilently: async () => {

@@ -4,6 +4,12 @@ import { API_CONFIG, getPostImageUrl } from '../../config/api.config';
 import { getUserId, getAuthToken } from './authHelpers';
 import apiClient from './apiClient';
 import { logger } from '../../utils/logger';
+import cacheManager from '../../utils/cacheManager';
+
+// Offline fallback for the first browse page: the last good result for a given
+// query string, kept a day. Only read when the request never reached the server.
+const BROWSE_CACHE_PREFIX = 'cached_browse_';
+const BROWSE_CACHE_DURATION = 24 * 60 * 60 * 1000;
 
 const compressImage = async (imageUri) => {
   try {
@@ -112,22 +118,56 @@ const postService = {
     return uploadWithFetch('PATCH', API_CONFIG.ENDPOINTS.POSTS.UPDATE(postId), formData);
   },
 
-  getList: async ({ category, approval_status, status, page, limit, q } = {}) => {
+  getList: async ({
+    category, subcategory, province, district, approval_status, status,
+    page, limit, q, sort, price_min, price_max,
+  } = {}) => {
     const params = new URLSearchParams();
     if (category) params.append('category', category);
+    if (subcategory) params.append('subcategory', subcategory);
+    if (province) params.append('province', province);
+    if (district) params.append('district', district);
     if (approval_status) params.append('approval_status', approval_status);
     if (status) params.append('status', status);
     if (page) params.append('page', page);
     if (limit) params.append('limit', limit);
     if (q) params.append('q', q);
+    if (sort) params.append('sort', sort);
+    if (price_min) params.append('price_min', price_min);
+    if (price_max) params.append('price_max', price_max);
     const qs = params.toString();
-    const response = await apiClient.get(`${API_CONFIG.ENDPOINTS.POSTS.LIST}${qs ? `?${qs}` : ''}`);
+    const isFirstPage = !page || Number(page) === 1;
+    const cacheKey = `${BROWSE_CACHE_PREFIX}${qs}`;
+    let response;
+    try {
+      response = await apiClient.get(`${API_CONFIG.ENDPOINTS.POSTS.LIST}${qs ? `?${qs}` : ''}`);
+    } catch (error) {
+      // No HTTP response at all ⇒ offline. Serve the saved first page, flagged.
+      if (!error?.response && isFirstPage) {
+        const cached = await cacheManager.getStorage(cacheKey);
+        if (cached?.items) {
+          return { data: cached.items, total: cached.total, fromCache: true, cachedAt: cached.timestamp ?? null };
+        }
+      }
+      throw error;
+    }
     // Server returns { items, total }; keep response.data as the array for existing consumers
     const body = response.data;
     const items = Array.isArray(body) ? body : (body?.items ?? []);
     response.data = items.map(normalizeImages);
     response.total = Array.isArray(body) ? items.length : (body?.total ?? items.length);
+    response.fromCache = false;
+    if (isFirstPage) {
+      cacheManager.setStorage(cacheKey, { items: response.data, total: response.total, timestamp: Date.now() }, BROWSE_CACHE_DURATION);
+    }
     return response;
+  },
+
+  // Same-category neighbours, nearest in price and place. Public.
+  getSimilar: async (postId, limit = 6) => {
+    const response = await apiClient.get(`${API_CONFIG.ENDPOINTS.POSTS.GET(postId)}/similar?limit=${limit}`);
+    const items = Array.isArray(response.data) ? response.data : [];
+    return items.map(normalizeImages);
   },
 
   getForMap: async () => {
@@ -136,11 +176,18 @@ const postService = {
     return response;
   },
 
-  getMine: async () => {
-    const response = await apiClient.get(API_CONFIG.ENDPOINTS.POSTS.MINE);
+  getMine: async ({ page, limit } = {}) => {
+    const params = new URLSearchParams();
+    if (page) params.append('page', page);
+    if (limit) params.append('limit', limit);
+    const qs = params.toString();
+    const response = await apiClient.get(`${API_CONFIG.ENDPOINTS.POSTS.MINE}${qs ? `?${qs}` : ''}`);
     if (Array.isArray(response.data)) response.data = response.data.map(normalizeImages);
     return response;
   },
+
+  // Attention stats (views / saves / booking requests) for the provider's posts.
+  getMyStats: async () => (await apiClient.get(API_CONFIG.ENDPOINTS.POSTS.MINE_STATS)).data,
 
   getById: async (postId, incrementView = false) => {
     const qs = incrementView ? '?increment_view=true' : '';

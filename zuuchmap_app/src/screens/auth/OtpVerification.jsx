@@ -3,15 +3,14 @@ import {
     View,
     Text,
     TouchableOpacity,
-    Platform,
     StatusBar,
     StyleSheet,
     Linking,
-    ActivityIndicator,
+    Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { spacing, typography, radius, interactions, isTablet } from '../../design/theme';
+import { spacing, typography, radius, interactions, isTablet, animations } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useAppContext } from '../../context/AppContext';
 import { useTranslation } from 'react-i18next';
@@ -22,6 +21,25 @@ import { getErrorMessage, showErrorModal } from '../../utils/errorManager';
 import { track } from '../../services/analytics';
 import { logger } from '../../utils/logger';
 import Button from '../../components/Button';
+import FadeSlideIn from '../../components/FadeSlideIn';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
+
+// The anxious minutes while we watch for the user's SMS: a slow amber breath,
+// not a spinner — nothing is loading, we are listening.
+const BreathingDot = ({ color }) => {
+    const reduced = useReducedMotion();
+    const opacity = useRef(new Animated.Value(1)).current;
+    useEffect(() => {
+        if (reduced) return undefined;
+        const loop = Animated.loop(Animated.sequence([
+            Animated.timing(opacity, { toValue: 0.25, duration: animations.duration.pulse, useNativeDriver: true }),
+            Animated.timing(opacity, { toValue: 1, duration: animations.duration.pulse, useNativeDriver: true }),
+        ]));
+        loop.start();
+        return () => loop.stop();
+    }, [reduced, opacity]);
+    return <Animated.View style={[styles.breathingDot, { backgroundColor: color, opacity }]} />;
+};
 
 /** Client poll cadence; the engine throttles its own upstream calls to 3s. */
 const POLL_MS = 2000;
@@ -39,6 +57,7 @@ const OtpVerification = ({ route, navigation }) => {
 
     const [status, setStatus] = useState('PENDING');
     const [now, setNow] = useState(() => Date.now());
+    const [pollFailures, setPollFailures] = useState(0);
     const settled = useRef(false);
     // Pinned once: deriving the fallback from the ticking clock would keep the
     // countdown frozen at five minutes forever when the session omits an expiry.
@@ -69,6 +88,8 @@ const OtpVerification = ({ route, navigation }) => {
         try {
             const result = await userService.checkVerification(session.session_id, phoneNumber);
 
+            setPollFailures(0);
+
             if (result.status === 'VERIFIED' && result.auth) {
                 settled.current = true;
                 setStatus('VERIFIED');
@@ -87,6 +108,11 @@ const OtpVerification = ({ route, navigation }) => {
                 setStatus('EXPIRED');
             } else {
                 logger.debug('Verification poll failed, retrying', error?.message);
+                // Retrying silently meant an offline user watched the countdown
+                // run out after paying for the SMS, with nothing saying we could
+                // not reach the server.
+                setPollFailures((n) => n + 1);
+                return;
             }
         }
     }, [session?.session_id, phoneNumber, finish]);
@@ -123,6 +149,8 @@ const OtpVerification = ({ route, navigation }) => {
                         <TouchableOpacity
                             style={styles.backButton}
                             onPress={() => navigation.goBack()}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('common.back')}
                             activeOpacity={interactions.activeOpacityLight}
                             hitSlop={interactions.hitSlop}
                         >
@@ -131,17 +159,16 @@ const OtpVerification = ({ route, navigation }) => {
                         <TouchableOpacity
                             style={[styles.themeToggle, { backgroundColor: colors.opacity.background.primary }]}
                             onPress={() => setThemeMode(isDark ? 'light' : 'dark')}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('common.toggleTheme')}
                             activeOpacity={interactions.activeOpacityLight}
                             hitSlop={interactions.hitSlop}
                         >
-                            <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={colors.primary} />
+                            <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={colors.iconAccent} />
                         </TouchableOpacity>
                     </View>
 
-                    <View style={styles.header}>
-                        <View style={[styles.iconContainer, { backgroundColor: colors.opacity.background.primary }]}>
-                            <Ionicons name="chatbox-ellipses-outline" size={56} color={colors.primary} />
-                        </View>
+                    <FadeSlideIn style={styles.header}>
                         <Text style={[styles.title, { color: colors.text.primary }]}>
                             {t('auth.smsTitle')}
                         </Text>
@@ -149,7 +176,7 @@ const OtpVerification = ({ route, navigation }) => {
                             {t('auth.smsLead', { shortcode: session?.shortcode ?? '144773' })}
                         </Text>
 
-                        <View style={[styles.codeCard, { backgroundColor: colors.surface, borderColor: colors.border.medium }]}>
+                        <View style={[styles.codeCard, { backgroundColor: colors.opacity.background.primary, borderColor: colors.border.amber }]}>
                             <Text style={[styles.codeLabel, { color: colors.text.secondary }]}>
                                 {t('auth.yourCode')}
                             </Text>
@@ -157,7 +184,20 @@ const OtpVerification = ({ route, navigation }) => {
                                 {session?.code}
                             </Text>
                         </View>
-                    </View>
+
+                        <View style={styles.steps}>
+                            {[
+                                t('auth.step1'),
+                                t('auth.step2', { shortcode: session?.shortcode ?? '144773' }),
+                                t('auth.step3'),
+                            ].map((step, i) => (
+                                <View key={i} style={styles.stepRow}>
+                                    <Text style={[styles.stepNumber, { color: colors.text.link }]}>{i + 1}</Text>
+                                    <Text style={[styles.stepText, { color: colors.text.secondary }]}>{step}</Text>
+                                </View>
+                            ))}
+                        </View>
+                    </FadeSlideIn>
 
                     <View style={styles.form}>
                         {view === 'PENDING' && (
@@ -170,14 +210,21 @@ const OtpVerification = ({ route, navigation }) => {
                                     })}
                                 </Text>
                                 <View style={styles.waitingRow}>
-                                    <ActivityIndicator size="small" color={colors.primary} />
+                                    <BreathingDot color={colors.iconAccent} />
                                     <Text style={[styles.waitingText, { color: colors.text.secondary }]}>
                                         {t('auth.waiting')}
                                     </Text>
-                                    <Text style={[styles.countdown, { color: colors.text.secondary }]}>
+                                    <Text style={[styles.countdown, { color: colors.text.primary }]}>
                                         {mins}:{secs}
                                     </Text>
                                 </View>
+                                {/* Two consecutive misses is ~4s of silence — long
+                                    enough to mean something, short enough to still act on. */}
+                                {pollFailures >= 2 && (
+                                    <Text style={[styles.offlineNote, { color: colors.warning }]}>
+                                        {t('auth.pollOffline')}
+                                    </Text>
+                                )}
                                 <Text style={[styles.costNote, { color: colors.text.secondary }]}>
                                     {t('auth.cost')}
                                 </Text>
@@ -237,14 +284,6 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
     },
-    iconContainer: {
-        width: 96,
-        height: 96,
-        borderRadius: radius.xl,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: spacing.lg,
-    },
     title: {
         ...typography.styles.h2,
         marginBottom: spacing.sm,
@@ -262,7 +301,11 @@ const styles = StyleSheet.create({
         borderRadius: radius.card,
         paddingVertical: spacing.lg,
     },
-    codeLabel: { ...typography.styles.caption, marginBottom: spacing.xs },
+    codeLabel: {
+        ...typography.styles.overline,
+        textTransform: 'uppercase',
+        marginBottom: spacing.xs,
+    },
     code: {
         ...typography.styles.display,
         letterSpacing: CODE_TRACKING,
@@ -270,6 +313,25 @@ const styles = StyleSheet.create({
         // half a space off; pull it back by the same amount.
         marginLeft: CODE_TRACKING,
         fontVariant: ['tabular-nums'],
+    },
+    steps: {
+        alignSelf: 'stretch',
+        marginTop: spacing.xl,
+        gap: spacing.sm,
+    },
+    stepRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+    },
+    stepNumber: {
+        ...typography.styles.overline,
+        width: 16,
+        textAlign: 'center',
+    },
+    stepText: {
+        ...typography.styles.caption,
+        flex: 1,
     },
     form: {
         gap: spacing.lg,
@@ -282,9 +344,18 @@ const styles = StyleSheet.create({
         gap: spacing.sm,
     },
     waitingText: { ...typography.styles.caption },
-    countdown: { ...typography.styles.caption, fontVariant: ['tabular-nums'] },
+    countdown: { ...typography.styles.price, fontVariant: ['tabular-nums'] },
+    breathingDot: {
+        width: 10,
+        height: 10,
+        borderRadius: radius.full,
+    },
     manualHint: { ...typography.styles.small, textAlign: 'center' },
     costNote: {
+        ...typography.styles.small,
+        textAlign: 'center',
+    },
+    offlineNote: {
         ...typography.styles.small,
         textAlign: 'center',
     },

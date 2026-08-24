@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { CalendarCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { bookingsApi } from '@/lib/api'
+import { track } from '@/lib/analytics'
 import { apiErrorMessage } from '@/lib/utils'
 import InfoSection from '@/components/InfoSection'
 import Input from '@/components/Input'
@@ -22,10 +23,25 @@ export default function BookingRequest({ postId }) {
   const now = new Date()
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 
+  // Accepted ranges on this post. Without them a customer picks dates blind and
+  // finds out only when the provider declines.
+  const { data: busy = [] } = useQuery({
+    queryKey: ['bookings', 'busy', postId],
+    queryFn: () => bookingsApi.busy(postId),
+    enabled: !!postId,
+    staleTime: 60_000,
+  })
+  const overlapsBusy = start && end && busy.some((r) => start <= r.end_date && end >= r.start_date)
+
   const qc = useQueryClient()
   const mut = useMutation({
     mutationFn: () => bookingsApi.create({ post_id: postId, start_date: start, end_date: end, message: message || undefined }),
-    onSuccess: () => { setSent(true); qc.invalidateQueries({ queryKey: ['bookings'] }); toast.success(t('booking.submitted')) },
+    onSuccess: () => {
+      track('booking.requested', { post_id: postId })
+      setSent(true)
+      qc.invalidateQueries({ queryKey: ['bookings'] })
+      toast.success(t('booking.submitted'))
+    },
     onError: (e) => toast.error(apiErrorMessage(e, t, t('booking.requestError'))),
   })
 
@@ -56,6 +72,21 @@ export default function BookingRequest({ postId }) {
       {dateError && (
         <p className="text-xs text-danger" role="alert">{t('booking.dateRangeError')}</p>
       )}
+      {busy.length > 0 && (
+        <div className="rounded-btn bg-warning/10 px-3 py-2">
+          <p className="text-xs font-medium text-text">{t('booking.datesTakenTitle')}</p>
+          <ul className="mt-1 space-y-0.5">
+            {busy.slice(0, 4).map((r) => (
+              <li key={`${r.start_date}-${r.end_date}`} className="text-xs text-muted tabular-nums">
+                {r.start_date} — {r.end_date}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {overlapsBusy && (
+        <p className="text-xs text-danger" role="alert">{t('booking.datesTaken')}</p>
+      )}
       <div>
         <label className="text-xs text-muted block mb-1.5">{t('booking.message')}</label>
         <Input as="textarea" rows={2} value={message} onChange={(e) => setMessage(e.target.value)}
@@ -69,7 +100,7 @@ export default function BookingRequest({ postId }) {
           if (new Date(end) < new Date(start)) { setDateError(true); return }
           mut.mutate()
         }}
-        disabled={!start || !end || mut.isPending}
+        disabled={!start || !end || overlapsBusy || mut.isPending}
       >
         {mut.isPending ? t('common.saving') : t('booking.submit')}
       </Button>

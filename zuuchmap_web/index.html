@@ -15,8 +15,9 @@
 
     <title>ZuuchMap — Барилгын зах зээл | Машин механизм, материал, гүйцэтгэгч</title>
     <meta name="description" content="Монголын барилгын зах зээл. Машин механизм, тээврийн хэрэгсэл, багаж түрээслэх, барилгын материал, үйлдвэр, гүйцэтгэгч, ажлын байр, SOS үйлчилгээ — 21 аймагт." />
-    <meta name="theme-color" content="#17181A" media="(prefers-color-scheme: dark)" />
-    <meta name="theme-color" content="#FAFAF8" media="(prefers-color-scheme: light)" />
+    <!-- Content is set by the theme bootstrap script below — the stored
+         zm_theme decides, not prefers-color-scheme. -->
+    <meta name="theme-color" content="#17181A" />
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="ZuuchMap" />
@@ -48,6 +49,8 @@
       (function() {
         var t = localStorage.getItem('zm_theme') || 'dark';
         document.documentElement.setAttribute('data-theme', t);
+        var m = document.querySelector('meta[name="theme-color"]');
+        if (m) m.setAttribute('content', t === 'light' ? '#FAFAF8' : '#17181A');
       })();
     </script>
   </head>

@@ -23,6 +23,12 @@ export class BookingController {
     return this.bookingService.listForProvider(req.user.id);
   }
 
+  /** Taken date ranges for a post, so the booking form can block them. */
+  @Get('post/:postId/busy')
+  busy(@Param('postId', ParseIntPipe) postId: number) {
+    return this.bookingService.busyRanges(postId);
+  }
+
   @Put(':id/accept')
   accept(@Param('id', ParseIntPipe) id: number, @Body() body: { message?: string }, @Req() req) {
     return this.bookingService.respond(id, req.user.id, true, body?.message);

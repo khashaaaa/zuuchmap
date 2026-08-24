@@ -18,11 +18,11 @@ import { useCountUp } from '../../hooks/useCountUp';
 import { useTranslation } from 'react-i18next';
 import userService from '../../services/api/userService';
 import likeService from '../../services/api/likeService';
-import { ScreenLayout, SettingsSection, PressableScale } from '../../components';
+import { ScreenLayout, SettingsSection, PressableScale, FadeSlideIn } from '../../components';
 import { ProfileSection, ProfileActionRow } from '../../components';
 import { ProfileBadge } from '../../components';
 import { DEFAULT_AVATAR_URL } from '../../config/app.config';
-import { showErrorModal } from '../../utils/errorManager';
+import { showErrorModal, isPostLogoutStraggler } from '../../utils/errorManager';
 import { confirmLogout } from '../../utils/navigationUtils';
 import { logger } from '../../utils/logger';
 
@@ -47,7 +47,10 @@ const CustomerProfile = ({ navigation }) => {
     const likedCountDisplay = useCountUp(liked_posts_count, !loading_liked_count);
 
     useEffect(() => {
-        if (profileError) {
+        // Logging out leaves this query observed for a beat, so it refetches
+        // without a token and 401s. That is the logout working, not a failure
+        // to report at someone on their way to the login screen.
+        if (profileError && !isPostLogoutStraggler(profileError)) {
             logger.error('Profile load error:', profileError);
             showErrorModal(t('common.error'), t('profile.loadError'));
         }
@@ -135,9 +138,9 @@ const CustomerProfile = ({ navigation }) => {
                         </View>
 
                         <View style={styles.profileInfo}>
-                            <Text style={[styles.userName, { color: colors.text.primary }]}>{user?.name || t('common.user')}</Text>
+                            <Text style={[styles.userName, { color: colors.text.primary }]} numberOfLines={1}>{user?.name || t('common.user')}</Text>
                             <View style={styles.phoneContainer}>
-                                <Ionicons name="call-outline" size={16} color={colors.primary} />
+                                <Ionicons name="call-outline" size={16} color={colors.iconAccent} />
                                 <Text style={[styles.userPhone, { color: colors.text.secondary }]}>+976 {user?.phoneNumber}</Text>
                             </View>
 
@@ -147,14 +150,17 @@ const CustomerProfile = ({ navigation }) => {
                         <TouchableOpacity
                             style={[styles.editButton, { backgroundColor: colors.opacity.background.primary }]}
                             onPress={() => navigation.navigate('CustomerEditProfile', { profile: user })}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('common.edit')}
                             activeOpacity={interactions.activeOpacityLight}
                             hitSlop={interactions.hitSlop}
                         >
-                            <Ionicons name="create-outline" size={18} color={colors.primary} />
+                            <Ionicons name="create-outline" size={18} color={colors.iconAccent} />
                         </TouchableOpacity>
                     </View>
                 </View>
 
+                <FadeSlideIn index={0}>
                 <View style={[styles.statsSection, colors.elevation.md, { backgroundColor: colors.surface }]}>
                     <PressableScale
                         style={styles.statItem}
@@ -162,10 +168,10 @@ const CustomerProfile = ({ navigation }) => {
                         accessibilityRole="button"
                     >
                         <View style={[styles.statIconContainer, { backgroundColor: colors.opacity.background.primary }]}>
-                            <Ionicons name="heart-outline" size={20} color={colors.primary} />
+                            <Ionicons name="heart-outline" size={20} color={colors.iconAccent} />
                         </View>
                         {loading_liked_count ? (
-                            <ActivityIndicator size="small" color={colors.primary} />
+                            <ActivityIndicator size="small" color={colors.iconAccent} />
                         ) : (
                             <Text style={[styles.statValue, { color: colors.text.primary }]}>
                                 {likedCountDisplay}
@@ -176,18 +182,25 @@ const CustomerProfile = ({ navigation }) => {
 
                     <View style={styles.statItem}>
                         <View style={[styles.statIconContainer, { backgroundColor: colors.opacity.background.primary }]}>
-                            <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+                            <Ionicons name="calendar-outline" size={20} color={colors.iconAccent} />
                         </View>
                         <Text style={[styles.statValue, { color: colors.text.primary }]}>{user?.memberSince || '—'}</Text>
                         <Text style={[styles.statLabel, { color: colors.text.secondary }]}>{t('profile.memberSince')}</Text>
                     </View>
                 </View>
+                </FadeSlideIn>
 
+                <FadeSlideIn index={1}>
                 <ProfileSection>
                     <ProfileActionRow
                         icon="calendar-outline"
                         text={t('booking.myBookings')}
                         onPress={() => navigation.navigate('BookingList', { role: 'customer' })}
+                    />
+                    <ProfileActionRow
+                        icon="bookmark-outline"
+                        text={t('savedSearch.title')}
+                        onPress={() => navigation.navigate('SavedSearches')}
                     />
                     <ProfileActionRow
                         icon="help-circle-outline"
@@ -211,7 +224,9 @@ const CustomerProfile = ({ navigation }) => {
                         isLast
                     />
                 </ProfileSection>
+                </FadeSlideIn>
 
+                <FadeSlideIn index={2}>
                 <ProfileSection>
                     <ProfileActionRow
                         icon="log-out-outline"
@@ -221,6 +236,7 @@ const CustomerProfile = ({ navigation }) => {
                         variant="danger"
                     />
                 </ProfileSection>
+                </FadeSlideIn>
 
                 <SettingsSection />
 

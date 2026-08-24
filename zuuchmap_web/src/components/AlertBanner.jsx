@@ -12,7 +12,7 @@ export default function AlertBanner({ variant = 'danger', title, icon: Icon, cla
         {Icon && <Icon size={20} className="shrink-0 mt-0.5" />}
         <div>
           <p className="font-semibold mb-1">{title}</p>
-          <p className="text-muted">{children}</p>
+          <p className="opacity-90">{children}</p>
         </div>
       </div>
     )

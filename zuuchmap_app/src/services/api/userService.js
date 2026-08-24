@@ -9,6 +9,7 @@ import { queryClient } from '../queryClient';
 import apiClient from './apiClient';
 import { navigateToDashboard } from '../../utils/navigationUtils';
 import { logger } from '../../utils/logger';
+import { isPostLogoutStraggler } from '../../utils/errorManager';
 import { getDeviceId } from '../../utils/device';
 
 const API_URL = API_CONFIG.BASE_URL;
@@ -36,8 +37,7 @@ const userService = {
                     userType: response.data.type || null,
                     isNewUser: false,
                     userId: response.data.id,
-                    isVerified: response.data.is_verified || false,
-                    biometric: response.data.biometric || null
+                    isVerified: response.data.is_verified || false
                 };
             } else {
                 return {
@@ -45,8 +45,7 @@ const userService = {
                     userType: null,
                     isNewUser: true,
                     userId: null,
-                    isVerified: false,
-                    biometric: null
+                    isVerified: false
                 };
             }
         } catch (error) {
@@ -56,8 +55,7 @@ const userService = {
                     userType: null,
                     isNewUser: true,
                     userId: null,
-                    isVerified: false,
-                    biometric: null
+                    isVerified: false
                 };
             }
 
@@ -160,10 +158,16 @@ const userService = {
 
     logout: async (keepUserInfo = true) => {
         try {
-            // Stop this device receiving the account's pushes; must run while the
-            // JWT is still stored. Best-effort — logout proceeds regardless.
-            await apiClient.delete(API_CONFIG.ENDPOINTS.USER.SAVE_PUSH_TOKEN)
-                .catch((err) => logger.warn?.('Push token clear failed on logout:', err?.message));
+            // Read what the server call needs, then stop being logged in. The
+            // network round-trip used to come first and be awaited, so on a slow
+            // connection the token sat in storage for up to the 30s timeout after
+            // the UI had already returned to the login screen — kill the app in
+            // that window and the next launch found a live session and went
+            // straight back to the dashboard.
+            const [token, pushToken] = await Promise.all([
+                AsyncStorage.getItem(API_CONFIG.STORAGE_KEYS.AUTH_TOKEN),
+                AsyncStorage.getItem(API_CONFIG.STORAGE_KEYS.PUSH_TOKEN),
+            ]);
             socketService.disconnect();
             if (keepUserInfo) {
                 await AsyncStorage.multiRemove([
@@ -179,7 +183,22 @@ const userService = {
                     API_CONFIG.STORAGE_KEYS.USER_INFO,
                 ]);
             }
+            AsyncStorage.removeItem(API_CONFIG.STORAGE_KEYS.PUSH_TOKEN).catch(() => {});
             emitAuthChanged();
+
+            // Now that the session is gone locally, tell the server to stop
+            // pushing to *this* device. Carries its own credentials because the
+            // interceptor has nothing left to attach, and is deliberately not
+            // awaited: logout is already complete and a dead network must not
+            // hold it open. Scoped to this device's token so other devices the
+            // account is still signed in on keep receiving notifications.
+            if (token) {
+                apiClient.delete(API_CONFIG.ENDPOINTS.USER.SAVE_PUSH_TOKEN, {
+                    headers: { Authorization: `Bearer ${token}` },
+                    data: pushToken ? { push_token: pushToken } : undefined,
+                    timeout: 5000,
+                }).catch((err) => logger.warn?.('Push token clear failed on logout:', err?.message));
+            }
             // Callers reset to the auth stack before calling logout, but the
             // exit animation keeps the old screen mounted for a beat — clearing
             // the cache while its queries are still observed refetches them
@@ -191,11 +210,6 @@ const userService = {
             logger.error('Logout error:', error);
             return false;
         }
-    },
-
-    clearAuthData: async () => {
-        const { clearAuthData } = await import('./authHelpers');
-        return clearAuthData();
     },
 
     getUserPosts: async () => {
@@ -246,7 +260,9 @@ const userService = {
                 })()
             };
         } catch (error) {
-            logger.error('Error in getUserProfile:', error);
+            // A logout straggler is expected, not a fault: stay quiet and let
+            // the caller decide. Everything else is still reported.
+            if (!isPostLogoutStraggler(error)) logger.error('Error in getUserProfile:', error);
             throw error;
         }
     },
@@ -286,56 +302,6 @@ const userService = {
             return apiClient.patch(API_CONFIG.ENDPOINTS.USER.UPDATE(userId), formData);
         } catch (error) {
             logger.error('Error in updateProfile:', error);
-            if (error.response) {
-                logger.error('Response data:', error.response.data);
-                logger.error('Response status:', error.response.status);
-            }
-            throw error;
-        }
-    },
-
-    updateProfileImage: async (formData) => {
-        try {
-            const userId = await getUserId();
-            if (!userId) {
-                const error = new Error('User ID missing from storage');
-                error.code = 'USER_ID_MISSING';
-                throw error;
-            }
-            const response = await apiClient.patch(API_CONFIG.ENDPOINTS.USER.UPDATE(userId), formData);
-
-            if (response.data) {
-                return {
-                    id: response.data.id,
-                    name: response.data.parent_name && response.data.given_name
-                        ? `${response.data.parent_name} ${response.data.given_name}`
-                        : response.data.given_name || response.data.parent_name || 'Anonymous User',
-                    phoneNumber: response.data.phone_number,
-                    email: response.data.email,
-                    profilePicture: response.data.profile_picture
-                        ? getUploadUrl(API_CONFIG.UPLOAD_PATHS.PROFILE_PICTURE, response.data.profile_picture)
-                        : DEFAULT_AVATAR_URL,
-                    userType: response.data.type,
-                    companyId: response.data.company ? response.data.company.id : null,
-                    companyName: response.data.company ? response.data.company.name : null,
-                    companyLogo: response.data.company && response.data.company.logo
-                        ? getUploadUrl(API_CONFIG.UPLOAD_PATHS.COMPANY_LOGO, response.data.company.logo)
-                        : null,
-                    address: response.data.address,
-                    totalPosts: response.data.totalPosts || 0,
-                    activePosts: response.data.activePosts || 0,
-                    memberSince: (() => {
-                        const date = new Date(response.data.date_created);
-                        const year = date.getFullYear();
-                        const month = String(date.getMonth() + 1).padStart(2, '0');
-                        return `${year}-${month}`;
-                    })()
-                };
-            }
-
-            return response.data;
-        } catch (error) {
-            logger.error('Error updating profile image:', error);
             if (error.response) {
                 logger.error('Response data:', error.response.data);
                 logger.error('Response status:', error.response.status);

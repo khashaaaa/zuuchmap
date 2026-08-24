@@ -3,10 +3,13 @@ import { Link } from 'react-router-dom'
 import { motion, useReducedMotion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { ShieldCheck } from 'lucide-react'
 import { postsApi, categoryApi } from '@/lib/api'
-import { getCategoryLabel, getCategoryColor, getImageUrl, getPostTitle, formatPrice } from '@/lib/utils'
+import { getCategoryLabel, getCategoryColor, getCategoryIcon, getImageUrl, getPostTitle, formatPrice, withAlpha, toneForTheme, hideBrokenImage } from '@/lib/utils'
 import { trackPageView } from '@/lib/analytics'
+import { useThemeStore } from '@/store'
 import PublicHeader from '@/components/PublicHeader'
+import PublicFooter from '@/components/PublicFooter'
 import PostCard from '@/components/PostCard'
 import ErrorState from '@/components/ErrorState'
 import Button from '@/components/Button'
@@ -19,19 +22,20 @@ import { CountUp } from '@/components/StatCard'
 function RibbonCard({ post, t, tabbable = true }) {
   const title = getPostTitle(post, t)
   const price = formatPrice(post.price_amount, post.price_unit, t)
+  // bg-surface2 so a photo that 404s leaves a card, not a hole: hideBrokenImage
+  // only hides the <img>, and the scrim on top of it stays either way.
   return (
     <Link
       to={`/posts/${post.id}`}
       tabIndex={tabbable ? undefined : -1}
-      className="group relative block w-64 h-44 rounded-card overflow-hidden shadow-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+      className="group relative block w-64 h-44 rounded-card overflow-hidden bg-surface2 shadow-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
     >
       <img
         src={getImageUrl(post.images[0])}
         alt={title}
         loading="lazy"
         decoding="async"
-        className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.05]"
-      />
+        className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.05]" onError={hideBrokenImage} />
       <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/75 to-transparent" aria-hidden="true" />
       <div className="absolute inset-x-0 bottom-0 p-3">
         <p className="text-sm font-semibold text-white line-clamp-1">{title}</p>
@@ -49,6 +53,8 @@ function RibbonCard({ post, t, tabbable = true }) {
 export default function LandingPage() {
   const { t } = useTranslation()
   const shouldReduceMotion = useReducedMotion()
+  const theme = useThemeStore((s) => s.theme)
+  const isDark = theme !== 'light'
 
   const heroItem = {
     hidden: shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 8 },
@@ -126,7 +132,7 @@ export default function LandingPage() {
               <dd className="text-2xl md:text-3xl font-bold text-text tabular-nums">
                 {typeof stat.value === 'number' ? <CountUp value={stat.value} /> : '—'}
               </dd>
-              <p className="text-xs text-muted mt-0.5">{stat.label}</p>
+              <p className="text-xs text-muted mt-0.5" aria-hidden="true">{stat.label}</p>
             </div>
           ))}
         </motion.dl>
@@ -141,11 +147,13 @@ export default function LandingPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
           {active.map((schema) => {
             const catColor = getCategoryColor(schema.key, schemas)
+            const Icon = getCategoryIcon(schema.icon)
+            const tone = catColor ? toneForTheme(catColor, isDark) : undefined
             return (
               <Link
                 key={schema.key}
                 to={`/browse?category=${schema.key}`}
-                style={catColor ? { '--cat': catColor } : undefined}
+                style={catColor ? { '--cat': catColor, backgroundColor: withAlpha(catColor, isDark ? 0.1 : 0.07) } : undefined}
                 className="cat-tile group relative flex flex-col justify-between min-h-[7.5rem] p-4 pl-5 rounded-card bg-surface border border-border/20 shadow-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
                 <span
@@ -153,8 +161,11 @@ export default function LandingPage() {
                   className="absolute left-0 top-4 bottom-4 w-[3px] rounded-full"
                   style={{ backgroundColor: catColor || 'var(--color-primary)' }}
                 />
-                <span className="text-sm font-semibold text-text leading-snug">
-                  {getCategoryLabel(schema.key, t, schemas)}
+                <span className="flex items-start justify-between gap-2">
+                  <span className="text-sm font-semibold text-text leading-snug">
+                    {getCategoryLabel(schema.key, t, schemas)}
+                  </span>
+                  <Icon size={18} className="shrink-0 mt-0.5" style={tone ? { color: tone } : undefined} aria-hidden="true" />
                 </span>
                 <span className="mt-3 text-2xl font-bold text-text tabular-nums">
                   <CountUp value={countFor(schema.key)} />
@@ -207,37 +218,40 @@ export default function LandingPage() {
           <h2 className="text-sm font-semibold text-muted uppercase tracking-wider mb-6">
             {t('landing.howTitle')}
           </h2>
+          {/* The two paths are a real sequence for each visitor — numbering
+              earns its place here. */}
           <div className="grid md:grid-cols-2 gap-8">
-            <div>
-              <h3 className="font-semibold text-text mb-2">{t('landing.howCustomer')}</h3>
-              <p className="text-sm text-muted leading-relaxed">{t('landing.howCustomerBody')}</p>
+            <div className="flex gap-4">
+              <span className="text-sm font-bold text-primary-text tabular-nums leading-6" aria-hidden="true">01</span>
+              <div>
+                <h3 className="font-semibold text-text mb-2">{t('landing.howCustomer')}</h3>
+                <p className="text-sm text-muted leading-relaxed">{t('landing.howCustomerBody')}</p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-semibold text-text mb-2">{t('landing.howProvider')}</h3>
-              <p className="text-sm text-muted leading-relaxed">{t('landing.howProviderBody')}</p>
+            <div className="flex gap-4">
+              <span className="text-sm font-bold text-primary-text tabular-nums leading-6" aria-hidden="true">02</span>
+              <div>
+                <h3 className="font-semibold text-text mb-2">{t('landing.howProvider')}</h3>
+                <p className="text-sm text-muted leading-relaxed">{t('landing.howProviderBody')}</p>
+              </div>
             </div>
           </div>
 
-          <div className="mt-10 pt-8 border-t border-border/20 max-w-2xl">
-            <h3 className="font-semibold text-text mb-2">{t('landing.trustTitle')}</h3>
-            <p className="text-sm text-muted leading-relaxed">{t('landing.trustBody')}</p>
+          {/* The trust claim is the argument for using this over a Facebook
+              group — it gets its own panel, not a footnote. */}
+          <div className="mt-10 max-w-2xl rounded-card border border-border/20 bg-surface p-5 flex items-start gap-4">
+            <span className="w-9 h-9 rounded-lg bg-success/10 text-success flex items-center justify-center shrink-0" aria-hidden="true">
+              <ShieldCheck size={18} />
+            </span>
+            <div>
+              <h3 className="text-lg md:text-xl font-semibold text-text mb-1">{t('landing.trustTitle')}</h3>
+              <p className="text-sm text-muted leading-relaxed">{t('landing.trustBody')}</p>
+            </div>
           </div>
         </div>
       </section>
 
-      <footer className="border-t border-border/20">
-        <div className="max-w-6xl mx-auto px-4 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-xs text-muted">
-            ZuuchMap — {t('landing.footerTagline')}
-          </p>
-          <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-muted">
-            <Link to="/browse" className="hover:text-text transition-colors">{t('landing.browse')}</Link>
-            <Link to="/privacy" className="hover:text-text transition-colors">{t('privacy.title')}</Link>
-            <Link to="/terms" className="hover:text-text transition-colors">{t('terms.title')}</Link>
-            <Link to="/help" className="hover:text-text transition-colors">{t('helpSupport.title')}</Link>
-          </nav>
-        </div>
-      </footer>
+      <PublicFooter />
     </div>
   )
 }

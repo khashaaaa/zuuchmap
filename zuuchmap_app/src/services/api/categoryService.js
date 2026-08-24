@@ -41,11 +41,6 @@ const categoryService = {
     const cats = await categoryService.getCategories();
     return cats.find(c => c.key === key) || null;
   },
-
-  clearCache: () => {
-    cacheManager.deleteMemory(MEM_KEY);
-    cacheManager.deleteStorage(STORAGE_KEY).catch(() => {});
-  },
 };
 
 export default categoryService;

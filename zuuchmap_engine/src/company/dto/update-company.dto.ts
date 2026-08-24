@@ -28,7 +28,4 @@ export class UpdateCompanyDto {
 
   @IsOptional()
   tax_id?: string;
-
-  @IsOptional()
-  is_verified?: boolean;
 }

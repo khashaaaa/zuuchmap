@@ -26,6 +26,9 @@ export default function Button({
         success: { bg: colors.success,  fg: colors.text.onColor },
         warning: { bg: colors.warning,  fg: colors.text.onColor },
         outline: { bg: 'transparent',   fg: colors.text.link, border: colors.primary },
+        // De-emphasised sibling of primary: quiet surface fill + hairline, for
+        // the second action in a pair (Call next to Book, Cancel booking).
+        secondary: { bg: colors.surfaceElevated, fg: colors.text.primary, border: colors.border.medium },
     };
     const v = VARIANTS[variant] ?? VARIANTS.primary;
     const sz = SIZES[size] ?? SIZES.md;
@@ -59,6 +62,7 @@ export default function Button({
                 styles.base,
                 { backgroundColor: bg, minHeight: sz.minHeight, paddingVertical: sz.paddingVertical, paddingHorizontal: sz.paddingHorizontal },
                 variant === 'outline' && { borderWidth: 2, borderColor: inactive ? colors.border.medium : v.border },
+                variant === 'secondary' && { borderWidth: 1, borderColor: v.border },
                 fullWidth && { width: '100%' },
                 style,
             ]}
@@ -91,7 +95,6 @@ export default function Button({
 
 const styles = StyleSheet.create({
     base:     { borderRadius: radius.button, alignItems: 'center', justifyContent: 'center' },
-    disabled: { opacity: 0.6 },
     label:    { textAlign: 'center' },
     row:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
     iconL:    { marginRight: spacing.sm },

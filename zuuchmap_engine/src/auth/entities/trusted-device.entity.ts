@@ -26,10 +26,6 @@ export class TrustedDevice {
   @Column()
   device_hash: string;
 
-  /** Human-readable hint for the user's session list, e.g. "iPhone · iOS 18". */
-  @Column({ nullable: true })
-  label: string;
-
   @Column({ type: 'timestamp', nullable: true })
   last_seen_at: Date;
 

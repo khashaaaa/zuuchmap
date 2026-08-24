@@ -36,19 +36,17 @@ export class User {
     address: string
 
     @Column({ nullable: true })
-    biometric: string
-
-    @Column({ type: 'jsonb', nullable: true })
-    device_info: string
-
-    @Column({ nullable: true })
     is_verified: boolean
 
     @Column({ nullable: true })
     profile_picture: string
 
-    @Column({ nullable: true })
-    push_token: string
+    @Column({ default: 'FREE' })
+    plan: string
+
+    // NULL on FREE. On PROVIDER, the moment entitlement lapses back to FREE.
+    @Column({ nullable: true, type: 'timestamp' })
+    plan_expires_at: Date | null
 
     @ManyToOne(() => Company, company => company.users)
     @JoinColumn()

@@ -41,6 +41,7 @@ export const API_CONFIG = {
       LIST: '/posts',
       MAP: '/posts/map',
       MINE: '/posts/mine',
+      MINE_STATS: '/posts/mine/stats',
       CREATE: '/posts',
       GET: (id) => `/posts/${id}`,
       UPDATE: (id) => `/posts/${id}`,
@@ -56,11 +57,18 @@ export const API_CONFIG = {
       ACCEPT: (id) => `/bookings/${id}/accept`,
       DECLINE: (id) => `/bookings/${id}/decline`,
       CANCEL: (id) => `/bookings/${id}/cancel`,
+      BUSY: (postId) => `/bookings/post/${postId}/busy`,
     },
 
     REVIEWS: {
       CREATE: '/reviews',
       PROVIDER: (id) => `/reviews/provider/${id}`,
+    },
+
+    SAVED_SEARCHES: {
+      LIST: '/saved-searches',
+      CREATE: '/saved-searches',
+      DELETE: (id) => `/saved-searches/${id}`,
     },
 
     LIKE: {
@@ -83,7 +91,11 @@ export const API_CONFIG = {
     MAP_PREFERENCES: 'map_preferences',
     CATEGORY_SCHEMAS: 'category_schemas',
     DEVICE_ID: 'zm_device_id',
+    // This device's Expo push token, so logout unbinds only this device.
+    PUSH_TOKEN: 'zm_push_token',
     ANON_ID: 'zm_anon_id',
+    // In-progress new post, restored if the app dies mid-form
+    POST_DRAFT: 'zm_post_draft',
   },
 
   UPLOAD_PATHS: {

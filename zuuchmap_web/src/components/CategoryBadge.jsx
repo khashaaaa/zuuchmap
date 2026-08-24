@@ -22,7 +22,7 @@ export default function CategoryBadge({ category }) {
   const base = getCategoryColor(category, schemas)
   if (!base) {
     return (
-      <span className="inline-block px-2 py-0.5 text-xs rounded-md bg-primary/10 text-primary-text border border-primary/20 font-medium">
+      <span className="inline-block px-2 py-0.5 text-xs rounded-md bg-primary/10 text-primary-text border border-primary/20 font-medium whitespace-nowrap max-w-full truncate align-bottom">
         {label}
       </span>
     )
@@ -33,7 +33,7 @@ export default function CategoryBadge({ category }) {
 
   return (
     <span
-      className="inline-block px-2 py-0.5 text-xs rounded-md border font-medium"
+      className="inline-block px-2 py-0.5 text-xs rounded-md border font-medium whitespace-nowrap max-w-full truncate align-bottom"
       style={{
         backgroundColor: withAlpha(base, isDark ? 0.18 : 0.12),
         borderColor: withAlpha(base, isDark ? 0.35 : 0.25),

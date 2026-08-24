@@ -17,7 +17,7 @@ import userService from '../../services/api/userService';
 import { ScreenLayout, SettingsSection } from '../../components';
 import { ProfileSection, ProfileActionRow, ProfileBadge } from '../../components';
 import { DEFAULT_AVATAR_URL } from '../../config/app.config';
-import { showErrorModal } from '../../utils/errorManager';
+import { showErrorModal, isPostLogoutStraggler } from '../../utils/errorManager';
 import { confirmLogout } from '../../utils/navigationUtils';
 import { logger } from '../../utils/logger';
 
@@ -37,8 +37,11 @@ const AdminProfile = ({ navigation }) => {
             const profile = await userService.getUserProfile();
             setUser(profile);
         } catch (error) {
-            logger.error('AdminProfile load error:', error);
-            showErrorModal(t('common.error'), t('profile.loadError'));
+            // See CustomerProfile: a tokenless 401 here is the logout, not a fault.
+            if (!isPostLogoutStraggler(error)) {
+                logger.error('AdminProfile load error:', error);
+                showErrorModal(t('common.error'), t('profile.loadError'));
+            }
         } finally {
             setLoading(false);
         }
@@ -111,7 +114,7 @@ const AdminProfile = ({ navigation }) => {
                                 {user.name || t('common.user')}
                             </Text>
                             <View style={styles.phoneRow}>
-                                <Ionicons name="call-outline" size={14} color={colors.primary} />
+                                <Ionicons name="call-outline" size={14} color={colors.iconAccent} />
                                 <Text style={[styles.userPhone, { color: colors.text.secondary }]}>
                                     +976 {user.phoneNumber}
                                 </Text>
@@ -121,10 +124,12 @@ const AdminProfile = ({ navigation }) => {
                         <TouchableOpacity
                             style={[styles.editBtn, { backgroundColor: colors.opacity.background.primary }]}
                             onPress={() => navigation.navigate('CustomerEditProfile', { profile: user })}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('common.edit')}
                             activeOpacity={interactions.activeOpacityLight}
                             hitSlop={interactions.hitSlop}
                         >
-                            <Ionicons name="create-outline" size={18} color={colors.primary} />
+                            <Ionicons name="create-outline" size={18} color={colors.iconAccent} />
                         </TouchableOpacity>
                     </View>
 

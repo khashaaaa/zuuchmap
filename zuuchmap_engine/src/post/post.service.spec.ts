@@ -35,7 +35,11 @@ describe('PostService.create expiry from category schema', () => {
   // argument), never from a `user` field a client can put in the body — that
   // let any signed-in user plant a post on another account.
   it('binds the owner from the ownerId argument, ignoring any body user field', async () => {
-    const postRepo = { create: jest.fn((x: any) => x), save: jest.fn(async (x: any) => x) };
+    const quotaQb = () => {
+      const qb: any = { where: jest.fn(() => qb), andWhere: jest.fn(() => qb), getCount: jest.fn(async () => 0) };
+      return qb;
+    };
+    const postRepo = { create: jest.fn((x: any) => x), save: jest.fn(async (x: any) => x), createQueryBuilder: jest.fn(quotaQb) };
     const owner = { id: 'caller-uuid' };
     const userRepo = { findOne: jest.fn().mockResolvedValue(owner) };
     const categoryService = { getCategory: jest.fn().mockResolvedValue({ active: true, subcategories: [], post_expiry_days: 30 }) };
@@ -60,6 +64,7 @@ describe('PostService.findAll sorting and price range', () => {
     sharedCache.invalidatePrefix('');
     qb = {
       leftJoinAndSelect: jest.fn().mockReturnThis(),
+      addSelect: jest.fn().mockReturnThis(),
       orderBy: jest.fn().mockReturnThis(),
       addOrderBy: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
@@ -73,9 +78,13 @@ describe('PostService.findAll sorting and price range', () => {
     );
   });
 
-  it('defaults to newest-first', async () => {
+  // Newest-first is still the default ordering, but paid placement now lifts
+  // live featured windows above it, so the date moved to the tiebreaker slot.
+  it('defaults to newest-first, under the featured lift', async () => {
     await service.findAll({});
-    expect(qb.orderBy).toHaveBeenCalledWith('post.date_created', 'DESC');
+    expect(qb.addSelect).toHaveBeenCalledWith(expect.stringContaining('featured_until'), 'featured_rank');
+    expect(qb.orderBy).toHaveBeenCalledWith('featured_rank', 'ASC');
+    expect(qb.addOrderBy).toHaveBeenCalledWith('post.date_created', 'DESC');
   });
 
   it('sorts by price ascending with nulls last, newest as tiebreaker', async () => {
@@ -95,9 +104,13 @@ describe('PostService.findAll sorting and price range', () => {
     expect(qb.addOrderBy).toHaveBeenCalledWith('post.date_created', 'DESC');
   });
 
+  // The point of this test is that an unwhitelisted sort value never reaches
+  // SQL — it must land in the `default` branch, whatever that branch orders by.
   it('falls back to newest for an unknown sort value', async () => {
     await service.findAll({ sort: 'evil; DROP TABLE post' });
-    expect(qb.orderBy).toHaveBeenCalledWith('post.date_created', 'DESC');
+    expect(qb.orderBy).toHaveBeenCalledWith('featured_rank', 'ASC');
+    expect(qb.addOrderBy).toHaveBeenCalledWith('post.date_created', 'DESC');
+    expect(qb.orderBy).not.toHaveBeenCalledWith(expect.stringContaining('DROP TABLE'), expect.anything());
   });
 
   it('applies price_min and price_max as numeric bounds', async () => {
@@ -151,5 +164,44 @@ describe('PostService.findAll sorting and price range', () => {
     await service.findAll({ sort: 'price_desc' });
     // If the cache key ignored sort, the second call would be served from cache
     expect(qb.getManyAndCount).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('PostService.remove — live booking guard', () => {
+  const makeService = (liveBookings: number) => {
+    const post = { id: 1, category: 'vehiclerent', images: [], user: { id: 'owner-1' } };
+    const query = jest.fn(async () => [{ count: liveBookings }]);
+    const postRepo = {
+      findOne: jest.fn(async () => post),
+      delete: jest.fn(async () => ({ affected: 1 })),
+      manager: { query },
+    };
+    const svc = new PostService(
+      postRepo as any, {} as any, {} as any, {} as any,
+      { notifyAdmins: jest.fn() } as any, undefined as any,
+    );
+    return { svc, postRepo };
+  };
+
+  it('deletes a post nobody has a live booking on', async () => {
+    const { svc, postRepo } = makeService(0);
+    await expect(svc.remove(1, 'owner-1')).resolves.toBeUndefined();
+    expect(postRepo.delete).toHaveBeenCalledWith(1);
+  });
+
+  // The customer's only view of what they booked is the post. Deleting it out
+  // from under a commitment that has not ended is not the provider's call.
+  it('refuses while an accepted booking has not ended', async () => {
+    const { svc, postRepo } = makeService(1);
+    await expect(svc.remove(1, 'owner-1')).rejects.toMatchObject({
+      response: { code: 'POST_HAS_LIVE_BOOKING' },
+    });
+    expect(postRepo.delete).not.toHaveBeenCalled();
+  });
+
+  it('still refuses a post that is not yours before looking at bookings', async () => {
+    const { svc, postRepo } = makeService(0);
+    await expect(svc.remove(1, 'someone-else')).rejects.toThrow(/only delete your own/i);
+    expect(postRepo.manager.query).not.toHaveBeenCalled();
   });
 });

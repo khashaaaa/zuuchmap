@@ -14,7 +14,13 @@ const ImageUploadSection = ({
     imagesLoading,
     setImagesLoading,
     error,
-    isEdit = false
+    isEdit = false,
+    /**
+     * Photo-first creation: with no images yet, render a hero with direct
+     * camera / gallery actions instead of the dashed drop zone, so the first
+     * thing a provider does is the thing customers judge the listing by.
+     */
+    photoFirst = false,
 }) => {
     const { colors, styles: gStyles } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
@@ -134,6 +140,39 @@ const ImageUploadSection = ({
         onImagesChange(newImages);
     }, [images, onImagesChange]);
 
+    if (photoFirst && images.length === 0 && !imagesLoading) {
+        return (
+            <View style={styles.hero}>
+                <View style={styles.heroIcon}>
+                    <Ionicons name="camera" size={28} color={colors.iconAccent} />
+                </View>
+                <Text style={styles.heroTitle} maxFontSizeMultiplier={1.3}>{t('provider.photoFirstTitle')}</Text>
+                <Text style={styles.heroSubtitle} maxFontSizeMultiplier={1.3}>{t('provider.photoFirstSubtitle')}</Text>
+                <View style={styles.heroActions}>
+                    <TouchableOpacity
+                        style={styles.heroPrimary}
+                        onPress={takePhoto}
+                        activeOpacity={interactions.activeOpacity}
+                        accessibilityRole="button"
+                    >
+                        <Ionicons name="camera-outline" size={18} color={colors.onPrimary} />
+                        <Text style={styles.heroPrimaryText} maxFontSizeMultiplier={1.3}>{t('provider.photoFirstCamera')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.heroSecondary}
+                        onPress={pickImages}
+                        activeOpacity={interactions.activeOpacity}
+                        accessibilityRole="button"
+                    >
+                        <Ionicons name="images-outline" size={18} color={colors.iconAccent} />
+                        <Text style={styles.heroSecondaryText} maxFontSizeMultiplier={1.3}>{t('provider.photoFirstGallery')}</Text>
+                    </TouchableOpacity>
+                </View>
+                {!!error && <Text style={[gStyles.errorText, { marginTop: spacing.sm }]}>{error}</Text>}
+            </View>
+        );
+    }
+
     return (
         <>
             <View style={gStyles.sectionHeader}>
@@ -152,9 +191,9 @@ const ImageUploadSection = ({
                 activeOpacity={interactions.activeOpacityLight}
             >
                 {imagesLoading ? (
-                    <ActivityIndicator size="small" color={colors.primary} />
+                    <ActivityIndicator size="small" color={colors.iconAccent} />
                 ) : (
-                    <Ionicons name="camera-outline" size={32} color={colors.primary} />
+                    <Ionicons name="camera-outline" size={32} color={colors.iconAccent} />
                 )}
                 <Text style={styles.imagePickerText}>
                     {imagesLoading
@@ -168,7 +207,7 @@ const ImageUploadSection = ({
 
             {imagesLoading ? (
                 <View style={styles.loadingImagesContainer}>
-                    <ActivityIndicator size="large" color={colors.primary} />
+                    <ActivityIndicator size="large" color={colors.iconAccent} />
                     <Text style={styles.loadingImagesText}>{t('upload.loading')}</Text>
                 </View>
             ) : images.length > 0 ? (
@@ -195,7 +234,7 @@ const ImageUploadSection = ({
                                 accessibilityRole="button"
                                 accessibilityLabel={t('upload.removeImage')}
                             >
-                                <Ionicons name="close-circle" size={24} color={colors.primary} />
+                                <Ionicons name="close-circle" size={24} color={colors.iconAccent} />
                             </TouchableOpacity>
                             <View style={styles.imageIndexBadge}>
                                 <Text style={styles.imageIndexText}>{index + 1}</Text>
@@ -217,6 +256,66 @@ const ImageUploadSection = ({
 };
 
 const createStyles = (colors) => StyleSheet.create({
+    hero: {
+        ...colors.elevation.md,
+        alignItems: 'center',
+        padding: spacing.xl,
+        marginBottom: spacing.lg,
+        borderRadius: radius.card,
+        backgroundColor: colors.surfaceElevated,
+    },
+    heroIcon: {
+        width: 56,
+        height: 56,
+        borderRadius: radius.full,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: colors.opacity.background.primary,
+        marginBottom: spacing.md,
+    },
+    heroTitle: {
+        ...typography.styles.h3,
+        color: colors.text.primary,
+        textAlign: 'center',
+        marginBottom: spacing.xs,
+    },
+    heroSubtitle: {
+        ...typography.styles.caption,
+        color: colors.text.secondary,
+        textAlign: 'center',
+        marginBottom: spacing.lg,
+    },
+    heroActions: {
+        alignSelf: 'stretch',
+        gap: spacing.sm,
+    },
+    heroPrimary: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: spacing.sm,
+        minHeight: 48,
+        borderRadius: radius.full,
+        backgroundColor: colors.primary,
+    },
+    heroPrimaryText: {
+        ...typography.styles.labelStrong,
+        color: colors.onPrimary,
+    },
+    heroSecondary: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: spacing.sm,
+        minHeight: 48,
+        borderRadius: radius.full,
+        borderWidth: 1,
+        borderColor: colors.border.medium,
+    },
+    heroSecondaryText: {
+        ...typography.styles.labelStrong,
+        color: colors.text.link,
+    },
     sectionTitle: {
         ...typography.styles.h3,
         color: colors.text.primary,
@@ -238,7 +337,7 @@ const createStyles = (colors) => StyleSheet.create({
         marginBottom: spacing.lg,
     },
     imagePickerText: {
-        color: colors.primary,
+        color: colors.text.link,
         ...typography.styles.label,
         marginTop: spacing.xs,
     },
@@ -260,6 +359,9 @@ const createStyles = (colors) => StyleSheet.create({
     },
     imagesContainer: {
         paddingVertical: spacing.sm,
+        // The index badge hangs -spacing.sm outside the first thumbnail; give
+        // the scroll content the same padding so it isn't clipped at the edge.
+        paddingHorizontal: spacing.sm,
         marginBottom: spacing.lg,
     },
     imageContainer: {

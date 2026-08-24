@@ -1,5 +1,6 @@
-import { IsOptional, IsString, IsNumber, IsEmail, Min, Max } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsEmail, Min, Max, IsIn } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
+import { PROVINCE_CODES, DISTRICT_CODES, normalizeLocationCode } from '../../enums/province';
 
 export class CreatePostDto {
   @IsString()
@@ -18,10 +19,15 @@ export class CreatePostDto {
   @IsOptional() @IsString()
   details?: string;
 
-  @IsOptional() @IsString()
+  // Validated against the shared code list: an unknown value renders as a raw
+  // code on every client and is invisible to the province filter, so it must
+  // not reach the table. Legacy underscore spellings are folded in on the way.
+  @IsOptional() @Transform(({ value }) => normalizeLocationCode(value))
+  @IsIn(PROVINCE_CODES, { message: 'province must be a valid province code' })
   province?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional() @Transform(({ value }) => normalizeLocationCode(value))
+  @IsIn(DISTRICT_CODES, { message: 'district must be a valid district code' })
   district?: string;
 
   @IsOptional() @IsString()
@@ -36,7 +42,10 @@ export class CreatePostDto {
   @IsOptional() @IsString()
   location?: string;
 
-  @IsOptional() @Type(() => Number) @IsNumber() @Min(0)
+  // `price_amount` is numeric(15,2) — Postgres raises "numeric field overflow"
+  // at >= 10^13, which would surface as a 500 instead of a validation error.
+  // The cap is the column's own ceiling, not a product judgement about price.
+  @IsOptional() @Type(() => Number) @IsNumber() @Min(0) @Max(9_999_999_999_999.99)
   price_amount?: number;
 
   @IsOptional() @IsString()
@@ -68,15 +77,6 @@ export class CreatePostDto {
     return value;
   })
   attributes?: Record<string, any>;
-
-  @IsOptional()
-  @Transform(({ value }) => {
-    if (typeof value === 'string') {
-      try { return JSON.parse(value); } catch { return []; }
-    }
-    return value;
-  })
-  existingImages?: string[];
 
   // NOTE: the post owner is NEVER taken from the request body. It is bound from
   // the authenticated JWT in the controller. A client-supplied `user` field

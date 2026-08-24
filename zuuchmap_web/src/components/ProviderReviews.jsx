@@ -69,7 +69,10 @@ export default function ProviderReviews({ providerId, canReview }) {
   }, [data?.own])
 
   const mut = useMutation({
-    mutationFn: () => reviewsApi.upsert({ provider_id: providerId, rating, comment: comment || undefined }),
+    // Send the empty string rather than dropping the key: omitting it reads as
+    // "leave the comment alone", which silently kept the old text under the new
+    // rating. The trim keeps whitespace from counting as a comment.
+    mutationFn: () => reviewsApi.upsert({ provider_id: providerId, rating, comment: comment.trim() }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['reviews', providerId] })
       toast.success(t('review.submitted'))

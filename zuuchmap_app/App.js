@@ -104,12 +104,10 @@ import UserRoleSelection from './src/screens/onboarding/UserRoleSelection';
 import ProviderDashboard from './src/screens/provider/ProviderDashboard';
 import ProviderLocationSelection from './src/screens/provider/ProviderLocationSelection';
 import ProviderPostForm from './src/screens/provider/ProviderPostForm';
-import ProviderProfile from './src/screens/provider/ProviderProfile';
 import EditProfileScreen from './src/screens/shared/EditProfileScreen';
 import ProviderCompany from './src/screens/provider/ProviderCompany'
 
 import CustomerDashboard from './src/screens/customer/CustomerDashboard';
-import CustomerProfile from './src/screens/customer/CustomerProfile';
 import CustomerPostList from './src/screens/customer/CustomerPostList';
 import CustomerLikeList from './src/screens/customer/CustomerLikeList';
 
@@ -119,6 +117,7 @@ import PostDetailScreen from './src/screens/shared/PostDetailScreen';
 import PolicyScreen from './src/screens/shared/PolicyScreen';
 import HelpSupportScreen from './src/screens/shared/HelpSupportScreen';
 import NotificationsScreen from './src/screens/shared/NotificationsScreen';
+import SavedSearchesScreen from './src/screens/customer/SavedSearchesScreen';
 import BookingListScreen from './src/screens/shared/BookingListScreen';
 import AccountDeletionScreen from './src/screens/shared/AccountDeletionScreen';
 import ErrorModalManager from './src/components/ErrorModalManager';
@@ -252,7 +251,17 @@ const App = () => {
       if (!navigationRef.isReady()) return;
       // post_type is carried by newer engine payloads; PostDetailScreen also
       // falls back to the fetched post's category when it's absent.
-      const params = { postId: data.postId, postType: data.post_type };
+      const params = { postId: data.postId, postType: data.post_type ?? data.category };
+      // Saved-search match: a customer's alert lands on the new post. Review
+      // prompt: same screen, with the review sheet asked to open on arrival.
+      if (data.type === 'saved_search') {
+        navigationRef.navigate('PostDetailScreen', { ...params, role: 'customer' });
+        return;
+      }
+      if (data.type === 'review_prompt') {
+        navigationRef.navigate('PostDetailScreen', { ...params, role: 'customer', openReview: true, bookingId: data.bookingId, providerId: data.providerId });
+        return;
+      }
       if (data.notifType === 'new_post') {
         navigationRef.navigate('PostDetailScreen', { ...params, role: 'admin' });
       } else {
@@ -276,7 +285,10 @@ const App = () => {
       // Handle a notification tap that launched the app from a killed state
       Notifications.getLastNotificationResponseAsync().then((response) => {
         if (response) handleNotificationResponse(response);
-      });
+        // Rejects rather than throws where the native module is absent (web,
+        // Expo Go), so the surrounding try/catch cannot see it — an unhandled
+        // rejection surfaced in the console on every web mount.
+      }).catch(() => {});
     } catch {
       // Not available in Expo Go
     }
@@ -373,16 +385,15 @@ const ThemedApp = ({ initialRoute }) => {
             <Stack.Screen name="ProviderLocationSelection" component={ProviderLocationSelection} />
             <Stack.Screen name="ProviderPostCreate" component={ProviderPostForm} />
             <Stack.Screen name="ProviderPostEdit" component={ProviderPostForm} />
-            <Stack.Screen name="ProviderProfile" component={ProviderProfile} />
             <Stack.Screen name="ProviderEditProfile" component={EditProfileScreen} />
             <Stack.Screen name="ProviderCompanyCreate" component={ProviderCompany} />
             <Stack.Screen name="ProviderCompany" component={ProviderCompany} />
 
             <Stack.Screen name="CustomerDashboard" component={CustomerDashboard} />
-            <Stack.Screen name="CustomerProfile" component={CustomerProfile} />
             <Stack.Screen name="CustomerEditProfile" component={EditProfileScreen} />
             <Stack.Screen name="CustomerPostList" component={CustomerPostList} />
             <Stack.Screen name="CustomerLikeList" component={CustomerLikeList} />
+            <Stack.Screen name="SavedSearches" component={SavedSearchesScreen} />
 
 
             <Stack.Screen name="CategorySelectScreen" component={CategorySelectScreen} />

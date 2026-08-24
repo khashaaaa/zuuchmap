@@ -188,12 +188,14 @@ const EditProfileScreen = ({ route, navigation }) => {
         }
 
         setFormErrors(errors);
-        return Object.keys(errors).length === 0;
+        return Object.keys(errors).length ? errors : null;
     };
 
     const handleSave = async () => {
-        if (!validateForm()) {
-            showErrorModal(t('common.validationError'), t('common.formError'));
+        const errors = validateForm();
+        if (errors) {
+            const firstErrorField = Object.keys(errors)[0];
+            if (firstErrorField) setTimeout(() => inputRefs.current[firstErrorField]?.focus?.(), 200);
             return;
         }
 
@@ -316,7 +318,7 @@ const EditProfileScreen = ({ route, navigation }) => {
                                     onPress={selectProfileImage}
                                     activeOpacity={interactions.activeOpacityLight}
                                 >
-                                    <Ionicons name="camera-outline" size={16} color={colors.primary} />
+                                    <Ionicons name="camera-outline" size={16} color={colors.iconAccent} />
                                     <Text style={styles.changePhotoText}>{t('profile.changePicture')}</Text>
                                 </TouchableOpacity>
                             </View>
@@ -358,7 +360,7 @@ const EditProfileScreen = ({ route, navigation }) => {
                                             onPress={selectCompanyLogo}
                                             activeOpacity={interactions.activeOpacityLight}
                                         >
-                                            <Ionicons name="business-outline" size={16} color={colors.primary} />
+                                            <Ionicons name="business-outline" size={16} color={colors.iconAccent} />
                                             <Text style={styles.changePhotoText}>{t('company.logoChange')}</Text>
                                         </TouchableOpacity>
                                     </View>
@@ -376,8 +378,8 @@ const EditProfileScreen = ({ route, navigation }) => {
                 </ScrollView>
 
                 <View style={[
-                    styles.buttonContainer,
                     gStyles.bottomContainerWithInset(safeAreaHelpers.getBottomSafeArea(insets)),
+                    styles.buttonContainer,
                     { backgroundColor: colors.surface },
                 ]}>
                     <Button
@@ -470,7 +472,7 @@ const createStyles = (colors) => StyleSheet.create({
         borderRadius: radius.xxl,
         alignSelf: 'flex-start',
     },
-    changePhotoText: { ...typography.styles.labelStrong, color: colors.primary,
+    changePhotoText: { ...typography.styles.labelStrong, color: colors.text.link,
         marginLeft: spacing.xs, },
     formSection: {
         marginBottom: spacing.xl,

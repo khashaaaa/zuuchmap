@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, ForbiddenException, UseInterceptors, UploadedFile, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, ForbiddenException, UseInterceptors, UploadedFile, UseGuards, Req } from '@nestjs/common';
 import { CompanyService } from './company.service';
 import { isAdmin } from '../admin/admin.guard';
 import { publicCompany } from '../utils/public-user';
@@ -42,11 +42,6 @@ export class CompanyController {
     }
   }
 
-  @Get()
-  async findAll() {
-    return (await this.companyService.findAll()).map(publicCompany);
-  }
-
   @Get(':id')
   async findOne(@Param('id') id: string) {
     return publicCompany(await this.companyService.findOne(id));
@@ -68,13 +63,5 @@ export class CompanyController {
     }
 
     return publicCompany(await this.companyService.update(id, updateCompanyDto));
-  }
-
-  @Delete(':id')
-  @UseGuards(JwtAuthGuard)
-  async remove(@Req() req, @Param('id') id: string) {
-    this.assertCanManage(req, id);
-    await this.companyService.remove(id);
-    return { message: `Company with ID ${id} successfully deleted` };
   }
 }

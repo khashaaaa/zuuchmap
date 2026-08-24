@@ -1,5 +1,4 @@
 import React from 'react';
-import { View } from 'react-native';
 import CustomSafeAreaView from './CustomSafeAreaView';
 import ScreenHeader from './ScreenHeader';
 import ScreenLoading from './ScreenLoading';

@@ -1,7 +1,7 @@
 import {
   Controller, Get, Post, Patch, Delete, Put,
   Param, Body, Query, Req, UseGuards, UseInterceptors,
-  UploadedFiles, ParseIntPipe, Logger, NotFoundException,
+  UploadedFiles, ParseIntPipe, NotFoundException,
 } from '@nestjs/common';
 import { publicUser } from '../utils/public-user';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -13,11 +13,8 @@ import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { createPostImageUploadInterceptor } from '../utils/uploader';
 
-const UPLOAD_DIR = './uploads/posts';
-
 @Controller('posts')
 export class PostController {
-  private readonly logger = new Logger(PostController.name);
   constructor(
     private readonly postService: PostService,
     private readonly categoryService: CategoryService,
@@ -27,7 +24,7 @@ export class PostController {
 
   @Post()
   @UseGuards(JwtAuthGuard)
-  @UseInterceptors(createPostImageUploadInterceptor(UPLOAD_DIR))
+  @UseInterceptors(createPostImageUploadInterceptor())
   create(
     @Body() dto: CreatePostDto,
     @UploadedFiles() files: Express.Multer.File[],
@@ -80,6 +77,13 @@ export class PostController {
     return this.postService.publicStats();
   }
 
+  /** Attention stats for the provider dashboard. Above `:id` like the routes around it. */
+  @Get('mine/stats')
+  @UseGuards(JwtAuthGuard)
+  myStats(@Req() req) {
+    return this.postService.providerStats(req.user.id);
+  }
+
   @Get('mine')
   @UseGuards(JwtAuthGuard)
   findMine(
@@ -94,21 +98,34 @@ export class PostController {
   @UseGuards(OptionalJwtAuthGuard)
   async findOne(
     @Param('id', ParseIntPipe) id: number,
-    @Query('increment_view') increment?: string,
     @Req() req?,
   ) {
     const post = await this.postService.findOne(id);
     // Unapproved posts are visible only to their owner and admins. 404 (not
     // 403) so unmoderated content doesn't leak its existence.
     const isOwner = !!req?.user?.id && post.user?.id === req.user.id;
-    if (post.approval_status !== 'APPROVED' && !isOwner && !isAdmin(req?.user?.phone_number)) {
+    const requesterIsAdmin = isAdmin(req?.user?.phone_number);
+    if (post.approval_status !== 'APPROVED' && !isOwner && !requesterIsAdmin) {
       throw new NotFoundException(`Post #${id} not found`);
     }
-    if (increment === 'true') {
-      const userId = req?.user?.id;
-      await this.postService.incrementViews(id, userId).catch((err) => this.logger.warn(`incrementViews failed for post ${id}`, err?.message));
-    }
-    return { ...post, user: publicUser(post.user) };
+    await this.postService.attachBusyDates([post]);
+    // The pre-edit snapshot is moderation material — owner and admins only.
+    const { previous_snapshot, ...rest } = post;
+    return {
+      ...rest,
+      ...(isOwner || requesterIsAdmin ? { previous_snapshot } : {}),
+      user: publicUser(post.user),
+    };
+  }
+
+  /** Public. Same item shape as `GET /posts`; 404 when `:id` itself is not live. */
+  @Get(':id/similar')
+  async findSimilar(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('limit') limit?: string,
+  ) {
+    const items = await this.postService.findSimilar(id, limit ? +limit : 6);
+    return items;
   }
 
   @Put(':id/views')
@@ -119,7 +136,7 @@ export class PostController {
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard)
-  @UseInterceptors(createPostImageUploadInterceptor(UPLOAD_DIR))
+  @UseInterceptors(createPostImageUploadInterceptor())
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdatePostDto,
@@ -146,11 +163,6 @@ export class PostController {
   @UseGuards(JwtAuthGuard, AdminGuard)
   getAllCategoriesForAdmin() {
     return this.categoryService.getAllCategoriesForAdmin();
-  }
-
-  @Get('categories/:key')
-  getCategory(@Param('key') key: string) {
-    return this.categoryService.getCategory(key);
   }
 
   @Post('categories')

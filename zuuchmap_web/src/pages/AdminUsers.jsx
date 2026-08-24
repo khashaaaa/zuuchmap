@@ -43,6 +43,18 @@ export default function AdminUsers() {
     })
   }, [users, search, typeFilter])
 
+  // Plan is granted here, not bought here — Phase 1 fulfils subscriptions
+  // manually. The server clamps months and re-derives entitlement on read.
+  //
+  // The duration is a choice rather than a hardcoded single month: the endpoint
+  // has always taken 1–24, and renewing early extends from the existing expiry
+  // instead of burning the remaining time.
+  const planMut = useMutation({
+    mutationFn: ({ id, plan, months }) => usersApi.setPlan(id, plan, months),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-users'] }); toast.success(t('admin.planUpdated')) },
+    onError: (e) => toast.error(apiErrorMessage(e, t, t('common.error'))),
+  })
+
   const deleteMut = useMutation({
     mutationFn: usersApi.deleteUser,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-users'] }); qc.invalidateQueries({ queryKey: ['admin-stats'] }); toast.success(t('admin.userDeleted')) },
@@ -58,7 +70,7 @@ export default function AdminUsers() {
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t('admin.searchUsers')}
         />
-        <Input as="select" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="bg-surface w-auto min-w-[130px]">
+        <Input as="select" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="w-auto min-w-[130px]">
           <option value="">{t('admin.allTypes')}</option>
           <option value="PROVIDER">{t('onboarding.provider')}</option>
           <option value="CUSTOMER">{t('onboarding.customer')}</option>
@@ -74,7 +86,7 @@ export default function AdminUsers() {
       ) : isError ? (
         <ErrorState onRetry={refetch} />
       ) : filtered.length === 0 ? (
-        <EmptyState icon={Users} title={t('common.noData')} />
+        <EmptyState icon={Users} title={t('admin.noUsers')} description={t('admin.noUsersDesc')} />
       ) : (
         <div className="bg-surface border border-border/20 shadow-card rounded-card overflow-hidden">
           <div className="overflow-x-auto">
@@ -84,6 +96,7 @@ export default function AdminUsers() {
                 <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('profile.title')}</th>
                 <th className="text-left px-4 py-3 text-xs text-muted font-medium hidden sm:table-cell">{t('common.phone')}</th>
                 <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('onboarding.title')}</th>
+                <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('admin.plan')}</th>
                 <th className="text-left px-4 py-3 text-xs text-muted font-medium hidden sm:table-cell">{t('common.date')}</th>
                 <th className="px-4 py-3" />
               </tr>
@@ -95,12 +108,47 @@ export default function AdminUsers() {
                     <Link to={`/admin/users/${user.id}`} className="flex items-center gap-3 hover:text-primary-text transition-colors group">
                       <UserAvatar src={user.profile_picture} name={user.given_name} size="sm" />
                       <span className="text-text group-hover:text-primary-text">{user.given_name ?? '—'}</span>
-                      <ChevronRight size={12} className="text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <ChevronRight size={12} className="text-muted opacity-40 group-hover:opacity-100 transition-opacity" />
                     </Link>
                   </td>
                   <td className={`${cellPad} text-muted hidden sm:table-cell`}>{user.phone_number}</td>
                   <td className={cellPad}>
                     <TypeBadge type={user.type} />
+                  </td>
+                  <td className={cellPad}>
+                    {user.plan === 'PROVIDER' ? (
+                      <div className="flex flex-col gap-1 items-start">
+                        <button
+                          onClick={() => planMut.mutate({ id: user.id, plan: 'FREE', months: 1 })}
+                          disabled={planMut.isPending}
+                          title={t('admin.planFree')}
+                          className="px-2 py-0.5 rounded-md text-xs font-medium border bg-primary/10 text-primary-text border-primary/20 transition-colors disabled:opacity-50"
+                        >
+                          {t('admin.planProvider')}
+                        </button>
+                        {/* Without the date, a granted plan is a word with no
+                            end — the admin cannot tell renewal from expiry. */}
+                        <span className="text-[11px] text-muted whitespace-nowrap">
+                          {user.plan_expires_at
+                            ? `${t('admin.planExpires')} ${formatDate(user.plan_expires_at)}`
+                            : t('admin.planNoExpiry')}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex gap-1">
+                        {[1, 3, 12].map((months) => (
+                          <button
+                            key={months}
+                            onClick={() => planMut.mutate({ id: user.id, plan: 'PROVIDER', months })}
+                            disabled={planMut.isPending}
+                            title={t('admin.planProvider')}
+                            className="px-2 py-0.5 rounded-md text-xs font-medium border text-muted border-border/50 hover:text-text hover:border-primary/40 transition-colors disabled:opacity-50 whitespace-nowrap"
+                          >
+                            {t('admin.planMonths', { months })}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </td>
                   <td className={`${cellPad} text-muted hidden sm:table-cell`}>{formatDate(user.date_created)}</td>
                   <td className={cellPad}>

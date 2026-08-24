@@ -20,6 +20,8 @@ import { getErrorMessage, showErrorModal, showWarningModal } from '../../utils/e
 import Button from '../../components/Button';
 import ScreenLoading from '../../components/ScreenLoading';
 import PressableScale from '../../components/PressableScale';
+import FadeSlideIn from '../../components/FadeSlideIn';
+import { useActiveCategorySchemas } from '../../hooks/useCategorySchemas';
 import { logger } from '../../utils/logger';
 
 const UserRoleSelection = ({ route, navigation }) => {
@@ -33,6 +35,9 @@ const UserRoleSelection = ({ route, navigation }) => {
     const { colors, isDark } = useAppTheme();
     const { setThemeMode } = useAppContext();
     const { t } = useTranslation();
+    // Categories are admin-editable, so the count in the copy has to come from
+    // the schema list rather than being written into the sentence.
+    const categoryCount = useActiveCategorySchemas().length;
 
     useEffect(() => {
         const getStoredData = async () => {
@@ -102,7 +107,7 @@ const UserRoleSelection = ({ route, navigation }) => {
             accessibilityRole="button"
             accessibilityLabel={t('common.back')}
         >
-            <Ionicons name="arrow-back" size={24} color={colors.primary} />
+            <Ionicons name="arrow-back" size={24} color={colors.iconAccent} />
         </TouchableOpacity>
     ) : <View />;
 
@@ -115,10 +120,12 @@ const UserRoleSelection = ({ route, navigation }) => {
                     <TouchableOpacity
                         style={[styles.themeToggle, { backgroundColor: colors.opacity.background.primary }]}
                         onPress={() => setThemeMode(isDark ? 'light' : 'dark')}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('common.toggleTheme')}
                         activeOpacity={interactions.activeOpacityLight}
                         hitSlop={interactions.hitSlop}
                     >
-                        <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={colors.primary} />
+                        <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={colors.iconAccent} />
                     </TouchableOpacity>
                 </View>
                 <ScreenLoading />
@@ -135,19 +142,21 @@ const UserRoleSelection = ({ route, navigation }) => {
                     <TouchableOpacity
                         style={[styles.themeToggle, { backgroundColor: colors.opacity.background.primary }]}
                         onPress={() => setThemeMode(isDark ? 'light' : 'dark')}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('common.toggleTheme')}
                         activeOpacity={interactions.activeOpacityLight}
                         hitSlop={interactions.hitSlop}
                     >
-                        <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={colors.primary} />
+                        <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={colors.iconAccent} />
                     </TouchableOpacity>
                 </View>
-                <View style={styles.header}>
-                    <Ionicons name="people-outline" size={64} color={colors.primary} />
+                <FadeSlideIn index={0} style={styles.header}>
                     <Text style={[styles.title, { color: colors.text.primary }]}>{t('onboarding.title')}</Text>
                     <Text style={[styles.subtitle, { color: colors.text.secondary }]}>{t('onboarding.subtitle')}</Text>
-                </View>
+                </FadeSlideIn>
 
                 <View style={styles.optionsContainer}>
+                    <FadeSlideIn index={1}>
                     <PressableScale
                         style={[
                             styles.optionCard,
@@ -155,6 +164,8 @@ const UserRoleSelection = ({ route, navigation }) => {
                             selectedRole === 'PROVIDER' && { borderColor: colors.primary, backgroundColor: colors.opacity.background.primary },
                         ]}
                         onPress={() => setSelectedRole('PROVIDER')}
+                        pop
+                        selected={selectedRole === 'PROVIDER'}
                         accessibilityRole="button"
                     >
                         <View style={styles.optionContent}>
@@ -167,28 +178,36 @@ const UserRoleSelection = ({ route, navigation }) => {
                                     <Ionicons
                                         name="business-outline"
                                         size={24}
-                                        color={selectedRole === 'PROVIDER' ? colors.surface : colors.primary}
+                                        color={selectedRole === 'PROVIDER' ? colors.onPrimary : colors.primary}
                                     />
                                 </View>
                                 <View style={styles.optionTextContainer}>
                                     <Text style={[
+                                        styles.optionEyebrow,
+                                        { color: selectedRole === 'PROVIDER' ? colors.primary : colors.text.tertiary },
+                                    ]}>
+                                        {t('onboarding.providerEyebrow')}
+                                    </Text>
+                                    <Text style={[
                                         styles.optionTitle,
                                         { color: colors.text.primary },
-                                        selectedRole === 'PROVIDER' && { color: colors.primary },
+                                        selectedRole === 'PROVIDER' && { color: colors.text.link },
                                     ]}>
                                         {t('onboarding.provider')}
                                     </Text>
                                     <Text style={[styles.optionDescription, { color: colors.text.secondary }]}>
-                                        {t('onboarding.providerDesc')}
+                                        {t('onboarding.providerProof', { count: categoryCount })}
                                     </Text>
                                 </View>
                             </View>
                             {selectedRole === 'PROVIDER' && (
-                                <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+                                <Ionicons name="checkmark-circle" size={20} color={colors.iconAccent} />
                             )}
                         </View>
                     </PressableScale>
+                    </FadeSlideIn>
 
+                    <FadeSlideIn index={2}>
                     <PressableScale
                         style={[
                             styles.optionCard,
@@ -196,6 +215,8 @@ const UserRoleSelection = ({ route, navigation }) => {
                             selectedRole === 'CUSTOMER' && { borderColor: colors.primary, backgroundColor: colors.opacity.background.primary },
                         ]}
                         onPress={() => setSelectedRole('CUSTOMER')}
+                        pop
+                        selected={selectedRole === 'CUSTOMER'}
                         accessibilityRole="button"
                     >
                         <View style={styles.optionContent}>
@@ -208,27 +229,34 @@ const UserRoleSelection = ({ route, navigation }) => {
                                     <Ionicons
                                         name="person-outline"
                                         size={24}
-                                        color={selectedRole === 'CUSTOMER' ? colors.surface : colors.primary}
+                                        color={selectedRole === 'CUSTOMER' ? colors.onPrimary : colors.primary}
                                     />
                                 </View>
                                 <View style={styles.optionTextContainer}>
                                     <Text style={[
+                                        styles.optionEyebrow,
+                                        { color: selectedRole === 'CUSTOMER' ? colors.primary : colors.text.tertiary },
+                                    ]}>
+                                        {t('onboarding.customerEyebrow')}
+                                    </Text>
+                                    <Text style={[
                                         styles.optionTitle,
                                         { color: colors.text.primary },
-                                        selectedRole === 'CUSTOMER' && { color: colors.primary },
+                                        selectedRole === 'CUSTOMER' && { color: colors.text.link },
                                     ]}>
                                         {t('onboarding.customer')}
                                     </Text>
                                     <Text style={[styles.optionDescription, { color: colors.text.secondary }]}>
-                                        {t('onboarding.customerDesc')}
+                                        {t('onboarding.customerProof')}
                                     </Text>
                                 </View>
                             </View>
                             {selectedRole === 'CUSTOMER' && (
-                                <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+                                <Ionicons name="checkmark-circle" size={20} color={colors.iconAccent} />
                             )}
                         </View>
                     </PressableScale>
+                    </FadeSlideIn>
                 </View>
 
                 <View style={styles.footer}>
@@ -276,13 +304,13 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     title: {
-        ...typography.styles.h2,
+        ...typography.styles.display,
         marginTop: spacing.lg,
         marginBottom: spacing.sm,
         textAlign: 'center',
     },
     subtitle: {
-        ...typography.styles.body,
+        ...typography.styles.lead,
         textAlign: 'center',
         paddingHorizontal: spacing.sm,
     },
@@ -319,6 +347,11 @@ const styles = StyleSheet.create({
         marginRight: spacing.md,
     },
     optionTextContainer: { flex: 1 },
+    optionEyebrow: {
+        ...typography.styles.overline,
+        textTransform: 'uppercase',
+        marginBottom: spacing.xxs,
+    },
     optionTitle: {
         ...typography.styles.bodyBold,
         marginBottom: spacing.xs,

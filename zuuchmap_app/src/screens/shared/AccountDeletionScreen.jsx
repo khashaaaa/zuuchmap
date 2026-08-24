@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { ScreenLayout } from '../../components';
-import { spacing, typography, radius, interactions } from '../../design/theme';
+import { ScreenLayout, Button } from '../../components';
+import { spacing, typography, radius } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG } from '../../config/api.config';
@@ -88,19 +88,15 @@ const AccountDeletionScreen = ({ navigation }) => {
           <Text style={[styles.sectionText, { color: colors.text.secondary }]}>{t('accountDeletion.how')}</Text>
         </View>
 
-        <TouchableOpacity
-          style={[styles.deleteBtn, { backgroundColor: colors.danger }, deleting && styles.deleteBtnDisabled]}
+        <Button
+          title={t('accountDeletion.confirmBtn')}
           onPress={handleDelete}
-          disabled={deleting}
-          activeOpacity={interactions.activeOpacity}
-        >
-          {deleting ? (
-            <ActivityIndicator size="small" color={colors.text.onColor} />
-          ) : (
-            <Ionicons name="trash-outline" size={18} color={colors.text.onColor} />
-          )}
-          <Text style={[styles.deleteBtnText, { color: colors.text.onColor }]}>{t('accountDeletion.confirmBtn')}</Text>
-        </TouchableOpacity>
+          variant="danger"
+          icon="trash-outline"
+          loading={deleting}
+          fullWidth
+          style={styles.deleteBtn}
+        />
       </ScrollView>
     </ScreenLayout>
   );
@@ -115,12 +111,7 @@ const styles = StyleSheet.create({
   card: { borderRadius: radius.xl, padding: spacing.lg, },
   sectionTitle: { ...typography.styles.title, marginBottom: spacing.sm },
   sectionText: { ...typography.styles.body },
-  deleteBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: spacing.sm, padding: spacing.lg, borderRadius: radius.xl, marginTop: spacing.sm,
-  },
-  deleteBtnDisabled: { opacity: 0.6 },
-  deleteBtnText: { ...typography.styles.bodyBold },
+  deleteBtn: { marginTop: spacing.sm },
 });
 
 export default AccountDeletionScreen;

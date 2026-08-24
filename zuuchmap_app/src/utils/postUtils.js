@@ -23,18 +23,36 @@ export const getPostTypeConfig = (postType, colors = palettes.dark, schemas = []
   };
 };
 
-// Human-readable post title derived from post fields + attributes
-export const getPostTitle = (post, postType) => {
-  if (post.title) return post.title;
-  const key = normalizePostType(postType || post.category);
-  const attrs = post.attributes || {};
-  // Derive from whichever identifying attributes the category defines, rather
-  // than from a list of category keys — any vertical reusing these field keys
-  // gets the same treatment for free.
+/**
+ * Human-readable post title. `title` is nullable server-side, so most of this
+ * function is the fallback chain for an untitled post:
+ *
+ *   title → "manufacturer model" → subcategory label → category label
+ *
+ * Derived from whichever identifying attributes the category defines rather
+ * than from a list of category keys, so any vertical reusing these field keys
+ * gets the same treatment for free.
+ *
+ * MIRRORED in `zuuchmap_web/src/lib/utils.js` — the two used to disagree, and
+ * an untitled excavator listing read "Komatsu PC200-8" in the app but
+ * "Machinery Rental" on the web, including in the two admin queues. Change
+ * both together; `scripts/check-sync.js` fails the build if they drift.
+ */
+export const getPostTitle = (post, postType, schema) => {
+  if (post?.title) return post.title;
+  const key = normalizePostType(postType || post?.category);
+  const attrs = post?.attributes || {};
   const name = [attrs.manufacturer, attrs.model].filter(Boolean).join(' ').trim();
   if (name) return name;
-  if (attrs.position) return attrs.position;
-  return post.name || post.subcategory || i18n.t('category.' + key, { defaultValue: key });
+  // Only 42 of the 79 seeded subcategory values carry a client i18n key, so a
+  // subcategory is used as a title only when it actually resolved to something
+  // human — otherwise "excavator" would ship as the visible title. Passing the
+  // category `schema` widens this to every value the admin has labelled.
+  const sub = post?.subcategory ? getSubcategoryLabel(post.subcategory, schema) : '';
+  if (sub && sub !== post.subcategory) return sub;
+  // An em dash rather than the word "unknown": a post with no category at all
+  // is a blank, not a claim. Matches the web fallback.
+  return key ? i18n.t('category.' + key, { defaultValue: key }) : '—';
 };
 
 // Locale-aware labels resolved from the category schema, falling back to client i18n
@@ -77,9 +95,16 @@ export const getFixedImageUrl = (url) => {
 export const getStatusConfig = (status, colors = palettes.dark) => {
   if (!status) return null;
   const map = {
+    // Post lifecycle
     ACTIVE:   { color: colors.success       },
     RENTED:   { color: colors.danger        },
     EXPIRED:  { color: colors.text.tertiary },
+    // Moderation. These belong here too: the badge resolves any status through
+    // this map, so leaving them out dropped PENDING and REJECTED to the same
+    // grey fallback — a rejected post looked exactly like one still in review.
+    PENDING:  { color: colors.warning       },
+    APPROVED: { color: colors.success       },
+    REJECTED: { color: colors.danger        },
   };
   const key = status.toUpperCase();
   return map[key] || { color: colors.text.secondary };
@@ -94,18 +119,5 @@ export const getPostPrice = (post) => {
 
 export const getPostImage = (post) =>
   Array.isArray(post?.images) && post.images.length > 0 ? post.images[0] : null;
-
-export const getSearchableText = (post) => {
-  if (post.searchableText) return post.searchableText;
-  const attrs = post.attributes || {};
-  const text = [
-    post.title, post.name, post.details, post.description,
-    post.category, post.subcategory,
-    attrs.manufacturer, attrs.model, attrs.position,
-    post.address, post.province, post.district,
-  ].filter(Boolean).join(' ').toLowerCase();
-  post.searchableText = text;
-  return text;
-};
 
 // Ensures post.postType and post.post_type are both set consistently

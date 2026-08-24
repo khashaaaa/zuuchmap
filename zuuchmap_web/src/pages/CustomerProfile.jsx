@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { likesApi } from '@/lib/api'
 import ProfileBase from '@/components/ProfileBase'
 import StatCard from '@/components/StatCard'
+import SavedSearches from '@/components/SavedSearches'
 
 export default function CustomerProfile() {
   const { t } = useTranslation()
@@ -18,6 +19,7 @@ export default function CustomerProfile() {
       stats={
         <div className="grid grid-cols-1 gap-3 mb-4">
           <StatCard label={t('nav.saved')} value={likedPosts?.length ?? 0} />
+          <SavedSearches />
         </div>
       }
       extraMenuItems={[{ to: '/customer/saved', label: t('nav.saved'), icon: Heart }]}

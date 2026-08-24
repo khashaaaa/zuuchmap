@@ -36,14 +36,6 @@ export class CompanyService {
     }
   }
 
-  async findAll(): Promise<Company[]> {
-    try {
-      return await this.companyRepository.find({ relations: ['users'], take: 500 });
-    } catch (error) {
-      throw new InternalServerErrorException('Failed to retrieve companies: ' + error.message);
-    }
-  }
-
   async findOne(id: string): Promise<Company> {
     try {
       const company = await this.companyRepository.findOne({
@@ -67,7 +59,7 @@ export class CompanyService {
       const company = await this.findOne(id);
 
       if (updateCompanyDto.logo && company.logo && company.logo !== updateCompanyDto.logo) {
-        await deleteSingleImage(company.logo, './uploads/companylogo');
+        await deleteSingleImage(company.logo);
       }
 
       Object.assign(company, updateCompanyDto);
@@ -75,33 +67,6 @@ export class CompanyService {
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
       throw new InternalServerErrorException('Failed to update company: ' + error.message);
-    }
-  }
-
-  async remove(id: string): Promise<void> {
-    try {
-      const company = await this.findOne(id);
-
-      // Detach members first — the users FK otherwise blocks the delete.
-      await this.userRepository
-        .createQueryBuilder()
-        .update(User)
-        .set({ company: null as unknown as Company })
-        .where('"companyId" = :id', { id })
-        .execute();
-
-      const result = await this.companyRepository.delete(id);
-      if (result.affected === 0) {
-        throw new NotFoundException(`Company with ID ${id} not found`);
-      }
-
-      // Only after the row is gone — a failed delete must not orphan the logo.
-      if (company.logo) {
-        await deleteSingleImage(company.logo, './uploads/companylogo');
-      }
-    } catch (error) {
-      if (error instanceof NotFoundException) throw error;
-      throw new InternalServerErrorException('Failed to delete company: ' + error.message);
     }
   }
 }

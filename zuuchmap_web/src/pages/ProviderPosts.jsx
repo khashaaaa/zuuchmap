@@ -2,9 +2,9 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Plus, Pencil, Trash2, FileText, Timer } from 'lucide-react'
+import { Plus, Pencil, Trash2, FileText, Timer, Eye, Heart, CalendarRange } from 'lucide-react'
 import { postsApi } from '@/lib/api'
-import { getPostCategory, getPostTitle, getImageUrl, apiErrorMessage } from '@/lib/utils'
+import { getPostCategory, getPostTitle, getImageUrl, apiErrorMessage, hideBrokenImage, formatDate } from '@/lib/utils'
 import PageHeader from '@/components/PageHeader'
 import CategoryBadge from '@/components/CategoryBadge'
 import StatusBadge from '@/components/StatusBadge'
@@ -16,6 +16,7 @@ import Button from '@/components/Button'
 import DensityToggle from '@/components/DensityToggle'
 import { useTableDensity } from '@/hooks/useTableDensity'
 import { toast } from 'sonner'
+import { useMinDisplayTime } from '@/hooks/useMinDisplayTime'
 
 const TAB_STATUSES = {
   ALL: null,
@@ -45,6 +46,23 @@ export default function ProviderPosts() {
     queryKey: ['my-posts'],
     queryFn: postsApi.getMine,
   })
+  const showSkeleton = useMinDisplayTime(isLoading)
+
+  // Attention stats (views / saves / booking requests) per post. Non-blocking:
+  // the list renders without them and the columns fill in when they arrive.
+  //
+  // Fetched unconditionally: the same payload carries the plan and the quota,
+  // and a provider with no posts yet is exactly who benefits from being told
+  // what the limit is before they run into it.
+  const { data: myStats } = useQuery({
+    queryKey: ['my-post-stats'],
+    queryFn: postsApi.getMyStats,
+    staleTime: 60_000,
+  })
+  const statsById = new Map((myStats?.posts ?? []).map((s) => [s.id, s]))
+  const plan = myStats?.plan
+  const quotaUsed = plan ? Math.min(plan.posts_active / Math.max(plan.post_limit, 1), 1) : 0
+  const atQuota = plan && plan.posts_active >= plan.post_limit
 
   const deleteMut = useMutation({
     mutationFn: postsApi.remove,
@@ -73,6 +91,39 @@ export default function ProviderPosts() {
         }
       />
 
+      {/* Plan and quota. The engine refuses the next post at the limit, so the
+          provider needs to see the number before the form does. */}
+      {plan && (
+        <div className="bg-surface border border-border/20 shadow-card rounded-card px-4 py-3 mb-4 max-w-lg">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className={`px-2 py-0.5 rounded-md text-xs font-medium border ${
+                plan.name === 'PROVIDER'
+                  ? 'bg-primary/10 text-primary-text border-primary/20'
+                  : 'text-muted border-border/50'
+              }`}>
+                {plan.name === 'PROVIDER' ? t('admin.planProvider') : t('admin.planFree')}
+              </span>
+              {plan.expires_at && (
+                <span className="text-xs text-muted">
+                  {t('admin.planExpires')} {formatDate(plan.expires_at)}
+                </span>
+              )}
+            </div>
+            <span className={`text-xs tabular-nums ${atQuota ? 'text-warning font-medium' : 'text-muted'}`}>
+              {t('posts.quotaUsed', { used: plan.posts_active, limit: plan.post_limit })}
+            </span>
+          </div>
+          <div className="mt-2 h-1 rounded-full bg-surface2 overflow-hidden" aria-hidden="true">
+            <div
+              className={`h-full rounded-full transition-all ${atQuota ? 'bg-warning' : 'bg-primary'}`}
+              style={{ width: `${quotaUsed * 100}%` }}
+            />
+          </div>
+          {atQuota && <p className="text-xs text-warning mt-1.5">{t('posts.quotaFull')}</p>}
+        </div>
+      )}
+
       {posts.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
           <TabBar
@@ -89,7 +140,7 @@ export default function ProviderPosts() {
         </div>
       )}
 
-      {isLoading ? (
+      {showSkeleton ? (
         <div className="space-y-3">
           {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-16 skeleton rounded-card" />)}
         </div>
@@ -116,6 +167,7 @@ export default function ProviderPosts() {
                   <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('nav.posts')}</th>
                   <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('posts.category')}</th>
                   <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('common.status')}</th>
+                  <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('posts.statAttention')}</th>
                   <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('posts.expires')}</th>
                   <th className="px-4 py-3" />
                 </tr>
@@ -123,12 +175,13 @@ export default function ProviderPosts() {
               <tbody>
                 {filtered.map((post) => {
                   const expiry = expiryLabel(post)
+                  const stat = statsById.get(post.id)
                   return (
                     <tr key={post.id} className="border-b border-border/50 last:border-b-0 hover:bg-surface2/50 transition-colors">
                       <td className={cellPad}>
                         <Link to={`/provider/posts/${post.id}`} className="flex items-center gap-3 group">
                           {post.images?.[0] ? (
-                            <img src={getImageUrl(post.images[0])} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" />
+                            <img src={getImageUrl(post.images[0])} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" onError={hideBrokenImage} />
                           ) : (
                             <div className="w-10 h-10 rounded-lg bg-surface2 shrink-0" />
                           )}
@@ -144,6 +197,15 @@ export default function ProviderPosts() {
                       </td>
                       <td className={cellPad}><CategoryBadge category={getPostCategory(post)} /></td>
                       <td className={cellPad}><StatusBadge status={post.approval_status} /></td>
+                      <td className={cellPad}>
+                        {stat ? (
+                          <span className="flex items-center gap-2.5 text-xs text-muted tabular-nums whitespace-nowrap">
+                            <span className="flex items-center gap-1" title={t('posts.stats.views')}><Eye size={11} aria-hidden="true" /> {stat.views}</span>
+                            <span className="flex items-center gap-1" title={t('posts.stats.saves')}><Heart size={11} aria-hidden="true" /> {stat.likes}</span>
+                            <span className="flex items-center gap-1" title={t('posts.stats.requests')}><CalendarRange size={11} aria-hidden="true" /> {stat.bookings_pending + stat.bookings_accepted}</span>
+                          </span>
+                        ) : <span className="text-muted text-xs">—</span>}
+                      </td>
                       <td className={cellPad}>
                         {expiry ? (
                           <span className={`flex items-center gap-1 text-xs ${expiry.cls}`}>

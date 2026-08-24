@@ -1,5 +1,6 @@
-import { IsOptional, IsString, IsNumber, Min } from 'class-validator';
+import { IsOptional, IsString, IsNumber, Min, Max, IsIn } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
+import { PROVINCE_CODES, DISTRICT_CODES, normalizeLocationCode } from '../../enums/province';
 
 export class UpdatePostDto {
   @IsOptional() @IsString() subcategory?: string;
@@ -7,13 +8,17 @@ export class UpdatePostDto {
   @IsOptional() @IsString() secondcategory?: string;
   @IsOptional() @IsString() title?: string;
   @IsOptional() @IsString() details?: string;
-  @IsOptional() @IsString() province?: string;
-  @IsOptional() @IsString() district?: string;
+  // See CreatePostDto — an unrecognised code is unrenderable and unfilterable.
+  @IsOptional() @Transform(({ value }) => normalizeLocationCode(value))
+  @IsIn(PROVINCE_CODES, { message: 'province must be a valid province code' }) province?: string;
+  @IsOptional() @Transform(({ value }) => normalizeLocationCode(value))
+  @IsIn(DISTRICT_CODES, { message: 'district must be a valid district code' }) district?: string;
   @IsOptional() @IsString() address?: string;
   @IsOptional() @Type(() => Number) @IsNumber() latitude?: number;
   @IsOptional() @Type(() => Number) @IsNumber() longitude?: number;
   @IsOptional() @IsString() location?: string;
-  @IsOptional() @Type(() => Number) @IsNumber() @Min(0) price_amount?: number;
+  // See CreatePostDto — numeric(15,2) overflows at >= 10^13.
+  @IsOptional() @Type(() => Number) @IsNumber() @Min(0) @Max(9_999_999_999_999.99) price_amount?: number;
   @IsOptional() @IsString() price_unit?: string;
   @IsOptional() @IsString() contact_phone?: string;
   @IsOptional() @IsString() contact_email?: string;

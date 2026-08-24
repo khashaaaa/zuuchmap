@@ -149,7 +149,7 @@ const MapFilterModal = ({
                 <Text style={[
                     styles.categoryLabel,
                     isSelected && styles.categoryLabelSelected
-                ]}>
+                ]} numberOfLines={2}>
                     {category.label || t(`category.${category.key}`, { defaultValue: category.key })}
                 </Text>
                 {isSelected && (
@@ -392,7 +392,7 @@ const createStyles = (colors) => StyleSheet.create({
         paddingHorizontal: spacing.sm,
     },
     categoryActionText: {
-        color: colors.primary,
+        color: colors.text.link,
         ...typography.styles.label,
     },
     categoriesGrid: {
@@ -430,7 +430,7 @@ const createStyles = (colors) => StyleSheet.create({
         color: colors.text.secondary,
     },
     categoryLabelSelected: {
-        ...typography.styles.micro,
+        // Colour only — swapping the type role on selection nudged the layout.
         color: colors.text.primary,
     },
     priceRangeContent: {

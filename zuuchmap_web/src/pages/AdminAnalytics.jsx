@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { analyticsApi, categoryApi } from '@/lib/api'
-import { getCategoryLabel } from '@/lib/utils'
+import { getCategoryLabel, getCategoryColor } from '@/lib/utils'
 import PageHeader from '@/components/PageHeader'
 import ErrorState from '@/components/ErrorState'
 import StatCard from '@/components/StatCard'
@@ -52,6 +52,7 @@ export default function AdminAnalytics() {
     key: c.key,
     label: getCategoryLabel(c.key, t, schemas),
     value: Number(c.posts),
+    color: getCategoryColor(c.key, schemas),
   }))
 
   const provinces = (data?.breakdowns?.provinces ?? []).map((p) => ({
@@ -109,7 +110,7 @@ export default function AdminAnalytics() {
                 type="button"
                 onClick={() => setDays(r)}
                 aria-pressed={days === r}
-                className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                className={`px-3 py-1.5 min-h-[36px] text-xs font-medium transition-colors ${
                   days === r ? 'bg-primary text-on-primary' : 'text-muted hover:text-text'
                 }`}
               >
@@ -125,7 +126,7 @@ export default function AdminAnalytics() {
         <StatCard label={t('analytics.providers')} value={totals.providers} color="text-text" align="left" />
         <StatCard label={t('analytics.customers')} value={totals.customers} color="text-text" align="left" />
         <StatCard label={t('analytics.liveListings')} value={totals.approved_posts} color="text-text" align="left" />
-        <StatCard label={t('analytics.pendingQueue')} value={totals.pending_posts} color="text-warning" align="left" />
+        <StatCard label={t('analytics.pendingQueue')} value={totals.pending_posts} color="text-warning" align="left" tone="warning" />
         <StatCard label={t('analytics.acceptedBookings')} value={totals.accepted_bookings} color="text-text" align="left" />
       </div>
 
@@ -195,7 +196,41 @@ export default function AdminAnalytics() {
                   rows={(series.signups ?? []).map((d) => [d.day, d.value])}
                 />
               </div>
+              <div>
+                <h3 className="text-xs font-semibold text-muted mb-2">{t('analytics.postVolume')}</h3>
+                <DataTable
+                  columns={[t('analytics.day'), t('analytics.posts')]}
+                  rows={postVolume.map((d) => [d.day, d.value])}
+                />
+              </div>
             </div>
+          )}
+        </Panel>
+
+        {/* Demand-gap radar: searches that found little or no supply — this is
+            the provider-recruitment target list, not a vanity metric. */}
+        <Panel title={t('analytics.searchGaps')} hint={t('analytics.searchGapsHint')}>
+          {(data?.search_gaps ?? []).length === 0 ? (
+            <p className="text-sm text-muted py-4">{t('analytics.noData')}</p>
+          ) : (
+            <DataTable
+              columns={[
+                t('analytics.searchQuery'),
+                t('posts.category'),
+                t('common.province'),
+                t('analytics.searchCount'),
+                t('analytics.zeroResults'),
+                t('analytics.avgResults'),
+              ]}
+              rows={(data?.search_gaps ?? []).map((g) => [
+                g.q,
+                g.category === 'all' ? t('analytics.allCategories') : getCategoryLabel(g.category, t, schemas),
+                g.province === 'all' ? '—' : t(`province.${g.province}`, { defaultValue: g.province }),
+                g.searches,
+                g.zero_results,
+                g.avg_results ?? 0,
+              ])}
+            />
           )}
         </Panel>
 

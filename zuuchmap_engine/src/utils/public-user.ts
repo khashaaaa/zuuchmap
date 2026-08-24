@@ -1,8 +1,8 @@
 /**
  * Public projections for entities that carry credentials or device secrets.
  *
- * Never serialize a raw User to a client response: `biometric`, `device_info`
- * and `push_token` must stay server-side. Contact fields (phone/email/name)
+ * Never serialize a raw User to a client response: `push_token` must stay
+ * server-side. Contact fields (phone/email/name)
  * stay — providers publish them on their marketplace listings by design.
  */
 export function publicUser(user: any): any {

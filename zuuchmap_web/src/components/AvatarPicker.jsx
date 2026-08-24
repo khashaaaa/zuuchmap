@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import { Camera } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import UserAvatar from './UserAvatar'
+import { hideBrokenImage } from '@/lib/utils'
 
 export default function AvatarPicker({ previewUrl, profilePicture, name, onChange }) {
   const { t } = useTranslation()
@@ -11,7 +12,7 @@ export default function AvatarPicker({ previewUrl, profilePicture, name, onChang
     <div className="flex flex-col items-center gap-2 mb-2">
       <div className="w-20 h-20 rounded-full overflow-hidden bg-surface2 border-2 border-border/50">
         {previewUrl ? (
-          <img src={previewUrl} alt="" className="w-full h-full object-cover" />
+          <img src={previewUrl} alt="" className="w-full h-full object-cover" onError={hideBrokenImage} />
         ) : (
           <UserAvatar src={profilePicture} name={name} size="xl" />
         )}

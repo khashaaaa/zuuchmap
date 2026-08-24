@@ -21,7 +21,7 @@ export default function ScreenHeader({ title, onBack, rightComponent, showBack =
                     accessibilityRole="button"
                     accessibilityLabel={t('common.back')}
                 >
-                    <Ionicons name="arrow-back" size={24} color={colors.primary} />
+                    <Ionicons name="arrow-back" size={24} color={colors.iconAccent} />
                 </TouchableOpacity>
             ) : (
                 <TouchableOpacity

@@ -1,3 +1,4 @@
+import { Search } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { postsApi, categoryApi } from '@/lib/api'
@@ -48,7 +49,13 @@ export default function CustomerDashboard() {
         isError={isError}
         onRetry={refetch}
         isEmpty={(data ?? []).length === 0}
-        emptyState={<EmptyState title={t('posts.browseEmpty')} description={t('posts.browseEmptyDesc')} />}
+        emptyState={
+          <EmptyState
+            title={t('posts.browseEmpty')}
+            description={t('posts.browseEmptyDesc')}
+            action={<Button to="/customer/browse"><Search size={14} /> {t('nav.browse')}</Button>}
+          />
+        }
         cols={4}
         skeletonCount={8}
       >

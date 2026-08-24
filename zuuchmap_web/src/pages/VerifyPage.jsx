@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { ArrowRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { authApi } from '@/lib/api'
 import { track } from '@/lib/analytics'
@@ -22,7 +23,7 @@ export default function VerifyPage() {
   const [now, setNow] = useState(() => Date.now())
   const settled = useRef(false)
 
-  const { phone, session_id: sessionId, code, shortcode = '144773', sms_uri: smsUri } = state ?? {}
+  const { session_id: sessionId, code, shortcode = '144773', sms_uri: smsUri } = state ?? {}
 
   function routeFor(user) {
     // Admins are phone-based and may never have picked a provider/customer
@@ -83,6 +84,12 @@ export default function VerifyPage() {
   const mins = String(Math.floor(secondsLeft / 60)).padStart(2, '0')
   const secs = String(secondsLeft % 60).padStart(2, '0')
 
+  const steps = [
+    t('auth.step1'),
+    t('auth.step2', { shortcode }),
+    t('auth.step3'),
+  ]
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <motion.div
@@ -91,30 +98,47 @@ export default function VerifyPage() {
         transition={{ duration: 0.2 }}
         className="w-full max-w-sm"
       >
-        <div className="bg-surface border border-border/20 shadow-card rounded-card p-6 md:p-8">
+        <div className="relative overflow-hidden bg-surface border border-border/20 shadow-card rounded-card p-6 md:p-8">
           <h2 className="text-sm font-semibold text-text mb-1">{t('auth.smsTitle')}</h2>
-          <p className="text-sm text-muted mb-6">
+          <p className="text-sm text-muted mb-5">
             {t('auth.smsLead', { shortcode })}
           </p>
 
-          <div className="rounded-card bg-surface2 border border-border/50 p-5 text-center mb-4">
-            <p className="text-xs text-muted mb-2">{t('auth.yourCode')}</p>
-            <p className="text-3xl font-bold tracking-[0.3em] text-text tabular-nums">{code}</p>
+          {/* This flow inverts the SMS convention — *you* text *us* — so both
+              halves of the instruction get equal staging: code → shortcode. */}
+          <div className="flex items-stretch gap-2 mb-5">
+            <div className="flex-1 rounded-card bg-surface2 border border-border/50 p-4 text-center">
+              <p className="text-xs text-muted mb-1.5">{t('auth.yourCode')}</p>
+              <p className="text-2xl font-bold tracking-[0.2em] text-text tabular-nums">{code}</p>
+            </div>
+            <div className="flex items-center text-muted" aria-hidden="true">
+              <ArrowRight size={16} />
+            </div>
+            <div className="flex-1 rounded-card bg-surface2 border border-border/50 p-4 text-center">
+              <p className="text-xs text-muted mb-1.5">{t('auth.sendTo')}</p>
+              <p className="text-2xl font-bold tracking-widest text-text tabular-nums">{shortcode}</p>
+            </div>
           </div>
+
+          <ol className="space-y-2 mb-5">
+            {steps.map((step, i) => (
+              <li key={i} className="flex items-center gap-2.5 text-sm text-muted">
+                <span className="w-6 h-6 rounded-full bg-primary/15 text-primary-text text-xs font-bold flex items-center justify-center shrink-0 tabular-nums" aria-hidden="true">
+                  {i + 1}
+                </span>
+                {step}
+              </li>
+            ))}
+          </ol>
 
           {view === 'PENDING' && (
             <>
               <Button href={smsUri} size="lg" className="w-full mb-3">
                 {t('auth.openSms')}
               </Button>
-              <p className="text-xs text-muted text-center mb-4">
-                {t('auth.manualHint', { code, shortcode, phone })}
-              </p>
-
               <div className="flex items-center justify-center gap-2 text-sm text-muted">
-                <span className="w-2 h-2 rounded-full bg-primary animate-pulse" aria-hidden="true" />
                 <span>{t('auth.waiting')}</span>
-                <span className="tabular-nums">{mins}:{secs}</span>
+                <span className="tabular-nums font-semibold text-text">{mins}:{secs}</span>
               </div>
             </>
           )}
@@ -129,11 +153,21 @@ export default function VerifyPage() {
           {view === 'VERIFIED' && (
             <p className="text-sm text-success text-center">{t('auth.verified')}</p>
           )}
-        </div>
 
-        <p className="text-xs text-muted text-center mt-4 leading-relaxed">
-          {t('auth.cost')}
-        </p>
+          <p className="text-xs text-muted text-center mt-5 pt-4 border-t border-border/20 leading-relaxed">
+            {t('auth.cost')}
+          </p>
+
+          {/* Time remaining as a draining bar — legible at a glance without
+              the anxiety of a pulsing dot. */}
+          {view === 'PENDING' && (
+            <div
+              className="absolute bottom-0 left-0 h-1 bg-primary/30"
+              style={{ width: `${(secondsLeft / 300) * 100}%`, transition: 'width 1s linear' }}
+              aria-hidden="true"
+            />
+          )}
+        </div>
 
         <div className="text-center mt-4">
           <Link to="/login" className="text-xs text-muted hover:text-text transition-colors">

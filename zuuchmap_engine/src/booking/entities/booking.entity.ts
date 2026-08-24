@@ -35,12 +35,17 @@ export class Booking {
   @Column({ nullable: true, type: 'text' })
   message: string;
 
-  // PENDING → ACCEPTED | DECLINED; PENDING/ACCEPTED → CANCELLED (by customer)
+  // PENDING → ACCEPTED | DECLINED; PENDING/ACCEPTED → CANCELLED (by customer);
+  // PENDING → EXPIRED (nightly sweep, once the requested dates have passed)
   @Column({ default: 'PENDING' })
   status: string;
 
   @Column({ nullable: true, type: 'text' })
   response_message: string;
+
+  // Set by the nightly review-prompt sweep once the customer has been nudged.
+  @Column({ nullable: true, type: 'timestamp' })
+  review_prompted_at: Date | null;
 
   @CreateDateColumn()
   date_created: Date;

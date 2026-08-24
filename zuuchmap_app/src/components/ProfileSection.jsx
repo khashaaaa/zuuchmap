@@ -15,31 +15,13 @@ export const ProfileSection = ({ title, icon, children, style }) => {
                 <View style={styles.sectionHeader}>
                     {icon && (
                         <View style={[styles.sectionIconContainer, { backgroundColor: colors.opacity.background.primary }]}>
-                            <Ionicons name={icon} size={18} color={colors.primary} />
+                            <Ionicons name={icon} size={18} color={colors.iconAccent} />
                         </View>
                     )}
                     {title && <Text style={[styles.sectionTitle, { color: colors.text.primary }]}>{title}</Text>}
                 </View>
             )}
             <View style={[styles.sectionContent, colors.elevation.sm, { backgroundColor: colors.surface }]}>{children}</View>
-        </View>
-    );
-};
-
-/**
- * Single info row: icon + label + text (e.g. phone, email, address).
- */
-export const ProfileInfoRow = ({ icon, label, text, isLast = false }) => {
-    const { colors } = useAppTheme();
-    return (
-        <View style={[styles.infoItem, { borderBottomColor: colors.border.light }, isLast && styles.lastActionItem]}>
-            <View style={[styles.infoIcon, { backgroundColor: colors.opacity.background.primary }]}>
-                <Ionicons name={icon} size={20} color={colors.primary} />
-            </View>
-            <View style={styles.infoContent}>
-                <Text style={[styles.infoLabel, { color: colors.text.secondary }]}>{label}</Text>
-                <Text style={[styles.infoText, { color: colors.text.primary }]}>{text}</Text>
-            </View>
         </View>
     );
 };
@@ -125,31 +107,6 @@ const styles = StyleSheet.create({
     sectionContent: {
         borderRadius: radius.card,
         overflow: 'hidden',
-    },
-    infoItem: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.lg,
-        borderBottomWidth: StyleSheet.hairlineWidth,
-    },
-    infoIcon: {
-        width: 36,
-        height: 36,
-        borderRadius: radius.lg,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: spacing.md,
-    },
-    infoContent: {
-        flex: 1,
-    },
-    infoLabel: {
-        ...typography.styles.micro,
-        marginBottom: spacing.xs,
-    },
-    infoText: {
-        ...typography.styles.body,
     },
     actionItem: {
         flexDirection: 'row',

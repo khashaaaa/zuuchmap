@@ -26,7 +26,7 @@ const ScreenError = ({
     return (
         <View style={[styles.container, { backgroundColor: colors.background }]}>
             <View style={[styles.iconContainer, { backgroundColor: colors.opacity.background.primary }]}>
-                <Ionicons name={icon} size={iconSize} color={colors.primary} />
+                <Ionicons name={icon} size={iconSize} color={colors.iconAccent} />
             </View>
             <Text style={[styles.title, { color: colors.text.primary }]}>
                 {title || t('common.error')}

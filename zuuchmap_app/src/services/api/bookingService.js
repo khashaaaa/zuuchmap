@@ -21,6 +21,9 @@ const bookingService = {
   decline: async (id, message) => (await apiClient.put(E.BOOKINGS.DECLINE(id), { message })).data,
   cancel: async (id) => (await apiClient.put(E.BOOKINGS.CANCEL(id), {})).data,
 
+  // Accepted date ranges on a post — used to grey out taken dates in the form.
+  busyRanges: async (postId) => (await apiClient.get(E.BOOKINGS.BUSY(postId))).data ?? [],
+
   // Reviews
   submitReview: async ({ providerId, rating, comment }) => {
     const res = await apiClient.post(E.REVIEWS.CREATE, {

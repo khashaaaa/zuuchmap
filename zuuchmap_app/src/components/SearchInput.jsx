@@ -6,7 +6,7 @@ import { useAppTheme } from '../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 
 const SearchInput = ({
-    value,
+    value = '',
     onChangeText,
     placeholder,
     onFocus,
@@ -42,7 +42,7 @@ const SearchInput = ({
                 isFocused && { borderColor: colors.border.focus, borderWidth: 2, backgroundColor: colors.surfaceLight }
             ]}>
                 <View style={[styles.searchIcon, { backgroundColor: colors.opacity.background.primary }]}>
-                    <Ionicons name="search" size={20} color={colors.primary} />
+                    <Ionicons name="search" size={20} color={colors.iconAccent} />
                 </View>
                 <TextInput
                     style={[styles.searchInput, { color: colors.text.primary }, inputStyle]}
@@ -52,6 +52,13 @@ const SearchInput = ({
                     onChangeText={onChangeText}
                     onFocus={handleFocus}
                     onBlur={handleBlur}
+                    // A search box is not prose: iOS otherwise capitalises the
+                    // first letter and autocorrects Mongolian trade terms as
+                    // they are typed. Mirrors TextInput.jsx's handling.
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    returnKeyType="search"
+                    accessibilityLabel={resolvedPlaceholder}
                 />
                 {showClearButton && value.length > 0 && (
                     <TouchableOpacity
@@ -59,8 +66,10 @@ const SearchInput = ({
                         style={styles.clearButton}
                         activeOpacity={interactions.activeOpacityLight}
                         hitSlop={interactions.hitSlop}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('filter.searchClear')}
                     >
-                        <Ionicons name="close-circle" size={20} color={colors.primary} />
+                        <Ionicons name="close-circle" size={20} color={colors.iconAccent} />
                     </TouchableOpacity>
                 )}
             </View>

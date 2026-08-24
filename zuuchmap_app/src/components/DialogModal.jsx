@@ -1,8 +1,8 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Animated } from 'react-native';
+import { View, Text, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import BaseModal from './BaseModal';
-import { spacing, typography, radius, interactions, animations } from '../design/theme';
+import { spacing, typography, radius, animations } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useTranslation } from 'react-i18next';

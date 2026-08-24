@@ -1,7 +1,9 @@
-import L from 'leaflet'
 import i18n from '@/i18n'
-
-export const cn = (...classes) => classes.filter(Boolean).join(' ')
+import {
+  Car, Hammer, Wrench, Store, Factory, HardHat, Briefcase, AlertCircle,
+  Package, Truck, PenTool, Mountain, Snowflake, Building2, Bus, Cog,
+  FileText, Users as UsersIcon, Gem, Tag,
+} from 'lucide-react'
 
 // Mirrors zuuchmap_engine/src/enums/priceunit.ts — keep in sync.
 export const PRICE_UNITS = ['HOUR', 'MOTO_HOUR', 'DAY', 'WEEK', 'MONTH', 'PROJECT', 'UNIT', 'PIECE', 'SQM', 'TRIP', 'TOTAL']
@@ -24,13 +26,31 @@ export const apiErrorMessage = (error, t, fallback) => {
 
 const PRICE_UNIT_KEYS = { HOUR: 'priceUnit.hour', MOTO_HOUR: 'priceUnit.moto_hour', DAY: 'priceUnit.day', WEEK: 'priceUnit.week', MONTH: 'priceUnit.month', PROJECT: 'priceUnit.project', UNIT: 'priceUnit.unit', PIECE: 'priceUnit.piece', SQM: 'priceUnit.sqm', TRIP: 'priceUnit.trip', TOTAL: 'priceUnit.total' }
 
+// Prices are always grouped mn-MN and always whole tugriks. A bare
+// toLocaleString() followed the *viewer's browser* locale, so the same listing
+// read 250,000₮ here and 250.000₮ on a de-DE machine — and price_amount arrives
+// as a Postgres decimal ("250000.00"), whose tail has no business on screen.
+const PRICE_FORMAT = { maximumFractionDigits: 0 }
+
 export const formatPrice = (amount, unit, t) => {
   if (!amount) return null
-  const formatted = Number(amount).toLocaleString()
+  const formatted = Number(amount).toLocaleString('mn-MN', PRICE_FORMAT)
   // A total (sale) price is the whole amount — a "/unit" suffix would misread as recurring
   if (unit === 'TOTAL') return `${formatted}₮`
   const unitLabel = t ? t(PRICE_UNIT_KEYS[unit] ?? '', { defaultValue: unit ?? '' }) : (unit ?? '')
   return unitLabel ? `${formatted}₮/${unitLabel}` : `${formatted}₮`
+}
+
+/**
+ * The price split into amount and unit so a display can weight them
+ * differently (big amount, quiet unit). Same rules as formatPrice.
+ */
+export const formatPriceParts = (amount, unit, t) => {
+  if (!amount) return null
+  const formatted = `${Number(amount).toLocaleString('mn-MN', PRICE_FORMAT)}₮`
+  if (unit === 'TOTAL') return { amount: formatted, unit: null }
+  const unitLabel = t ? t(PRICE_UNIT_KEYS[unit] ?? '', { defaultValue: unit ?? '' }) : (unit ?? '')
+  return { amount: formatted, unit: unitLabel || null }
 }
 
 export const formatDate = (date, locale) => {
@@ -53,27 +73,21 @@ export const DISTRICTS = [
   'SONGINOKHAIRKHAN', 'SUKHBAATAR', 'KHANUUL', 'CHINGELTEI',
 ]
 
-export const CATEGORIES = {
-  vehiclerent: 'category.vehiclerent',
-  toolrent: 'category.toolrent',
-  machineryrent: 'category.machineryrent',
-  materialstore: 'category.materialstore',
-  factory: 'category.factory',
-  construction: 'category.construction',
-  jobvacancy: 'category.jobvacancy',
-  sos: 'category.sos',
-}
-
 
 // Exact-locale label from a schema object's labels map ({mn,en}); null if absent
 export const resolveSchemaLabel = (obj) => obj?.labels?.[i18n.language] ?? null
 
+// Resolution order matches getSubcategoryLabel: the schema's own translations,
+// then client i18n, then whatever the schema stored. The i18n step used to run
+// through a hardcoded map of eight keys, so the five categories added after it
+// was written skipped localization entirely and fell through to the raw label.
+// Categories are admin-editable data; nothing here may enumerate them.
 export const getCategoryLabel = (key, t, schemas = []) => {
   if (!key) return key
   const schema = schemas.find((s) => s.key === key)
   const localized = resolveSchemaLabel(schema)
   if (localized) return localized
-  if (t && CATEGORIES[key]) return t(CATEGORIES[key]) || key
+  if (t) return t(`category.${key}`, { defaultValue: schema?.label ?? key })
   return schema?.label ?? key
 }
 
@@ -104,7 +118,35 @@ export const getOptionLabel = (opt, t) => {
 
 export const getPostCategory = (post) => post?.category ?? null
 
-export const getPostTitle = (post, t) => post?.title || getCategoryLabel(post?.category, t) || '—'
+/**
+ * Human-readable post title. `title` is nullable server-side, so most of this
+ * function is the fallback chain for an untitled post:
+ *
+ *   title → "manufacturer model" → subcategory label → category label
+ *
+ * Derived from whichever identifying attributes the category defines rather
+ * than from a list of category keys, so any vertical reusing these field keys
+ * gets the same treatment for free.
+ *
+ * MIRRORED in `zuuchmap_app/src/utils/postUtils.js` — the two used to disagree,
+ * and an untitled excavator listing read "Komatsu PC200-8" in the app but
+ * "Machinery Rental" here, including in the two admin queues. Change both
+ * together; `scripts/check-sync.js` fails the build if they drift.
+ */
+export const getPostTitle = (post, t, schemas = []) => {
+  if (post?.title) return post.title
+  const attrs = post?.attributes || {}
+  const name = [attrs.manufacturer, attrs.model].filter(Boolean).join(' ').trim()
+  if (name) return name
+  // Only 42 of the 79 seeded subcategory values carry a client i18n key, so a
+  // subcategory is used as a title only when it actually resolved to something
+  // human — otherwise "excavator" would ship as the visible title. Passing
+  // `schemas` widens this to every value the admin has labelled.
+  const schema = schemas.find((s) => s.key === post?.category)
+  const sub = post?.subcategory ? getSubcategoryLabel(post.subcategory, t, schema) : ''
+  if (sub && sub !== post.subcategory) return sub
+  return getCategoryLabel(post?.category, t, schemas) || '—'
+}
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'https://zuuchmap.com/engine'
 const _local = (path, name) =>
@@ -244,25 +286,37 @@ export const toneForTheme = (hex, isDark) => {
 export const getCategoryColor = (key, schemas = []) =>
   schemas.find((s) => s.key === key)?.color || CATEGORY_COLORS[key] || null
 
-const pinCache = new Map()
+/**
+ * A schema's admin-editable `icon` is an Ionicons name (the app renders it
+ * natively); the web maps it onto the lucide set already shipped. Unknown
+ * names fall back to a neutral tag glyph rather than rendering nothing.
+ */
+const ICON_MAP = {
+  car: Car, bus: Bus, hammer: Hammer, construct: Wrench, build: HardHat,
+  business: Building2, storefront: Store, briefcase: Briefcase,
+  'alert-circle': AlertCircle, warning: AlertCircle, cube: Package,
+  snow: Snowflake, settings: Cog, 'document-text': FileText,
+  people: UsersIcon, diamond: Gem, pricetag: Tag,
+  'color-palette': PenTool, earth: Mountain, factory: Factory, truck: Truck,
+}
+
+export const getCategoryIcon = (ioniconName) => {
+  if (!ioniconName) return Tag
+  const base = String(ioniconName).replace(/-(outline|sharp)$/, '')
+  return ICON_MAP[base] ?? Tag
+}
+
+// A dead R2 URL otherwise renders the browser's broken-image glyph inside the
+// layout. Hiding the element lets the container's own placeholder background
+// show through, which reads as "no photo" rather than "this page is broken".
+export const hideBrokenImage = (e) => { e.currentTarget.style.visibility = 'hidden' }
 
 /**
- * Category-tinted Leaflet map pin. Replaces the stock PNG set that was fetched
- * from a remote CDN (a CSP/offline liability). Shape and ring mirror the
- * app's map marker (`CustomerMapView` `singleMarkerContainer`): category fill,
- * fixed white ring — pins sit on map tiles, not on a themed surface — small
- * tail. Geometry lives in `index.css` (`.map-pin`); only the fill varies here.
+ * Human-readable location for a post. `province`/`district` are stored as enum
+ * codes (BAYANZURKH, ULAANBAATAR) and were being printed raw on every card and
+ * detail page; the i18n keys have existed all along.
  */
-export const categoryPin = (color) => {
-  const fill = color || 'var(--color-muted)'
-  if (!pinCache.has(fill)) {
-    pinCache.set(fill, L.divIcon({
-      className: 'map-pin-wrap',
-      html: `<span class="map-pin" style="background:${fill}"></span>`,
-      iconSize: [30, 37],
-      iconAnchor: [15, 36], // tip of the tail
-      popupAnchor: [0, -34],
-    }))
-  }
-  return pinCache.get(fill)
-}
+export const getLocationLabel = (post, t) => [
+  post?.district && t(`district.${post.district}`, { defaultValue: post.district }),
+  post?.province && t(`province.${post.province}`, { defaultValue: post.province }),
+].filter(Boolean).join(', ')

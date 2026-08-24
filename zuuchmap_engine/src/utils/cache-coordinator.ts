@@ -8,6 +8,9 @@ import {
   CacheInvalidationScope,
 } from './cache';
 
+// One warning a minute is enough to see an outage without flooding the log.
+const PUBLISH_WARN_INTERVAL_MS = 60_000;
+
 const CHANNEL = 'zuuchmap:cache:invalidate';
 
 /**
@@ -26,6 +29,7 @@ const CHANNEL = 'zuuchmap:cache:invalidate';
 export class CacheCoordinator implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(CacheCoordinator.name);
   private pub?: Redis;
+  private lastPublishWarnAt = 0;
   private sub?: Redis;
   // Distinguishes our own messages from other instances', so a publish doesn't
   // echo back and re-clear (harmless, but wasteful).
@@ -40,8 +44,21 @@ export class CacheCoordinator implements OnModuleInit, OnModuleDestroy {
     this.sub = createRedis('cache-sub');
 
     setCacheBroadcaster((scope: CacheInvalidationScope) => {
-      // Fire-and-forget: a Redis outage must never block a DB write.
-      this.pub?.publish(CHANNEL, `${this.originId}:${scope}`).catch(() => {});
+      // Fire-and-forget: a Redis outage must never block a DB write. But it is
+      // not nothing — a publish that never lands leaves every other worker
+      // serving a cache this one just invalidated, which is exactly the
+      // cross-instance staleness this class exists to prevent. Rate-limited so
+      // a sustained outage does not drown the log.
+      this.pub?.publish(CHANNEL, `${this.originId}:${scope}`).catch((err) => {
+        const now = Date.now();
+        if (now - this.lastPublishWarnAt > PUBLISH_WARN_INTERVAL_MS) {
+          this.lastPublishWarnAt = now;
+          this.logger.warn(
+            `Cache invalidation broadcast failed (${scope}): ${err?.message}. `
+            + 'Other instances may be serving stale reads.',
+          );
+        }
+      });
     });
 
     // Subscribe on 'ready', which ioredis emits on the initial connect AND

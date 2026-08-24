@@ -37,6 +37,15 @@ const withOperator = (labels: Record<string, string>): FieldDef =>
 const delivery = (group: Grp = 'core'): FieldDef =>
   ({ key: 'delivery_available', label: 'Хүргэлттэй', labels: L('Хүргэлттэй', 'Delivery available', '提供配送', 'Есть доставка'), type: 'boolean', required: group === 'core', group });
 
+// Dealer-market differentiators: how machinery rental actually segments
+// (dry vs maintained hire; purchase option at end of contract). Detail fields,
+// not browse filters — the ≤4-filters-per-category budget is already spent.
+const maintenanceIncluded = (): FieldDef =>
+  ({ key: 'maintenance_included', label: 'Засвар үйлчилгээтэй', labels: L('Засвар үйлчилгээтэй', 'Maintenance included', '含维护保养', 'С техобслуживанием'), type: 'boolean', required: false, group: 'details' });
+
+const rentToBuy = (): FieldDef =>
+  ({ key: 'rent_to_buy', label: 'Түрээслээд худалдан авах боломжтой', labels: L('Түрээслээд худалдан авах боломжтой', 'Rent-to-buy option', '可租转购', 'С правом выкупа'), type: 'boolean', required: false, group: 'details' });
+
 const experience = (): FieldDef =>
   ({ key: 'experience_years', label: 'Туршлага (жил)', labels: L('Туршлага (жил)', 'Experience (years)', '经验（年）', 'Опыт (лет)'), type: 'number', required: true, group: 'core', filterable: true, placeholder: '5' });
 
@@ -89,6 +98,7 @@ export const CATEGORY_SEED: Partial<CategorySchema>[] = [
       withOperator(L('Жолоочтой', 'With driver', '含司机', 'С водителем')),
       sel('fuel_type', L('Шатахуун', 'Fuel type', '燃料类型', 'Тип топлива'), ['PETROL', 'DIESEL', 'GAS', 'ELECTRIC'], 'details'),
       num('seats', L('Суудлын тоо', 'Seats', '座位数', 'Мест'), 'details', { placeholder: '4' }),
+      rentToBuy(),
     ],
   },
   {
@@ -114,6 +124,8 @@ export const CATEGORY_SEED: Partial<CategorySchema>[] = [
       delivery('details'),
       num('min_rental_days', L('Хамгийн бага түрээсийн хоног', 'Minimum rental days', '最少租赁天数', 'Мин. срок аренды'), 'details', { placeholder: '3' }),
       num('min_moto_hours_per_day', L('Өдрийн доод мото цаг', 'Minimum engine hours per day', '每日最少工时', 'Мин. моточасов в день'), 'details', { placeholder: '8', unit: 'мото цаг' }),
+      maintenanceIncluded(),
+      rentToBuy(),
     ],
   },
   {
@@ -137,7 +149,7 @@ export const CATEGORY_SEED: Partial<CategorySchema>[] = [
   {
     key: 'materialstore', label: 'Барилгын материал',
     labels: L('Барилгын материал', 'Building Materials', '建筑材料', 'Стройматериалы'),
-    icon: 'cube-outline', color: '#C2803F', sort_order: 3, has_price: true, default_price_unit: 'UNIT',
+    icon: 'layers-outline', color: '#848236', sort_order: 3, has_price: true, default_price_unit: 'UNIT',
     subcategories: [
       { value: 'cement', display: 'Цемент', labels: L('Цемент', 'Cement', '水泥', 'Цемент') },
       { value: 'aggregate', display: 'Хайрга, элс', labels: L('Хайрга, элс', 'Aggregate', '砂石', 'Щебень, песок') },
@@ -160,7 +172,7 @@ export const CATEGORY_SEED: Partial<CategorySchema>[] = [
   {
     key: 'construction', label: 'Барилгын үйлчилгээ',
     labels: L('Барилгын үйлчилгээ', 'Construction Services', '建筑服务', 'Строительные услуги'),
-    icon: 'business-outline', color: '#4C93B8', sort_order: 4, ...serviceFlags,
+    icon: 'business-outline', color: '#3D8995', sort_order: 4, ...serviceFlags,
     subcategories: [
       { value: 'general', display: 'Ерөнхий барилга', labels: L('Ерөнхий барилга', 'General Construction', '综合施工', 'Общестроительные') },
       { value: 'interior', display: 'Интерьер засал', labels: L('Интерьер засал', 'Interior Finishing', '室内装修', 'Внутренняя отделка') },
@@ -182,7 +194,7 @@ export const CATEGORY_SEED: Partial<CategorySchema>[] = [
   {
     key: 'jobvacancy', label: 'Ажлын байр',
     labels: L('Ажлын байр', 'Job Vacancy', '招聘', 'Вакансии'),
-    icon: 'people-outline', color: '#B8674C', sort_order: 5,
+    icon: 'briefcase-outline', color: '#BC5CA9', sort_order: 5,
     subcategories: [
       { value: 'engineer', display: 'Инженер', labels: L('Инженер', 'Engineer', '工程师', 'Инженер') },
       { value: 'worker', display: 'Ажилчин', labels: L('Ажилчин', 'Worker', '工人', 'Рабочий') },
@@ -205,7 +217,7 @@ export const CATEGORY_SEED: Partial<CategorySchema>[] = [
   {
     key: 'factory', label: 'Үйлдвэр',
     labels: L('Үйлдвэр', 'Factory', '工厂', 'Завод'),
-    icon: 'settings-outline', color: '#7A8B99', sort_order: 6, has_price: true, default_price_unit: 'UNIT',
+    icon: 'storefront-outline', color: '#3A8E5C', sort_order: 6, has_price: true, default_price_unit: 'UNIT',
     subcategories: [
       { value: 'concrete', display: 'Бетон бүтээгдэхүүн', labels: L('Бетон бүтээгдэхүүн', 'Concrete Products', '混凝土制品', 'Бетонные изделия') },
       { value: 'metal', display: 'Металл бүтээгдэхүүн', labels: L('Металл бүтээгдэхүүн', 'Metal Products', '金属制品', 'Металлоизделия') },
@@ -225,7 +237,7 @@ export const CATEGORY_SEED: Partial<CategorySchema>[] = [
   {
     key: 'sos', label: 'SOS Үйлчилгээ',
     labels: L('SOS Үйлчилгээ', 'SOS Services', '紧急服务', 'SOS услуги'),
-    icon: 'alert-circle-outline', color: '#C25F5F', sort_order: 7,
+    icon: 'warning-outline', color: '#D25562', sort_order: 7,
     has_rental_status: true, has_price: true, default_price_unit: 'TRIP', emphasized: true,
     subcategories: [
       { value: 'tire_repair', display: 'Дугуй засвар', labels: L('Дугуй засвар', 'Tire Repair', '轮胎维修', 'Ремонт шин') },
@@ -240,7 +252,7 @@ export const CATEGORY_SEED: Partial<CategorySchema>[] = [
   {
     key: 'usedequipment', label: 'Худалдах техник',
     labels: L('Худалдах техник', 'Used Equipment', '二手设备', 'Техника б/у'),
-    icon: 'pricetag-outline', color: '#8B7355', sort_order: 8, has_price: true, default_price_unit: 'TOTAL',
+    icon: 'pricetags-outline', color: '#C16546', sort_order: 8, has_price: true, default_price_unit: 'TOTAL',
     subcategories: [
       { value: 'vehicle', display: 'Тээврийн хэрэгсэл', labels: L('Тээврийн хэрэгсэл', 'Vehicles', '车辆', 'Транспорт') },
       { value: 'machinery', display: 'Машин техник', labels: L('Машин техник', 'Machinery', '机械', 'Техника') },
@@ -258,7 +270,7 @@ export const CATEGORY_SEED: Partial<CategorySchema>[] = [
   {
     key: 'transport', label: 'Тээвэр, ачаа',
     labels: L('Тээвэр, ачаа', 'Transport & Freight', '运输货运', 'Транспорт и грузы'),
-    icon: 'bus-outline', color: '#5F8C8C', sort_order: 9,
+    icon: 'bus-outline', color: '#4984B4', sort_order: 9,
     has_rental_status: true, has_price: true, default_price_unit: 'TRIP',
     subcategories: [
       { value: 'freight', display: 'Ачаа тээвэр', labels: L('Ачаа тээвэр', 'Freight', '货运', 'Грузоперевозки') },
@@ -277,7 +289,7 @@ export const CATEGORY_SEED: Partial<CategorySchema>[] = [
   {
     key: 'designservice', label: 'Зураг төсөл, инженеринг',
     labels: L('Зураг төсөл, инженеринг', 'Design & Engineering', '设计与工程', 'Проектирование'),
-    icon: 'document-text-outline', color: '#9B7BA8', sort_order: 10, ...serviceFlags,
+    icon: 'compass-outline', color: '#8473C3', sort_order: 10, ...serviceFlags,
     subcategories: [
       { value: 'architecture', display: 'Архитектур', labels: L('Архитектур', 'Architecture', '建筑设计', 'Архитектура') },
       { value: 'structural', display: 'Бүтээцийн инженер', labels: L('Бүтээцийн инженер', 'Structural Engineering', '结构工程', 'Конструкции') },
@@ -296,7 +308,7 @@ export const CATEGORY_SEED: Partial<CategorySchema>[] = [
   {
     key: 'miningsupport', label: 'Уул уурхайн үйлчилгээ',
     labels: L('Уул уурхайн үйлчилгээ', 'Mining Support', '矿业服务', 'Горные услуги'),
-    icon: 'diamond-outline', color: '#6E8B5F', sort_order: 11,
+    icon: 'diamond-outline', color: '#967A54', sort_order: 11,
     ...serviceFlags, default_price_unit: 'MOTO_HOUR',
     subcategories: [
       { value: 'drilling_blasting', display: 'Өрөмдлөг, тэсэлгээ', labels: L('Өрөмдлөг, тэсэлгээ', 'Drilling & Blasting', '钻孔爆破', 'Бурение и взрывные') },
@@ -316,7 +328,7 @@ export const CATEGORY_SEED: Partial<CategorySchema>[] = [
   {
     key: 'winterservice', label: 'Өвлийн үйлчилгээ',
     labels: L('Өвлийн үйлчилгээ', 'Winter Services', '冬季服务', 'Зимние услуги'),
-    icon: 'snow-outline', color: '#5F7FA8', sort_order: 12, ...serviceFlags,
+    icon: 'snow-outline', color: '#4C869E', sort_order: 12, ...serviceFlags,
     subcategories: [
       { value: 'snow_removal', display: 'Цас цэвэрлэгээ', labels: L('Цас цэвэрлэгээ', 'Snow Removal', '除雪', 'Уборка снега') },
       { value: 'ground_thawing', display: 'Хөрс гэсгээх', labels: L('Хөрс гэсгээх', 'Ground Thawing', '土壤解冻', 'Прогрев грунта') },

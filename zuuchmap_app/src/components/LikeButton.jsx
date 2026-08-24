@@ -1,15 +1,25 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { TouchableOpacity, Text, StyleSheet, Animated } from 'react-native';
+import { TouchableOpacity, Text, View, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import likeService from '../services/api/likeService';
 import userService from '../services/api/userService';
 import { getUserInfo } from '../services/api/authHelpers';
-import { spacing, typography, interactions, animations } from '../design/theme';
+import { spacing, typography, interactions, animations, radius } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useTranslation } from 'react-i18next';
 import { showErrorModal } from '../utils/errorManager';
 import { logger } from '../utils/logger';
+
+// Six amber dots leave the heart on save. Angles are fixed so the burst
+// reads the same every time; each dot travels ~1.6× the icon size and fades
+// over the last half of the flight.
+const PARTICLES = [0, 60, 120, 180, 240, 300].map((deg) => {
+    const r = (deg * Math.PI) / 180;
+    return { x: Math.cos(r), y: Math.sin(r) };
+});
+const BURST_MS = 350;
 
 const LikeButton = ({
     post_type,
@@ -30,6 +40,7 @@ const LikeButton = ({
     const [is_authenticated, setIsAuthenticated] = useState(authenticated_prop ?? false);
     const [hidden, setHidden] = useState(false);
     const scaleAnim = useRef(new Animated.Value(1)).current;
+    const burstAnim = useRef(new Animated.Value(0)).current;
     const mountedRef = useRef(true);
     useEffect(() => () => { mountedRef.current = false; }, []);
 
@@ -149,7 +160,24 @@ const LikeButton = ({
         setIsLiked(next_liked);
         if (show_count) setLikeCount(c => next_liked ? c + 1 : Math.max(0, c - 1));
         if (onLikeChange) onLikeChange(next_liked);
+        if (next_liked) {
+            // Haptic on save regardless of motion settings — reduce-motion
+            // is about movement, and a tap of confirmation is not movement.
+            try {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+            } catch {
+                // Native module absent (web, Expo Go without haptics)
+            }
+        }
         if (!reduced) {
+            if (next_liked) {
+                burstAnim.setValue(0);
+                Animated.timing(burstAnim, {
+                    toValue: 1,
+                    duration: BURST_MS,
+                    useNativeDriver: true,
+                }).start();
+            }
             Animated.sequence([
                 Animated.spring(scaleAnim, { toValue: 1.4, useNativeDriver: true, ...animations.pop }),
                 Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, ...animations.pop }),
@@ -189,7 +217,7 @@ const LikeButton = ({
     return (
         <TouchableOpacity
             style={[
-                styles.like_button,
+                styles.likeButton,
                 { opacity: loading ? 0.6 : 1 }
             ]}
             onPress={handleToggleLike}
@@ -199,16 +227,52 @@ const LikeButton = ({
             accessibilityRole="button"
             accessibilityLabel={is_liked ? t('posts.saved') : t('posts.save')}
         >
-            <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-                <Ionicons
-                    name={is_liked ? 'heart' : 'heart-outline'}
-                    size={icon_sizes[size]}
-                    color={is_liked ? colors.primary : colors.text.secondary}
+            <View style={styles.iconWrap}>
+                <Animated.View
+                    pointerEvents="none"
+                    style={[
+                        styles.burst,
+                        {
+                            width: icon_sizes[size] * 2,
+                            height: icon_sizes[size] * 2,
+                            backgroundColor: colors.opacity.background.primaryDark,
+                            opacity: burstAnim.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 0.6, 0] }),
+                            transform: [{ scale: burstAnim.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1.4] }) }],
+                        },
+                    ]}
                 />
-            </Animated.View>
+                {!reduced && PARTICLES.map((p, i) => {
+                    const reach = icon_sizes[size] * 1.6;
+                    return (
+                        <Animated.View
+                            key={i}
+                            pointerEvents="none"
+                            style={[
+                                styles.particle,
+                                {
+                                    backgroundColor: colors.primary,
+                                    opacity: burstAnim.interpolate({ inputRange: [0, 0.1, 0.55, 1], outputRange: [0, 1, 1, 0] }),
+                                    transform: [
+                                        { translateX: burstAnim.interpolate({ inputRange: [0, 1], outputRange: [0, p.x * reach] }) },
+                                        { translateY: burstAnim.interpolate({ inputRange: [0, 1], outputRange: [0, p.y * reach] }) },
+                                        { scale: burstAnim.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0.4, 1, 0.3] }) },
+                                    ],
+                                },
+                            ]}
+                        />
+                    );
+                })}
+                <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+                    <Ionicons
+                        name={is_liked ? 'heart' : 'heart-outline'}
+                        size={icon_sizes[size]}
+                        color={is_liked ? colors.primary : colors.text.secondary}
+                    />
+                </Animated.View>
+            </View>
             {show_count && (
                 <Text style={[
-                    styles.like_count,
+                    styles.likeCount,
                     { color: is_liked ? colors.primary : colors.text.secondary }
                 ]}>
                     {like_count}
@@ -219,12 +283,26 @@ const LikeButton = ({
 };
 
 const styles = StyleSheet.create({
-    like_button: {
+    likeButton: {
         flexDirection: 'row',
         alignItems: 'center',
         padding: spacing.xs,
     },
-    like_count: {
+    iconWrap: {
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    burst: {
+        position: 'absolute',
+        borderRadius: radius.full,
+    },
+    particle: {
+        position: 'absolute',
+        width: 5,
+        height: 5,
+        borderRadius: radius.full,
+    },
+    likeCount: {
         marginLeft: spacing.xs,
         ...typography.styles.label,
     },

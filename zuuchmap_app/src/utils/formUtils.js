@@ -1,4 +1,5 @@
 import postService from '../services/api/postService';
+import { getSubcategoryLabel } from './postUtils';
 
 // Attribute values initialized from the category schema's field definitions
 // A boolean must start `false` and a multiselect `[]` — seeding them with ''
@@ -72,6 +73,28 @@ export const getEditFormData = (schema, initialPost) => {
         images: processExistingImages(initialPost.images),
         attributes: buildAttributes(schema, initialPost.attributes || {}),
     }, schema, initialPost);
+};
+
+// --- Title suggestion ---
+//
+// Photo-first creation: the provider picks a picture before typing anything,
+// so the title is derived — "Экскаватор Komatsu PC200" — from the subcategory
+// label plus the first identifying attribute they filled. Only free-text and
+// number fields count: a select seeds itself with its first option, so it
+// would name every post after a default nobody chose.
+export const suggestTitle = (formData, schema) => {
+    if (!formData) return '';
+    const sub = formData.subcategory ? getSubcategoryLabel(formData.subcategory, schema) : '';
+    const attrs = formData.attributes ?? {};
+    const firstAttr = (schema?.fields ?? []).find((f) => {
+        if (!['text', 'number', 'string'].includes(f.type ?? 'text')) return false;
+        const v = attrs[f.key];
+        return typeof v === 'number' || (typeof v === 'string' && v.trim().length > 0);
+    });
+    const attrText = firstAttr
+        ? `${String(attrs[firstAttr.key]).trim()}${firstAttr.unit ? ` ${firstAttr.unit}` : ''}`
+        : '';
+    return [sub, attrText].filter(Boolean).join(' ').slice(0, 200);
 };
 
 // --- Validation ---

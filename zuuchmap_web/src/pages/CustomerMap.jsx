@@ -4,7 +4,8 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { postsApi, categoryApi } from '@/lib/api'
-import { getCategoryLabel, getPostCategory, getCategoryColor, categoryPin, formatPrice, getImageUrl } from '@/lib/utils'
+import { getCategoryLabel, getPostCategory, getCategoryColor, formatPrice, getImageUrl, hideBrokenImage } from '@/lib/utils'
+import { categoryPin } from '@/lib/mapPin'
 import CategoryPills from '@/components/CategoryPills'
 import ErrorState from '@/components/ErrorState'
 import EmptyState from '@/components/EmptyState'
@@ -102,7 +103,7 @@ export default function CustomerMap() {
           >
             {post.images?.[0] && (
               <div className="h-28 overflow-hidden">
-                <img src={getImageUrl(post.images[0])} alt="" loading="lazy" className="w-full h-full object-cover" />
+                <img src={getImageUrl(post.images[0])} alt="" loading="lazy" className="w-full h-full object-cover" onError={hideBrokenImage} />
               </div>
             )}
             <div className="p-3">

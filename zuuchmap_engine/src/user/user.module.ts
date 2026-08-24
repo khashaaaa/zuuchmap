@@ -5,12 +5,13 @@ import { UserService } from './user.service';
 import { UserController } from './user.controller';
 import { UserAdminController } from './user-admin.controller';
 import { User } from './entities/user.entity';
+import { PushDevice } from './entities/push-device.entity';
 import { Post } from '../post/entities/post.entity';
 import { AuthModule } from 'src/auth/auth.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Post]),
+    TypeOrmModule.forFeature([User, Post, PushDevice]),
     ConfigModule,
     AuthModule
   ],

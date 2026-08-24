@@ -16,6 +16,7 @@ import Modal from '@/components/Modal'
 import Button from '@/components/Button'
 import StatusBadge from '@/components/StatusBadge'
 import DensityToggle from '@/components/DensityToggle'
+import SchemaFormPreview from '@/components/SchemaFormPreview'
 import { useTableDensity } from '@/hooks/useTableDensity'
 import { toast } from 'sonner'
 
@@ -39,7 +40,7 @@ function LabelsEditor({ value = {}, onChange }) {
     <div className="grid grid-cols-2 gap-2">
       {LOCALES.map((lng) => (
         <Input key={lng} value={value?.[lng] ?? ''} placeholder={lng.toUpperCase()}
-          onChange={(e) => onChange({ ...(value ?? {}), [lng]: e.target.value })} className="bg-background" />
+          onChange={(e) => onChange({ ...(value ?? {}), [lng]: e.target.value })}  />
       ))}
     </div>
   )
@@ -107,7 +108,7 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
     <Modal
       open
       onClose={onClose}
-      size="lg"
+      size="xl"
       title={`${isNew ? t('admin.addCategory') : t('admin.editCategory')}: ${form.label || form.key}`}
       tabs={
         <TabBar
@@ -127,6 +128,8 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
         </>
       }
     >
+      <div className="flex gap-6 items-start">
+        <div className="flex-1 min-w-0">
           {tab === 'basic' && (
             <div className="space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -135,19 +138,19 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
                     {t('admin.categoryKeyHint')}{isNew && <span className="text-danger"> *</span>}
                   </label>
                   <Input value={form.key} onChange={(e) => setF('key', e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''))}
-                    placeholder="vehiclerent" disabled={!isNew} className={`bg-background ${errClass(!form.key)}`} />
+                    placeholder="vehiclerent" disabled={!isNew} className={`${errClass(!form.key)}`} />
                 </div>
                 <div>
                   <label className="text-xs text-muted block mb-1">
                     {t('admin.categoryLabel')} <span className="text-danger">*</span>
                   </label>
-                  <Input value={form.label} onChange={(e) => setF('label', e.target.value)} placeholder="Vehicle Rental" className={`bg-background ${errClass(!form.label)}`} />
+                  <Input value={form.label} onChange={(e) => setF('label', e.target.value)} placeholder="Vehicle Rental" className={`${errClass(!form.label)}`} />
                 </div>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="text-xs text-muted block mb-1">{t('admin.categoryIcon')}</label>
-                  <Input value={form.icon ?? ''} onChange={(e) => setF('icon', e.target.value)} placeholder="car-outline" className="bg-background" />
+                  <Input value={form.icon ?? ''} onChange={(e) => setF('icon', e.target.value)} placeholder="car-outline"  />
                   <p className="text-xs text-muted mt-1">{t('admin.categoryIconHint')}</p>
                 </div>
                 <div>
@@ -155,12 +158,12 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
                   <div className="flex gap-2 items-center">
                     <input type="color" value={form.color ?? DEFAULT_COLOR} onChange={(e) => setF('color', e.target.value)}
                       className="w-10 h-10 rounded border border-border/50 cursor-pointer bg-surface2" />
-                    <Input value={form.color ?? ''} onChange={(e) => setF('color', e.target.value)} className="bg-background flex-1" />
+                    <Input value={form.color ?? ''} onChange={(e) => setF('color', e.target.value)} className="flex-1" />
                   </div>
                 </div>
                 <div>
                   <label className="text-xs text-muted block mb-1">{t('admin.categorySortOrder')}</label>
-                  <Input type="number" value={form.sort_order ?? 0} onChange={(e) => setF('sort_order', Number(e.target.value))} className="bg-background" />
+                  <Input type="number" value={form.sort_order ?? 0} onChange={(e) => setF('sort_order', Number(e.target.value))}  />
                 </div>
               </div>
               <div>
@@ -188,7 +191,7 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
                 {form.has_price && (
                   <div>
                     <label className="text-xs text-muted block mb-1">{t('admin.defaultPriceUnit')}</label>
-                    <Input as="select" value={form.default_price_unit ?? ''} onChange={(e) => setF('default_price_unit', e.target.value)} className="bg-background w-auto">
+                    <Input as="select" value={form.default_price_unit ?? ''} onChange={(e) => setF('default_price_unit', e.target.value)} className="w-auto">
                       <option value="">—</option>
                       {PRICE_UNITS.map((u) => <option key={u} value={u}>{t(`priceUnit.${u.toLowerCase()}`, { defaultValue: u })}</option>)}
                     </Input>
@@ -202,7 +205,7 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
                   <label className="text-xs text-muted block mb-1">{t('admin.postExpiryDays')}</label>
                   <Input type="number" min="1" max="365" value={form.post_expiry_days ?? ''} placeholder="30"
                     onChange={(e) => setF('post_expiry_days', e.target.value === '' ? null : Number(e.target.value))}
-                    className="bg-background w-28" />
+                    className="w-28" />
                 </div>
               </div>
             </div>
@@ -218,9 +221,9 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
                       <button onClick={() => moveSubcat(i, 1)} disabled={i === form.subcategories.length - 1} aria-label={t('common.moveDown')} className="text-muted hover:text-text disabled:opacity-30 p-1"><ChevronDown size={13} /></button>
                     </div>
                     <Input value={sub.value} onChange={(e) => updateSubcat(i, 'value', e.target.value)}
-                      placeholder="key_value" className={`bg-background flex-1 ${errClass(!sub.value.trim())}`} />
+                      placeholder="key_value" className={`flex-1 ${errClass(!sub.value.trim())}`} />
                     <Input value={sub.display} onChange={(e) => updateSubcat(i, 'display', e.target.value)}
-                      placeholder={t('admin.subcatDisplayPlaceholder')} className={`bg-background flex-1 ${errClass(!sub.display.trim())}`} />
+                      placeholder={t('admin.subcatDisplayPlaceholder')} className={`flex-1 ${errClass(!sub.display.trim())}`} />
                     <button onClick={() => removeSubcat(i)} aria-label={t('common.delete')} className="min-w-[44px] min-h-[44px] flex items-center justify-center text-muted hover:text-danger shrink-0 rounded-btn hover:bg-danger/10 transition-colors"><X size={14} /></button>
                   </div>
                   <LabelsEditor value={sub.labels} onChange={(v) => updateSubcat(i, 'labels', v)} />
@@ -244,24 +247,24 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pr-28">
                     <Input value={fld.key} onChange={(e) => updateField(i, 'key', e.target.value)}
-                      placeholder="field_key" className={`bg-background ${errClass(!fld.key.trim())}`} />
+                      placeholder="field_key" className={`${errClass(!fld.key.trim())}`} />
                     <Input value={fld.label} onChange={(e) => updateField(i, 'label', e.target.value)}
-                      placeholder={t('admin.fieldLabelPlaceholder')} className={`bg-background ${errClass(!fld.label.trim())}`} />
+                      placeholder={t('admin.fieldLabelPlaceholder')} className={`${errClass(!fld.label.trim())}`} />
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <Input as="select" value={fld.type} onChange={(e) => updateField(i, 'type', e.target.value)} className="bg-background">
+                    <Input as="select" value={fld.type} onChange={(e) => updateField(i, 'type', e.target.value)} >
                       {FIELD_TYPES.map((ft) => <option key={ft} value={ft}>{ft}</option>)}
                     </Input>
                     {/* Where the field appears on the provider form: upfront, or
                         behind the "More details" disclosure. */}
-                    <Input as="select" value={fld.group ?? 'core'} onChange={(e) => updateField(i, 'group', e.target.value)} className="bg-background">
+                    <Input as="select" value={fld.group ?? 'core'} onChange={(e) => updateField(i, 'group', e.target.value)} >
                       <option value="core">{t('admin.fieldGroupCore')}</option>
                       <option value="details">{t('admin.fieldGroupDetails')}</option>
                     </Input>
                     <Input value={fld.unit ?? ''} onChange={(e) => updateField(i, 'unit', e.target.value)}
-                      placeholder={t('admin.fieldUnitPlaceholder')} className="bg-background" />
+                      placeholder={t('admin.fieldUnitPlaceholder')}  />
                     <Input value={fld.placeholder ?? ''} onChange={(e) => updateField(i, 'placeholder', e.target.value)}
-                      placeholder={t('admin.fieldPlaceholderPlaceholder')} className="bg-background" />
+                      placeholder={t('admin.fieldPlaceholderPlaceholder')}  />
                   </div>
                   <LabelsEditor value={fld.labels} onChange={(v) => updateField(i, 'labels', v)} />
                   <div className="flex items-center gap-4">
@@ -283,7 +286,7 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
                         value={Array.isArray(fld.options) ? fld.options.join(', ') : ''}
                         onChange={(e) => updateField(i, 'options', e.target.value.split(',').map((s) => s.trim()).filter(Boolean))}
                         placeholder={t('admin.fieldOptionsPlaceholder')}
-                        className={`bg-background ${errClass(!(fld.options?.length > 0))}`}
+                        className={`${errClass(!(fld.options?.length > 0))}`}
                       />
                     </div>
                   )}
@@ -294,6 +297,10 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
               </button>
             </div>
           )}
+        </div>
+        {/* Mirrors the app form as the admin types — see SchemaFormPreview. */}
+        <SchemaFormPreview schema={form} />
+      </div>
     </Modal>
   )
 }

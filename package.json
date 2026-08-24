@@ -2,6 +2,7 @@
   "name": "zuuchmap",
   "private": true,
   "scripts": {
+    "check:sync": "node scripts/check-sync.js",
     "install:all": "npm install --prefix zuuchmap_engine && npm install --prefix zuuchmap_web && npm install --prefix zuuchmap_app",
     "dev:engine": "npm run dev --prefix zuuchmap_engine",
     "dev:web": "npm run dev --prefix zuuchmap_web",

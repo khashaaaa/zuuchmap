@@ -88,7 +88,7 @@ const AdminApproval = ({ navigation }) => {
                         onPress={() => navigation.navigate('AdminPostList')}
                         disabled={totalPending === 0}
                         fullWidth
-                        style={{ ...colors.elevation.md, marginBottom: spacing.lg }}
+                        style={{ marginBottom: spacing.lg }}
                     />
 
                     <Text style={[styles.sectionTitle, { color: colors.text.tertiary }]}>{t('nav.categories')}</Text>
@@ -99,7 +99,7 @@ const AdminApproval = ({ navigation }) => {
                                 onPress={() => navigation.navigate('AdminPostList', { filterType: row.postType })}
                                 accessibilityRole="button"
                             >
-                                <Text style={[styles.typeLabel, { color: colors.text.primary }]}>{row.postType ? categoryLabel(row.postType) : ''}</Text>
+                                <Text style={[styles.typeLabel, { color: colors.text.primary }]} numberOfLines={1}>{row.postType ? categoryLabel(row.postType) : ''}</Text>
                                 <View style={styles.typeBadges}>
                                     {row.pending > 0 && (
                                         <View style={[styles.badgeWarning, { backgroundColor: colors.opacity.background.warning }]}>
@@ -148,11 +148,14 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
+        gap: spacing.sm,
         borderRadius: radius.card,
         padding: spacing.md,
         marginBottom: spacing.sm,
     },
-    typeLabel: { ...typography.styles.label },
+    // Category labels are admin-editable and arbitrarily long: shrink before
+    // the badges and chevron get pushed off the row.
+    typeLabel: { ...typography.styles.label, flexShrink: 1 },
     typeBadges: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
     badgeWarning: { borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
     badgeWarningText: { ...typography.styles.badge },

@@ -1,21 +1,46 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, TouchableOpacity, TextInput, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { View, Text, TouchableOpacity, TextInput, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { spacing, typography, radius, interactions } from '../design/theme';
+import { spacing, typography, radius, interactions, animations } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import bookingService from '../services/api/bookingService';
 import { showErrorModal, showSuccessModal, getErrorMessage } from '../utils/errorManager';
-import { formatDateYYYYMMDD } from '../utils/displayUtils';
+import { formatDate } from '../utils/displayUtils';
 import Button from './Button';
+
+// In the rating input, each star lands with the selection breath as it fills,
+// left to right at the list stagger — the one place a five-step tap sequence
+// can feel designed. Read-only stars stay static Views.
+const InputStar = ({ filled, index, size, color }) => {
+    const reduced = useReducedMotion();
+    const scale = useRef(new Animated.Value(1)).current;
+    const wasFilled = useRef(filled);
+    useEffect(() => {
+        if (filled && !wasFilled.current && !reduced) {
+            Animated.sequence([
+                Animated.delay(index * animations.stagger),
+                Animated.spring(scale, { toValue: animations.selection.scale, useNativeDriver: true, tension: animations.press.tension, friction: animations.press.friction }),
+                Animated.spring(scale, { toValue: 1, useNativeDriver: true, tension: animations.press.tension, friction: animations.press.friction }),
+            ]).start();
+        }
+        wasFilled.current = filled;
+    }, [filled, index, reduced, scale]);
+    return (
+        <Animated.View style={{ transform: [{ scale }] }}>
+            <Ionicons name={filled ? 'star' : 'star-outline'} size={size} color={color} />
+        </Animated.View>
+    );
+};
 
 // Read-only by default; only the rating input (onSelect set) is interactive, so
 // the summary/row stars stay plain Views instead of stacks of dead touch areas.
-const Stars = ({ value, size = 14, color, onSelect }) => (
+// 14px is the legibility floor — a 3-star and 4-star provider must differ at a scroll.
+const Stars = ({ value, size = 14, color, onSelect, t }) => (
     <View style={{ flexDirection: 'row', gap: spacing.xxs }}>
         {[1, 2, 3, 4, 5].map((i) => {
-            const star = <Ionicons name={i <= value ? 'star' : 'star-outline'} size={size} color={color} />;
             return onSelect ? (
                 <TouchableOpacity
                     key={i}
@@ -23,11 +48,15 @@ const Stars = ({ value, size = 14, color, onSelect }) => (
                     activeOpacity={interactions.activeOpacityLight}
                     hitSlop={interactions.hitSlop}
                     accessibilityRole="button"
+                    accessibilityState={{ selected: i <= value }}
+                    accessibilityLabel={t ? t('common.rateStars', { count: i }) : String(i)}
                 >
-                    {star}
+                    <InputStar filled={i <= value} index={i - 1} size={size} color={color} />
                 </TouchableOpacity>
             ) : (
-                <View key={i}>{star}</View>
+                <View key={i}>
+                    <Ionicons name={i <= value ? 'star' : 'star-outline'} size={size} color={color} />
+                </View>
             );
         })}
     </View>
@@ -37,7 +66,7 @@ const Stars = ({ value, size = 14, color, onSelect }) => (
 const REVIEW_PREVIEW = 5;
 
 // Provider rating summary + review list + submit form (customers only)
-const ReviewSection = ({ providerId, canReview }) => {
+const ReviewSection = ({ providerId, canReview, autoOpen = false }) => {
     const { colors, styles: gStyles } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
     const { t } = useTranslation();
@@ -47,6 +76,8 @@ const ReviewSection = ({ providerId, canReview }) => {
     const [showAll, setShowAll] = useState(false);
     const [rating, setRating] = useState(0);
     const [comment, setComment] = useState('');
+    // Deep link from a review-prompt push lands with the form already open.
+    useEffect(() => { if (autoOpen && canReview) setShowForm(true); }, [autoOpen, canReview]);
 
     const { data } = useQuery({
         queryKey: ['reviews', providerId],
@@ -103,7 +134,7 @@ const ReviewSection = ({ providerId, canReview }) => {
 
             {canReview && showForm && (
                 <View style={styles.form}>
-                    <Stars value={rating} size={26} color={colors.warning} onSelect={setRating} />
+                    <Stars value={rating} size={26} color={colors.warning} onSelect={setRating} t={t} />
                     <TextInput
                         style={[gStyles.input, styles.commentInput]}
                         value={comment}
@@ -129,9 +160,9 @@ const ReviewSection = ({ providerId, canReview }) => {
                     {(showAll ? data.reviews : data.reviews.slice(0, REVIEW_PREVIEW)).map((r) => (
                         <View key={r.id} style={styles.reviewRow}>
                             <View style={styles.reviewHead}>
-                                <Text style={styles.reviewAuthor}>{r.author?.given_name || '—'}</Text>
-                                <Stars value={r.rating} size={11} color={colors.warning} />
-                                <Text style={styles.reviewDate}>{formatDateYYYYMMDD(r.date_updated)}</Text>
+                                <Text style={styles.reviewAuthor} numberOfLines={1}>{r.author?.given_name || '—'}</Text>
+                                <Stars value={r.rating} size={14} color={colors.warning} />
+                                <Text style={styles.reviewDate}>{formatDate(r.date_updated)}</Text>
                             </View>
                             {r.comment ? <Text style={styles.reviewComment}>{r.comment}</Text> : null}
                         </View>
@@ -153,6 +184,7 @@ const ReviewSection = ({ providerId, canReview }) => {
 
 const createStyles = (colors) => StyleSheet.create({
     card: {
+        ...colors.elevation.sm,
         backgroundColor: colors.surface,
         borderRadius: radius.card,
         padding: spacing.lg,
@@ -168,12 +200,12 @@ const createStyles = (colors) => StyleSheet.create({
     empty: { ...typography.styles.caption, color: colors.text.tertiary },
     reviewRow: { backgroundColor: colors.background, borderRadius: radius.card, padding: spacing.md, gap: spacing.xs },
     reviewHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
-    reviewAuthor: { ...typography.styles.label, color: colors.text.primary },
+    reviewAuthor: { ...typography.styles.label, color: colors.text.primary, flexShrink: 1 },
     reviewDate: { ...typography.styles.small, color: colors.text.tertiary },
     // The review body is the content of the card; read it at body weight, not as
     // the faintest line on it.
     reviewComment: { ...typography.styles.body, color: colors.text.primary },
-    showAll: { ...typography.styles.labelStrong, color: colors.primary },
+    showAll: { ...typography.styles.labelStrong, color: colors.text.link },
 });
 
 export default ReviewSection;

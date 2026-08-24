@@ -2,7 +2,8 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Plus, FileText, CheckCircle2, Eye } from 'lucide-react'
+import { motion, useReducedMotion } from 'framer-motion'
+import { Plus, FileText, CheckCircle2 } from 'lucide-react'
 import { postsApi } from '@/lib/api'
 import { BarList } from '@/components/Charts'
 import { useAuthStore as useStore } from '@/store'
@@ -19,6 +20,7 @@ const CHART_ROWS = 8
 export default function ProviderDashboard() {
   const { t } = useTranslation()
   const user = useStore((s) => s.user)
+  const shouldReduceMotion = useReducedMotion()
 
   const { data: posts = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['my-posts'],
@@ -45,19 +47,23 @@ export default function ProviderDashboard() {
           </Button>
         }
       />
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
-        <StatCard icon={FileText} label={t('profile.totalPosts')} value={posts.length} />
-        <StatCard icon={CheckCircle2} label={t('status.approved')} value={approved} color="text-success" />
-        <StatCard icon={Eye} label={t('posts.totalViews')} value={totalViews} />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        {/* Views is the number a provider comes back for — it leads. */}
+        <StatCard lead label={t('posts.totalViews')} value={totalViews} color="text-text" index={0} className="col-span-2" />
+        <StatCard icon={FileText} label={t('profile.totalPosts')} value={posts.length} index={1} />
+        <StatCard icon={CheckCircle2} label={t('status.approved')} value={approved} color="text-success" index={2} />
       </div>
-      <div className="bg-surface border border-border/20 shadow-card rounded-card p-5 md:p-6 mb-8">
+      <motion.div
+        initial={shouldReduceMotion ? false : { opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0, transition: { delay: shouldReduceMotion ? 0 : 0.25 } }}
+        className="bg-surface border border-border/20 shadow-card rounded-card p-5 md:p-6 mb-8">
         <h2 className="text-sm font-semibold text-text mb-4">{t('posts.postViewsChart')}</h2>
         {chartData.length === 0 ? (
           <p className="text-base text-muted text-center py-6">{t('posts.noMyPosts')}</p>
         ) : (
           <BarList data={chartData} label={t('posts.postViewsChart')} />
         )}
-      </div>
+      </motion.div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-semibold text-text">{t('posts.recentPosts')}</h2>
         <Link to="/provider/posts" className="text-sm text-primary-text hover:underline">{t('common.viewAll')}</Link>

@@ -2,12 +2,15 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useParams, useBlocker } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Upload, X, MapPin } from 'lucide-react'
+import { Upload, X, MapPin, AlertTriangle, XCircle } from 'lucide-react'
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import { postsApi, categoryApi } from '@/lib/api'
-import { getCategoryLabel, getSubcategoryLabel, getFieldLabel, getOptionLabel, getPostCategory, getCategoryColor, categoryPin, getImageUrl, goBack, PRICE_UNITS, PROVINCES, DISTRICTS, apiErrorMessage } from '@/lib/utils'
+import { getCategoryLabel, getSubcategoryLabel, getFieldLabel, getOptionLabel, getPostCategory, getCategoryColor, getImageUrl, goBack, PRICE_UNITS, PROVINCES, DISTRICTS, apiErrorMessage, hideBrokenImage } from '@/lib/utils'
+import { categoryPin } from '@/lib/mapPin'
+import AlertBanner from '@/components/AlertBanner'
 import { useThemeStore } from '@/store'
+import { track } from '@/lib/analytics'
 import { toast } from 'sonner'
 import Input from '../components/Input'
 import CollapsibleSection from '../components/CollapsibleSection'
@@ -15,6 +18,10 @@ import Button from '../components/Button'
 import PageHeader from '../components/PageHeader'
 import ConfirmModal from '../components/ConfirmModal'
 import ErrorState from '../components/ErrorState'
+import PostHealthRing from '../components/PostHealthRing'
+import DraftResumeBanner from '../components/DraftResumeBanner'
+import { computePostHealth } from '@/lib/postHealth'
+import { loadDraft, saveDraft, clearDraft, listDrafts } from '@/lib/draftStorage'
 
 function compressImage(file) {
   return new Promise((resolve, reject) => {
@@ -97,6 +104,9 @@ function postErrorMessage(e, t, schema, fallback) {
     return t('posts.missingRequired', { fields: names })
   }
   if (data?.message === 'INVALID_PRICE_UNIT') return t('posts.invalidPriceUnit')
+  // The quota reply carries the limit and the plan it came from — a bare
+  // "you have too many posts" leaves the provider guessing at both.
+  if (data?.message === 'POST_QUOTA_EXCEEDED') return t('posts.quotaExceeded', { limit: data.limit })
   return apiErrorMessage(e, t, fallback)
 }
 
@@ -185,6 +195,12 @@ export default function ProviderPostForm() {
   const qc = useQueryClient()
   const isEdit = Boolean(id)
 
+  // Funnel entry: only the create form counts, and only once per open —
+  // the [isEdit] dep keeps re-renders from re-firing it.
+  useEffect(() => {
+    if (!isEdit) track('post.create.started')
+  }, [isEdit])
+
   const { data: post, isLoading: postLoading, isError: postError, refetch: refetchPost } = useQuery({
     queryKey: ['post', id],
     queryFn: () => postsApi.getOne(id),
@@ -224,7 +240,15 @@ export default function ProviderPostForm() {
   // (onSuccess flips it false and navigates in the same tick).
   const [dirty, setDirtyState] = useState(false)
   const dirtyRef = useRef(false)
+  // Whether this post was live before the edit — the re-moderation notice only
+  // means something for a listing that was actually in browse.
+  const wasApproved = useRef(false)
   const setDirty = (v) => { dirtyRef.current = v; setDirtyState(v) }
+  // A stored draft waiting for a decision (create mode only). While it is on
+  // screen, autosave holds off so typing cannot overwrite the thing on offer.
+  const [pendingDraft, setPendingDraft] = useState(() => (isEdit ? null : listDrafts()[0] ?? null))
+  // The form field a rejection points at — scrolled to and lit once, on edit.
+  const [highlightKey, setHighlightKey] = useState(null)
 
   useEffect(() => {
     const urls = newImages.map((f) => URL.createObjectURL(f))
@@ -260,19 +284,30 @@ export default function ProviderPostForm() {
         attributes: buildAttributes(schemas.find((s) => s.key === post.category), post.attributes ?? {}),
       })
       setExistingImages(post.images ?? [])
+      wasApproved.current = post.approval_status === 'APPROVED'
     }
   }, [post])
 
   const mut = useMutation({
     mutationFn: (fd) => isEdit ? postsApi.update(id, fd) : postsApi.create(fd),
-    onSuccess: () => {
+    onSuccess: (saved) => {
+      if (!isEdit) track('post.create.submitted', { post_id: saved?.id, category: form.category })
       qc.invalidateQueries({ queryKey: ['my-posts'] })
       qc.invalidateQueries({ queryKey: ['posts'] })
       qc.invalidateQueries({ queryKey: ['posts-map'] })
       qc.invalidateQueries({ queryKey: ['admin-pending'] })
       qc.invalidateQueries({ queryKey: ['admin-stats'] })
       if (isEdit) qc.invalidateQueries({ queryKey: ['post', String(id)] })
-      toast.success(t(isEdit ? 'posts.updated' : 'posts.created'))
+      // A content edit sends an approved post back to moderation, so it leaves
+      // browse the moment it is saved. Read the outcome off the response rather
+      // than guessing which fields counted as content, and say so — "Post
+      // updated" on a listing that has just vanished reads as a bug.
+      if (isEdit && saved?.approval_status === 'PENDING' && wasApproved.current) {
+        toast.warning(t('posts.updatedPending'), { duration: 6000 })
+      } else {
+        toast.success(t(isEdit ? 'posts.updated' : 'posts.created'))
+      }
+      if (!isEdit) clearDraft(form.category)
       setDirty(false)
       navigate('/provider/posts')
     },
@@ -292,11 +327,79 @@ export default function ProviderPostForm() {
     dirtyRef.current && currentLocation.pathname !== nextLocation.pathname
   )
 
+  // Draft autosave — text and attributes only, one slot per category, 800ms
+  // after the last keystroke. Files are not serialisable and blob URLs die
+  // with the page, so images are deliberately left out.
+  useEffect(() => {
+    if (isEdit || !dirty || !form.category || pendingDraft) return
+    const timer = setTimeout(() => saveDraft(form.category, form), 800)
+    return () => clearTimeout(timer)
+  }, [form, dirty, isEdit, pendingDraft])
+
+  function resumeDraft() {
+    if (!pendingDraft) return
+    const draftSchema = schemas.find((s) => s.key === pendingDraft.category)
+    setForm({ ...pendingDraft.form, category: pendingDraft.category, attributes: buildAttributes(draftSchema, pendingDraft.form.attributes ?? {}) })
+    setPendingDraft(null)
+    setDirty(true)
+    toast.info(t('provider.draftRestored'))
+  }
+  function discardDraft() {
+    clearDraft(pendingDraft?.category)
+    setPendingDraft(null)
+  }
+
+  // Rejection with a named field: bring the provider straight to it. Base
+  // fields map to their own wrappers; anything else is a schema key.
+  const rejectedField = isEdit && post?.approval_status === 'REJECTED' ? (post.rejection_field ?? null) : null
+  useEffect(() => {
+    if (!rejectedField || !schema) return
+    // Deferred a tick so the highlighted wrapper is in the DOM after the
+    // schema-dependent sections have rendered.
+    const show = setTimeout(() => {
+      const el = document.getElementById(`field-${rejectedField}`)
+      if (!el) return
+      setHighlightKey(rejectedField)
+      const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+      el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' })
+      el.querySelector('input, select, textarea')?.focus({ preventScroll: true })
+    }, 0)
+    const hide = setTimeout(() => setHighlightKey(null), 4000)
+    return () => { clearTimeout(show); clearTimeout(hide) }
+  }, [rejectedField, schema])
+
+  // Wrapper for any field a rejection can point at. The ring fades out on its
+  // own; the danger border stays until the provider edits the field.
+  const fieldWrap = (key) => ({
+    id: `field-${key}`,
+    className: `rounded-lg transition-shadow duration-500 motion-reduce:transition-none ${
+      highlightKey === key ? 'ring-2 ring-danger/60 ring-offset-2 ring-offset-surface' : ''
+    } ${rejectedField === key ? 'border-l-2 border-danger pl-3 -ml-3' : ''}`,
+  })
+  const rejectedFieldLabel = () => {
+    const base = { title: t('posts.title'), details: t('posts.details'), price: t('posts.priceAmount'), images: t('posts.images'), location: t('posts.location') }
+    if (base[rejectedField]) return base[rejectedField]
+    const def = schema?.fields?.find((f) => f.key === rejectedField)
+    return def ? getFieldLabel(def, t) : rejectedField
+  }
+
+  const health = useMemo(() => (schema ? computePostHealth({
+    imageCount: existingImages.length + newImages.length,
+    attributes: form.attributes,
+    details: form.details,
+    price: form.price_amount,
+    schema,
+  }) : null), [schema, existingImages.length, newImages.length, form.attributes, form.details, form.price_amount])
+
   function set(key, val) { setDirty(true); setForm((f) => ({ ...f, [key]: val })) }
   function setAttr(key, val) { setDirty(true); setForm((f) => ({ ...f, attributes: { ...f.attributes, [key]: val } })) }
 
   function handleCategoryChange(val) {
     const next = schemas.find((s) => s.key === val)
+    if (!isEdit) {
+      const draft = loadDraft(val)
+      setPendingDraft(draft ? { category: val, ...draft } : null)
+    }
     setForm((f) => ({
       ...f,
       category: val,
@@ -336,8 +439,8 @@ export default function ProviderPostForm() {
     mut.mutate(fd)
   }
 
-  const field = (label, key, type = 'text', { required: req, hint, ...extra } = {}) => (
-    <div>
+  const field = (label, key, type = 'text', { required: req, hint, wrapKey, ...extra } = {}) => (
+    <div {...(wrapKey ? fieldWrap(wrapKey) : {})}>
       <label className="text-xs text-muted block mb-1.5">
         {label}{req && <span className="text-danger"> *</span>}
       </label>
@@ -384,6 +487,48 @@ export default function ProviderPostForm() {
         cancelLabel={t('common.cancel')}
         onConfirm={() => blocker.proceed?.()}
       />
+      {/* Said before the edit, not only after it: a provider changing a price on
+          a live listing is entitled to know it will leave browse until an admin
+          looks at it again. Operational fields (rental status, availability
+          dates) do not trigger this, which is why the wording is about content. */}
+      {isEdit && post?.approval_status === 'APPROVED' && (
+        <AlertBanner variant="warning" icon={AlertTriangle} className="mb-4">
+          {t('posts.editNeedsApproval')}
+        </AlertBanner>
+      )}
+      {/* Rejected: the reason, and — when the admin named a field — where to
+          look. Clicking the field name jumps there again. */}
+      {isEdit && post?.approval_status === 'REJECTED' && post.rejection_reason && (
+        <AlertBanner variant="danger" icon={XCircle} title={t('admin.rejectReason')} className="mb-4">
+          {post.rejection_reason}
+          {rejectedField && (
+            <>
+              {' '}
+              <button
+                type="button"
+                onClick={() => { setHighlightKey(rejectedField); document.getElementById(`field-${rejectedField}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }) }}
+                className="underline underline-offset-2 font-semibold hover:opacity-80"
+              >
+                {t('posts.rejectedFieldFix', { field: rejectedFieldLabel() })}
+              </button>
+            </>
+          )}
+        </AlertBanner>
+      )}
+      {!isEdit && pendingDraft && (
+        <DraftResumeBanner
+          savedAt={pendingDraft.savedAt}
+          onResume={resumeDraft}
+          onDiscard={discardDraft}
+          className="mb-4"
+        />
+      )}
+      {health && (
+        <div className="bg-surface border border-border/20 shadow-card rounded-card px-5 py-4 mb-4">
+          <PostHealthRing health={health} size="md" showHint />
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-4">
         <FormSection title={t('posts.basicInfo')}>
           <div className={schema?.subcategories?.length > 0 ? 'grid grid-cols-1 sm:grid-cols-2 gap-3' : undefined}>
@@ -410,8 +555,8 @@ export default function ProviderPostForm() {
             )}
           </div>
 
-          {field(t('posts.title'), 'title', 'text', { required: true })}
-          <div>
+          {field(t('posts.title'), 'title', 'text', { required: true, wrapKey: 'title' })}
+          <div {...fieldWrap('details')}>
             <label className="text-xs text-muted block mb-1.5">{t('posts.details')}</label>
             <Input as="textarea" value={form.details} onChange={(e) => set('details', e.target.value)} rows={3} maxLength={2000} className="resize-none" />
             <p className="text-xs text-muted text-right mt-1">{form.details?.length ?? 0}/2000</p>
@@ -419,15 +564,16 @@ export default function ProviderPostForm() {
         </FormSection>
 
         <FormSection title={t('posts.images')}>
+          <div {...fieldWrap('images')} className={`${fieldWrap('images').className} space-y-4`}>
           <p className="text-xs text-muted">{t('posts.imagesHint')}</p>
           {/* bg-black/60 + white on photography is the onMedia idiom — theme-independent by design. */}
           {existingImages.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {existingImages.map((img) => (
                 <div key={img} className="relative w-20 h-20 rounded-lg overflow-hidden">
-                  <img src={getImageUrl(img)} alt="" className="w-full h-full object-cover" />
-                  <button type="button" onClick={() => removeExisting(img)} aria-label={t('common.delete')} className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5">
-                    <X size={10} />
+                  <img src={getImageUrl(img)} alt="" className="w-full h-full object-cover" onError={hideBrokenImage} />
+                  <button type="button" onClick={() => removeExisting(img)} aria-label={t('common.delete')} className="absolute top-1 right-1 bg-black/60 text-white rounded-full min-w-[28px] min-h-[28px] flex items-center justify-center">
+                    <X size={14} />
                   </button>
                 </div>
               ))}
@@ -437,9 +583,9 @@ export default function ProviderPostForm() {
             <div className="flex flex-wrap gap-2">
               {newImages.map((f, i) => (
                 <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden">
-                  <img src={newImageUrls[i]} alt="" className="w-full h-full object-cover" />
-                  <button type="button" onClick={() => removeNew(i)} aria-label={t('common.delete')} className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5">
-                    <X size={10} />
+                  <img src={newImageUrls[i]} alt="" className="w-full h-full object-cover" onError={hideBrokenImage} />
+                  <button type="button" onClick={() => removeNew(i)} aria-label={t('common.delete')} className="absolute top-1 right-1 bg-black/60 text-white rounded-full min-w-[28px] min-h-[28px] flex items-center justify-center">
+                    <X size={14} />
                   </button>
                 </div>
               ))}
@@ -454,9 +600,11 @@ export default function ProviderPostForm() {
               e.target.value = ''
             }} />
           </label>
+          </div>
         </FormSection>
 
         <FormSection title={t('posts.location')}>
+          <div {...fieldWrap('location')} className={`${fieldWrap('location').className} space-y-4`}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-muted block mb-1.5">{t('common.province')}</label>
@@ -489,13 +637,14 @@ export default function ProviderPostForm() {
               {lat && lng ? `${lat.toFixed(5)}, ${lng.toFixed(5)}` : t('posts.clickToPin')}
             </p>
           </div>
+          </div>
         </FormSection>
 
         {schema?.fields?.length > 0 && (
           <FormSection title={t('posts.categoryDetails')}>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {schema.fields.filter((f) => (f.group ?? 'core') === 'core').map((f) => (
-                <div key={f.key} className={f.type === 'textarea' || f.type === 'multiselect' ? 'sm:col-span-2' : undefined}>
+                <div key={f.key} {...fieldWrap(f.key)} className={`${fieldWrap(f.key).className} ${f.type === 'textarea' || f.type === 'multiselect' ? 'sm:col-span-2' : ''}`}>
                   <DynamicField field={f} value={form.attributes[f.key] ?? ''} onChange={(v) => setAttr(f.key, v)} t={t} lng={i18n.language} />
                 </div>
               ))}
@@ -504,7 +653,7 @@ export default function ProviderPostForm() {
               <CollapsibleSection title={t('posts.moreDetails')} defaultOpen={false} variant="bare">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {schema.fields.filter((f) => f.group === 'details').map((f) => (
-                    <div key={f.key} className={f.type === 'textarea' || f.type === 'multiselect' ? 'sm:col-span-2' : undefined}>
+                    <div key={f.key} {...fieldWrap(f.key)} className={`${fieldWrap(f.key).className} ${f.type === 'textarea' || f.type === 'multiselect' ? 'sm:col-span-2' : ''}`}>
                       <DynamicField field={f} value={form.attributes[f.key] ?? ''} onChange={(v) => setAttr(f.key, v)} t={t} lng={i18n.language} />
                     </div>
                   ))}
@@ -518,7 +667,7 @@ export default function ProviderPostForm() {
           <FormSection title={t('posts.pricing')}>
             {schema?.has_price && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {field(t('posts.priceAmount'), 'price_amount', 'number')}
+                {field(t('posts.priceAmount'), 'price_amount', 'text', { format: 'currency', wrapKey: 'price' })}
                 <div>
                   <label className="text-xs text-muted block mb-1.5">{t('posts.priceUnit')}</label>
                   <Input as="select" value={form.price_unit} onChange={(e) => set('price_unit', e.target.value)}>

@@ -85,7 +85,7 @@ export default function AppSidebar({ onNavigate }) {
   const navMap = useMemo(() => buildNav(t), [t])
   const nav = isAdmin ? navMap.admin : user?.type === 'PROVIDER' ? navMap.provider : navMap.customer
   const isAdminProvider = isAdmin && user?.type === 'PROVIDER'
-  const role = isAdmin ? 'Admin' : user?.type === 'PROVIDER' ? t('onboarding.provider') : t('onboarding.customer')
+  const role = isAdmin ? t('admin.role') : user?.type === 'PROVIDER' ? t('onboarding.provider') : t('onboarding.customer')
   const profilePath = isAdmin ? '/admin/profile' : user?.type === 'PROVIDER' ? '/provider/profile' : '/customer/profile'
   const displayUser = profile ?? user
 
@@ -96,7 +96,7 @@ export default function AppSidebar({ onNavigate }) {
       className="flex flex-col w-60 h-full bg-surface border-r border-border/20 shadow-card shrink-0"
     >
       <div className="h-14 px-4 flex flex-col justify-center border-b border-border/50 overflow-hidden">
-        <h1 className="text-lg md:text-xl font-bold text-primary tracking-tight leading-tight">ZuuchMap</h1>
+        <h1 className="text-lg md:text-xl font-bold text-primary-text tracking-tight leading-tight">ZuuchMap</h1>
         {/* One line, ellipsized — the EN tagline is long enough to wrap and
             spill past the fixed-height header into the nav below otherwise. */}
         <p className="text-[11px] leading-tight text-muted truncate">{t('landing.footerTagline')}</p>

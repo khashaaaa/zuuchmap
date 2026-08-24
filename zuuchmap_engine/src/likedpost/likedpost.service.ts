@@ -117,4 +117,19 @@ export class LikedpostService {
     const liked = await this.likedPostRepository.find({ where, select: ['post_id'] });
     return liked.map(lp => lp.post_id);
   }
+
+  /**
+   * Every liked id, keyed by post_type. A browse list spans all categories, so
+   * asking per type meant one request per category on screen — and the answer
+   * never depended on which posts were visible.
+   */
+  async getUserLikedPostIdsByType(user_id: string): Promise<Record<string, number[]>> {
+    const liked = await this.likedPostRepository.find({
+      where: { user_id }, select: ['post_type', 'post_id'],
+    });
+    return liked.reduce<Record<string, number[]>>((acc, lp) => {
+      (acc[lp.post_type] ??= []).push(lp.post_id);
+      return acc;
+    }, {});
+  }
 }

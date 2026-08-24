@@ -54,7 +54,7 @@ export default function NotificationBell() {
             accessibilityLabel={t('notifications.title')}
         >
             <Animated.View style={!reduced && { transform: [{ rotate }] }}>
-                <Ionicons name="notifications-outline" size={22} color={colors.primary} />
+                <Ionicons name="notifications-outline" size={22} color={colors.iconAccent} />
             </Animated.View>
             {unreadCount > 0 && (
                 <Animated.View style={[

@@ -8,6 +8,7 @@ const FOCUSABLE_SELECTOR = 'button, [href], input, select, textarea, [tabindex]:
 const SIZES = {
   md: 'max-w-md',
   lg: 'max-w-2xl',
+  xl: 'max-w-5xl',
 }
 
 export default function Modal({ open, onClose, title, children, footer, tabs, size = 'md' }) {

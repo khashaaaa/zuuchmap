@@ -19,7 +19,4 @@ export class UpdateUserDto {
 
   @IsOptional()
   profile_picture?: string
-
-  @IsOptional()
-  company?: string
 }

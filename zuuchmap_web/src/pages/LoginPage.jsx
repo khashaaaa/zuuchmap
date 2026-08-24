@@ -9,6 +9,7 @@ import { useAuthStore as useStore } from '@/store'
 import { toast } from 'sonner'
 import Button from '@/components/Button'
 import Input from '@/components/Input'
+import Logo from '@/components/Logo'
 import { apiErrorMessage } from '@/lib/utils'
 
 export default function LoginPage() {
@@ -59,9 +60,7 @@ export default function LoginPage() {
       >
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex flex-col items-center">
-            <div className="w-14 h-14 rounded-card bg-primary/15 flex items-center justify-center mx-auto mb-4">
-              <span className="text-2xl">🏗️</span>
-            </div>
+            <Logo size="lg" className="mx-auto mb-4" />
             <h1 className="text-2xl font-bold text-text">ZuuchMap</h1>
           </Link>
           <p className="text-sm text-muted mt-1">{t('auth.subtitle')}</p>
@@ -94,13 +93,13 @@ export default function LoginPage() {
             </Button>
           </form>
         </div>
-        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 mt-6 text-xs text-muted">
+        {/* No middot separators: as their own flex items they get stranded at
+            the end of a wrapped line. The four labels are long enough in mn
+            that this row always wraps — gap alone carries the separation. */}
+        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5 mt-6 text-xs text-muted">
           <Link to="/" className="whitespace-nowrap hover:text-text transition-colors">{t('landing.browse')}</Link>
-          <span>·</span>
           <Link to="/privacy" className="whitespace-nowrap hover:text-text transition-colors">{t('privacy.title')}</Link>
-          <span>·</span>
           <Link to="/terms" className="whitespace-nowrap hover:text-text transition-colors">{t('terms.title')}</Link>
-          <span>·</span>
           <Link to="/help" className="whitespace-nowrap hover:text-text transition-colors">{t('helpSupport.title')}</Link>
         </div>
       </motion.div>

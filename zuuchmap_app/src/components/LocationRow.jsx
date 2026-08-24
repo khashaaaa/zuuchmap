@@ -22,15 +22,21 @@ const LocationRow = ({
     const getLocationText = () => {
         if (location) return location;
         if (address) return address;
-        const locationParts = [province, district].filter(Boolean);
+        // province/district are enum codes (ULAANBAATAR, BAYANZURKH). Printing
+        // them raw showed the storage format to the user; the labels live in
+        // i18n under `province.<CODE>` / `district.<CODE>`.
+        const locationParts = [
+            province && t(`province.${province}`, { defaultValue: province }),
+            district && t(`district.${district}`, { defaultValue: district }),
+        ].filter(Boolean);
         return locationParts.length > 0
-            ? locationParts.join(' ')
+            ? locationParts.join(', ')
             : t('provider.locationUnknown');
     };
 
     return (
         <View style={[styles.container, containerStyle]}>
-            <Ionicons name="location-outline" size={iconSize} color={colors.primary} />
+            <Ionicons name="location-outline" size={iconSize} color={colors.iconAccent} />
             <Text
                 style={[styles.text, textStyle]}
                 numberOfLines={numberOfLines}

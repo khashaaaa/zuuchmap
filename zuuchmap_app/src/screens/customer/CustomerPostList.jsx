@@ -1,5 +1,4 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
 import {
     View,
     Text,
@@ -10,6 +9,7 @@ import {
     RefreshControl,
     TextInput,
     Platform,
+    ActivityIndicator,
     StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,20 +23,25 @@ import { getPostImageUrl } from '../../config/api.config';
 import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import ScreenHeader from '../../components/ScreenHeader';
 import LikeButton from '../../components/LikeButton';
-import { CategoryBadge, StatusBadge, SkeletonItem, EmptyState, LocationRow, FadeSlideIn, Button, SelectionPop } from '../../components';
+import { CategoryBadge, StatusBadge, SkeletonItem, EmptyState, LocationRow, FadeSlideIn, Button, SelectionPop, AvailabilityStrip, OfflineBanner, SavedSearchSheet } from '../../components';
 import ScreenError from '../../components/ScreenError';
 import SearchInput from '../../components/SearchInput';
 import BottomSheetModal from '../../components/BottomSheetModal';
 import PressableScale from '../../components/PressableScale';
-import { getFixedImageUrl, getPostPrice, getPostImage, getPostTitle as getPostTitleUtil, getSearchableText, categoryToPostType, getSchemaLabel } from '../../utils/postUtils';
-import { useQuery } from '@tanstack/react-query';
+import { getFixedImageUrl, getPostPrice, getPostImage, getPostTitle as getPostTitleUtil, categoryToPostType, getSchemaLabel } from '../../utils/postUtils';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
+import { provinces as PROVINCE_CODES, districts as DISTRICT_CODES } from '../../config/app.config';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useMinDisplayTime } from '../../hooks/useMinDisplayTime';
-import { showErrorAlert, getErrorMessage } from '../../utils/errorManager';
+import { getErrorMessage } from '../../utils/errorManager';
 import { logger } from '../../utils/logger';
 import likeService from '../../services/api/likeService';
 import userService from '../../services/api/userService';
 import NotificationBell from '../../components/NotificationBell';
+
+// Browse pages through the API. The engine caps `limit` at 100 (post.service.ts),
+// so the list must page — a single fetch silently truncated the marketplace.
+const PAGE_SIZE = 20;
 
 const SORT_OPTIONS = [
     { value: '' },
@@ -66,6 +71,9 @@ const PostItem = React.memo(({
     showLike = true,
     emphasized = false,
     emphasisLabel = '',
+    featured = false,
+    featuredLabel = '',
+    rentalStrip = false,
 }) => {
     const styles = useMemo(() => createStyles(colors), [colors]);
     const [imageError, setImageError] = useState(false);
@@ -92,13 +100,13 @@ const PostItem = React.memo(({
                     />
                 ) : (
                     <View style={styles.noImageContainer}>
-                        <Ionicons name="image-outline" size={28} color={colors.primary} />
+                        <Ionicons name="image-outline" size={28} color={colors.iconAccent} />
                     </View>
                 )}
                 {item.status && (
                     <StatusBadge
                         status={item.status}
-                        variant="default"
+                        variant="overlay"
                         position="absolute"
                         showIndicator={false}
                     />
@@ -106,6 +114,12 @@ const PostItem = React.memo(({
                 {emphasized && (
                     <View style={styles.emphasizedBadge}>
                         <Text style={styles.emphasizedBadgeText} numberOfLines={1}>{emphasisLabel}</Text>
+                    </View>
+                )}
+                {featured && (
+                    <View style={styles.featuredBadge}>
+                        <Ionicons name="star" size={10} color={colors.onPrimary} />
+                        <Text style={styles.featuredBadgeText} numberOfLines={1}>{featuredLabel}</Text>
                     </View>
                 )}
             </View>
@@ -136,6 +150,10 @@ const PostItem = React.memo(({
                     <Text style={styles.postPrice}>{price}</Text>
                 )}
 
+                {rentalStrip && (
+                    <AvailabilityStrip busyDates={item.busy_dates} size="sm" />
+                )}
+
                 <View style={styles.postFooter}>
                     <LocationRow
                         location={item.location}
@@ -158,6 +176,8 @@ const PostItem = React.memo(({
         prevProps.item.id === nextProps.item.id &&
         prevProps.item.status === nextProps.item.status &&
         prevProps.item.date_created === nextProps.item.date_created &&
+        prevProps.item.busy_dates === nextProps.item.busy_dates &&
+        prevProps.rentalStrip === nextProps.rentalStrip &&
         prevProps.is_liked === nextProps.is_liked &&
         prevProps.is_authenticated === nextProps.is_authenticated &&
         prevProps.showLike === nextProps.showLike &&
@@ -179,6 +199,9 @@ const CustomerPostList = ({ route, navigation }) => {
         subcategory: routeSubcategory,
         categoryDisplayName,
         subcategoryDisplayName,
+        province: routeProvince,
+        district: routeDistrict,
+        q: routeQuery,
     } = route?.params || {};
 
     // isFilterMode: navigated to with a category (from SubcategorySelectScreen)
@@ -186,21 +209,27 @@ const CustomerPostList = ({ route, navigation }) => {
     const isFilterMode = Boolean(routeCategory);
 
     const [refreshing, setRefreshing] = useState(false);
-    const [searchQuery, setSearchQuery] = useState('');
+    const [searchQuery, setSearchQuery] = useState(routeQuery || '');
     const debouncedSearchQuery = useDebounce(searchQuery, 300);
     const [likedPostsStatus, setLikedPostsStatus] = useState({});
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [isCustomer, setIsCustomer] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
+    const [showSaveSearch, setShowSaveSearch] = useState(false);
     const [filters, setFilters] = useState({
         category: routeCategory || '',
         subcategory: routeSubcategory || '',
         priceMin: '',
         priceMax: '',
         sort: '',
-        location: '',
+        province: routeProvince || '',
+        district: routeDistrict || '',
         status: isFilterMode ? '' : 'active',
     });
+    // Price inputs are debounced: every keystroke would otherwise start a new
+    // server query and reset paging.
+    const debouncedPriceMin = useDebounce(filters.priceMin, 400);
+    const debouncedPriceMax = useDebounce(filters.priceMax, 400);
 
     const bottomPadding = useMemo(() => {
         const tabBarHeight = Platform.OS === 'ios' ? 88 : 65;
@@ -213,55 +242,71 @@ const CustomerPostList = ({ route, navigation }) => {
     // Filter mode: fetch by specific post type
     const getPostType = useMemo(() => (isFilterMode ? categoryToPostType(routeCategory) : null), [isFilterMode, routeCategory]);
 
-    const { data: categoryPosts = [], isLoading: categoryLoading, isError: categoryError, error: categoryErrorObj, refetch: refetchCategory } = useQuery({
-        queryKey: ['posts', 'list', getPostType, routeSubcategory || 'all'],
-        queryFn: async () => {
-            const response = await postService.getList({ category: getPostType, approval_status: 'APPROVED' });
-            const postsData = Array.isArray(response.data) ? response.data : [];
-            let filteredData = postsData;
-            if (routeSubcategory) {
-                filteredData = postsData.filter(post =>
-                    post.subcategory === routeSubcategory
-                );
-            }
-            return filteredData.map(post => {
-                getSearchableText(post);
-                return { ...post, post_type: post.category };
-            });
-        },
-        staleTime: 10 * 60 * 1000,
-        enabled: isFilterMode,
-    });
+    // Every narrowing is a server parameter. Filtering client-side only ever saw
+    // the first page, so "cheapest" and "most viewed" ranked one page, not the
+    // marketplace. The engine owns category/subcategory/province/district/price/
+    // sort/full-text (post.service.ts) — mirror the web browse exactly.
+    const queryFilters = useMemo(() => {
+        const q = debouncedSearchQuery.trim();
+        const params = {
+            approval_status: 'APPROVED',
+            limit: PAGE_SIZE,
+            category: isFilterMode ? getPostType : (filters.category || undefined),
+            subcategory: isFilterMode ? (routeSubcategory || undefined) : undefined,
+            q: q || undefined,
+        };
+        if (!isFilterMode) {
+            if (filters.province) params.province = filters.province;
+            if (filters.district) params.district = filters.district;
+            if (filters.sort) params.sort = filters.sort;
+            if (debouncedPriceMin) params.price_min = debouncedPriceMin;
+            if (debouncedPriceMax) params.price_max = debouncedPriceMax;
+            // Enum values are uppercase server-side; the chips carry lowercase.
+            if (filters.status) params.status = filters.status.toUpperCase();
+        }
+        return params;
+    }, [
+        isFilterMode, getPostType, routeSubcategory, debouncedSearchQuery,
+        filters.category, filters.province, filters.district, filters.sort, filters.status,
+        debouncedPriceMin, debouncedPriceMax,
+    ]);
 
-    // Browse mode: fetch all posts (with optional server-side full-text search)
-    const { data: allPosts = [], isLoading: allLoading, isError: allError, error: allErrorObj, refetch: refetchAll } = useQuery({
-        queryKey: ['posts', 'all', 'approved', debouncedSearchQuery],
-        queryFn: async () => {
-            const response = await postService.getList({
-                approval_status: 'APPROVED',
-                q: debouncedSearchQuery.trim() || undefined,
-            });
-            const combinedPosts = (Array.isArray(response?.data) ? response.data : []).map(post => {
-                const processedPost = {
-                    ...post,
-                    post_type: post.category,
-                    imageUrl: getPostImageUrl(post.images?.[0]),
-                };
-                getSearchableText(processedPost);
-                return processedPost;
-            });
-            combinedPosts.sort((a, b) => new Date(b.date_created || b.created_at) - new Date(a.date_created || a.created_at));
-            return combinedPosts;
+    const {
+        data,
+        isLoading: loadingRaw,
+        isError,
+        error: errorObj,
+        refetch,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+    } = useInfiniteQuery({
+        queryKey: ['posts', 'browse', queryFilters],
+        initialPageParam: 1,
+        queryFn: async ({ pageParam }) => {
+            const response = await postService.getList({ ...queryFilters, page: pageParam });
+            const items = (Array.isArray(response?.data) ? response.data : []).map((post) => ({
+                ...post,
+                post_type: post.category,
+                imageUrl: getPostImageUrl(post.images?.[0]),
+            }));
+            return {
+                items,
+                total: response.total ?? items.length,
+                page: pageParam,
+                fromCache: Boolean(response?.fromCache),
+                cachedAt: response?.cachedAt ?? null,
+            };
         },
+        getNextPageParam: (last) =>
+            last.page * PAGE_SIZE < last.total ? last.page + 1 : undefined,
         staleTime: 30_000,
-        enabled: !isFilterMode,
     });
 
-    const posts = isFilterMode ? categoryPosts : allPosts;
-    const loadingRaw = isFilterMode ? categoryLoading : allLoading;
+    const posts = useMemo(() => (data?.pages ?? []).flatMap((pg) => pg.items), [data]);
+    const totalCount = data?.pages?.[0]?.total ?? 0;
+    const firstPage = data?.pages?.[0];
     const loading = useMinDisplayTime(loadingRaw);
-    const isError = isFilterMode ? categoryError : allError;
-    const errorObj = isFilterMode ? categoryErrorObj : allErrorObj;
 
     // Browse mode: fetch live category list for the pill row
     const { data: categorySchemas = [] } = useQuery({
@@ -281,11 +326,8 @@ const CustomerPostList = ({ route, navigation }) => {
     ], [categorySchemas, t]);
 
     useEffect(() => {
-        if (isError) {
-            logger.warn('Could not load posts');
-            showErrorAlert(t('common.error'), errorObj);
-        }
-    }, [isError, errorObj, t]);
+        if (isError) logger.warn('Could not load posts');
+    }, [isError]);
 
     useEffect(() => {
         userService.isAuthenticated().then(authStatus => {
@@ -295,81 +337,33 @@ const CustomerPostList = ({ route, navigation }) => {
         }).catch(() => {});
     }, []);
 
-    useFocusEffect(
-        useCallback(() => {
-            if (posts.length === 0 || !isAuthenticated) return;
-            likeService.batchCheckLiked(posts).then(setLikedPostsStatus).catch(() => {});
-        }, [posts, isAuthenticated])
-    );
+    // Keyed on the user, not the page: the liked-id set is the same whatever is
+    // scrolled into view, so this is one cached request instead of one per
+    // category per appended page.
+    const { data: likedByType } = useQuery({
+        queryKey: ['liked', 'ids'],
+        queryFn: () => likeService.likedIdsByType(),
+        enabled: isAuthenticated,
+        staleTime: 60_000,
+    });
 
-    // --- Filtering ---
-
-    const filteredPosts = useMemo(() => {
-        const query = debouncedSearchQuery.trim().toLowerCase();
-
-        if (isFilterMode) {
-            // Filter mode: text search is client-side (category/subcategory already baked in)
-            if (!query) return posts;
-            return posts.filter(post => getSearchableText(post).includes(query));
-        }
-
-        // Browse mode: text search is server-side (?q=); apply remaining local filters only
-        const locationQuery = filters.location?.toLowerCase();
-        const statusUpper = filters.status?.toUpperCase();
-
-        const priceMin = Number(filters.priceMin);
-        const priceMax = Number(filters.priceMax);
-        const hasMin = filters.priceMin !== '' && !Number.isNaN(priceMin);
-        const hasMax = filters.priceMax !== '' && !Number.isNaN(priceMax);
-
-        const result = posts.filter(post => {
-            if (filters.category && post.post_type !== filters.category) return false;
-            if (hasMin || hasMax) {
-                const price = Number(post.price_amount);
-                if (!price) return false;
-                if (hasMin && price < priceMin) return false;
-                if (hasMax && price > priceMax) return false;
-            }
-            if (locationQuery) {
-                const loc = [post.location, post.address, post.province, post.district]
-                    .filter(Boolean).join(' ').toLowerCase();
-                if (!loc.includes(locationQuery)) return false;
-            }
-            if (statusUpper) {
-                const postStatus = post.status?.toUpperCase() ?? 'ACTIVE';
-                if (statusUpper === 'ACTIVE' ? postStatus !== 'ACTIVE' : postStatus !== statusUpper) return false;
-            }
-            return true;
-        });
-
-        // Unpriced posts sink to the bottom of price sorts so "cheapest" never means "no price"
-        if (filters.sort === 'price_asc' || filters.sort === 'price_desc') {
-            const dir = filters.sort === 'price_asc' ? 1 : -1;
-            result.sort((a, b) => {
-                const pa = Number(a.price_amount) || null;
-                const pb = Number(b.price_amount) || null;
-                if (pa === null && pb === null) return 0;
-                if (pa === null) return 1;
-                if (pb === null) return -1;
-                return (pa - pb) * dir;
-            });
-        } else if (filters.sort === 'views') {
-            result.sort((a, b) => (b.views || 0) - (a.views || 0));
-        }
-        return result;
-    }, [isFilterMode, posts, debouncedSearchQuery, filters]);
+    useEffect(() => {
+        setLikedPostsStatus(likeService.likedStatusMap(likedByType));
+    }, [likedByType]);
 
     // --- Callbacks ---
 
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
-        if (isFilterMode) {
-            await refetchCategory();
-        } else {
-            await refetchAll();
-        }
+        await refetch();
         setRefreshing(false);
-    }, [isFilterMode, refetchCategory, refetchAll]);
+    }, [refetch]);
+
+    // Paging is what keeps the list honest: without it the screen showed one
+    // page and read as the whole marketplace.
+    const handleLoadMore = useCallback(() => {
+        if (hasNextPage && !isFetchingNextPage) fetchNextPage();
+    }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
     const handlePostPress = useCallback((post) => {
         navigation.navigate('PostDetailScreen', {
@@ -394,7 +388,8 @@ const CustomerPostList = ({ route, navigation }) => {
             priceMin: '',
             priceMax: '',
             sort: '',
-            location: '',
+            province: '',
+            district: '',
             status: '',
         });
         setSearchQuery('');
@@ -426,10 +421,17 @@ const CustomerPostList = ({ route, navigation }) => {
     // i18n.language: emphasis labels must recompute when the locale switches.
     }, [categorySchemas, i18n.language]);
 
+    // Categories that take bookings get the 14-day availability strip on the card.
+    const rentalByKey = useMemo(() => {
+        const map = {};
+        for (const c of categorySchemas) if (c.has_rental_status) map[c.key] = true;
+        return map;
+    }, [categorySchemas]);
+
     const renderPostItem = useCallback(({ item, index }) => {
         const post_key = `${item.post_type || 'construction'}-${item.id}`;
         return (
-            <FadeSlideIn index={index}>
+            <FadeSlideIn index={index} style={isTablet && { flex: 1 }}>
                 <PostItem
                     item={item}
                     onPress={handlePostPress}
@@ -443,33 +445,63 @@ const CustomerPostList = ({ route, navigation }) => {
                     showLike={isCustomer}
                     colors={colors}
                     emphasized={!!emphasisByKey[item.post_type]}
+                    featured={!!item.featured_until && new Date(item.featured_until) > new Date()}
+                    featuredLabel={t('posts.featured')}
                     emphasisLabel={emphasisByKey[item.post_type] || ''}
+                    rentalStrip={!!rentalByKey[item.post_type]}
                 />
             </FadeSlideIn>
         );
-    }, [handlePostPress, getPostTitleMemo, getPostPriceMemo, getPostImageMemo, likedPostsStatus, isAuthenticated, handleLikeChange, colors, emphasisByKey]);
+    }, [handlePostPress, getPostTitleMemo, getPostPriceMemo, getPostImageMemo, likedPostsStatus, isAuthenticated, handleLikeChange, colors, emphasisByKey, rentalByKey]);
 
     const keyExtractor = useCallback((item) => item.id.toString(), []);
 
+    const renderFooter = useCallback(() => {
+        if (isFetchingNextPage) {
+            return (
+                <View style={styles.listFooter}>
+                    <ActivityIndicator size="small" color={colors.iconAccent} />
+                </View>
+            );
+        }
+        // "You have reached the end" only when it is actually the end — the old
+        // list stopped at one page with no way to tell truncation from exhaustion.
+        if (!hasNextPage && posts.length > 0 && totalCount > PAGE_SIZE) {
+            return (
+                <View style={styles.listFooter}>
+                    <Text style={[styles.listFooterText, { color: colors.text.secondary }]}>
+                        {t('filter.resultsFound', { count: totalCount })}
+                    </Text>
+                </View>
+            );
+        }
+        return null;
+    }, [isFetchingNextPage, hasNextPage, posts.length, totalCount, colors, styles, t]);
+
     const renderHeader = useCallback(() => {
-        if (!isFilterMode) return null;
+        if (!isFilterMode) {
+            if (totalCount === 0) return null;
+            return (
+                <Text style={[styles.browseCount, { color: colors.text.secondary }]}>
+                    {t('filter.resultsFound', { count: totalCount })}
+                </Text>
+            );
+        }
         return (
             <View style={styles.headerInfo}>
-                <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+                <Ionicons name="checkmark-circle" size={20} color={colors.iconAccent} />
                 <View style={styles.headerTextContainer}>
                     <Text style={styles.categoryText}>
                         {categoryDisplayName} → {subcategoryDisplayName}
                     </Text>
                     <Text style={styles.resultCount}>
-                        {t('filter.resultsFound', { count: filteredPosts.length })}
+                        {t('filter.resultsFound', { count: totalCount })}
                         {searchQuery && ` "${searchQuery}"`}
                     </Text>
                 </View>
             </View>
         );
-    }, [isFilterMode, categoryDisplayName, subcategoryDisplayName, filteredPosts.length, searchQuery, t]);
-
-    const refetchActive = isFilterMode ? refetchCategory : refetchAll;
+    }, [isFilterMode, categoryDisplayName, subcategoryDisplayName, totalCount, searchQuery, colors, styles, t]);
 
     const renderEmptyState = useCallback(() => {
         if (isError) {
@@ -478,7 +510,7 @@ const CustomerPostList = ({ route, navigation }) => {
                 <ScreenError
                     icon="cloud-offline-outline"
                     message={getErrorMessage(errorObj)}
-                    onRetry={refetchActive}
+                    onRetry={refetch}
                 />
             );
         }
@@ -497,7 +529,36 @@ const CustomerPostList = ({ route, navigation }) => {
                 } : undefined}
             />
         );
-    }, [isError, errorObj, refetchActive, searchQuery, activeFiltersCount, clearFilters, t]);
+    }, [isError, errorObj, refetch, searchQuery, activeFiltersCount, clearFilters, t]);
+
+    const renderSaveSearchButton = () => {
+        if (!isAuthenticated || activeFiltersCount === 0) return null;
+        return (
+            <TouchableOpacity
+                onPress={() => setShowSaveSearch(true)}
+                style={[styles.filterRowBtn, { backgroundColor: colors.surface, borderColor: colors.border.light }]}
+                activeOpacity={interactions.activeOpacity}
+                accessibilityRole="button"
+                accessibilityLabel={t('savedSearch.save')}
+            >
+                <Ionicons name="bookmark-outline" size={20} color={colors.text.secondary} />
+            </TouchableOpacity>
+        );
+    };
+
+    const renderSaveSearchSheet = () => (
+        <SavedSearchSheet
+            visible={showSaveSearch}
+            onClose={() => setShowSaveSearch(false)}
+            filters={{
+                category: filters.category,
+                subcategory: filters.subcategory,
+                province: filters.province,
+                district: filters.district,
+                q: debouncedSearchQuery,
+            }}
+        />
+    );
 
     const renderFilterModal = () => {
         if (isFilterMode) return null;
@@ -516,7 +577,7 @@ const CustomerPostList = ({ route, navigation }) => {
                             style={styles.modalFooterButton}
                         />
                         <Button
-                            title={t('common.apply')}
+                            title={t('common.done')}
                             onPress={() => setShowFilters(false)}
                             variant="primary"
                             size="medium"
@@ -630,20 +691,60 @@ const CustomerPostList = ({ route, navigation }) => {
                     </View>
                 </View>
 
+                {/* Province/district are enum codes server-side; the old free-text
+                    box compared what the user typed ("Баянзүрх") against the raw
+                    code ("BAYANZURKH") and matched nothing. */}
                 <View style={styles.filterSection}>
-                    <Text style={[styles.filterLabel, { color: colors.text.secondary }]}>{t('filter.location')}</Text>
-                    <TextInput
-                        style={[styles.locationInput, {
-                            backgroundColor: colors.background,
-                            borderColor: colors.border.light,
-                            color: colors.text.primary,
-                        }]}
-                        value={filters.location}
-                        onChangeText={(text) => setFilters(prev => ({ ...prev, location: text }))}
-                        placeholder={t('common.locationSearch')}
-                        placeholderTextColor={colors.text.placeholder}
-                    />
+                    <Text style={[styles.filterLabel, { color: colors.text.secondary }]}>{t('common.province')}</Text>
+                    <View style={styles.filterOptionsContainer}>
+                        {[''].concat(PROVINCE_CODES).map((code) => {
+                            const isActive = filters.province === code;
+                            return (
+                                <SelectionPop key={code || 'all'} selected={isActive}>
+                                    <TouchableOpacity
+                                        style={[styles.filterOption, isActive && styles.filterOptionActive]}
+                                        onPress={() => setFilters(prev => ({
+                                            ...prev,
+                                            province: code,
+                                            // District only exists inside Ulaanbaatar — never leave a
+                                            // stale district narrowing a different province to zero.
+                                            district: code === 'ULAANBAATAR' ? prev.district : '',
+                                        }))}
+                                        activeOpacity={interactions.activeOpacity}
+                                    >
+                                        <Text style={[styles.filterOptionText, isActive && styles.filterOptionTextActive]}>
+                                            {code ? t(`province.${code}`, { defaultValue: code }) : t('filter.all')}
+                                        </Text>
+                                    </TouchableOpacity>
+                                </SelectionPop>
+                            );
+                        })}
+                    </View>
                 </View>
+
+                {filters.province === 'ULAANBAATAR' && (
+                    <View style={styles.filterSection}>
+                        <Text style={[styles.filterLabel, { color: colors.text.secondary }]}>{t('common.district')}</Text>
+                        <View style={styles.filterOptionsContainer}>
+                            {[''].concat(DISTRICT_CODES).map((code) => {
+                                const isActive = filters.district === code;
+                                return (
+                                    <SelectionPop key={code || 'all'} selected={isActive}>
+                                        <TouchableOpacity
+                                            style={[styles.filterOption, isActive && styles.filterOptionActive]}
+                                            onPress={() => setFilters(prev => ({ ...prev, district: code }))}
+                                            activeOpacity={interactions.activeOpacity}
+                                        >
+                                            <Text style={[styles.filterOptionText, isActive && styles.filterOptionTextActive]}>
+                                                {code ? t(`district.${code}`, { defaultValue: code }) : t('filter.all')}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </SelectionPop>
+                                );
+                            })}
+                        </View>
+                    </View>
+                )}
             </BottomSheetModal>
         );
     };
@@ -656,6 +757,7 @@ const CustomerPostList = ({ route, navigation }) => {
             <View style={[styles.pillsWrapper, { backgroundColor: colors.surface, borderBottomColor: colors.border.light }]}>
                 <ScrollView
                     horizontal
+                    keyboardShouldPersistTaps="handled"
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.pillsContainer}
                 >
@@ -753,10 +855,12 @@ const CustomerPostList = ({ route, navigation }) => {
                             )}
                         </TouchableOpacity>
                     )}
+                    {!isFilterMode && renderSaveSearchButton()}
                 </View>
                 {renderCategoryPills()}
                 <FlatList
                     data={Array(12).fill({})}
+                    keyboardShouldPersistTaps="handled"
                     renderItem={() => <SkeletonItem />}
                     keyExtractor={(_, index) => `skeleton-${index}`}
                     contentContainerStyle={[
@@ -807,16 +911,22 @@ const CustomerPostList = ({ route, navigation }) => {
                         {activeFiltersCount > 0 && (
                             <View style={styles.filterBadge}>
                                 <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
-                            </View>
+                                {!isFilterMode && renderSaveSearchButton()}
+            </View>
                         )}
                     </TouchableOpacity>
                 )}
+                {!isFilterMode && renderSaveSearchButton()}
             </View>
 
             {renderCategoryPills()}
 
+            {renderSaveSearchSheet()}
+            <OfflineBanner visible={Boolean(firstPage?.fromCache)} cachedAt={firstPage?.cachedAt} />
+
             <FlatList
-                data={filteredPosts}
+                data={posts}
+                keyboardShouldPersistTaps="handled"
                 renderItem={renderPostItem}
                 keyExtractor={keyExtractor}
                 numColumns={isTablet ? 2 : 1}
@@ -830,12 +940,17 @@ const CustomerPostList = ({ route, navigation }) => {
                 ]}
                 ListHeaderComponent={renderHeader}
                 ListEmptyComponent={renderEmptyState}
+                ListFooterComponent={renderFooter}
+                onEndReached={handleLoadMore}
+                onEndReachedThreshold={0.4}
                 refreshControl={
                     <RefreshControl
                         refreshing={refreshing}
                         onRefresh={onRefresh}
-                        colors={[colors.primary]}
-                        tintColor={colors.primary}
+                        colors={[colors.iconAccent]}
+                        tintColor={colors.iconAccent}
+                        progressBackgroundColor={colors.surface}
+                        titleColor={colors.text.secondary}
                     />
                 }
                 showsVerticalScrollIndicator={false}
@@ -854,6 +969,17 @@ const CustomerPostList = ({ route, navigation }) => {
 const createStyles = (colors) => StyleSheet.create({
     listContainer: {
         padding: spacing.lg,
+    },
+    listFooter: {
+        paddingVertical: spacing.lg,
+        alignItems: 'center',
+    },
+    listFooterText: {
+        ...typography.styles.caption,
+    },
+    browseCount: {
+        ...typography.styles.caption,
+        marginBottom: spacing.md,
     },
     headerInfo: {
         ...colors.elevation.sm,
@@ -906,8 +1032,9 @@ const createStyles = (colors) => StyleSheet.create({
         right: spacing.xs,
         backgroundColor: colors.danger,
         borderRadius: radius.md,
-        minWidth: 16,
-        height: 16,
+        // Match the tablet type scale (x1.25) or the badge digit clips.
+        minWidth: isTablet ? 20 : 16,
+        minHeight: isTablet ? 20 : 16,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -927,7 +1054,8 @@ const createStyles = (colors) => StyleSheet.create({
         borderColor: colors.border.light,
     },
     emphasizedCard: {
-        borderColor: colors.danger,
+        ...colors.elevation.selected,
+        backgroundColor: colors.opacity.background.primaryLight,
     },
     imageContainer: {
         width: 96,
@@ -936,18 +1064,40 @@ const createStyles = (colors) => StyleSheet.create({
     },
     emphasizedBadge: {
         position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        backgroundColor: colors.danger,
+        top: spacing.xxs,
+        left: spacing.xxs,
+        maxWidth: '92%',
+        backgroundColor: colors.primary,
         paddingVertical: spacing.xxs,
-        paddingHorizontal: spacing.xxs,
+        paddingHorizontal: spacing.xs,
+        borderRadius: radius.sm,
+    },
+    // Paid placement. Bottom-left, because top-left is the emphasis badge and
+    // top-right is the StatusBadge overlay — the two can co-occur on one card.
+    featuredBadge: {
+        position: 'absolute',
+        bottom: spacing.xxs,
+        left: spacing.xxs,
+        maxWidth: '92%',
+        flexDirection: 'row',
         alignItems: 'center',
+        gap: spacing.xxs,
+        backgroundColor: colors.primary,
+        paddingVertical: spacing.xxs,
+        paddingHorizontal: spacing.xs,
+        borderRadius: radius.sm,
+    },
+    featuredBadgeText: {
+        ...typography.styles.overline,
+        color: colors.onPrimary,
+        // Yoga defaults flexShrink to 0: without this a long translation pushes
+        // the star out of the badge instead of truncating.
+        flexShrink: 1,
     },
     emphasizedBadgeText: {
         // The badge label is set in caps, which is exactly what `overline` is tuned for.
         ...typography.styles.overline,
-        color: colors.text.onColor,
+        color: colors.onPrimary,
     },
     postImage: {
         position: 'absolute',
@@ -982,7 +1132,7 @@ const createStyles = (colors) => StyleSheet.create({
     },
     postPrice: {
         ...typography.styles.price,
-        color: colors.primary,
+        color: colors.text.link,
     },
     postFooter: {
         flexDirection: 'row',

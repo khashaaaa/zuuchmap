@@ -85,6 +85,7 @@ export function setCacheBroadcaster(fn: (scope: CacheInvalidationScope) => void)
 export function applyCacheInvalidation(scope: CacheInvalidationScope): void {
   if (scope === 'post') {
     sharedCache.invalidatePrefix('posts:list:');
+    sharedCache.invalidatePrefix('posts:similar:');
     sharedCache.del('posts:map');
     sharedCache.del('posts:public-stats');
     sharedCache.del('admin:stats');

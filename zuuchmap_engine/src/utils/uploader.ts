@@ -111,7 +111,7 @@ export const createCompanyLogoInterceptor = () =>
     limits: { fileSize: IMAGE_CONFIG.COMPANY_LOGO.maxSize },
   });
 
-export const createPostImageUploadInterceptor = (_destination: string, maxCount = 10) =>
+export const createPostImageUploadInterceptor = (maxCount = 10) =>
   FilesInterceptor('images', maxCount, {
     storage: memoryStorage(),
     fileFilter: imageFileFilter,
@@ -122,37 +122,25 @@ export class ImageUploadHandler {
   static async handleSingleUpload(
     file: Express.Multer.File,
     imageType: keyof typeof IMAGE_CONFIG,
-    oldImagePath?: string
   ): Promise<string | null> {
     if (!file?.buffer) return null;
     const config = IMAGE_CONFIG[imageType];
 
     validateImageBytes(file.buffer);
     const compressed = await compressToBuffer(file.buffer, config);
-    const url = await uploadToR2(compressed, makeKey(config.prefix));
-
-    if (oldImagePath) await deleteFromR2(oldImagePath);
-
-    return url;
+    return uploadToR2(compressed, makeKey(config.prefix));
   }
 
-  static async processAfterSave(
-    files: Express.Multer.File[],
-    destination: string,
-  ): Promise<string[]> {
+  static async processAfterSave(files: Express.Multer.File[]): Promise<string[]> {
     if (!files || files.length === 0) return [];
 
-    // Resolve config from destination prefix (e.g. './uploads/construction' → CONSTRUCTION)
-    const pathKey = destination.split('/').pop()?.toUpperCase() as keyof typeof IMAGE_CONFIG | undefined;
-    const config = pathKey && IMAGE_CONFIG[pathKey]
-      ? IMAGE_CONFIG[pathKey]
-      : { prefix: pathKey?.toLowerCase() ?? 'posts', quality: 75, maxWidth: 1920, maxHeight: 1080 };
+    const config = { prefix: 'posts', quality: 75, maxWidth: 1920, maxHeight: 1080 };
 
     const urls: string[] = [];
     for (const file of files) {
       if (!file?.buffer) continue;
       validateImageBytes(file.buffer);
-      const compressed = await compressToBuffer(file.buffer, config as any);
+      const compressed = await compressToBuffer(file.buffer, config);
       const url = await uploadToR2(compressed, makeKey(config.prefix));
       urls.push(url);
     }
@@ -161,9 +149,9 @@ export class ImageUploadHandler {
 }
 
 // These are called when posts/profiles are deleted — now delete from R2
-export const deleteSingleImage = async (keyOrUrl: string, _destination?: string) => deleteFromR2(keyOrUrl);
+export const deleteSingleImage = async (keyOrUrl: string) => deleteFromR2(keyOrUrl);
 
-export const deleteMultipleImages = async (items: string[], _destination?: string) => {
+export const deleteMultipleImages = async (items: string[]) => {
   await Promise.allSettled(items.map(deleteFromR2));
 };
 

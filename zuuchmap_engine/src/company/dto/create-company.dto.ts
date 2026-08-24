@@ -29,9 +29,6 @@ export class CreateCompanyDto {
   @IsOptional()
   tax_id?: string;
 
-  @IsOptional()
-  is_verified?: boolean;
-
   @IsUUID()
   @IsOptional()
   userId?: string

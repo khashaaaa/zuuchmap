@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Trash2, Phone, Mail, MapPin, Calendar } from 'lucide-react'
-import { usersApi } from '@/lib/api'
+import { Trash2, Phone, Mail, MapPin, Calendar, BadgeCheck, Building2 } from 'lucide-react'
+import { usersApi, adminApi } from '@/lib/api'
 import { formatDate, goBack, apiErrorMessage } from '@/lib/utils'
 import UserAvatar from '@/components/UserAvatar'
 import { useAuthStore } from '@/store'
@@ -25,6 +25,18 @@ export default function AdminUserDetail() {
   const { data: user, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['user', id],
     queryFn: () => usersApi.getById(id),
+  })
+
+  // The badge asserts that a human checked this company against the state
+  // register, so it is granted here — beside the registration number the admin
+  // is checking — and never as a side effect of a payment or a plan change.
+  const verifyMut = useMutation({
+    mutationFn: (next) => adminApi.verifyCompany(user.company.id, next),
+    onSuccess: (_res, next) => {
+      qc.invalidateQueries({ queryKey: ['user', id] })
+      toast.success(next ? t('admin.companyVerified') : t('admin.companyUnverified'))
+    },
+    onError: (e) => toast.error(apiErrorMessage(e, t, t('common.error'))),
   })
 
   const deleteMut = useMutation({
@@ -83,6 +95,33 @@ export default function AdminUserDetail() {
             </div>
           ))}
         </div>
+
+        {user.company && (
+          <div className="pt-4 border-t border-border/50">
+            <div className="flex items-center gap-2 text-sm text-text">
+              <Building2 size={14} className="shrink-0 text-muted" />
+              <span className="font-medium">{user.company.name}</span>
+            </div>
+            {user.company.registration_number && (
+              <p className="text-xs text-muted mt-1 ml-6 tabular-nums">
+                {t('company.regNumber')}: {user.company.registration_number}
+              </p>
+            )}
+            <div className="mt-3 ml-6">
+              <Button
+                variant={user.company.is_verified ? 'primary' : 'outline'}
+                size="sm"
+                onClick={() => verifyMut.mutate(!user.company.is_verified)}
+                disabled={verifyMut.isPending}
+              >
+                <BadgeCheck size={14} /> {t('admin.companyVerify')}
+              </Button>
+              {!user.company.is_verified && (
+                <p className="text-xs text-muted mt-1.5">{t('admin.companyVerifyHint')}</p>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {(user.is_admin !== true || user.id === currentUser?.id) && (

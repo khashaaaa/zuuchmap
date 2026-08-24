@@ -12,20 +12,20 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet, animations } from '../../design/theme';
+import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet, animations, withAlpha } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useMinDisplayTime } from '../../hooks/useMinDisplayTime';
 import { useTranslation } from 'react-i18next';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import postService from '../../services/api/postService';
 import userService from '../../services/api/userService';
 import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import ScreenHeader from '../../components/ScreenHeader';
 import PressableScale from '../../components/PressableScale';
 import NotificationBell from '../../components/NotificationBell';
-import { CategoryBadge, StatusBadge, SkeletonItem, EmptyState, FadeSlideIn } from '../../components';
+import { CategoryBadge, SkeletonItem, EmptyState, FadeSlideIn, StatusBadge } from '../../components';
 import ScreenError from '../../components/ScreenError';
-import { getPriceUnitLabel, formatPrice, formatDateYYYYMMDD } from '../../utils/displayUtils';
+import { formatPrice, formatDate } from '../../utils/displayUtils';
 import { getPostTitle, getFixedImageUrl, getPostImage } from '../../utils/postUtils';
 import { showErrorModal, showInfoModal } from '../../utils/errorManager';
 import { logger } from '../../utils/logger';
@@ -42,6 +42,7 @@ const PostItem = React.memo(({
     setImageErrors,
     colors,
     t,
+    stat,
 }) => {
     const styles = useMemo(() => createStyles(colors), [colors]);
     const itemId = `${item.postType}-${item.id}`;
@@ -69,7 +70,7 @@ const PostItem = React.memo(({
             <View style={[styles.imageContainer, { backgroundColor: colors.border.light }]}>
                 {!imageUri || hasImageError ? (
                     <View style={styles.noImageContainer}>
-                        <Ionicons name="image-outline" size={28} color={colors.primary} />
+                        <Ionicons name="image-outline" size={28} color={colors.iconAccent} />
                     </View>
                 ) : (
                     <Image
@@ -91,10 +92,12 @@ const PostItem = React.memo(({
                         style={styles.menuButton}
                         onPress={handleMenuPress}
                         disabled={isLoading}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('common.more')}
                         hitSlop={interactions.hitSlop}
                     >
                         {isLoading
-                            ? <ActivityIndicator size="small" color={colors.primary} />
+                            ? <ActivityIndicator size="small" color={colors.iconAccent} />
                             : <Ionicons name="ellipsis-vertical" size={18} color={colors.text.tertiary} />
                         }
                     </TouchableOpacity>
@@ -102,15 +105,26 @@ const PostItem = React.memo(({
 
                 <CategoryBadge postType={item.postType} showIcon={true} />
 
-                {item.approval_status === 'PENDING' && (
-                    <View style={styles.approvalBadgePending}>
-                        <Text style={[styles.approvalBadgeText, { color: colors.warning }]}>{t('posts.approval.pending')}</Text>
+                {!!item.featured_until && new Date(item.featured_until) > new Date() && (
+                    <View style={styles.featuredChip}>
+                        <Ionicons name="star" size={11} color={colors.onPrimary} />
+                        <Text style={styles.featuredChipText} numberOfLines={1}>{t('posts.featured')}</Text>
                     </View>
                 )}
-                {item.approval_status === 'REJECTED' && (
-                    <View style={styles.approvalBadgeRejected}>
-                        <Text style={[styles.approvalBadgeText, { color: colors.danger }]}>{t('posts.approval.rejected')}</Text>
-                        {item.rejection_reason && (
+
+                {/* The shared badge, not a local one. This screen used to draw its
+                    own tinted-outline chip from `posts.approval.*`, so the same
+                    post read "Under review" here in an outlined chip and
+                    "Pending" on the detail screen in a solid pill. */}
+                {(item.approval_status === 'PENDING' || item.approval_status === 'REJECTED') && (
+                    <View style={styles.approvalBadgeRow}>
+                        <StatusBadge
+                            status={item.approval_status}
+                            variant="inline"
+                            position="relative"
+                            showIndicator={false}
+                        />
+                        {item.approval_status === 'REJECTED' && item.rejection_reason && (
                             <Text style={styles.rejectionReason} numberOfLines={2}>{item.rejection_reason}</Text>
                         )}
                     </View>
@@ -122,8 +136,25 @@ const PostItem = React.memo(({
                     </Text>
                 )}
 
+                {stat && (
+                    <View style={styles.attentionRow}>
+                        <View style={styles.attentionItem}>
+                            <Ionicons name="eye-outline" size={13} color={colors.text.tertiary} />
+                            <Text style={styles.attentionText}>{stat.views}</Text>
+                        </View>
+                        <View style={styles.attentionItem}>
+                            <Ionicons name="heart-outline" size={13} color={colors.text.tertiary} />
+                            <Text style={styles.attentionText}>{stat.likes}</Text>
+                        </View>
+                        <View style={styles.attentionItem}>
+                            <Ionicons name="calendar-outline" size={13} color={colors.text.tertiary} />
+                            <Text style={styles.attentionText}>{stat.bookings_pending + stat.bookings_accepted}</Text>
+                        </View>
+                    </View>
+                )}
+
                 <Text style={styles.postDate}>
-                    {item.date_created ? formatDateYYYYMMDD(item.date_created) : ''}
+                    {item.date_created ? formatDate(item.date_created) : ''}
                 </Text>
                 {item.expires_at && (() => {
                     const days = Math.ceil((new Date(item.expires_at) - Date.now()) / 86400000);
@@ -151,9 +182,16 @@ const PostItem = React.memo(({
         prevProps.imageErrors[`${prevProps.item.postType}-${prevProps.item.id}`] ===
         nextProps.imageErrors[`${nextProps.item.postType}-${nextProps.item.id}`] &&
         prevProps.isLoading === nextProps.isLoading &&
-        prevProps.colors === nextProps.colors
+        prevProps.colors === nextProps.colors &&
+        prevProps.stat?.views === nextProps.stat?.views &&
+        prevProps.stat?.likes === nextProps.stat?.likes &&
+        prevProps.stat?.bookings_pending === nextProps.stat?.bookings_pending &&
+        prevProps.stat?.bookings_accepted === nextProps.stat?.bookings_accepted
     );
 });
+
+// Matches the server default for /posts/mine.
+const MINE_PAGE_SIZE = 50;
 
 const ProviderPostList = ({ navigation }) => {
     const { colors, isDark } = useAppTheme();
@@ -164,19 +202,52 @@ const ProviderPostList = ({ navigation }) => {
     const [refreshing, setRefreshing] = useState(false);
     const [imageErrors, setImageErrors] = useState({});
 
-    const { data: queryData, isLoading: queryLoadingRaw, isError: queryError, refetch } = useQuery({
+    // `/posts/mine` is capped server-side (post.service.ts findByUser), so the
+    // list has to page. It used to fetch one page and present it as everything,
+    // which contradicted the totals in the stats row directly above it.
+    const {
+        data: queryData,
+        isLoading: queryLoadingRaw,
+        isError: queryError,
+        refetch,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+    } = useInfiniteQuery({
         queryKey: ['provider', 'mine'],
-        queryFn: () => postService.getMine(),
+        initialPageParam: 1,
+        queryFn: async ({ pageParam }) => {
+            const response = await postService.getMine({ page: pageParam, limit: MINE_PAGE_SIZE });
+            const raw = Array.isArray(response?.data) ? response.data : (response?.data?.posts ?? []);
+            return { items: raw, page: pageParam };
+        },
+        // The endpoint answers with a bare array, so a short page is the signal
+        // that there is nothing after it.
+        getNextPageParam: (last) => (last.items.length === MINE_PAGE_SIZE ? last.page + 1 : undefined),
         staleTime: 0,
     });
     const queryLoading = useMinDisplayTime(queryLoadingRaw);
 
-    const posts = useMemo(() => {
-        const raw = Array.isArray(queryData?.data)
-            ? queryData.data
-            : (queryData?.data?.posts ?? []);
-        return raw.map(p => ({ ...p, postType: p.category, post_type: p.category }));
-    }, [queryData]);
+    const posts = useMemo(
+        () => (queryData?.pages ?? []).flatMap((pg) => pg.items)
+            .map(p => ({ ...p, postType: p.category, post_type: p.category })),
+        [queryData],
+    );
+
+    const handleLoadMore = useCallback(() => {
+        if (hasNextPage && !isFetchingNextPage) fetchNextPage();
+    }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+    // Server-side attention stats (saves + booking requests need joins the
+    // list payload doesn't carry). Non-blocking: tiles show local numbers
+    // immediately and upgrade when this lands.
+    const { data: serverStats } = useQuery({
+        queryKey: ['provider', 'mine', 'stats'],
+        queryFn: () => postService.getMyStats(),
+        staleTime: 60_000,
+    });
+    const plan = serverStats?.plan ?? null;
+    const atQuota = Boolean(plan && plan.posts_active >= plan.post_limit);
 
 
     const keyExtractor = useCallback((item) => `${item.postType}-${item.id}`, []);
@@ -285,7 +356,17 @@ const ProviderPostList = ({ navigation }) => {
                                 error.response?.status === 403) {
                                 await handleAuthError();
                             } else {
-                                showErrorModal(t('common.error'), t('posts.deleteError'));
+                                // A refusal the engine can explain (a live booking
+                                // on the post) is worth repeating verbatim — the
+                                // generic line leaves the provider retrying a
+                                // delete that will never succeed.
+                                const code = error.response?.data?.code;
+                                showErrorModal(
+                                    t('common.error'),
+                                    code
+                                        ? t(`errors.codes.${code}`, { defaultValue: t('posts.deleteError') })
+                                        : t('posts.deleteError'),
+                                );
                             }
                         }
                     }
@@ -294,34 +375,65 @@ const ProviderPostList = ({ navigation }) => {
         );
     }, [refetch, handleAuthError, t]);
 
-    const stats = useMemo(() => ({
-        active: posts.filter(p => p.approval_status?.toUpperCase() === 'APPROVED' && p.status?.toUpperCase() === 'ACTIVE').length,
-        views: posts.reduce((s, p) => s + (p.views || 0), 0),
-    }), [posts]);
-
-    const renderStatsRow = useCallback(() => {
-        if (posts.length === 0) return null;
+    // Plan and quota. The engine refuses the next post at the limit, so the
+    // number belongs here — in front of the "add post" path — rather than in
+    // the rejection the form would otherwise be the first to mention.
+    const renderPlanBar = useCallback(() => {
+        if (!plan) return null;
+        const pct = Math.min(plan.posts_active / Math.max(plan.post_limit, 1), 1);
         return (
-            <View style={styles.statsRow}>
-                <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
-                    <Text style={[styles.statValue, { color: colors.success }]}>{stats.active}</Text>
-                    <Text style={[styles.statLabel, { color: colors.text.secondary }]}>{t('posts.stats.active')}</Text>
+            <View style={[styles.planBar, { backgroundColor: colors.surface }]}>
+                <View style={styles.planHead}>
+                    <View style={[
+                        styles.planChip,
+                        plan.name === 'PROVIDER'
+                            ? { backgroundColor: withAlpha(colors.primary, 0.12), borderColor: withAlpha(colors.primary, 0.25) }
+                            : { borderColor: colors.border.light },
+                    ]}>
+                        <Text style={[
+                            styles.planChipText,
+                            { color: plan.name === 'PROVIDER' ? colors.text.primary : colors.text.secondary },
+                        ]}>
+                            {plan.name === 'PROVIDER' ? t('posts.planProvider') : t('posts.planFree')}
+                        </Text>
+                    </View>
+                    <Text style={[styles.planQuota, atQuota && { color: colors.warning }]}>
+                        {t('posts.quotaUsed', { used: plan.posts_active, limit: plan.post_limit })}
+                    </Text>
                 </View>
-                <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
-                    <Text style={[styles.statValue, { color: colors.primary }]}>{stats.views.toLocaleString()}</Text>
-                    <Text style={[styles.statLabel, { color: colors.text.secondary }]}>{t('posts.stats.totalViews')}</Text>
+                <View style={[styles.planTrack, { backgroundColor: colors.border.light }]}>
+                    <View style={[
+                        styles.planFill,
+                        { width: `${pct * 100}%`, backgroundColor: atQuota ? colors.warning : colors.primary },
+                    ]} />
                 </View>
+                {plan.expires_at && (
+                    <Text style={styles.planMeta}>
+                        {t('posts.planExpires')} {formatDate(plan.expires_at)}
+                    </Text>
+                )}
+                {atQuota && <Text style={[styles.planMeta, { color: colors.warning }]}>{t('posts.quotaFull')}</Text>}
             </View>
         );
-    }, [posts.length, stats, colors, t]);
+    }, [plan, atQuota, styles, colors, t]);
+
+    const renderListHeader = useCallback(() => renderPlanBar(), [renderPlanBar]);
 
     const getPostTitleWrapped = useCallback(
         (item) => getPostTitle(item, item.postType),
         []
     );
 
+    const statsById = useMemo(() => {
+        const map = new Map();
+        for (const s of serverStats?.posts ?? []) map.set(s.id, s);
+        return map;
+    }, [serverStats]);
+
+    // Listing-quality score needs each post's schema (field count, has_price).
+
     const renderPostItem = useCallback(({ item, index }) => (
-        <FadeSlideIn index={index}>
+        <FadeSlideIn index={index} style={isTablet && { flex: 1 }}>
         <PostItem
             item={item}
             onPress={handlePostPress}
@@ -333,9 +445,10 @@ const ProviderPostList = ({ navigation }) => {
             setImageErrors={setImageErrors}
             colors={colors}
             t={t}
+            stat={statsById.get(item.id)}
         />
         </FadeSlideIn>
-    ), [handlePostPress, handleEditPost, handleDeletePost, imageErrors, isLoading, getPostTitleWrapped, colors, t]);
+    ), [handlePostPress, handleEditPost, handleDeletePost, imageErrors, isLoading, getPostTitleWrapped, colors, t, statsById]);
 
     if (queryError && posts.length === 0) {
         return (
@@ -377,6 +490,8 @@ const ProviderPostList = ({ navigation }) => {
                 <EmptyState
                     icon="document-text-outline"
                     iconSize={64}
+                    variant="invitation"
+                    eyebrow={t('nav.myPosts')}
                     title={t('posts.noPosts')}
                     subtitle={t('posts.noPostsDesc')}
                     actionButton={{
@@ -393,7 +508,14 @@ const ProviderPostList = ({ navigation }) => {
                     numColumns={isTablet ? 2 : 1}
                     key={isTablet ? 'tablet' : 'phone'}
                     columnWrapperStyle={isTablet ? { gap: spacing.md } : undefined}
-                    ListHeaderComponent={renderStatsRow}
+                    ListHeaderComponent={renderListHeader}
+                    ListFooterComponent={isFetchingNextPage ? (
+                        <View style={styles.listFooter}>
+                            <ActivityIndicator size="small" color={colors.iconAccent} />
+                        </View>
+                    ) : null}
+                    onEndReached={handleLoadMore}
+                    onEndReachedThreshold={0.4}
                     contentContainerStyle={[
                         styles.listContainer,
                         { paddingBottom: Math.max(safeAreaHelpers.getBottomSafeArea(insets), 50) + 50 }
@@ -419,6 +541,10 @@ const ProviderPostList = ({ navigation }) => {
 };
 
 const createStyles = (colors) => StyleSheet.create({
+    listFooter: {
+        paddingVertical: spacing.lg,
+        alignItems: 'center',
+    },
     listContainer: {
         padding: spacing.lg,
     },
@@ -432,6 +558,26 @@ const createStyles = (colors) => StyleSheet.create({
         alignItems: 'flex-start',
         borderWidth: 1,
         borderColor: colors.border.light,
+    },
+    // Paid placement, shown to the owner so they can see what they bought.
+    featuredChip: {
+        alignSelf: 'flex-start',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.xxs,
+        maxWidth: '100%',
+        marginTop: spacing.xs,
+        backgroundColor: colors.primary,
+        paddingVertical: spacing.xxs,
+        paddingHorizontal: spacing.xs,
+        borderRadius: radius.sm,
+    },
+    featuredChipText: {
+        ...typography.styles.overline,
+        color: colors.onPrimary,
+        // Yoga defaults flexShrink to 0 — without this a long translation
+        // pushes the star out of the chip instead of truncating.
+        flexShrink: 1,
     },
     imageContainer: {
         width: 96,
@@ -469,6 +615,10 @@ const createStyles = (colors) => StyleSheet.create({
         flex: 1,
         color: colors.text.primary,
     },
+    healthRing: {
+        marginTop: spacing.xxs,
+        flexShrink: 0,
+    },
     menuButton: {
         width: 32,
         height: 32,
@@ -478,59 +628,77 @@ const createStyles = (colors) => StyleSheet.create({
     },
     postPrice: {
         ...typography.styles.price,
-        color: colors.primary,
+        color: colors.text.link,
     },
     postDate: {
         ...typography.styles.small,
         color: colors.text.tertiary,
     },
-    approvalBadgePending: {
+    approvalBadgeRow: {
         alignSelf: 'flex-start',
-        backgroundColor: colors.opacity.background.warning,
-        borderColor: colors.opacity.border.warning,
-        borderWidth: 1,
-        borderRadius: radius.xs,
-        paddingHorizontal: spacing.sm,
-        paddingVertical: spacing.xs,
-    },
-    approvalBadgeRejected: {
-        alignSelf: 'flex-start',
-        backgroundColor: colors.opacity.background.danger,
-        borderColor: colors.opacity.border.danger,
-        borderWidth: 1,
-        borderRadius: radius.xs,
-        paddingHorizontal: spacing.sm,
-        paddingVertical: spacing.xs,
-        maxWidth: '100%',
-    },
-    approvalBadgeText: {
-        ...typography.styles.badge,
+        gap: spacing.xxs,
     },
     rejectionReason: {
         ...typography.styles.small,
         color: colors.danger,
         marginTop: spacing.xs,
     },
+    attentionRow: {
+        flexDirection: 'row',
+        gap: spacing.md,
+        marginTop: spacing.xs,
+    },
+    attentionItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.xxs,
+    },
+    attentionText: {
+        ...typography.styles.small,
+        fontVariant: ['tabular-nums'],
+        color: colors.text.tertiary,
+    },
+    planBar: {
+        ...colors.elevation.sm,
+        borderRadius: radius.card,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+        marginBottom: spacing.md,
+        gap: spacing.xs,
+    },
+    planHead: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: spacing.sm,
+    },
+    planChip: {
+        borderWidth: 1,
+        borderRadius: radius.pill,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: 2,
+    },
+    planChipText: { ...typography.styles.caption },
+    planQuota: { ...typography.styles.caption, color: colors.text.secondary },
+    planTrack: { height: 3, borderRadius: radius.pill, overflow: 'hidden' },
+    planFill: { height: '100%', borderRadius: radius.pill },
+    planMeta: { ...typography.styles.caption, color: colors.text.secondary },
     statsRow: {
         flexDirection: 'row',
+        flexWrap: 'wrap',
         marginBottom: spacing.lg,
         gap: spacing.sm,
     },
+    // flexBasis 47% + grow: two tiles per row on phones, and a lone pair
+    // still fills the width while the server tiles are loading.
     statCard: {
         ...colors.elevation.sm,
-        flex: 1,
+        flexBasis: '47%',
+        flexGrow: 1,
         backgroundColor: colors.surface,
         borderRadius: radius.card,
         paddingVertical: spacing.md,
         alignItems: 'center',
-    },
-    statValue: {
-        ...typography.styles.h2,
-        marginBottom: spacing.xxs,
-    },
-    statLabel: {
-        ...typography.styles.caption,
-        color: colors.text.secondary,
     },
 });
 

@@ -2,12 +2,13 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
-import { TouchableOpacity, View, Platform, StyleSheet } from 'react-native';
+import { View, Platform, StyleSheet } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme } from '../../hooks/useAppTheme';
-import { spacing, typography, radius, interactions } from '../../design/theme';
+import PressableScale from '../../components/PressableScale';
+import { spacing, typography, radius } from '../../design/theme';
 
 import ProviderPostList from './ProviderPostList';
 import ProviderProfile from './ProviderProfile';
@@ -18,20 +19,22 @@ const Stack = createStackNavigator();
 const EmptyScreen = () => null;
 
 const CreatePostButton = ({ navigation, colors }) => {
+    const { t } = useTranslation();
     const handleCreatePress = () => {
         navigation.navigate('CategorySelectScreen', { role: 'provider' });
     };
 
     return (
-        <TouchableOpacity
+        <PressableScale
             onPress={handleCreatePress}
             style={styles.createButtonContainer}
-            activeOpacity={interactions.activeOpacity}
+            accessibilityRole="button"
+            accessibilityLabel={t('posts.createNew')}
         >
             <View style={[styles.createButton, colors.elevation.md, { backgroundColor: colors.primary }]}>
                 <Ionicons name="add" size={28} color={colors.onPrimary} />
             </View>
-        </TouchableOpacity>
+        </PressableScale>
     );
 };
 

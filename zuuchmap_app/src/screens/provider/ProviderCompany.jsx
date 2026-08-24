@@ -258,7 +258,7 @@ const ProviderCompany = ({ route, navigation }) => {
         return (
             <View key={label} style={[styles.infoItem, isLast && styles.infoItemLast]}>
                 <View style={styles.infoIcon}>
-                    <Ionicons name={icon} size={20} color={colors.primary} />
+                    <Ionicons name={icon} size={20} color={colors.iconAccent} />
                 </View>
                 <View style={styles.infoContent}>
                     <Text style={styles.infoLabel}>{label}</Text>
@@ -372,7 +372,7 @@ const ProviderCompany = ({ route, navigation }) => {
                                     accessibilityRole="button"
                                     accessibilityLabel={t('common.edit')}
                                 >
-                                    <Ionicons name="create-outline" size={16} color={colors.primary} />
+                                    <Ionicons name="create-outline" size={16} color={colors.iconAccent} />
                                 </TouchableOpacity>
                             )}
                             <View style={styles.logoUploadContainer}>
@@ -384,7 +384,7 @@ const ProviderCompany = ({ route, navigation }) => {
                                         activeOpacity={interactions.activeOpacityLight}
                                     >
                                         {logoLoading ? (
-                                            <ActivityIndicator size="large" color={colors.primary} />
+                                            <ActivityIndicator size="large" color={colors.iconAccent} />
                                         ) : form.logo ? (
                                             <View style={styles.logoContainer}>
                                                 <Image source={{ uri: form.logo }} style={styles.logoImage} resizeMode="cover" />
@@ -396,12 +396,12 @@ const ProviderCompany = ({ route, navigation }) => {
                                                     accessibilityRole="button"
                                                     accessibilityLabel={t('upload.removeImage')}
                                                 >
-                                                    <Ionicons name="close-circle" size={24} color={colors.primary} />
+                                                    <Ionicons name="close-circle" size={24} color={colors.iconAccent} />
                                                 </TouchableOpacity>
                                             </View>
                                         ) : (
                                             <View style={styles.logoPlaceholder}>
-                                                <Ionicons name="business-outline" size={40} color={colors.primary} />
+                                                <Ionicons name="business-outline" size={40} color={colors.iconAccent} />
                                             </View>
                                         )}
                                     </TouchableOpacity>
@@ -412,7 +412,7 @@ const ProviderCompany = ({ route, navigation }) => {
                                         </View>
                                     ) : (
                                         <View style={styles.logoPlaceholder}>
-                                            <Ionicons name="business-outline" size={40} color={colors.primary} />
+                                            <Ionicons name="business-outline" size={40} color={colors.iconAccent} />
                                         </View>
                                     )
                                 )}
@@ -434,7 +434,7 @@ const ProviderCompany = ({ route, navigation }) => {
                                         disabled={logoLoading}
                                         activeOpacity={interactions.activeOpacityLight}
                                     >
-                                        <Ionicons name="camera-outline" size={16} color={colors.primary} />
+                                        <Ionicons name="camera-outline" size={16} color={colors.iconAccent} />
                                         <Text style={styles.changeLogoText}>
                                             {form.logo ? t('company.logoChange') : t('company.logoAdd')}
                                         </Text>
@@ -477,8 +477,8 @@ const ProviderCompany = ({ route, navigation }) => {
 
                 {isEditing && (
                     <View style={[
-                        styles.saveButtonContainer,
                         gStyles.bottomContainerWithInset(safeAreaHelpers.getBottomSafeArea(insets)),
+                        styles.saveButtonContainer,
                         { backgroundColor: colors.surface },
                     ]}>
                         <Button
@@ -621,7 +621,7 @@ const createStyles = (colors) => StyleSheet.create({
         borderRadius: radius.xxl,
         alignSelf: 'flex-start',
     },
-    changeLogoText: { ...typography.styles.labelStrong, color: colors.primary,
+    changeLogoText: { ...typography.styles.labelStrong, color: colors.text.link,
         marginLeft: spacing.xs, },
     formSection: {
         marginBottom: spacing.xl,

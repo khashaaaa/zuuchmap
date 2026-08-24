@@ -16,6 +16,12 @@ const darkColors = {
     primaryDarker: '#B57807',
     primaryLight: '#F8BC55',
     onPrimary: '#1A1200',
+    // Amber as a GLYPH on neutral grounds (icons, spinners). Non-text needs
+    // 3:1, not 4.5:1 — so this is a lighter step than text.link, but it is
+    // still not the fill colour: `primary` only makes 2.3-2.6:1 on the light
+    // grounds. Dark keeps the fill hue (7.3-8.8:1); light drops to the darkest
+    // amber that clears 3:1 on white (same value as the map overlay's icon).
+    iconAccent: '#F5A623',
 
     danger: '#E5645C',
     dangerLight: '#EF8A84',
@@ -96,6 +102,7 @@ const lightColors = {
     primaryDarker: '#A35E04',
     primaryLight: '#F5A623',
     onPrimary: '#241500',
+    iconAccent: '#C87206',
 
     danger: '#BE3B33',
     dangerLight: '#D8635C',
@@ -127,7 +134,9 @@ const lightColors = {
         inverse: '#1A1C1E',
         onColor: '#FFFFFF',
         onMedia: '#FFFFFF',
-        link: '#A35F00',
+        // Mirrors web --color-primary-text. Darker than the #A35F00 it replaced:
+        // that tone only made 4.47:1 on surfaceLight and 4.19:1 on an amber tint.
+        link: '#8F5300',
     },
 
     border: {
@@ -352,16 +361,7 @@ export const fontAssets = {
 };
 
 export const typography = {
-    xs: Math.round(12 * s),
-    sm: Math.round(14 * s),
     md: Math.round(16 * s),
-    lg: Math.round(18 * s),
-    xl: Math.round(20 * s),
-    xxl: Math.round(24 * s),
-    xxxl: Math.round(28 * s),
-    display: Math.round(32 * s),
-    lineHeight: { tight: 1.2, normal: 1.5, relaxed: 1.75, loose: 2 },
-    letterSpacing: { tighter: -0.5, tight: -0.25, normal: 0, wide: 0.25, wider: 0.5 },
     // `weight` was removed: with per-weight font families, fontWeight is ignored
     // on Android and risks faux-bold on iOS. Use `fonts.*` from this module instead.
 
@@ -405,7 +405,7 @@ export const typography = {
     },
 };
 
-export const shadows = {
+const shadows = {
     none: {
         shadowColor: 'transparent',
         shadowOffset: { width: 0, height: 0 },
@@ -434,31 +434,10 @@ export const shadows = {
         shadowRadius: 8,
         elevation: 5,
     },
-    large: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.30,
-        shadowRadius: 16,
-        elevation: 8,
-    },
-    xl: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 12 },
-        shadowOpacity: 0.35,
-        shadowRadius: 24,
-        elevation: 12,
-    },
     primary: {
         shadowColor: '#F5A623',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.4,
-        shadowRadius: 8,
-        elevation: 6,
-    },
-    success: {
-        shadowColor: '#57C27D',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
         shadowRadius: 8,
         elevation: 6,
     },
@@ -607,142 +586,6 @@ export const createGlobalStyles = (colors) => {
     if (cached) return cached;
 
     const sheet = StyleSheet.create({
-        container: {
-            flex: 1,
-            backgroundColor: colors.background,
-        },
-
-        safeContainer: {
-            flex: 1,
-            backgroundColor: colors.background,
-        },
-
-        containerWithStatusBar: {
-            flex: 1,
-            backgroundColor: colors.background,
-            paddingTop: dimensions.statusBarHeight,
-        },
-
-        containerWithBottomPadding: {
-            flex: 1,
-            backgroundColor: colors.background,
-            paddingTop: dimensions.statusBarHeight,
-            paddingBottom: dimensions.navigationBarHeight,
-        },
-
-        statusBarBackground: {
-            height: dimensions.statusBarHeight,
-            backgroundColor: colors.surface,
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            zIndex: 1000,
-        },
-        header: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            paddingHorizontal: spacing.lg,
-            paddingVertical: spacing.md,
-            backgroundColor: colors.surface,
-            minHeight: dimensions.headerHeight,
-            ...colors.elevation.sm,
-        },
-
-        headerWithStatusBar: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            paddingHorizontal: spacing.lg,
-            paddingVertical: spacing.md,
-            paddingTop: Platform.OS === 'android' ? dimensions.statusBarHeight + spacing.md : spacing.md,
-            backgroundColor: colors.surface,
-            minHeight: dimensions.headerHeight + (Platform.OS === 'android' ? dimensions.statusBarHeight : 0),
-            ...colors.elevation.sm,
-        },
-
-        headerTitle: {
-            ...typography.styles.h3,
-            color: colors.text.primary,
-            textAlign: 'center',
-            flex: 1,
-        },
-
-        headerButton: {
-            padding: spacing.sm,
-            minWidth: 40,
-            alignItems: 'center',
-            justifyContent: 'center',
-        },
-
-        headerPlaceholder: {
-            width: 40,
-        },
-
-        buttonPrimary: {
-            backgroundColor: colors.primary,
-            paddingVertical: spacing.md,
-            paddingHorizontal: spacing.xl,
-            borderRadius: radius.button,
-            alignItems: 'center',
-            justifyContent: 'center',
-            minHeight: 52,
-        },
-
-        buttonDanger: {
-            backgroundColor: colors.danger,
-            paddingVertical: spacing.md,
-            paddingHorizontal: spacing.xl,
-            borderRadius: radius.button,
-            alignItems: 'center',
-            justifyContent: 'center',
-            minHeight: 52,
-        },
-
-        buttonSuccess: {
-            backgroundColor: colors.success,
-            paddingVertical: spacing.md,
-            paddingHorizontal: spacing.xl,
-            borderRadius: radius.button,
-            alignItems: 'center',
-            justifyContent: 'center',
-            minHeight: 52,
-        },
-
-        buttonDisabled: {
-            backgroundColor: colors.surfaceLight,
-            opacity: 1,
-        },
-
-        buttonText: {
-            color: colors.onPrimary,
-            fontSize: typography.md,
-            fontFamily: fonts.semibold,
-        },
-
-        buttonTextOnColor: {
-            color: '#FFFFFF',
-            fontSize: typography.md,
-            fontFamily: fonts.semibold,
-        },
-
-        buttonTextDisabled: {
-            color: colors.text.disabled,
-            fontSize: typography.md,
-            fontFamily: fonts.semibold,
-        },
-
-        inputContainer: {
-            marginBottom: spacing.lg,
-        },
-
-        inputLabel: {
-            ...typography.styles.label,
-            color: colors.text.primary,
-            marginBottom: spacing.sm,
-        },
-
         input: {
             backgroundColor: colors.surface,
             borderWidth: 1,
@@ -753,12 +596,6 @@ export const createGlobalStyles = (colors) => {
             fontSize: typography.md,
             color: colors.text.primary,
             minHeight: 52,
-        },
-
-        inputFocused: {
-            borderColor: colors.border.focus,
-            borderWidth: 2,
-            backgroundColor: colors.surfaceLight,
         },
 
         inputError: {
@@ -772,71 +609,8 @@ export const createGlobalStyles = (colors) => {
             paddingTop: spacing.md,
         },
 
-        priceContainer: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: spacing.sm,
-        },
-
-        priceInput: {
-            flex: 1,
-        },
-
-        errorText: {
-            color: colors.danger,
-            fontSize: typography.sm,
-            marginTop: spacing.xs,
-        },
-
-        pickerButton: {
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            backgroundColor: colors.surface,
-            borderWidth: 1,
-            borderColor: colors.border.medium,
-            borderRadius: radius.input,
-            paddingHorizontal: spacing.md,
-            paddingVertical: spacing.md,
-            minHeight: 52,
-        },
-
-        pickerButtonText: {
-            fontSize: typography.md,
-            color: colors.text.primary,
-        },
-
         placeholderText: {
             color: colors.text.placeholder,
-        },
-
-        card: {
-            backgroundColor: colors.surface,
-            borderRadius: radius.card,
-            padding: spacing.lg,
-            borderWidth: 1,
-            borderColor: colors.border.light,
-            ...colors.elevation.sm,
-        },
-
-        cardElevated: {
-            backgroundColor: colors.surfaceElevated,
-            borderRadius: radius.card,
-            padding: spacing.lg,
-            borderWidth: 1,
-            borderColor: colors.border.light,
-            ...colors.elevation.md,
-        },
-
-        section: {
-            backgroundColor: colors.surface,
-            padding: spacing.lg,
-            marginVertical: spacing.sm,
-            marginHorizontal: spacing.lg,
-            borderRadius: radius.lg,
-            borderWidth: 1,
-            borderColor: colors.border.light,
-            ...colors.elevation.sm,
         },
 
         sectionTitle: {
@@ -859,68 +633,6 @@ export const createGlobalStyles = (colors) => {
             color: colors.danger,
         },
 
-        buttonContentContainer: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center',
-        },
-
-        buttonFullWidth: {
-            width: '100%',
-        },
-
-        loadingContainer: {
-            flex: 1,
-            justifyContent: 'center',
-            alignItems: 'center',
-            backgroundColor: colors.background,
-        },
-
-        loadingContainerWithStatusBar: {
-            flex: 1,
-            justifyContent: 'center',
-            alignItems: 'center',
-            backgroundColor: colors.background,
-            paddingTop: dimensions.statusBarHeight,
-        },
-
-        loadingText: {
-            marginTop: spacing.lg,
-            ...typography.styles.bodyBold,
-            color: colors.text.primary,
-        },
-
-        skeleton: {
-            backgroundColor: colors.surface,
-            borderRadius: radius.md,
-        },
-
-        skeletonShimmer: {
-            backgroundColor: colors.surfaceLight,
-            opacity: 0.7,
-        },
-
-        errorContainer: {
-            flex: 1,
-            justifyContent: 'center',
-            alignItems: 'center',
-            padding: spacing.xxl,
-            backgroundColor: colors.background,
-        },
-        errorIconContainer: {
-            width: 80,
-            height: 80,
-            borderRadius: 40,
-            backgroundColor: colors.opacity.background.primary,
-            justifyContent: 'center',
-            alignItems: 'center',
-            marginBottom: spacing.xl,
-        },
-        errorTitle: {
-            ...typography.styles.h2,
-            color: colors.text.primary,
-            marginBottom: spacing.sm,
-        },
         errorText: {
             fontSize: typography.md,
             color: colors.text.secondary,
@@ -928,57 +640,6 @@ export const createGlobalStyles = (colors) => {
             lineHeight: 22,
             marginBottom: spacing.xxl,
         },
-        retryButton: {
-            backgroundColor: colors.primary,
-            borderRadius: radius.button,
-            paddingVertical: spacing.md,
-            paddingHorizontal: spacing.xl,
-            ...colors.elevation.sm,
-        },
-        retryButtonText: {
-            color: colors.onPrimary,
-            fontSize: typography.md,
-            fontFamily: fonts.semibold,
-        },
-
-        errorContainerWithStatusBar: {
-            flex: 1,
-            justifyContent: 'center',
-            alignItems: 'center',
-            padding: spacing.xxl,
-            paddingTop: dimensions.statusBarHeight + spacing.xxl,
-            backgroundColor: colors.background,
-        },
-
-        emptyState: {
-            flex: 1,
-            justifyContent: 'center',
-            alignItems: 'center',
-            padding: spacing.xxl,
-        },
-
-        emptyStateIcon: {
-            width: 120,
-            height: 120,
-            borderRadius: 60,
-            backgroundColor: colors.opacity.background.primary,
-            justifyContent: 'center',
-            alignItems: 'center',
-            marginBottom: spacing.xl,
-        },
-
-        emptyStateText: {
-            ...typography.styles.h3,
-            color: colors.text.primary,
-            marginBottom: spacing.sm,
-        },
-
-        emptyStateSubtext: {
-            fontSize: typography.md,
-            color: colors.text.secondary,
-            textAlign: 'center',
-        },
-
         modalOverlay: {
             flex: 1,
             backgroundColor: colors.opacity.overlay,
@@ -1016,108 +677,8 @@ export const createGlobalStyles = (colors) => {
             color: colors.text.link,
         },
 
-        imagePickerButton: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderWidth: 2,
-            borderColor: colors.primary,
-            borderRadius: radius.md,
-            borderStyle: 'dashed',
-            padding: spacing.lg,
-            marginBottom: spacing.lg,
-            minHeight: 60,
-            backgroundColor: colors.opacity.background.primaryLight,
-        },
-
-        imagePickerText: {
-            marginLeft: spacing.sm,
-            color: colors.text.link,
-            fontSize: typography.md,
-            fontFamily: fonts.medium,
-        },
-
-        badge: {
-            paddingHorizontal: spacing.sm,
-            paddingVertical: spacing.xs,
-            borderRadius: radius.full,
-            backgroundColor: colors.opacity.background.primary,
-            alignSelf: 'flex-start',
-        },
-
-        badgeText: {
-            ...typography.styles.badge,
-            color: colors.primary,
-        },
-
-        badgeSuccess: {
-            backgroundColor: colors.opacity.background.success,
-        },
-
-        badgeSuccessText: {
-            color: colors.success,
-        },
-
-        badgeDanger: {
-            backgroundColor: colors.opacity.background.danger,
-        },
-
-        badgeDangerText: {
-            color: colors.danger,
-        },
-
-        badgeWarning: {
-            backgroundColor: colors.opacity.background.warning,
-        },
-
-        badgeWarningText: {
-            color: colors.warning,
-        },
-
-        scrollViewContent: {
-            paddingBottom: spacing.xxl,
-        },
-
-        bottomContainer: {
-            backgroundColor: colors.surface,
-            padding: spacing.lg,
-            paddingBottom: Platform.OS === 'android' ? spacing.lg + dimensions.navigationBarHeight : spacing.lg,
-            ...colors.elevation.sm,
-        },
-
-        tabBarStyle: {
-            height: dimensions.bottomTabHeight,
-            paddingBottom: Platform.OS === 'android' ? dimensions.navigationBarHeight + spacing.sm : spacing.xl,
-            paddingTop: spacing.xs,
-            backgroundColor: colors.surface,
-            ...colors.elevation.sm,
-        },
-
-        row: {
-            flexDirection: 'row',
-            alignItems: 'center',
-        },
-
-        spaceBetween: {
-            justifyContent: 'space-between',
-        },
-
-        center: {
-            justifyContent: 'center',
-            alignItems: 'center',
-        },
-
-        flex1: {
-            flex: 1,
-        },
-
         keyboardAvoidingView: {
             flex: 1,
-        },
-
-        keyboardAvoidingViewWithOffset: {
-            flex: 1,
-            paddingTop: Platform.OS === 'android' ? dimensions.statusBarHeight : 0,
         },
     });
 
@@ -1130,7 +691,10 @@ export const createGlobalStyles = (colors) => {
             backgroundColor: colors.surface,
             padding: spacing.lg,
             paddingBottom: Math.max(bottomInset, spacing.lg),
-            ...colors.elevation.sm,
+            // A bar pinned to the bottom needs an upward separator; elevation
+            // casts its shadow downward, off-screen. Hairline only.
+            borderTopWidth: 1,
+            borderTopColor: colors.border.light,
         }),
     };
 

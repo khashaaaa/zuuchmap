@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Heart } from 'lucide-react'
+import { Heart, Search } from 'lucide-react'
 import { likesApi } from '@/lib/api'
 import { getPostCategory } from '@/lib/utils'
 import PostCard from '@/components/PostCard'
@@ -37,7 +37,16 @@ export default function CustomerSaved() {
         isError={isError}
         onRetry={refetch}
         isEmpty={posts.length === 0}
-        emptyState={<EmptyState icon={Heart} title={t('posts.noSaved')} description={t('posts.noSavedDesc')} />}
+        emptyState={
+          // Empty for every customer who has not saved anything yet, so it needs
+          // a way out — the app's saved list has offered one all along.
+          <EmptyState
+            icon={Heart}
+            title={t('posts.noSaved')}
+            description={t('posts.noSavedDesc')}
+            action={<Button to="/customer/browse"><Search size={14} /> {t('nav.browse')}</Button>}
+          />
+        }
         cols={3}
         skeletonCount={6}
       >

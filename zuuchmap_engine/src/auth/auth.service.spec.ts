@@ -107,6 +107,51 @@ describe('AuthService — phone verification', () => {
     expect(JSON.stringify(devices.save.mock.calls)).not.toContain('device-abc');
   });
 
+  // The provider's callback used to run the full check, which consumed the
+  // session and threw its token away — the client's next poll was then answered
+  // with 410 and a user who had verified correctly (and paid for it) was told to
+  // start over.
+  it('leaves the session spendable after a provider callback', async () => {
+    await service.startVerification('99112233', 'device-abc');
+    verifyMn.getStatus.mockResolvedValue({
+      sessionStatus: 'VERIFIED',
+      callbackStatus: 'SENT',
+      verifiedAt: new Date().toISOString(),
+    });
+
+    await service.handleCallback('sess-1');
+    expect(sessionRow.status).toBe('VERIFIED');
+    expect(sessionRow.status).not.toBe('CONSUMED');
+
+    const status = await service.checkVerification('sess-1');
+    expect(status.status).toBe('VERIFIED');
+    expect(status.auth?.token).toBe('signed.jwt.token');
+  });
+
+  // The nudge is the signal that something changed; the per-session throttle
+  // that protects the provider from our polling must not swallow it.
+  it('lets a callback bypass the upstream poll throttle', async () => {
+    await service.startVerification('99112233');
+    verifyMn.getStatus.mockResolvedValue({ sessionStatus: 'PENDING', callbackStatus: 'SENT' });
+    await service.checkVerification('sess-1');
+    verifyMn.getStatus.mockClear();
+    verifyMn.getStatus.mockResolvedValue({ sessionStatus: 'VERIFIED', callbackStatus: 'SENT' });
+
+    await service.handleCallback('sess-1');
+    expect(verifyMn.getStatus).toHaveBeenCalled();
+    expect(sessionRow.status).toBe('VERIFIED');
+  });
+
+  it('ignores a callback for a session already consumed', async () => {
+    await service.startVerification('99112233');
+    verifyMn.getStatus.mockResolvedValue({ sessionStatus: 'VERIFIED', callbackStatus: 'SENT' });
+    await service.checkVerification('sess-1');
+    expect(sessionRow.status).toBe('CONSUMED');
+
+    await expect(service.handleCallback('sess-1')).resolves.toBeUndefined();
+    expect(sessionRow.status).toBe('CONSUMED');
+  });
+
   it('refuses to reuse a consumed session', async () => {
     await service.startVerification('99112233', 'device-abc');
     verifyMn.getStatus.mockResolvedValue({ sessionStatus: 'VERIFIED', callbackStatus: 'SENT' });

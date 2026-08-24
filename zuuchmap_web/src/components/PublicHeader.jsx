@@ -4,6 +4,7 @@ import { motion, useReducedMotion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import { LANGUAGES } from '@/i18n'
 import Button from '@/components/Button'
+import Logo from '@/components/Logo'
 import { useAuthStore } from '@/store'
 
 /** Where a signed-in user's own app lives, by role. */
@@ -29,7 +30,7 @@ export default function PublicHeader() {
     <header className="sticky top-0 z-30 bg-background/85 backdrop-blur border-b border-border/20">
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
         <Link to="/" className="flex items-center gap-2 shrink-0">
-          <span className="w-8 h-8 rounded-btn bg-primary/15 flex items-center justify-center text-base" aria-hidden="true">🏗️</span>
+          <Logo />
           <span className="font-bold text-text">ZuuchMap</span>
         </Link>
 

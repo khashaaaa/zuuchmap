@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import { Post } from '../post/entities/post.entity';
+import { PushDevice } from './entities/push-device.entity';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { deleteSingleImage } from '../utils/uploader';
 
@@ -15,6 +16,8 @@ export class UserService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(Post)
     private readonly postRepository: Repository<Post>,
+    @InjectRepository(PushDevice)
+    private readonly pushDeviceRepository: Repository<PushDevice>,
   ) { }
 
   async findByPhoneNumber(phone_number: string): Promise<User | null> {
@@ -28,45 +31,6 @@ export class UserService {
     } catch (error) {
       this.logger.error(`Failed to find user by phone number ${phone_number}: ${error.message}`);
       throw new InternalServerErrorException('Failed to retrieve user by phone number: ' + error.message);
-    }
-  }
-
-  async enrollBiometric(data: { phone_number: string; device_info?: any }) {
-    try {
-      const { phone_number, device_info } = data;
-
-      const user = await this.userRepository.findOne({ where: { phone_number } });
-
-      if (!user) {
-        throw new NotFoundException(`User with phone number ${phone_number} not found`);
-      }
-
-      await this.userRepository.update(user.id, {
-        biometric: 'enrolled',
-        device_info: device_info ? JSON.stringify(device_info) : user.device_info,
-        is_verified: true
-      });
-
-      const updatedUser = await this.userRepository.findOne({
-        where: { id: user.id },
-        relations: ['company']
-      });
-
-      return {
-        success: true,
-        message: 'Biometric enrollment successful',
-        user: updatedUser,
-        hasUserType: !!updatedUser?.type,
-        nextStep: updatedUser?.type ? 'dashboard' : 'role_selection'
-      };
-    } catch (error) {
-      this.logger.error(`Failed to enroll biometric: ${error.message}`);
-
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
-
-      throw new InternalServerErrorException(`Failed to enroll biometric: ${error.message}`);
     }
   }
 
@@ -165,7 +129,7 @@ export class UserService {
 
       if (profilePicture) {
         if (user.profile_picture) {
-          await deleteSingleImage(user.profile_picture, './uploads/profilepicture');
+          await deleteSingleImage(user.profile_picture);
         }
         user.profile_picture = profilePicture;
       }
@@ -180,13 +144,38 @@ export class UserService {
     }
   }
 
-  async savePushToken(userId: string, pushToken: string | null): Promise<void> {
+  /**
+   * Binds one device to this account. The token is unique across the table, so
+   * a device that previously belonged to another account moves here rather than
+   * leaving the old owner able to push to someone else's phone.
+   */
+  async savePushToken(userId: string, pushToken: string, platform?: string): Promise<void> {
     try {
-      // Column is nullable but the entity property is typed `string`; the cast
-      // lets a logout clear the token without retyping every consumer.
-      await this.userRepository.update(userId, { push_token: pushToken as string });
+      await this.pushDeviceRepository.upsert(
+        { user: { id: userId } as User, token: pushToken, platform: platform ?? null, last_seen_at: new Date() },
+        { conflictPaths: ['token'], skipUpdateIfNoValuesChanged: false },
+      );
     } catch (error) {
       this.logger.error(`Failed to save push token for user ${userId}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Unbinds a single device on logout.
+   *
+   * Scoped to the token the caller presents — clearing every device for the
+   * account, which is what the old single-column version did, muted phones that
+   * were still signed in. A logout with no token (an older client) still clears
+   * the whole account, because that build cannot tell us which device it is.
+   */
+  async removePushToken(userId: string, pushToken?: string): Promise<void> {
+    try {
+      await this.pushDeviceRepository.delete(
+        pushToken ? { user: { id: userId } as User, token: pushToken } : { user: { id: userId } as User },
+      );
+    } catch (error) {
+      this.logger.error(`Failed to remove push token for user ${userId}: ${error.message}`);
       throw error;
     }
   }
@@ -199,7 +188,7 @@ export class UserService {
       }
 
       if (user.profile_picture) {
-        await deleteSingleImage(user.profile_picture, './uploads/profilepicture');
+        await deleteSingleImage(user.profile_picture);
       }
 
       // Give active posts a 14-day grace period before they expire

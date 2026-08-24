@@ -51,10 +51,10 @@ const PickerField = ({ value, options = [], onSelect, placeholder, error, title 
                 onPress={() => setVisible(true)}
                 activeOpacity={interactions.activeOpacityLight}
             >
-                <Text style={[styles.pickerButtonText, !value && gStyles.placeholderText]}>
+                <Text style={[styles.pickerButtonText, !value && gStyles.placeholderText]} numberOfLines={1}>
                     {displayValue}
                 </Text>
-                <Ionicons name="chevron-down" size={20} color={colors.primary} />
+                <Ionicons name="chevron-down" size={20} color={colors.iconAccent} />
             </TouchableOpacity>
 
             {/* Bottom-sheet modal */}
@@ -72,7 +72,7 @@ const PickerField = ({ value, options = [], onSelect, placeholder, error, title 
                                 style={gStyles.modalButton}
                                 activeOpacity={interactions.activeOpacity}
                             >
-                                <Text style={[gStyles.modalButtonText, { color: colors.primary }]}>
+                                <Text style={[gStyles.modalButtonText, { color: colors.text.link }]}>
                                     {t('common.cancel')}
                                 </Text>
                             </TouchableOpacity>
@@ -84,7 +84,7 @@ const PickerField = ({ value, options = [], onSelect, placeholder, error, title 
                                 style={gStyles.modalButton}
                                 activeOpacity={interactions.activeOpacity}
                             >
-                                <Text style={[gStyles.modalButtonText, { ...typography.styles.bodyBold, color: colors.primary }]}>
+                                <Text style={[gStyles.modalButtonText, { ...typography.styles.bodyBold, color: colors.text.link }]}>
                                     {t('common.done')}
                                 </Text>
                             </TouchableOpacity>
@@ -128,6 +128,9 @@ const createStyles = (colors) => StyleSheet.create({
     pickerButtonText: {
         ...typography.styles.body,
         color: colors.text.primary,
+        // A long schema or province label must not push the chevron out.
+        flexShrink: 1,
+        marginRight: spacing.sm,
     },
     pickerContainer: {
         height: 200,

@@ -16,9 +16,10 @@ import {
     StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet, fonts, animations, toneForTheme } from '../../design/theme';
+import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet, animations, toneForTheme, withAlpha } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useTranslation } from 'react-i18next';
@@ -26,16 +27,17 @@ import postService from '../../services/api/postService';
 import likeService from '../../services/api/likeService';
 import { getUserId } from '../../services/api/authHelpers';
 import { ScreenLayout } from '../../components';
-import { StatusBadge } from '../../components';
+import { StatusBadge, StatTile, FadeSlideIn, PressableScale, SkeletonItem, AvailabilityStrip, ProviderCredentials, SimilarPostsDrawer } from '../../components';
 import LikeButton from '../../components/LikeButton';
 import { Button } from '../../components';
 import { TextInput } from '../../components';
-import { formatPrice, formatDateYYYYMMDD, formatDateTimeYYYYMMDD, getProvinceLabel, getDistrictLabel } from '../../utils/displayUtils';
+import { getPriceUnitLabel, formatDate, formatDateTime, getProvinceLabel, getDistrictLabel } from '../../utils/displayUtils';
 import { normalizePostType, getPostTypeConfig, getPostTitle, getSchemaLabel, getSubcategoryLabel } from '../../utils/postUtils';
 import { processPostImages } from '../../utils/imageUtils';
 import { logger } from '../../utils/logger';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { invalidatePostData } from '../../services/queryClient';
+import { track } from '../../services/analytics';
 import categoryService from '../../services/api/categoryService';
 import BookingRequestModal from '../../components/BookingRequestModal';
 import ReviewSection from '../../components/ReviewSection';
@@ -90,14 +92,66 @@ const PaginationDot = ({ active, styles }) => {
     );
 };
 
+// Icon-only secondary action for the pinned footer — a labelled square that
+// leaves the single amber primary as the only full button in the bar.
+const IconAction = ({ icon, onPress, label, danger = false, colors, styles }) => (
+    <PressableScale
+        style={[
+            styles.iconAction,
+            danger
+                ? { borderColor: colors.opacity.border.danger, backgroundColor: colors.opacity.background.danger }
+                : { borderColor: colors.border.medium, backgroundColor: colors.surface },
+        ]}
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+    >
+        <Ionicons name={icon} size={22} color={danger ? colors.danger : colors.text.primary} />
+    </PressableScale>
+);
+
 // ─── Main screen ─────────────────────────────────────────────────────────────
+
+/**
+ * Hero slide with its own loading and failure states. A dead R2 URL used to
+ * leave the tallest element on the screen blank with nothing to explain it.
+ */
+const HeroImage = ({ uri, failed, onFailed, config, isDark, colors, styles, noImageLabel }) => {
+    const [loading, setLoading] = useState(true);
+
+    if (failed) {
+        return (
+            <View style={[styles.postImage, styles.heroFallback, { backgroundColor: withAlpha(config.color, isDark ? 0.16 : 0.1) }]}>
+                <Ionicons name={config.iconName} size={56} color={toneForTheme(config.color, isDark)} />
+                <Text style={[styles.noImageText, { color: colors.text.tertiary }]}>{noImageLabel}</Text>
+            </View>
+        );
+    }
+
+    return (
+        <View>
+            <Image
+                source={{ uri }}
+                style={styles.postImage}
+                resizeMode="cover"
+                onLoadEnd={() => setLoading(false)}
+                onError={() => { setLoading(false); onFailed(); }}
+            />
+            {loading && (
+                <View style={[styles.postImage, styles.heroFallback, styles.heroLoading, { backgroundColor: colors.surface }]}>
+                    <ActivityIndicator size="small" color={colors.iconAccent} />
+                </View>
+            )}
+        </View>
+    );
+};
 
 const PostDetailScreen = ({ route, navigation }) => {
     const insets = useSafeAreaInsets();
     const { colors, isDark, styles: gStyles } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
     const { t, i18n } = useTranslation();
-    const { postId, postType: rawPostType, role = 'customer' } = route.params;
+    const { postId, postType: rawPostType, role = 'customer', openReview = false } = route.params;
     const isProvider = role === 'provider';
     const isAdmin = role === 'admin';
 
@@ -105,6 +159,7 @@ const PostDetailScreen = ({ route, navigation }) => {
 
     // Shared state
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
+    const [heroImageErrors, setHeroImageErrors] = useState({});
     const [currentUserId, setCurrentUserId] = useState(null);
 
     const [deleting, setDeleting] = useState(false);
@@ -143,16 +198,31 @@ const PostDetailScreen = ({ route, navigation }) => {
         staleTime: 60 * 1000,
     });
 
-    // Category behavior flags — bookable categories show the request button
-    const { data: schema = null } = useQuery({
+    // Category behavior flags — bookable categories show the request button.
+    // The failure is surfaced rather than swallowed: `.catch(() => null)` made a
+    // schema that would not load indistinguishable from a category that is not
+    // bookable, so the request button silently disappeared from a post that
+    // takes bookings. The web client refuses to do that; so does this one now.
+    const {
+        data: schema = null,
+        isError: schemaError,
+        refetch: refetchSchema,
+    } = useQuery({
         queryKey: ['categories', 'byKey', postType],
         enabled: Boolean(postType),
-        queryFn: () => categoryService.getCategoryByKey(postType).catch(() => null),
+        queryFn: () => categoryService.getCategoryByKey(postType),
         staleTime: 10 * 60 * 1000,
     });
     const [showBookingModal, setShowBookingModal] = useState(false);
     const canBook = !isProvider && !isAdmin && Boolean(schema?.has_rental_status) && Boolean(post?.user)
         && post?.user?.id !== currentUserId;
+    // Availability is separate from category and approval — mirrors the engine's
+    // gate in booking.service.ts. RENTED is the provider's own "not right now",
+    // and a lapsed post has nobody answering. `canBook` still drives the
+    // phone-withheld wording: an unavailable rental is still a rental.
+    const isBookable = post?.status === 'ACTIVE'
+        && (!post?.expires_at || new Date(post.expires_at) > new Date());
+    const bookingOpen = canBook && isBookable;
 
     const viewIncrementRef = useRef(false);
 
@@ -209,9 +279,15 @@ const PostDetailScreen = ({ route, navigation }) => {
 
     const handleCall = () => {
         if (post?.contact_phone) {
+            track('contact.revealed', { post_id: post.id, category: post.category });
             Linking.openURL(`tel:+976${post.contact_phone}`);
         } else {
-            showInfoModal(t('common.details'), t('posts.noPhone'));
+            // On a bookable post the number is withheld until a booking is
+            // accepted — saying "no phone available" there was simply untrue.
+            showInfoModal(
+                t('common.details'),
+                canBook ? t('posts.phoneAfterBooking') : t('posts.noPhone'),
+            );
         }
     };
 
@@ -240,12 +316,9 @@ const PostDetailScreen = ({ route, navigation }) => {
 
     if (loading) {
         return (
-            <ScreenLayout
-                title={screenTitle}
-                onBack={() => navigation.goBack()}
-                loading
-                loadingMessage={t('common.loading')}
-            />
+            <ScreenLayout title={screenTitle} onBack={() => navigation.goBack()}>
+                <SkeletonItem variant="detail" />
+            </ScreenLayout>
         );
     }
 
@@ -277,6 +350,7 @@ const PostDetailScreen = ({ route, navigation }) => {
             style={[styles.editToggle, editMode && { backgroundColor: colors.opacity.background.primary }]}
             onPress={() => setEditMode(prev => !prev)}
             activeOpacity={interactions.activeOpacity}
+            hitSlop={interactions.hitSlop}
         >
             <Ionicons
                 name={editMode ? 'checkmark-done-outline' : 'create-outline'}
@@ -322,9 +396,23 @@ const PostDetailScreen = ({ route, navigation }) => {
                                         Math.floor(e.nativeEvent.contentOffset.x / e.nativeEvent.layoutMeasurement.width)
                                     );
                                 }}
-                                renderItem={({ item }) => (
-                                    <Image source={{ uri: item }} style={styles.postImage} resizeMode="cover" />
+                                renderItem={({ item, index }) => (
+                                    <HeroImage
+                                        uri={item}
+                                        failed={!!heroImageErrors[index]}
+                                        onFailed={() => setHeroImageErrors(prev => ({ ...prev, [index]: true }))}
+                                        config={postTypeConfig}
+                                        isDark={isDark}
+                                        colors={colors}
+                                        styles={styles}
+                                        noImageLabel={t('posts.noImage')}
+                                    />
                                 )}
+                            />
+                            <LinearGradient
+                                colors={['transparent', colors.opacity.overlay]}
+                                style={styles.heroGradient}
+                                pointerEvents="none"
                             />
                             {post.processedImages.length > 1 && (
                                 <View style={styles.pagination}>
@@ -339,9 +427,26 @@ const PostDetailScreen = ({ route, navigation }) => {
                             )}
                         </>
                     ) : (
-                        <View style={[styles.noImage, { backgroundColor: colors.background }]}>
-                            <Ionicons name="image-outline" size={64} color={colors.primary} />
+                        <View style={[styles.noImage, { backgroundColor: withAlpha(postTypeConfig.color, isDark ? 0.16 : 0.1) }]}>
+                            <Ionicons name={postTypeConfig.iconName} size={64} color={toneForTheme(postTypeConfig.color, isDark)} />
                             <Text style={[styles.noImageText, { color: colors.text.tertiary }]}>{t('posts.noImage')}</Text>
+                        </View>
+                    )}
+                    <View style={[styles.heroCategoryPill, { backgroundColor: postTypeConfig.color }]}>
+                        <Ionicons name={postTypeConfig.iconName} size={12} color={colors.text.onColor} />
+                        <Text style={[styles.heroCategoryText, { color: colors.text.onColor }]} numberOfLines={1}>
+                            {schema ? getSchemaLabel(schema) : t('category.' + postType, { defaultValue: postType })}
+                        </Text>
+                    </View>
+                    {post.status && (
+                        <View style={styles.heroStatusWrap}>
+                            <StatusBadge
+                                status={post.status}
+                                variant="inline"
+                                position="relative"
+                                showIndicator={false}
+                                showIcon={true}
+                            />
                         </View>
                     )}
                 </View>
@@ -350,6 +455,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                 <View style={styles.contentWrapper}>
 
                 {/* ── Title card ─────────────────────────────────────────── */}
+                <FadeSlideIn index={0}>
                 <SectionCard style={styles.titleCard} colors={colors} styles={styles}>
                     {isAdmin && editMode ? (
                         <View style={[styles.editBlock, { backgroundColor: colors.surface, borderColor: colors.border.amber }]}>
@@ -373,8 +479,8 @@ const PostDetailScreen = ({ route, navigation }) => {
                             />
                             {hasEdits && (
                                 <View style={[styles.editHint, { backgroundColor: colors.opacity.background.primary }]}>
-                                    <Ionicons name="information-circle-outline" size={14} color={colors.primary} />
-                                    <Text style={[styles.editHintText, { color: colors.primary }]}>{t('admin.editHint')}</Text>
+                                    <Ionicons name="information-circle-outline" size={14} color={colors.iconAccent} />
+                                    <Text style={[styles.editHintText, { color: colors.text.link }]}>{t('admin.editHint')}</Text>
                                 </View>
                             )}
                         </View>
@@ -383,24 +489,16 @@ const PostDetailScreen = ({ route, navigation }) => {
                             <View style={styles.titleRow}>
                                 <View style={{ flex: 1 }}>
                                     <Text style={[styles.title, { color: colors.text.primary }]}>{isAdmin ? (editedTitle || postTitle) : postTitle}</Text>
-                                    <View style={styles.postTypeRow}>
-                                        <Ionicons name={postTypeConfig.iconName} size={20} color={toneForTheme(postTypeConfig.color, isDark)} />
-                                        <Text style={[styles.postTypeText, { color: colors.text.secondary }]}>
-                                            {schema ? getSchemaLabel(schema) : t('category.' + postType, { defaultValue: postType })}
-                                            {post.subcategory ? ` → ${getSubcategoryLabel(post.subcategory, schema) || t(`subcategory.${post.subcategory}`, { defaultValue: post.subcategory })}` : ''}
-                                        </Text>
-                                    </View>
+                                    {post.subcategory ? (
+                                        <View style={styles.postTypeRow}>
+                                            <Ionicons name={postTypeConfig.iconName} size={20} color={toneForTheme(postTypeConfig.color, isDark)} />
+                                            <Text style={[styles.postTypeText, { color: colors.text.secondary }]} numberOfLines={1}>
+                                                {getSubcategoryLabel(post.subcategory, schema) || t(`subcategory.${post.subcategory}`, { defaultValue: post.subcategory })}
+                                            </Text>
+                                        </View>
+                                    ) : null}
                                 </View>
                                 <View style={styles.titleActions}>
-                                    {post.status && (
-                                        <StatusBadge
-                                            status={post.status}
-                                            variant="inline"
-                                            position="relative"
-                                            showIndicator={false}
-                                            showIcon={true}
-                                        />
-                                    )}
                                     {!isProvider && !isAdmin && (
                                         <LikeButton
                                             post_type={postType}
@@ -413,18 +511,31 @@ const PostDetailScreen = ({ route, navigation }) => {
                             </View>
 
                             {(post.price_amount || post.attributes?.salary_range) && (
-                                <Text style={[styles.price, { color: colors.primary }]}>
-                                    {post.attributes?.salary_range
-                                        ? post.attributes.salary_range
-                                        : formatPrice(post.price_amount, post.price_unit)}
-                                </Text>
+                                <View style={styles.priceBlock}>
+                                    <Text style={[styles.priceEyebrow, { color: colors.text.tertiary }]}>
+                                        {post.attributes?.salary_range
+                                            ? t('attrs.salaryRange')
+                                            : (getPriceUnitLabel(post.price_unit) || t('common.price'))}
+                                    </Text>
+                                    <Text
+                                        style={[styles.priceAmount, { color: colors.text.link }]}
+                                        numberOfLines={1}
+                                        adjustsFontSizeToFit
+                                    >
+                                        {post.attributes?.salary_range
+                                            ? post.attributes.salary_range
+                                            : `${Number(post.price_amount).toLocaleString('mn-MN', { maximumFractionDigits: 0 })}₮`}
+                                    </Text>
+                                </View>
                             )}
                         </>
                     )}
                 </SectionCard>
+                </FadeSlideIn>
 
                 {/* ── Poster info (admin only) ────────────────────────────── */}
                 {isAdmin && post.user && (
+                    <FadeSlideIn index={1}>
                     <SectionCard colors={colors} styles={styles}>
                         <Text style={[styles.adminSectionTitle, { color: colors.text.tertiary }]}>{t('admin.poster')}</Text>
                         {(post.user.parent_name || post.user.given_name) && (
@@ -446,73 +557,43 @@ const PostDetailScreen = ({ route, navigation }) => {
                             </View>
                         )}
                     </SectionCard>
+                    </FadeSlideIn>
                 )}
 
                 {/* ── Stats card (provider only) ─────────────────────────── */}
                 {isProvider && (
+                    <FadeSlideIn index={1}>
                     <View style={[styles.statsCard, { backgroundColor: colors.surface }]}>
-                        <View style={styles.statItem}>
-                            <View style={[styles.statIconBox, { backgroundColor: colors.opacity.background.primary }]}>
-                                <Ionicons name="eye-outline" size={20} color={colors.primary} />
-                            </View>
-                            <Text style={[styles.statValue, { color: colors.text.primary }]}>{post.views || 0}</Text>
-                            <Text style={[styles.statLabel, { color: colors.text.secondary }]}>{t('posts.viewCount')}</Text>
-                        </View>
-
-                        <View style={styles.statItem}>
-                            <View style={[styles.statIconBox, { backgroundColor: colors.opacity.background.primary }]}>
-                                <Ionicons name="heart-outline" size={20} color={colors.primary} />
-                            </View>
-                            {loadingLikes
-                                ? <ActivityIndicator size="small" color={colors.primary} />
-                                : <Text style={[styles.statValue, { color: colors.text.primary }]}>{likeStats.total_likes}</Text>}
-                            <Text style={[styles.statLabel, { color: colors.text.secondary }]}>{t('nav.saved')}</Text>
-                        </View>
-
-                        <View style={styles.statItem}>
-                            <View style={[styles.statIconBox, { backgroundColor: colors.opacity.background.primary }]}>
-                                <Ionicons name="trending-up-outline" size={20} color={colors.primary} />
-                            </View>
-                            {loadingLikes
-                                ? <ActivityIndicator size="small" color={colors.primary} />
-                                : <Text style={[styles.statValue, { color: colors.text.primary }]}>{likeStats.recent_likes}</Text>}
-                            <Text style={[styles.statLabel, { color: colors.text.secondary }]}>{t('posts.last7Days')}</Text>
-                        </View>
-
-                        {post.rental_count !== undefined && (
-                            <View style={styles.statItem}>
-                                <View style={[styles.statIconBox, { backgroundColor: colors.opacity.background.primary }]}>
-                                    <Ionicons name="repeat-outline" size={20} color={colors.primary} />
-                                </View>
-                                <Text style={[styles.statValue, { color: colors.text.primary }]}>{post.rental_count || 0}</Text>
-                                <Text style={[styles.statLabel, { color: colors.text.secondary }]}>{t('posts.myPosts')}</Text>
-                            </View>
-                        )}
-
-                        {post.booking_count !== undefined && (
-                            <View style={styles.statItem}>
-                                <View style={[styles.statIconBox, { backgroundColor: colors.opacity.background.primary }]}>
-                                    <Ionicons name="calendar-outline" size={20} color={colors.primary} />
-                                </View>
-                                <Text style={[styles.statValue, { color: colors.text.primary }]}>{post.booking_count || 0}</Text>
-                                <Text style={[styles.statLabel, { color: colors.text.secondary }]}>{t('common.details')}</Text>
-                            </View>
-                        )}
-
-                        {post.inquiries_count !== undefined && (
-                            <View style={styles.statItem}>
-                                <View style={[styles.statIconBox, { backgroundColor: colors.opacity.background.primary }]}>
-                                    <Ionicons name="mail-outline" size={20} color={colors.primary} />
-                                </View>
-                                <Text style={[styles.statValue, { color: colors.text.primary }]}>{post.inquiries_count || 0}</Text>
-                                <Text style={[styles.statLabel, { color: colors.text.secondary }]}>{t('profile.email')}</Text>
-                            </View>
-                        )}
+                        <StatTile
+                            label={t('posts.viewCount')}
+                            value={post.views || 0}
+                            icon="eye-outline"
+                            emphasis
+                            style={styles.statItem}
+                        />
+                        <StatTile
+                            label={t('nav.saved')}
+                            value={likeStats.total_likes}
+                            icon="heart-outline"
+                            ready={!loadingLikes}
+                            loading={loadingLikes}
+                            style={styles.statItem}
+                        />
+                        <StatTile
+                            label={t('posts.last7Days')}
+                            value={likeStats.recent_likes}
+                            icon="trending-up-outline"
+                            ready={!loadingLikes}
+                            loading={loadingLikes}
+                            style={styles.statItem}
+                        />
                     </View>
+                    </FadeSlideIn>
                 )}
 
                 {/* ── Location & map ─────────────────────────────────────── */}
-                <SectionCard colors={colors} styles={styles}>
+                <FadeSlideIn index={2}>
+                <SectionCard label={t('posts.sectionLocation')} colors={colors} styles={styles}>
                     <Text style={[styles.locationText, { color: colors.text.primary }]}>
                         {post.location || post.address ||
                             (post.province
@@ -547,15 +628,17 @@ const PostDetailScreen = ({ route, navigation }) => {
                                 />
                             </MapView>
                             <TouchableOpacity style={[styles.mapBtn, { backgroundColor: colors.surface }]} onPress={handleOpenInMaps} activeOpacity={interactions.activeOpacity}>
-                                <Ionicons name="navigate-outline" size={20} color={colors.primary} />
-                                <Text style={[styles.mapBtnText, { color: colors.primary }]}>{t('posts.openInMaps')}</Text>
+                                <Ionicons name="navigate-outline" size={20} color={colors.iconAccent} />
+                                <Text style={[styles.mapBtnText, { color: colors.text.link }]}>{t('posts.openInMaps')}</Text>
                             </TouchableOpacity>
                         </View>
                     )}
                 </SectionCard>
+                </FadeSlideIn>
 
                 {/* ── Category-specific attributes (dynamic) ─────────────── */}
                 {post.attributes && Object.keys(post.attributes).length > 0 && (
+                    <FadeSlideIn index={3}>
                     <CollapsibleSectionCard title={t('form.categoryDetails')} colors={colors} styles={styles}>
                         <View style={styles.detailsGrid}>
                             {Object.entries(post.attributes).map(([key, value]) => {
@@ -589,52 +672,77 @@ const PostDetailScreen = ({ route, navigation }) => {
                             })}
                         </View>
                     </CollapsibleSectionCard>
+                    </FadeSlideIn>
+                )}
+
+                {/* ── Next 14 days (bookable categories) ─────────────────── */}
+                {Boolean(schema?.has_rental_status) && Array.isArray(post.busy_dates) && (
+                    <FadeSlideIn index={4}>
+                    <SectionCard label={t('posts.availabilityNext')} colors={colors} styles={styles}>
+                        <AvailabilityStrip busyDates={post.busy_dates} size="md" />
+                    </SectionCard>
+                    </FadeSlideIn>
                 )}
 
                 {/* ── Availability ───────────────────────────────────────── */}
                 {(post.available_from || post.available_until) && (
-                    <SectionCard colors={colors} styles={styles}>
+                    <FadeSlideIn index={4}>
+                    <SectionCard label={t('posts.sectionAvailability')} colors={colors} styles={styles}>
                         {post.available_from && (
                             <View style={styles.availRow}>
-                                <View style={[styles.availIcon, { backgroundColor: colors.opacity.background.primary }]}>
-                                    <Ionicons name="play-circle-outline" size={18} color={colors.primary} />
+                                <View style={[styles.availIcon, { backgroundColor: colors.surfaceLight }]}>
+                                    <Ionicons name="play-circle-outline" size={18} color={colors.text.secondary} />
                                 </View>
                                 <View>
                                     <Text style={[styles.detailLabel, { color: colors.text.secondary }]}>{t('posts.availableFrom')}</Text>
-                                    <Text style={[styles.detailValue, { color: colors.text.primary }]}>{formatDateYYYYMMDD(post.available_from)}</Text>
+                                    <Text style={[styles.detailValue, { color: colors.text.primary }]}>{formatDate(post.available_from)}</Text>
                                 </View>
                             </View>
                         )}
                         {post.available_until && (
                             <View style={styles.availRow}>
-                                <View style={[styles.availIcon, { backgroundColor: colors.opacity.background.primary }]}>
-                                    <Ionicons name="stop-circle-outline" size={18} color={colors.primary} />
+                                <View style={[styles.availIcon, { backgroundColor: colors.surfaceLight }]}>
+                                    <Ionicons name="stop-circle-outline" size={18} color={colors.text.secondary} />
                                 </View>
                                 <View>
                                     <Text style={[styles.detailLabel, { color: colors.text.secondary }]}>{t('posts.availableUntil')}</Text>
-                                    <Text style={[styles.detailValue, { color: colors.text.primary }]}>{formatDateYYYYMMDD(post.available_until)}</Text>
+                                    <Text style={[styles.detailValue, { color: colors.text.primary }]}>{formatDate(post.available_until)}</Text>
                                 </View>
                             </View>
                         )}
                     </SectionCard>
+                    </FadeSlideIn>
                 )}
 
                 {/* ── Description / details ─────────────────────────────── */}
                 {(post.description || post.details) && (
-                    <SectionCard colors={colors} styles={styles}>
+                    <FadeSlideIn index={5}>
+                    <SectionCard label={t('posts.sectionDescription')} colors={colors} styles={styles}>
                         <Text style={[styles.descriptionText, { color: colors.text.primary }]}>{post.description || post.details}</Text>
                     </SectionCard>
+                    </FadeSlideIn>
+                )}
+
+                {/* ── Provider track record ──────────────────────────────── */}
+                {post.user && (
+                    <FadeSlideIn index={6}>
+                    <ProviderCredentials providerId={post.user.id} />
+                    </FadeSlideIn>
                 )}
 
                 {/* ── Contact info ───────────────────────────────────────── */}
                 {(post.contact_phone || post.contact_email || post.website) && (
-                    <SectionCard colors={colors} styles={styles}>
+                    <FadeSlideIn index={6}>
+                    <SectionCard label={t('posts.sectionContact')} colors={colors} styles={styles}>
                         {post.contact_phone && (
                             <ContactRow
                                 icon="call-outline"
                                 label={t('profile.phone')}
                                 value={post.contact_phone}
-                                onPress={() => Linking.openURL(`tel:+976${post.contact_phone}`)}
+                                onPress={() => {
+                                    track('contact.revealed', { post_id: post.id, category: post.category });
+                                    Linking.openURL(`tel:+976${post.contact_phone}`);
+                                }}
                                 colors={colors}
                                 styles={styles}
                             />
@@ -662,13 +770,15 @@ const PostDetailScreen = ({ route, navigation }) => {
                             />
                         )}
                     </SectionCard>
+                    </FadeSlideIn>
                 )}
 
                 {/* ── Meta info ─────────────────────────────────────────── */}
+                <FadeSlideIn index={7}>
                 <CollapsibleSectionCard title={t('posts.moreInfo')} colors={colors} styles={styles} defaultOpen={false}>
-                    <MetaRow icon="calendar-outline" label={t('posts.publishedOn')} value={formatDateTimeYYYYMMDD(post.created_at || post.date_created)} colors={colors} styles={styles} />
+                    <MetaRow icon="calendar-outline" label={t('posts.publishedOn')} value={formatDateTime(post.created_at || post.date_created)} colors={colors} styles={styles} />
                     {post.updated_at && post.updated_at !== post.created_at && (
-                        <MetaRow icon="refresh-outline" label={t('posts.updatedAt')} value={formatDateTimeYYYYMMDD(post.updated_at)} colors={colors} styles={styles} />
+                        <MetaRow icon="refresh-outline" label={t('posts.updatedAt')} value={formatDateTime(post.updated_at)} colors={colors} styles={styles} />
                     )}
                     <MetaRow icon="finger-print-outline" label={t('posts.postId')} value={`#${post.id}`} colors={colors} styles={styles} />
 
@@ -676,13 +786,33 @@ const PostDetailScreen = ({ route, navigation }) => {
                         <MetaRow icon="eye-outline" label={t('posts.viewCount')} value={String(post.views)} colors={colors} styles={styles} />
                     )}
                 </CollapsibleSectionCard>
+                </FadeSlideIn>
 
                 {/* ── Provider reviews ───────────────────────────────────── */}
                 {post.user && (
+                    <FadeSlideIn index={8}>
                     <ReviewSection
                         providerId={post.user.id}
                         canReview={!isProvider && !isAdmin && post.user.id !== currentUserId}
+                        autoOpen={openReview}
                     />
+                    </FadeSlideIn>
+                )}
+
+                {/* ── Similar posts ──────────────────────────────────────── */}
+                {!isAdmin && (
+                    <FadeSlideIn index={9}>
+                    <SimilarPostsDrawer
+                        postId={postId}
+                        onPressPost={(p) => navigation.push('PostDetailScreen', {
+                            postId: p.id,
+                            postType: p.category,
+                            post: p,
+                            role,
+                            shouldIncrementViews: true,
+                        })}
+                    />
+                    </FadeSlideIn>
                 )}
 
                 </View>{/* end contentWrapper */}
@@ -697,6 +827,10 @@ const PostDetailScreen = ({ route, navigation }) => {
             ]}>
                 {isAdmin ? (
                     <>
+                        {/* Each state offers only the move that changes something.
+                            Approving an already-approved post did nothing except
+                            push a fresh "your post was approved" to the provider. */}
+                        {post.approval_status !== 'REJECTED' && (
                         <TouchableOpacity
                             style={[styles.rejectBtn, (approving || rejecting) && styles.btnDisabled, { borderColor: colors.opacity.border.danger, backgroundColor: colors.opacity.background.danger }]}
                             onPress={() => setShowRejectModal(true)}
@@ -708,10 +842,14 @@ const PostDetailScreen = ({ route, navigation }) => {
                             ) : (
                                 <>
                                     <Ionicons name="close-circle-outline" size={20} color={colors.danger} />
-                                    <Text style={[styles.rejectBtnText, { color: colors.danger }]}>{t('posts.reject')}</Text>
+                                    <Text style={[styles.rejectBtnText, { color: colors.danger }]}>
+                                        {post.approval_status === 'PENDING' ? t('posts.reject') : t('admin.takeDown')}
+                                    </Text>
                                 </>
                             )}
                         </TouchableOpacity>
+                        )}
+                        {post.approval_status !== 'APPROVED' && (
                         <TouchableOpacity
                             style={[styles.approveBtn, (approving || rejecting) && styles.btnDisabled, { backgroundColor: colors.success }]}
                             onPress={handleApprove}
@@ -719,19 +857,30 @@ const PostDetailScreen = ({ route, navigation }) => {
                             activeOpacity={interactions.activeOpacity}
                         >
                             {approving ? (
-                                <ActivityIndicator color={colors.surface} size="small" />
+                                <ActivityIndicator color={colors.text.onColor} size="small" />
                             ) : (
                                 <>
-                                    <Ionicons name={hasEdits ? 'save-outline' : 'checkmark-circle-outline'} size={20} color={colors.surface} />
-                                    <Text style={[styles.approveBtnText, { color: colors.surface }]}>
-                                        {hasEdits ? t('admin.saveAndApprove') : t('posts.approve')}
+                                    <Ionicons name={hasEdits ? 'save-outline' : 'checkmark-circle-outline'} size={20} color={colors.text.onColor} />
+                                    <Text style={[styles.approveBtnText, { color: colors.text.onColor }]}>
+                                        {hasEdits ? t('admin.saveAndApprove')
+                                            : post.approval_status === 'PENDING' ? t('posts.approve')
+                                                : t('admin.reinstate')}
                                     </Text>
                                 </>
                             )}
                         </TouchableOpacity>
+                        )}
                     </>
                 ) : isProvider ? (
                     <>
+                        <IconAction
+                            icon="trash-outline"
+                            onPress={handleDelete}
+                            label={t('common.delete')}
+                            danger
+                            colors={colors}
+                            styles={styles}
+                        />
                         <Button
                             icon="create-outline"
                             title={t('common.edit')}
@@ -740,43 +889,52 @@ const PostDetailScreen = ({ route, navigation }) => {
                             size="medium"
                             style={styles.footerBtn}
                         />
-                        <Button
-                            icon="trash-outline"
-                            title={t('common.delete')}
-                            onPress={handleDelete}
-                            variant="danger"
-                            size="medium"
-                            style={styles.footerBtn}
-                        />
                     </>
                 ) : (
                     <>
-                        {canBook && (
+                        {post.latitude && post.longitude && (
+                            <IconAction
+                                icon="navigate-outline"
+                                onPress={handleDirections}
+                                label={t('posts.navigate')}
+                                colors={colors}
+                                styles={styles}
+                            />
+                        )}
+                        {canBook && post.contact_phone && (
+                            <IconAction
+                                icon="call-outline"
+                                onPress={handleCall}
+                                label={t('posts.call')}
+                                colors={colors}
+                                styles={styles}
+                            />
+                        )}
+                        {schemaError && !schema ? (
+                            <Button
+                                icon="refresh-outline"
+                                title={t('common.retry')}
+                                onPress={() => refetchSchema()}
+                                variant="secondary"
+                                size="medium"
+                                style={styles.footerBtn}
+                            />
+                        ) : canBook && !isBookable ? (
                             <Button
                                 icon="calendar-outline"
-                                title={t('booking.request')}
-                                onPress={() => setShowBookingModal(true)}
+                                title={t('errors.codes.BOOKING_POST_UNAVAILABLE')}
+                                onPress={() => {}}
+                                disabled
                                 variant="primary"
                                 size="medium"
                                 style={styles.footerBtn}
                             />
-                        )}
-                        {post.contact_phone && (
+                        ) : (bookingOpen || post.contact_phone) && (
                             <Button
-                                icon="call-outline"
-                                title={t('posts.call')}
-                                onPress={handleCall}
-                                variant={canBook ? 'secondary' : 'primary'}
-                                size="medium"
-                                style={styles.footerBtn}
-                            />
-                        )}
-                        {post.latitude && post.longitude && (
-                            <Button
-                                icon="navigate-outline"
-                                title={t('posts.navigate')}
-                                onPress={handleDirections}
-                                variant="success"
+                                icon={bookingOpen ? 'calendar-outline' : 'call-outline'}
+                                title={bookingOpen ? t('booking.request') : t('posts.call')}
+                                onPress={bookingOpen ? () => setShowBookingModal(true) : handleCall}
+                                variant="primary"
                                 size="medium"
                                 style={styles.footerBtn}
                             />
@@ -786,11 +944,13 @@ const PostDetailScreen = ({ route, navigation }) => {
             </View>
 
             {/* ── Booking request modal (customer) ───────────────────────── */}
-            {canBook && (
+            {bookingOpen && (
                 <BookingRequestModal
                     visible={showBookingModal}
                     onClose={() => setShowBookingModal(false)}
                     postId={post.id}
+                    availableFrom={post.available_from}
+                    availableUntil={post.available_until}
                 />
             )}
 
@@ -871,6 +1031,12 @@ const createStyles = (colors) => StyleSheet.create({
 
     // Image
     imageContainer: { width: '100%', height: isTablet ? 360 : 260, backgroundColor: colors.background },
+    heroFallback: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: spacing.sm,
+    },
+    heroLoading: { position: 'absolute', top: 0, left: 0 },
     postImage: { width, height: isTablet ? 360 : 260 },
     pagination: {
         position: 'absolute',
@@ -899,8 +1065,40 @@ const createStyles = (colors) => StyleSheet.create({
         marginTop: spacing.sm,
         ...typography.styles.caption,
     },
+    heroGradient: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: 80,
+    },
+    heroCategoryPill: {
+        position: 'absolute',
+        top: spacing.sm,
+        left: spacing.lg,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.xs,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xs,
+        borderRadius: radius.xxl,
+        maxWidth: '70%',
+    },
+    heroCategoryText: {
+        ...typography.styles.badge,
+    },
+    heroStatusWrap: {
+        position: 'absolute',
+        top: spacing.sm,
+        right: spacing.lg,
+    },
 
     // Section card
+    sectionLabel: {
+        ...typography.styles.overline,
+        textTransform: 'uppercase',
+        marginBottom: spacing.sm,
+    },
     sectionCard: {
         ...colors.elevation.sm,
         backgroundColor: colors.surface,
@@ -945,11 +1143,22 @@ const createStyles = (colors) => StyleSheet.create({
         ...typography.styles.label,
         color: colors.text.secondary,
         marginLeft: spacing.xs,
+        // Subcategory labels are admin-editable: shrink inside the title column
+        // rather than overrunning it into the action buttons.
+        flexShrink: 1,
     },
-    price: {
-        ...typography.styles.h1,
-        color: colors.primary,
+    priceBlock: {
         marginTop: spacing.md,
+    },
+    priceEyebrow: {
+        ...typography.styles.overline,
+        textTransform: 'uppercase',
+        marginBottom: spacing.xxs,
+    },
+    priceAmount: {
+        ...typography.styles.display,
+        color: colors.text.link,
+        fontVariant: ['tabular-nums'],
     },
 
     // Stats card
@@ -970,25 +1179,7 @@ const createStyles = (colors) => StyleSheet.create({
         // four stats still wrap into an even 2×2.
         flexGrow: 1,
         flexBasis: '28%',
-        alignItems: 'center',
-        justifyContent: 'center',
         minHeight: 70,
-    },
-    statIconBox: {
-        width: 40, height: 40, borderRadius: radius.full,
-        backgroundColor: colors.opacity.background.primary,
-        justifyContent: 'center', alignItems: 'center',
-        marginBottom: spacing.xs,
-    },
-    statValue: {
-        ...typography.styles.h3,
-        color: colors.text.primary,
-        marginBottom: spacing.xs,
-    },
-    statLabel: {
-        ...typography.styles.small,
-        color: colors.text.secondary,
-        textAlign: 'center',
     },
 
     // Location & map
@@ -1019,7 +1210,7 @@ const createStyles = (colors) => StyleSheet.create({
     mapBtnText: {
         marginLeft: spacing.xs,
         ...typography.styles.badge,
-        color: colors.primary,
+        color: colors.text.link,
     },
 
     // Details grid
@@ -1051,7 +1242,7 @@ const createStyles = (colors) => StyleSheet.create({
         paddingVertical: spacing.xs,
         margin: spacing.xs,
     },
-    tagText: { ...typography.styles.label, color: colors.primary },
+    tagText: { ...typography.styles.label, color: colors.text.link },
 
     // Availability
     availRow: {
@@ -1123,13 +1314,21 @@ const createStyles = (colors) => StyleSheet.create({
 
     // Footer
     footer: {
-        ...colors.elevation.sm,
-        flexDirection: isTablet ? 'row' : 'column',
+        flexDirection: 'row',
+        alignItems: 'center',
         backgroundColor: colors.surface,
         padding: spacing.md,
         gap: spacing.md,
     },
-    footerBtn: { flex: isTablet ? 1 : undefined },
+    footerBtn: { flex: 1 },
+    iconAction: {
+        width: 52,
+        height: 52,
+        borderRadius: radius.button,
+        borderWidth: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
 
     // Admin
     editToggle: {
@@ -1177,9 +1376,7 @@ const createStyles = (colors) => StyleSheet.create({
     adminInfoLabel: { ...typography.styles.caption, flex: 1 },
     adminInfoValue: { ...typography.styles.label, flex: 2, textAlign: 'right' },
     rejectBtn: {
-        // flex:1 splits the tablet row; in the phone column the footer's height
-        // is content-driven, so flex:1 would collapse the button to its padding.
-        flex: isTablet ? 1 : undefined,
+        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
@@ -1191,7 +1388,7 @@ const createStyles = (colors) => StyleSheet.create({
     rejectBtnText: { ...typography.styles.bodyBold },
     approveBtn: {
         ...colors.elevation.md,
-        flex: isTablet ? 1 : undefined,
+        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',

@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import Button from '../../components/Button';
 import ScreenHeader from '../../components/ScreenHeader';
+import WizardSteps from '../../components/WizardSteps';
 import ScreenLoading from '../../components/ScreenLoading';
 import { showErrorModal } from '../../utils/errorManager';
 
@@ -154,6 +155,7 @@ const ProviderLocationSelection = ({ route, navigation }) => {
     return (
         <CustomSafeAreaView backgroundColor={colors.background} statusBarColor={colors.surface} statusBarStyle={isDark ? 'light-content' : 'dark-content'}>
             <ScreenHeader title={t('provider.locationTitle')} onBack={() => navigation.goBack()} />
+            <WizardSteps current={3} labels={[t('provider.stepCategory'), t('provider.stepSubcategory'), t('provider.stepLocation'), t('provider.stepDetails')]} />
 
             {isLoading ? (
                 <ScreenLoading message={t('provider.locationLoading')} />
@@ -186,15 +188,15 @@ const ProviderLocationSelection = ({ route, navigation }) => {
                     </MapView>
 
                     <View style={[
-                        styles.locationInfoContainer,
                         gStyles.bottomContainerWithInset(
                             safeAreaHelpers.getBottomSafeArea(insets)
                         ),
+                        styles.locationInfoContainer,
                         { backgroundColor: colors.surface },
                     ]}>
                         <View style={styles.locationHeader}>
                             <View style={styles.locationIcon}>
-                                <Ionicons name="location" size={24} color={colors.primary} />
+                                <Ionicons name="location" size={24} color={colors.iconAccent} />
                             </View>
                             <View style={styles.locationTextContainer}>
                                 <Text style={styles.locationLabel}>{t('provider.locationSelected')}</Text>
@@ -226,7 +228,7 @@ const ProviderLocationSelection = ({ route, navigation }) => {
                             </View>
                         ) : (
                             <View style={styles.instructionContainer}>
-                                <Ionicons name="information-circle-outline" size={16} color={colors.primary} />
+                                <Ionicons name="information-circle-outline" size={16} color={colors.iconAccent} />
                                 <Text style={styles.instructionText}>
                                     {t('provider.locationInstruction')}
                                 </Text>
@@ -331,7 +333,7 @@ const createStyles = (colors) => StyleSheet.create({
     },
     noticeAction: {
         ...typography.styles.labelStrong,
-        color: colors.primary,
+        color: colors.text.link,
     },
 });
 

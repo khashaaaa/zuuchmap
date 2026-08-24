@@ -4,18 +4,14 @@ import {
     Text,
     TouchableOpacity,
     ActivityIndicator,
-    FlatList,
     Switch,
-    Image,
     Platform,
-    StyleSheet,
 } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing, typography, radius, interactions, themedStyles, withAlpha, toneForTheme, animations } from '../../design/theme';
+import { spacing, typography, radius, interactions, themedStyles, toneForTheme, animations, isTablet } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
@@ -25,33 +21,26 @@ import ScreenHeader from '../../components/ScreenHeader';
 
 import MapFilterModal from '../../components/MapFilterModal';
 import BottomSheetModal from '../../components/BottomSheetModal';
-import EmptyState from '../../components/EmptyState';
 import PressableScale from '../../components/PressableScale';
-import FadeSlideIn from '../../components/FadeSlideIn';
+import OfflineBanner from '../../components/OfflineBanner';
+import MapClusterCarousel from '../../components/MapClusterCarousel';
 import { getPostTypeConfig, normalizePostType } from '../../utils/postUtils';
 import { useCategorySchemas } from '../../hooks/useCategorySchemas';
 import { showErrorModal, showWarningModal } from '../../utils/errorManager';
 import { logger } from '../../utils/logger';
 
 const uiInitialState = {
-    selectedCluster: null,
-    showClusterModal: false,
-    selectedPost: null,
-    showPostPreview: false,
+    carouselPosts: null,
     showSettingsModal: false,
     showFilterModal: false,
 };
 
 function uiReducer(state, action) {
     switch (action.type) {
-        case 'SHOW_CLUSTER':
-            return { ...state, selectedCluster: action.cluster, showClusterModal: true };
-        case 'HIDE_CLUSTER':
-            return { ...state, showClusterModal: false, selectedCluster: null };
-        case 'SHOW_PREVIEW':
-            return { ...state, selectedPost: action.post, showPostPreview: true };
-        case 'HIDE_PREVIEW':
-            return { ...state, showPostPreview: false, selectedPost: null };
+        case 'SHOW_CAROUSEL':
+            return { ...state, carouselPosts: action.posts };
+        case 'HIDE_CAROUSEL':
+            return { ...state, carouselPosts: null };
         case 'SHOW_SETTINGS':
             return { ...state, showSettingsModal: true };
         case 'HIDE_SETTINGS':
@@ -70,6 +59,54 @@ const DEFAULT_REGION = {
     longitude: 106.9177,
     latitudeDelta: 0.0922,
     longitudeDelta: 0.0421,
+};
+
+// Grid cells across the visible width. Coarse enough that a dense district
+// collapses to one badge, fine enough that two sites a block apart stay apart
+// once zoomed in — the cell scales with the viewport, so zooming re-clusters.
+const GRID_CELLS = 7;
+const EMPTY = [];
+
+/**
+ * Groups posts into screen-space grid cells for the current region. Pure and
+ * O(n): a `Map` keyed by cell, then one pass for centroids and the dominant
+ * category (which colours the badge).
+ */
+const gridCluster = (posts, region) => {
+    const cellLng = Math.max(region.longitudeDelta / GRID_CELLS, 1e-6);
+    const cellLat = Math.max(region.latitudeDelta / GRID_CELLS, 1e-6);
+    const cells = new Map();
+    for (const post of posts) {
+        const { latitude, longitude } = post.coordinates;
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) continue;
+        const key = `${Math.floor(latitude / cellLat)}:${Math.floor(longitude / cellLng)}`;
+        const cell = cells.get(key);
+        if (cell) cell.push(post); else cells.set(key, [post]);
+    }
+    const out = [];
+    for (const [key, group] of cells) {
+        if (group.length === 1) {
+            const post = group[0];
+            out.push({ posts: group, coordinate: post.coordinates, count: 1, id: `single-${post.post_type}-${post.id}`, dominant: post.post_type });
+            continue;
+        }
+        let lat = 0, lng = 0;
+        const tally = new Map();
+        for (const p of group) {
+            lat += p.coordinates.latitude; lng += p.coordinates.longitude;
+            tally.set(p.post_type, (tally.get(p.post_type) || 0) + 1);
+        }
+        let dominant = group[0].post_type, best = 0;
+        for (const [type, n] of tally) if (n > best) { best = n; dominant = type; }
+        out.push({
+            posts: group,
+            coordinate: { latitude: lat / group.length, longitude: lng / group.length },
+            count: group.length,
+            id: `cluster-${key}`,
+            dominant,
+        });
+    }
+    return out;
 };
 
 const CustomerMapView = ({ navigation, route }) => {
@@ -98,7 +135,7 @@ const CustomerMapView = ({ navigation, route }) => {
     const [mapReady, setMapReady] = useState(false);
 
     const [ui, dispatchUi] = useReducer(uiReducer, uiInitialState);
-    const { selectedCluster, showClusterModal, selectedPost, showPostPreview, showSettingsModal, showFilterModal } = ui;
+    const { carouselPosts, showSettingsModal, showFilterModal } = ui;
 
     const [activeFilters, setActiveFilters] = useState({});
     const [refreshing, setRefreshing] = useState(false);
@@ -168,11 +205,13 @@ const CustomerMapView = ({ navigation, route }) => {
         }
     }, [userLocation, mapReady, getUserLocation]);
 
-    const { data: posts = [], isFetching: loading, refetch: refetchPosts, isError: postsError } = useQuery({
+    const { data: mapData, isFetching: loading, refetch: refetchPosts, isError: postsError } = useQuery({
         queryKey: ['map', 'posts'],
         queryFn: () => mapService.getPostsWithLocation(false),
         staleTime: 15 * 60 * 1000,
     });
+    const posts = mapData?.posts ?? EMPTY;
+    const fromCache = Boolean(mapData?.fromCache);
 
     useEffect(() => {
         if (postsError) {
@@ -222,29 +261,42 @@ const CustomerMapView = ({ navigation, route }) => {
                 posts: [post],
                 coordinate: post.coordinates,
                 count: 1,
-                id: `single-${post.post_type}-${post.id}`
+                id: `single-${post.post_type}-${post.id}`,
+                dominant: post.post_type,
             }));
         }
+        return gridCluster(filteredPosts, region);
+    }, [filteredPosts, mapPreferences.clusterMarkers, region]);
 
-        const clustered = mapService.groupPostsByLocation(filteredPosts, 0.01);
-        return clustered.map((cluster, index) => ({
-            ...cluster,
-            id: cluster.count === 1
-                ? `single-${cluster.posts[0].post_type}-${cluster.posts[0].id}`
-                : `cluster-${index}`
-        }));
-    }, [filteredPosts, mapPreferences.clusterMarkers]);
+    // Camera flight to a tapped pin. The target sits in the upper part of the
+    // viewport so the carousel pinned at the bottom does not cover it; a
+    // cluster also zooms in one step so its members start to separate.
+    const flyTo = useCallback((coordinate, zoomIn = false) => {
+        if (!mapRef.current || !mapReady) return;
+        const latitudeDelta = zoomIn ? region.latitudeDelta / 2.5 : region.latitudeDelta;
+        const longitudeDelta = zoomIn ? region.longitudeDelta / 2.5 : region.longitudeDelta;
+        mapRef.current.animateToRegion({
+            latitude: coordinate.latitude - latitudeDelta * 0.22,
+            longitude: coordinate.longitude,
+            latitudeDelta,
+            longitudeDelta,
+        }, animations.duration.camera);
+    }, [mapReady, region]);
 
     const handleClusterPress = useCallback((cluster) => {
-        if (cluster.count === 1) {
-            dispatchUi({ type: 'SHOW_PREVIEW', post: cluster.posts[0] });
-        } else {
-            dispatchUi({ type: 'SHOW_CLUSTER', cluster });
-        }
-    }, []);
+        dispatchUi({ type: 'SHOW_CAROUSEL', posts: cluster.posts });
+        flyTo(cluster.coordinate, cluster.count > 1);
+    }, [flyTo]);
+
+    const handleCarouselActive = useCallback((post) => {
+        if (post?.coordinates) flyTo(post.coordinates, false);
+    }, [flyTo]);
 
     const handlePostPress = useCallback((post) => {
-        dispatchUi({ type: 'HIDE_CLUSTER' });
+        // Guard: a double-tap fires before the carousel closes and pushes two frames.
+        if (navigatingRef.current) return;
+        navigatingRef.current = true;
+        setTimeout(() => { navigatingRef.current = false; }, 800);
         navigation.navigate('PostDetailScreen', {
             postId: post.id,
             postType: post.post_type,
@@ -340,56 +392,27 @@ const CustomerMapView = ({ navigation, route }) => {
             );
         }
 
+        // Badge wears the dominant category's colour so a cluster of tool
+        // rentals and a cluster of job ads differ before the tap. `dominant`
+        // may be a schema colour that was never tuned for a white ring, so the
+        // count itself sits on a white disc — legible on any hue.
+        const tint = getMarkerColor(cluster.dominant);
         return (
             <Marker
                 key={id}
                 coordinate={coordinate}
                 onPress={() => handleClusterPress(cluster)}
                 tracksViewChanges={false}
+                accessibilityLabel={t('map.clusterLabel', { count })}
             >
-                <View style={styles.clusterMarkerContainer}>
-                    <Text style={styles.clusterText}>{count}</Text>
+                <View style={[styles.clusterMarkerContainer, { backgroundColor: tint, minWidth: count > 99 ? 52 : count > 9 ? 44 : 40 }]}>
+                    <View style={styles.clusterDisc}>
+                        <Text style={[styles.clusterText, { color: toneForTheme(tint, false) }]}>{count > 999 ? '999+' : count}</Text>
+                    </View>
                 </View>
             </Marker>
         );
-    }, [handleClusterPress, getMarkerColor, getMarkerIcon, colors]);
-
-    const renderPostItem = useCallback(({ item, index }) => (
-        <FadeSlideIn index={index}>
-        <PressableScale
-            style={[styles.clusterPostItem, { backgroundColor: colors.surface }]}
-            onPress={() => handlePostPress(item)}
-            accessibilityRole="button"
-        >
-            <View style={[
-                styles.postTypeIndicator,
-                { backgroundColor: getMarkerColor(item.post_type) }
-            ]}>
-                <Ionicons
-                    name={getMarkerIcon(item.post_type)}
-                    size={16}
-                    color={colors.text.onColor}
-                />
-            </View>
-
-            <View style={styles.postItemContent}>
-                <Text style={[styles.postItemTitle, { color: colors.text.primary }]} numberOfLines={2}>
-                    {mapService.getPostTitle(item)}
-                </Text>
-                <Text style={[styles.postItemCategory, { color: colors.text.secondary }]}>
-                    {t('category.' + normalizePostType(item.post_type))}
-                </Text>
-                {mapService.getPostPrice(item) && (
-                    <Text style={[styles.postItemPrice, { color: colors.primary }]}>
-                        {mapService.getPostPrice(item)}
-                    </Text>
-                )}
-            </View>
-
-            <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-        </PressableScale>
-        </FadeSlideIn>
-    ), [handlePostPress, colors, getMarkerColor, getMarkerIcon]);
+    }, [handleClusterPress, getMarkerColor, getMarkerIcon, colors, t]);
 
     const activeFilterCount = useMemo(() => {
         return Object.values(activeFilters).filter(value =>
@@ -430,7 +453,7 @@ const CustomerMapView = ({ navigation, route }) => {
                             accessibilityRole="button"
                             accessibilityLabel={t('map.settings')}
                         >
-                            <Ionicons name="settings-outline" size={20} color={colors.primary} />
+                            <Ionicons name="settings-outline" size={20} color={colors.iconAccent} />
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -442,8 +465,8 @@ const CustomerMapView = ({ navigation, route }) => {
                             accessibilityLabel={t('map.refresh')}
                         >
                             {refreshing
-                                ? <ActivityIndicator size="small" color={colors.primary} />
-                                : <Ionicons name="refresh" size={20} color={colors.primary} />
+                                ? <ActivityIndicator size="small" color={colors.iconAccent} />
+                                : <Ionicons name="refresh" size={20} color={colors.iconAccent} />
                             }
                         </TouchableOpacity>
                     </View>
@@ -469,6 +492,7 @@ const CustomerMapView = ({ navigation, route }) => {
                     zoomEnabled={true}
                     loadingEnabled={true}
                     moveOnMarkerPress={false}
+                    onRegionChangeComplete={setRegion}
                 >
                     {clusters.map(cluster => renderClusterMarker(cluster))}
                 </MapView>
@@ -484,10 +508,12 @@ const CustomerMapView = ({ navigation, route }) => {
                     const tabBarHeight = Platform.OS === 'ios' ? 88 : 65;
                     const safeBottom = insets.bottom || 0;
                     const base = tabBarHeight + safeBottom + spacing.xl;
+                    // The rail is ~290 tall; lift the buttons clear of it while open.
+                    const lift = carouselPosts ? 296 : 0;
                     return (
                         <>
                             <PressableScale
-                                style={[styles.floatingButton, { bottom: base, right: spacing.lg }]}
+                                style={[styles.floatingButton, { bottom: base + lift, right: spacing.lg }]}
                                 onPress={centerOnUserLocation}
                                 accessibilityRole="button"
                                 accessibilityLabel={t('map.title')}
@@ -496,13 +522,23 @@ const CustomerMapView = ({ navigation, route }) => {
                             </PressableScale>
 
                             <PressableScale
-                                style={[styles.floatingButton, { bottom: base + 60, right: spacing.lg }]}
+                                style={[styles.floatingButton, { bottom: base + lift + 60, right: spacing.lg }]}
                                 onPress={fitToMarkers}
                                 accessibilityRole="button"
                                 accessibilityLabel={t('map.autoFit')}
                             >
                                 <Ionicons name="expand" size={20} color={MAP_OVERLAY.icon} />
                             </PressableScale>
+
+                            {carouselPosts && (
+                                <MapClusterCarousel
+                                    posts={carouselPosts}
+                                    bottom={base}
+                                    onPressPost={handlePostPress}
+                                    onActiveChange={handleCarouselActive}
+                                    onClose={() => dispatchUi({ type: 'HIDE_CAROUSEL' })}
+                                />
+                            )}
                         </>
                     );
                 })()}
@@ -512,97 +548,9 @@ const CustomerMapView = ({ navigation, route }) => {
                         {filteredPosts.length} {t('map.posts')}
                     </Text>
                 </View>
+
+                <OfflineBanner visible={fromCache} cachedAt={mapData?.cachedAt} style={styles.offlineBanner} />
             </View>
-
-            <BottomSheetModal
-                visible={showClusterModal}
-                onClose={() => dispatchUi({ type: 'HIDE_CLUSTER' })}
-                title={t('map.postsAtLocation', { count: selectedCluster?.count })}
-            >
-                <FlatList
-                    data={selectedCluster?.posts || []}
-                    renderItem={renderPostItem}
-                    keyExtractor={(item) => `${item.post_type}-${item.id}`}
-                    showsVerticalScrollIndicator={false}
-                    style={styles.clusterPostList}
-                    ListEmptyComponent={
-                        <EmptyState icon="map-outline" iconSize={40} title={t('posts.empty')} />
-                    }
-                />
-            </BottomSheetModal>
-
-            <BottomSheetModal
-                visible={showPostPreview}
-                onClose={() => dispatchUi({ type: 'HIDE_PREVIEW' })}
-                title={null}
-            >
-                {selectedPost && (() => {
-                    const typeConfig = getPostTypeConfig(normalizePostType(selectedPost.post_type), colors, schemas);
-                    const imageUri = selectedPost.images?.[0];
-                    const price = mapService.getPostPrice(selectedPost);
-                    const title = mapService.getPostTitle(selectedPost);
-                    const location = [selectedPost.district, selectedPost.province].filter(Boolean).join(', ');
-                    return (
-                        <View style={styles.previewContainer}>
-                            <View style={styles.previewImageWrap}>
-                                {imageUri ? (
-                                    <>
-                                        <Image
-                                            source={{ uri: imageUri }}
-                                            style={styles.previewImage}
-                                            resizeMode="cover"
-                                        />
-                                        <LinearGradient
-                                            colors={['transparent', colors.opacity.overlay]}
-                                            style={styles.previewGradient}
-                                        />
-                                    </>
-                                ) : (
-                                    <View style={[styles.previewImagePlaceholder, { backgroundColor: withAlpha(typeConfig.color, 0.13) }]}>
-                                        <Ionicons name={typeConfig.iconName} size={40} color={toneForTheme(typeConfig.color, isDark)} />
-                                    </View>
-                                )}
-                                <View style={[styles.previewCategoryPill, { backgroundColor: typeConfig.color }]}>
-                                    <Ionicons name={typeConfig.iconName} size={12} color={colors.text.onColor} />
-                                    <Text style={styles.previewCategoryText}>{t('category.' + normalizePostType(selectedPost.post_type))}</Text>
-                                </View>
-                            </View>
-
-                            <View style={styles.previewBody}>
-                                <Text style={styles.previewTitle} numberOfLines={2}>{title}</Text>
-                                {price && <Text style={styles.previewPrice}>{price}</Text>}
-                                {location ? (
-                                    <View style={styles.previewLocation}>
-                                        <Ionicons name="location-outline" size={13} color={colors.text.secondary} />
-                                        <Text style={styles.previewLocationText}>{location}</Text>
-                                    </View>
-                                ) : null}
-                                <TouchableOpacity
-                                    style={[styles.previewDetailButton, { backgroundColor: typeConfig.color }]}
-                                    onPress={() => {
-                                        // Guard: a double-tap fires before the sheet closes and pushes two frames.
-                                        if (navigatingRef.current) return;
-                                        navigatingRef.current = true;
-                                        setTimeout(() => { navigatingRef.current = false; }, 800);
-                                        dispatchUi({ type: 'HIDE_PREVIEW' });
-                                        navigation.navigate('PostDetailScreen', {
-                                            postId: selectedPost.id,
-                                            postType: selectedPost.post_type,
-                                            post: selectedPost,
-                                            role: 'customer',
-                                            shouldIncrementViews: true,
-                                        });
-                                    }}
-                                    activeOpacity={interactions.activeOpacity}
-                                >
-                                    <Text style={styles.previewDetailButtonText}>{t('common.details')}</Text>
-                                    <Ionicons name="arrow-forward" size={16} color={colors.text.onColor} />
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                    );
-                })()}
-            </BottomSheetModal>
 
             <BottomSheetModal
                 visible={showSettingsModal}
@@ -689,8 +637,9 @@ const makeStyles = themedStyles((colors) => ({
         right: spacing.xxs,
         backgroundColor: colors.danger,
         borderRadius: radius.md,
-        minWidth: 16,
-        height: 16,
+        // Match the tablet type scale (x1.25) or the badge digit clips.
+        minWidth: isTablet ? 20 : 16,
+        minHeight: isTablet ? 20 : 16,
         justifyContent: 'center',
         alignItems: 'center',
         paddingHorizontal: spacing.xxs,
@@ -719,15 +668,31 @@ const makeStyles = themedStyles((colors) => ({
     clusterMarkerContainer: {
         ...MAP_OVERLAY.shadow,
         backgroundColor: MAP_OVERLAY.accent,
-        borderRadius: radius.xxl,
-        minWidth: 40,
+        borderRadius: radius.full,
         height: 40,
+        padding: 4,
         justifyContent: 'center',
         alignItems: 'center',
-        borderWidth: 3,
+        borderWidth: 2,
         borderColor: MAP_OVERLAY.surface,
     },
-    clusterText: { ...typography.styles.labelStrong, color: MAP_OVERLAY.onAccent, },
+    clusterDisc: {
+        flex: 1,
+        alignSelf: 'stretch',
+        borderRadius: radius.full,
+        backgroundColor: MAP_OVERLAY.surface,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: spacing.xs,
+    },
+    clusterText: { ...typography.styles.labelStrong, fontVariant: ['tabular-nums'] },
+    offlineBanner: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        borderBottomWidth: 0,
+    },
     loadingOverlay: {
         position: 'absolute',
         top: 0,
@@ -767,43 +732,6 @@ const makeStyles = themedStyles((colors) => ({
         color: MAP_OVERLAY.onAccent,
         ...typography.styles.labelStrong,
     },
-    clusterPostList: {
-        flex: 1,
-    },
-    clusterPostItem: {
-        ...colors.elevation.sm,
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: spacing.md,
-        backgroundColor: colors.background,
-        borderRadius: radius.lg,
-        marginBottom: spacing.sm,
-    },
-    postTypeIndicator: {
-        width: 40,
-        height: 40,
-        borderRadius: radius.full,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: spacing.md,
-    },
-    postItemContent: {
-        flex: 1,
-    },
-    postItemTitle: {
-        ...typography.styles.bodyBold,
-        color: colors.text.primary,
-        marginBottom: spacing.xxs,
-    },
-    postItemCategory: {
-        ...typography.styles.small,
-        color: colors.text.secondary,
-        marginBottom: spacing.xxs,
-    },
-    postItemPrice: {
-        ...typography.styles.price,
-        color: colors.primary,
-    },
     settingItem: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -816,86 +744,6 @@ const makeStyles = themedStyles((colors) => ({
         ...typography.styles.body,
         color: colors.text.primary,
         flex: 1,
-    },
-    previewContainer: {
-        paddingBottom: spacing.md,
-    },
-    previewImageWrap: {
-        width: '100%',
-        height: 180,
-        borderRadius: radius.card,
-        overflow: 'hidden',
-        marginBottom: spacing.md,
-        position: 'relative',
-        backgroundColor: colors.border.light,
-    },
-    previewImage: {
-        width: '100%',
-        height: '100%',
-    },
-    previewGradient: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: 80,
-    },
-    previewImagePlaceholder: {
-        width: '100%',
-        height: '100%',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    previewCategoryPill: {
-        position: 'absolute',
-        top: spacing.sm,
-        left: spacing.sm,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.xs,
-        paddingHorizontal: spacing.sm,
-        paddingVertical: spacing.xs,
-        borderRadius: radius.xxl,
-    },
-    previewCategoryText: {
-        color: colors.text.onColor,
-        ...typography.styles.badge,
-    },
-    previewBody: {
-        paddingHorizontal: spacing.xs,
-    },
-    previewTitle: {
-        ...typography.styles.title,
-        color: colors.text.primary,
-        marginBottom: spacing.xs,
-    },
-    previewPrice: {
-        ...typography.styles.price,
-        color: colors.primary,
-        marginBottom: spacing.sm,
-    },
-    previewLocation: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.xs,
-        marginBottom: spacing.lg,
-    },
-    previewLocationText: {
-        ...typography.styles.caption,
-        color: colors.text.secondary,
-    },
-    previewDetailButton: {
-        ...colors.elevation.sm,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: spacing.sm,
-        paddingVertical: spacing.md,
-        borderRadius: radius.button,
-    },
-    previewDetailButtonText: {
-        color: colors.text.onColor,
-        ...typography.styles.bodyBold,
     },
 }));
 

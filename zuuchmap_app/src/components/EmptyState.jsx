@@ -6,9 +6,20 @@ import { useAppTheme } from '../hooks/useAppTheme';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import Button from './Button';
 
+/**
+ * Empty is not one situation. `variant` gives it range:
+ * - 'invitation' — nothing here YET and creating it is the point (first post,
+ *   no bookings): amber disc + selected ring + a louder title.
+ * - 'neutral'    — nothing here and that's fine (notifications): quiet grey.
+ * - 'search'     — a filter dead-end: grey disc, amber glyph, the action
+ *   button is the anchor.
+ * - 'default'    — generic dead-end.
+ * `eyebrow` optionally names the context above the title (overline).
+ */
 const EmptyState = ({
     icon = 'document-outline',
     iconSize = 48,
+    eyebrow,
     title,
     subtitle,
     actionButton,
@@ -36,18 +47,28 @@ const EmptyState = ({
         outputRange: [0.85, 1],
     });
 
+    const invitation = variant === 'invitation';
     const getIconColor = () => {
-        if (variant === 'search') return colors.primary;
+        if (variant === 'search' || invitation) return colors.primary;
         return colors.text.tertiary;
     };
 
     return (
         <View style={styles.container}>
-            <Animated.View style={[styles.iconContainer, !reduced && { opacity: iconAnim, transform: [{ scale: iconScale }] }]}>
+            <Animated.View
+                style={[
+                    styles.iconContainer,
+                    invitation && styles.iconContainerInvitation,
+                    !reduced && { opacity: iconAnim, transform: [{ scale: iconScale }] },
+                ]}
+            >
                 <Ionicons name={icon} size={iconSize} color={getIconColor()} />
             </Animated.View>
+            {eyebrow && (
+                <Text style={styles.eyebrow}>{eyebrow}</Text>
+            )}
             {title && (
-                <Text style={styles.title}>{title}</Text>
+                <Text style={[styles.title, invitation && styles.titleInvitation]}>{title}</Text>
             )}
             {subtitle && (
                 <Text style={styles.subtitle}>{subtitle}</Text>
@@ -82,11 +103,26 @@ const createStyles = (colors) => StyleSheet.create({
         borderWidth: 2,
         borderColor: colors.border.light,
     },
+    iconContainerInvitation: {
+        // Elevation spread first so its border stays the amber selected ring.
+        ...colors.elevation.selected,
+        backgroundColor: colors.opacity.background.primary,
+    },
+    eyebrow: {
+        ...typography.styles.overline,
+        textTransform: 'uppercase',
+        color: colors.text.tertiary,
+        marginBottom: spacing.xs,
+        textAlign: 'center',
+    },
     title: {
         ...typography.styles.title,
         color: colors.text.primary,
         marginBottom: spacing.sm,
         textAlign: 'center',
+    },
+    titleInvitation: {
+        ...typography.styles.h3,
     },
     subtitle: {
         ...typography.styles.caption,

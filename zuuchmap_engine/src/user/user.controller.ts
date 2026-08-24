@@ -53,11 +53,13 @@ export class UserController {
       id: user.id,
       type: user.type,
       is_verified: user.is_verified,
-      biometric: user.biometric,
       exists: true,
       hasUserType: !!user.type,
+      // `isVerified` duplicates `is_verified` above, and both it and
+      // `hasUserType` are kept only for app builds already installed — unlike
+      // the biometric pair that stood here, they still return real values, so
+      // dropping them would change what an old client sees.
       isVerified: user.is_verified,
-      hasBiometric: user.biometric === 'enrolled'
     };
   }
 
@@ -76,28 +78,6 @@ export class UserController {
       ...result,
       userType: type,
       redirectTo: type === 'PROVIDER' ? 'ProviderDashboard' : 'CustomerDashboard'
-    };
-  }
-
-  /**
-   * Records that the user opted into biometric unlock on this device.
-   *
-   * This is a stored preference only — it grants no authentication power.
-   * Biometrics gate the locally-stored token on the device; the server never
-   * accepts a "biometric" claim as proof of identity.
-   */
-  @Post('otp/enroll-biometric')
-  @UseGuards(JwtAuthGuard)
-  async enrollBiometric(@Req() req, @Body() body: { device_info?: any }) {
-    const result = await this.userService.enrollBiometric({
-      phone_number: req.user.phone_number,
-      device_info: body.device_info,
-    });
-
-    return {
-      ...result,
-      biometricEnrolled: true,
-      nextStep: 'dashboard'
     };
   }
 
@@ -121,19 +101,25 @@ export class UserController {
 
   @Put('push-token')
   @UseGuards(JwtAuthGuard)
-  async savePushToken(@Req() req, @Body('push_token') pushToken: string) {
+  async savePushToken(
+    @Req() req,
+    @Body('push_token') pushToken: string,
+    @Body('platform') platform?: string,
+  ) {
     if (!pushToken) {
       throw new HttpException('push_token is required', HttpStatus.BAD_REQUEST);
     }
-    await this.userService.savePushToken(req.user.id, pushToken);
+    await this.userService.savePushToken(req.user.id, pushToken, platform);
     return { success: true };
   }
 
   // Called on logout so this device stops receiving the account's pushes.
   @Delete('push-token')
   @UseGuards(JwtAuthGuard)
-  async clearPushToken(@Req() req) {
-    await this.userService.savePushToken(req.user.id, null);
+  async clearPushToken(@Req() req, @Body('push_token') pushToken?: string) {
+    // Unbinds just the device that asked. Without a token — an older client —
+    // every device for the account goes, which is the old behaviour.
+    await this.userService.removePushToken(req.user.id, pushToken);
     return { success: true };
   }
 

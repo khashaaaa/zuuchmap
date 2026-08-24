@@ -5,14 +5,14 @@ import { useTranslation } from 'react-i18next'
 import { Phone, CalendarRange } from 'lucide-react'
 import { toast } from 'sonner'
 import { bookingsApi } from '@/lib/api'
-import { formatDate, getImageUrl, getPostTitle, apiErrorMessage } from '@/lib/utils'
+import { formatDate, getImageUrl, getPostTitle, apiErrorMessage, hideBrokenImage } from '@/lib/utils'
 import PageHeader from '@/components/PageHeader'
 import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
 import UserAvatar from '@/components/UserAvatar'
 import Input from '@/components/Input'
 import Button from '@/components/Button'
-import StatusBadge from '@/components/StatusBadge'
+import BookingTimeline from '@/components/BookingTimeline'
 import ConfirmModal from '@/components/ConfirmModal'
 import TabBar from '@/components/TabBar'
 import { useMinDisplayTime } from '@/hooks/useMinDisplayTime'
@@ -20,7 +20,7 @@ import { useMinDisplayTime } from '@/hooks/useMinDisplayTime'
 const TAB_STATUSES = {
   pending: ['PENDING'],
   upcoming: ['ACCEPTED'],
-  history: ['DECLINED', 'CANCELLED'],
+  history: ['DECLINED', 'CANCELLED', 'EXPIRED'],
 }
 
 function BookingCard({ booking, mode, onAccept, onDecline, onRequestCancel, busy, t }) {
@@ -29,38 +29,63 @@ function BookingCard({ booking, mode, onAccept, onDecline, onRequestCancel, busy
   const other = mode === 'provider' ? booking.customer : booking.provider
   const isPending = booking.status === 'PENDING'
   const canCancel = mode === 'customer' && (booking.status === 'PENDING' || booking.status === 'ACCEPTED')
+  const showPhone = booking.status === 'ACCEPTED' && Boolean(other?.phone_number)
 
   return (
     <div className="bg-surface border border-border/20 shadow-card rounded-card p-4 space-y-3">
       <div className="flex items-start gap-3">
         {booking.post?.images?.[0] && (
           <Link to={`/posts/${booking.post.id}`} className="shrink-0">
-            <img src={getImageUrl(booking.post.images[0])} alt="" className="w-14 h-14 rounded-lg object-cover" />
+            <img src={getImageUrl(booking.post.images[0])} alt="" className="w-14 h-14 rounded-lg object-cover" onError={hideBrokenImage} />
           </Link>
         )}
         <div className="flex-1 min-w-0">
-          <Link to={`/posts/${booking.post?.id}`} className="text-sm font-semibold text-text hover:text-primary-text transition-colors line-clamp-1">
-            {getPostTitle(booking.post, t)}
-          </Link>
+          {/* The post can be gone — a booking outlives it now, so there is
+              nothing to link to and the row says so instead of routing to
+              /posts/undefined. */}
+          {booking.post ? (
+            <Link to={`/posts/${booking.post.id}`} className="text-sm font-semibold text-text hover:text-primary-text transition-colors line-clamp-1">
+              {getPostTitle(booking.post, t)}
+            </Link>
+          ) : (
+            <p className="text-sm font-semibold text-muted italic line-clamp-1">{t('booking.postRemoved')}</p>
+          )}
           <p className="text-xs text-muted flex items-center gap-1 mt-0.5">
             <CalendarRange size={12} /> {formatDate(booking.start_date)} — {formatDate(booking.end_date)}
           </p>
           <div className="flex items-center gap-2 mt-1.5">
             <UserAvatar src={other?.profile_picture} name={other?.given_name} size="sm" />
             <span className="text-xs text-text">{other?.given_name || '—'}</span>
-            {other?.phone_number && (
-              <a href={`tel:${other.phone_number}`} className="flex items-center gap-1 text-xs text-primary-text">
-                <Phone size={11} /> {other.phone_number}
-              </a>
+            {/* The engine shares the phone only once ACCEPTED, so this slot
+                goes from a placeholder to a number the moment the provider
+                says yes — the grid transition makes that reveal visible
+                rather than a jump cut. */}
+            <span
+              className={`grid transition-[grid-template-columns,opacity] duration-300 ease-out motion-reduce:transition-none ${
+                showPhone ? 'grid-cols-[1fr] opacity-100' : 'grid-cols-[0fr] opacity-0'
+              }`}
+              aria-hidden={!showPhone}
+            >
+              <span className="overflow-hidden min-w-0">
+                {other?.phone_number && (
+                  <a href={`tel:${other.phone_number}`} className="flex items-center gap-1 text-xs text-primary-text whitespace-nowrap">
+                    <Phone size={11} /> {other.phone_number}
+                  </a>
+                )}
+              </span>
+            </span>
+            {isPending && !other?.phone_number && (
+              <span className="text-[11px] text-muted italic">{t('booking.timelinePhoneAfterAccept')}</span>
             )}
           </div>
         </div>
-        <span className="shrink-0"><StatusBadge status={booking.status} /></span>
       </div>
 
-      {booking.message && <p className="text-xs text-muted bg-surface2 rounded-lg p-2.5">{booking.message}</p>}
+      <BookingTimeline booking={booking} className="pt-1" />
+
+      {booking.message && <p className="text-xs text-muted bg-surface2 rounded-lg p-2.5 break-words">{booking.message}</p>}
       {booking.response_message && (
-        <p className="text-xs text-muted bg-surface2 rounded-lg p-2.5">
+        <p className="text-xs text-muted bg-surface2 rounded-lg p-2.5 break-words">
           <span className="font-medium">{t('booking.responseMessage')}:</span> {booking.response_message}
         </p>
       )}
@@ -174,9 +199,16 @@ export default function Bookings({ mode }) {
       ) : isError ? (
         <ErrorState onRetry={refetch} />
       ) : bookings.length === 0 ? (
-        <EmptyState title={t('booking.empty')} />
+        <EmptyState
+          icon={CalendarRange}
+          title={t('booking.empty')}
+          description={t('booking.emptyDesc')}
+          action={mode === 'customer' ? (
+            <Button to="/customer/browse" variant="outline" size="sm">{t('landing.ctaBrowse')}</Button>
+          ) : undefined}
+        />
       ) : filtered.length === 0 ? (
-        <EmptyState title={t('booking.empty')} />
+        <EmptyState icon={CalendarRange} title={t('booking.empty')} description={t('booking.emptyTabDesc')} />
       ) : (
         <div className="space-y-3">
           {filtered.map((b) => (

@@ -42,7 +42,7 @@ const StatusBadge = ({
     return (
         <View style={[
             styles.badge,
-            isAbsolute && styles.badgeAbsolute,
+            isAbsolute && !isOverlay && styles.badgeAbsolute,
             isOverlay && styles.badgeOverlay,
             isInline && styles.badgeInline,
             { backgroundColor: bgColor }
@@ -58,7 +58,7 @@ const StatusBadge = ({
                     style={styles.icon}
                 />
             )}
-            <Text style={[styles.badgeText, { color: fgColor }]}>{displayLabel}</Text>
+            <Text style={[styles.badgeText, { color: fgColor }]} numberOfLines={1}>{displayLabel}</Text>
         </View>
     );
 };
@@ -78,11 +78,14 @@ const createStyles = (colors) => StyleSheet.create({
         bottom: spacing.xs,
         right: spacing.xs,
         zIndex: 2,
+        maxWidth: '92%',
     },
     badgeOverlay: {
         position: 'absolute',
-        top: spacing.sm,
-        right: spacing.sm,
+        top: spacing.xs,
+        right: spacing.xs,
+        zIndex: 2,
+        maxWidth: '92%',
     },
     badgeInline: {
         position: 'relative',

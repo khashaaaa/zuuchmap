@@ -62,7 +62,7 @@ export default function AppLayout() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-scrim z-40 md:hidden"
+              className="fixed inset-0 bg-scrim z-50 md:hidden"
               onClick={() => setMobileOpen(false)}
             />
             <motion.div
@@ -75,7 +75,7 @@ export default function AppLayout() {
               animate={{ x: 0 }}
               exit={{ x: -240 }}
               transition={shouldReduceMotion ? { duration: 0 } : { type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed left-0 top-0 h-full z-50 md:hidden"
+              className="fixed left-0 top-0 h-full z-[60] md:hidden"
             >
               <AppSidebar onNavigate={() => setMobileOpen(false)} />
             </motion.div>

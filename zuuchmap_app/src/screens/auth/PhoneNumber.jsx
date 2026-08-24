@@ -24,6 +24,7 @@ import { getErrorMessage, showErrorModal } from '../../utils/errorManager';
 import { logger } from '../../utils/logger';
 import { track } from '../../services/analytics';
 import Button from '../../components/Button';
+import FadeSlideIn from '../../components/FadeSlideIn';
 import { navigateToDashboard } from '../../utils/navigationUtils';
 
 const PhoneNumber = ({ navigation }) => {
@@ -123,13 +124,15 @@ const PhoneNumber = ({ navigation }) => {
                         <TouchableOpacity
                             style={[styles.themeToggle, { backgroundColor: colors.opacity.background.primary }]}
                             onPress={() => setThemeMode(isDark ? 'light' : 'dark')}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('common.toggleTheme')}
                             activeOpacity={interactions.activeOpacityLight}
                             hitSlop={interactions.hitSlop}
                         >
-                            <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={colors.primary} />
+                            <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={colors.iconAccent} />
                         </TouchableOpacity>
                     </View>
-                    <View style={styles.header}>
+                    <FadeSlideIn style={styles.header}>
                         {savedUser?.profilePicture ? (
                             <Image
                                 source={{ uri: savedUser.profilePicture }}
@@ -137,7 +140,7 @@ const PhoneNumber = ({ navigation }) => {
                             />
                         ) : (
                             <View style={[styles.iconContainer, { backgroundColor: colors.opacity.background.primary }]}>
-                                <Ionicons name={savedUser ? 'person-outline' : 'call-outline'} size={64} color={colors.primary} />
+                                <Ionicons name={savedUser ? 'person-outline' : 'call-outline'} size={64} color={colors.iconAccent} />
                             </View>
                         )}
                         <Text style={[styles.title, { color: colors.text.primary }]}>
@@ -146,7 +149,7 @@ const PhoneNumber = ({ navigation }) => {
                         <Text style={[styles.subtitle, { color: colors.text.secondary }]}>
                             {savedUser ? (savedUser.name || savedUser.phoneNumber) : t('auth.phoneSubtitle')}
                         </Text>
-                    </View>
+                    </FadeSlideIn>
 
                     <View style={styles.form}>
                         <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border.medium }]}>

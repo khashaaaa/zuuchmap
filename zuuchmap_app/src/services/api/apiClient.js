@@ -31,11 +31,19 @@ apiClient.interceptors.response.use(
         // dead (expired or rotated JWT) — the mounted screens can't recover, so
         // wipe the session and land on the login screen. Tokenless 401s (refetch
         // stragglers while a logout is already in flight) are left alone.
-        if (error.response?.status === 401 && error.config?.headers?.Authorization) {
-            const { clearAuthData } = await import('./authHelpers');
-            await clearAuthData();
-            const { resetToLogin } = await import('../../utils/navigationUtils');
-            resetToLogin();
+        if (error.response?.status === 401) {
+            if (error.config?.headers?.Authorization) {
+                const { clearAuthData } = await import('./authHelpers');
+                await clearAuthData();
+                const { resetToLogin } = await import('../../utils/navigationUtils');
+                resetToLogin();
+            } else {
+                // Tokenless: a query that was still observed when logout pulled
+                // the session out from under it. Nothing is wrong and there is
+                // nobody to tell — tag it so the screens and services that
+                // report their own failures can stay quiet too.
+                error.isPostLogoutStraggler = true;
+            }
         }
         return Promise.reject(error);
     }

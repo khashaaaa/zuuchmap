@@ -21,6 +21,24 @@ Construction marketplace for Mongolia. Providers post rentals/services/jobs acro
 
 ---
 
+## Cross-repo sync
+
+Seven values are duplicated across the three apps by design. `npm run check:sync`
+(`scripts/check-sync.js`, zero deps) verifies all of them and **gates deploy.sh
+as step 0/6** — run it after touching any of:
+
+| Contract | Copies |
+|---|---|
+| `SOCKET_EVENTS` | engine gateway · `web/lib/socket.js` · `app/services/socketService.js` |
+| category fallback colours | `app/design/theme.js` · `web/lib/utils.js` · engine `category.service.ts` seed |
+| palette | `app/design/theme.js` · `web/src/index.css` (1:1 tokens only — the file names the deliberate exceptions) |
+| `Province` / `District` | engine `enums/province.ts` · `app/config/app.config.js` · `web/lib/utils.js` |
+| `PriceUnit` | engine `enums/priceunit.ts` · `web/lib/utils.js` · `app/config/app.config.js` |
+| shared i18n keys | `app/i18n/locales/{mn,en}.js` · `web/i18n/{mn,en}.js` — each tree keeps ~280 platform-specific keys, but a key present in **both** must have the same value |
+| `getPostTitle` | `app/utils/postUtils.js` · `web/lib/utils.js` — checked *behaviourally*: both are lifted, stubbed and run over shared fixtures |
+
+---
+
 ## Deployment
 
 `.claude/skills/deploy/deploy.sh` — one-command production deploy (push → DB backup → engine pull/build/migrate/pm2 restart → web build → smoke test). Server facts and gotchas in `.claude/skills/deploy/SKILL.md`. Credentials in `~/.zuuchmap-deploy.env` (never committed).
@@ -65,17 +83,24 @@ GET  /posts                       ?category&subcategory&province&district&approv
                                   &q&attr.<key>[=|_min=|_max=]&page&limit
                                   → { items, total }   (all other list endpoints return arrays)
 GET  /posts/mine                  JWT
+GET  /posts/mine/stats            JWT   per-post views/saves/booking counts + totals
+GET  /posts/:id/similar           ?limit  same category, nearest location/price (cached 5m)
+                                  list/map/detail items carry busy_dates[] (next 14d) for has_rental_status categories
 POST /posts                       multipart JWT
 GET  /posts/stats                 public landing counters (cached 5m)
 GET  /posts/categories/all
 POST /like  DELETE /like/:type/:id  GET /like/ids
 GET  /admin/posts/pending
-PUT  /admin/posts/:id/approve|reject   JWT+AdminGuard
+POST /admin/broadcast             JWT+AdminGuard  {title,body,user_type?,category?} push campaign
+PUT  /admin/posts/:id/approve|reject   JWT+AdminGuard   reject {reason,field_key?} → post.rejection_field;
+                                  approve clears it + post.previous_snapshot (set when an APPROVED post is edited)
 POST /bookings                    JWT   {post_id,start_date,end_date,message?}
 GET  /bookings/mine|received      JWT
 PUT  /bookings/:id/accept|decline|cancel  JWT
 POST /reviews                     JWT   {provider_id,rating,comment?} (upsert)
-GET  /reviews/provider/:id             → {average,count,reviews,own}
+GET  /reviews/provider/:id             → {average,count,reviews,own,stats:{avg_response_hours,completed_bookings,member_since,company_verified}}
+POST /saved-searches  GET /saved-searches  DELETE /saved-searches/:id   JWT, max 10; matched on approve → push type 'saved_search'
+                                  daily 01:00 cron pushes 'review_prompt' for finished ACCEPTED bookings (booking.review_prompted_at)
 POST /analytics/collect                batched events, anonymous allowed
 GET  /analytics/summary           JWT+AdminGuard  ?days=7|30|90
 ```
@@ -136,7 +161,7 @@ Customer: /customer /customer/browse /customer/map /customer/saved /customer/pro
 **Key configs:**
 - `src/config/api.config.js` — `API_BASE_URL`, `ENDPOINTS`, `STORAGE_KEYS`
 - `src/config/app.config.js` — `IMAGE`, `VALIDATION`, `provinces`/`districts` (bare code arrays; labels come from i18n `province.<CODE>`/`district.<CODE>`, mirrored in `zuuchmap_web/src/lib/utils.js`)
-- `src/design/theme.js` — `palettes.dark/light` (Direction A: neutral grounds, amber accents), spacing, radius, typography; tablet scaling via `isTablet`. **No static `colors`/`globalStyles` exports** — get `{ colors, styles }` from `useAppTheme()`; per-file color styles use `themedStyles((colors) => ({...}))`. Text on amber fills uses `colors.onPrimary`; on semantic fills `colors.text.onColor`; on photography `colors.text.onMedia` (white in both palettes by design). Web mirrors the same values in `zuuchmap_web/src/index.css` — change palettes in both places.
+- `src/design/theme.js` — `palettes.dark/light` (Direction A: neutral grounds, amber accents), spacing, radius, typography; tablet scaling via `isTablet`. **No static `colors`/`globalStyles` exports** — get `{ colors, styles }` from `useAppTheme()`; per-file color styles use `themedStyles((colors) => ({...}))`. Text on amber fills uses `colors.onPrimary`; on semantic fills `colors.text.onColor`; on photography `colors.text.onMedia` (white in both palettes by design). **Never use `colors.primary` as a foreground** — it is a fill colour and only makes 2.3–2.6:1 on the light grounds. Amber *text* (prices, links, active labels) is `colors.text.link`; amber *glyphs* (icons, spinners) are `colors.iconAccent`. Both are amber in dark and step darker in light. Web's equivalent is `--color-primary-text`, used for accent text and icons alike (lucide glyphs inherit `currentColor`). Web mirrors the same values in `zuuchmap_web/src/index.css` — change palettes in both places.
   - **Type scale.** Spread a role — `...typography.styles.title` — never set `fontSize`+`fontFamily` by hand, so line-height and tracking travel with the size. Roles: `display h1 h2 h3 title body bodyBold bodyMedium lead label labelStrong caption small micro badge price overline`. `title` (18) is the card/row heading that does the scanning work in a list; `price` is its own rung; `overline` is for text set in caps.
   - **Elevation.** `...colors.elevation.sm|md|lg` — spread it FIRST in a style object so anything declaring its own `borderColor` after it wins. One idiom per theme, never both: dark separates with a hairline (black shadows are invisible on a dark ground), light separates with a soft shadow. `lg` keeps a shadow on both — modals sit over a scrim. `elevation.selected` is the amber selected state. Do not reintroduce raw `shadows.*` at a call site.
   - **Category colours.** `categoryColors` holds the eight fallbacks; the live value is admin-editable `CategorySchema.color`. All are solved to one luminance so a single stored hex reads at 4.0:1 on *both* grounds and ~2:1 against amber — amber therefore always stays the brightest accent. Anything rendering a category colour as *text* must pass it through `toneForTheme(hex, isDark)` first (admins can save any hex); `withAlpha(hex, a)` builds the tinted fill. Mirrored in `zuuchmap_web/src/lib/utils.js` and seeded in `post/category.service.ts` — change all three together.
@@ -160,8 +185,7 @@ Customer: /customer /customer/browse /customer/map /customer/saved /customer/pro
 
 | Priority | Issue | Location |
 |---|---|---|
-| 🔴 | Android `package` is still the placeholder `com.yourcompany.zuuchmap`. Cannot be changed after a Play Store release without orphaning installs — decide before the next submission | `zuuchmap_app/app.json` |
-| 🟡 | Google Maps key ships in `app.json` (unavoidable for the Maps SDK); it must be restricted by package name + SHA-1 in Google Cloud Console | `zuuchmap_app/app.json` |
+| 🟡 | Google Maps key ships in `app.json` (unavoidable for the Maps SDK); it must be restricted by package name + SHA-1 in Google Cloud Console — the app id is now `com.khashaa.zuuchmap` (Android package + iOS bundle, set 2026-08; do not change after store release) | `zuuchmap_app/app.json` |
 | 🟡 | Prod Postgres SSL uses `rejectUnauthorized: false` (no CA validation) | `app.module.ts:50` |
 | 🟢 | Multi-instance is Redis-gated. With `REDIS_URL` set: throttler storage → Redis (`@nest-lab/throttler-storage-redis`), cache invalidation → Redis pub/sub (`utils/cache-coordinator.ts`, per-process L1 + cross-instance clear), Socket.io → Redis adapter (`utils/redis-io.adapter.ts`). Then raise `PM2_INSTANCES`. **Unset `REDIS_URL` ⇒ single instance only** — each worker would otherwise split rate limits/cache/broadcasts. Localhost dev runs Redis-free (in-memory). | `utils/redis.ts`, `app.module.ts`, `ecosystem.config.js` |
 | 🟡 | Web admin role is client-side routing only — backend endpoints are guarded, but the UI trusts `is_admin` from the JWT response | `web/src/App.jsx` |

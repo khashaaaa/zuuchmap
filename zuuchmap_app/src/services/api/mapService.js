@@ -8,10 +8,12 @@ const CACHED_POSTS_KEY = API_CONFIG.STORAGE_KEYS.CACHED_MAP_POSTS;
 const CACHE_DURATION = API_CONFIG.CACHE.MAP_POSTS_DURATION;
 
 const mapService = {
+  // Resolves to { posts, fromCache, cachedAt } so the screen can say when it is
+  // showing the offline fallback rather than live results.
   getPostsWithLocation: async (forceRefresh = false) => {
     if (!forceRefresh) {
       const cached = await cacheManager.getStorage(CACHED_POSTS_KEY);
-      if (cached?.posts?.length) return cached.posts;
+      if (cached?.posts?.length) return { posts: cached.posts, fromCache: false, cachedAt: cached.timestamp ?? null };
     }
 
     try {
@@ -26,16 +28,13 @@ const mapService = {
       }));
 
       await cacheManager.setStorage(CACHED_POSTS_KEY, { posts, timestamp: Date.now() }, CACHE_DURATION);
-      return posts;
+      return { posts, fromCache: false, cachedAt: Date.now() };
     } catch (error) {
       logger.error('Error loading posts with location:', error);
       const cached = await cacheManager.getStorage(CACHED_POSTS_KEY).catch(() => null);
-      return cached?.posts || [];
+      if (cached?.posts?.length) return { posts: cached.posts, fromCache: true, cachedAt: cached.timestamp ?? null };
+      throw error;
     }
-  },
-
-  clearCache: async () => {
-    await cacheManager.deleteStorage(CACHED_POSTS_KEY).catch(() => {});
   },
 
   filterByCategories: (posts, categories) => {

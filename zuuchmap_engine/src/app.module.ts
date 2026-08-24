@@ -20,6 +20,7 @@ import { EventsModule } from './events/events.module';
 import { BookingModule } from './booking/booking.module';
 import { ReviewModule } from './review/review.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { SavedSearchModule } from './saved-search/saved-search.module';
 
 @Module({
   imports: [
@@ -78,6 +79,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
     BookingModule,
     ReviewModule,
     AnalyticsModule,
+    SavedSearchModule,
   ],
   controllers: [],
   providers: [

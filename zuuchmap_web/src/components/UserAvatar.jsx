@@ -1,5 +1,5 @@
 import { User } from 'lucide-react'
-import { getProfileImageUrl } from '@/lib/utils'
+import { getProfileImageUrl, hideBrokenImage } from '@/lib/utils'
 
 const SIZE_CLASSES = {
   sm:  'w-8 h-8 text-xs',
@@ -18,7 +18,7 @@ export default function UserAvatar({ src, name, size = 'sm', className = '' }) {
   return (
     <div className={`rounded-full bg-primary/15 flex items-center justify-center overflow-hidden shrink-0 ${sizeClass} ${className}`}>
       {imgUrl ? (
-        <img src={imgUrl} alt="" className="w-full h-full object-cover" />
+        <img src={imgUrl} alt="" className="w-full h-full object-cover" onError={hideBrokenImage} />
       ) : initial ? (
         <span className="font-bold text-primary-text">{initial}</span>
       ) : (

@@ -8,6 +8,7 @@ import {
   MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { isAdmin } from '../admin/admin.guard';
 import { jwtSecret } from '../utils/jwt-secret';
@@ -39,6 +40,8 @@ export const userRoom = (userId: string) => `${USER_ROOM_PREFIX}${userId}`;
   path: '/engine/socket.io',
 })
 export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
+  private readonly logger = new Logger(EventsGateway.name);
+
   @WebSocketServer()
   server: Server;
 
@@ -95,10 +98,20 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   private emit(room: string, event: string, data?: unknown) {
+    if (!this.server) {
+      // Before the adapter is up there is nothing to emit to. Worth saying once
+      // per event rather than never: a silent no-op here is realtime quietly
+      // not working, which is indistinguishable from "nothing happened".
+      this.logger.warn(`Dropped ${event} for ${room} — gateway server not ready`);
+      return;
+    }
     try {
-      if (!this.server) return;
       this.server.to(room).emit(event, data);
-    } catch {}
+    } catch (err: any) {
+      // An emit must never take down the request that triggered it, but it must
+      // not vanish either — clients silently stop receiving updates otherwise.
+      this.logger.warn(`Emit ${event} to ${room} failed: ${err?.message}`);
+    }
   }
 
   private emitToUser(userId: string, event: string, data?: unknown) {

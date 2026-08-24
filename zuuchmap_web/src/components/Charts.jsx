@@ -233,6 +233,10 @@ export function ColumnChart({ data = [], label, unit }) {
  * An item may carry `secondary`, a subset of `value` (e.g. pending within
  * total): it overlays the bar in the muted tone and is direct-labelled after
  * the value. Still one measure per hue — the caller supplies the legend.
+ *
+ * An item may also carry `color`: when the rows are identities that are
+ * colour-coded everywhere else (categories), the bar wears that identity.
+ * It is still one measure per bar — hue is identity here, never magnitude.
  */
 export function BarList({ data = [], label, emptyLabel }) {
   if (!data.length) return <ChartEmpty label={emptyLabel} />
@@ -241,12 +245,12 @@ export function BarList({ data = [], label, emptyLabel }) {
   return (
     <ul className="space-y-2.5" aria-label={label}>
       {data.map((d, i) => (
-        <li key={d.key} className="grid grid-cols-[minmax(6rem,9rem)_1fr_auto] items-center gap-3">
-          <span className="text-xs text-muted truncate" title={d.label}>{d.label}</span>
+        <li key={d.key} title={`${d.label} — ${d.value}${d.secondary != null ? ` · ${d.secondary}` : ''}`} className="grid grid-cols-[minmax(6rem,9rem)_1fr_auto] items-center gap-3">
+          <span className="text-xs text-muted truncate">{d.label}</span>
           <span className="relative h-2.5 rounded-full bg-surface2 overflow-hidden">
             <span
-              className="block h-full rounded-full bg-chart chart-grow-x"
-              style={{ width: `${Math.max((d.value / max) * 100, d.value > 0 ? 2 : 0)}%`, animationDelay: `${Math.min(i * 30, 300)}ms` }}
+              className={`block h-full rounded-full chart-grow-x ${d.color ? '' : 'bg-chart'}`}
+              style={{ width: `${Math.max((d.value / max) * 100, d.value > 0 ? 2 : 0)}%`, animationDelay: `${Math.min(i * 30, 300)}ms`, ...(d.color ? { backgroundColor: d.color } : {}) }}
             />
             {d.secondary != null && (
               <span
@@ -282,8 +286,8 @@ export function Funnel({ stages = [] }) {
         // prerequisites, and 0/0 read as 100%. `top` is > 0 (early return).
         const pct = i === 0 ? null : Math.round((stage.value / top) * 100)
         return (
-          <li key={stage.key} className="grid grid-cols-[minmax(7rem,10rem)_1fr_auto] items-center gap-3">
-            <span className="text-xs text-muted truncate" title={stage.label}>{stage.label}</span>
+          <li key={stage.key} title={`${stage.label} — ${stage.value}${pct != null ? ` (${pct}%)` : ''}`} className="grid grid-cols-[minmax(7rem,10rem)_1fr_auto] items-center gap-3">
+            <span className="text-xs text-muted truncate">{stage.label}</span>
             <span className="h-2.5 rounded-full bg-surface2 overflow-hidden">
               <span
                 className="block h-full rounded-full bg-chart chart-grow-x"
@@ -321,7 +325,7 @@ export function DataTable({ columns, rows }) {
         </thead>
         <tbody>
           {rows.map((row, i) => (
-            <tr key={i} className="border-b border-border/10 last:border-0">
+            <tr key={i} className="border-b border-border/25 last:border-0">
               {row.map((cell, j) => (
                 <td key={j} className={`py-1.5 pr-4 ${j === 0 ? 'text-text' : 'text-muted tabular-nums'}`}>{cell}</td>
               ))}

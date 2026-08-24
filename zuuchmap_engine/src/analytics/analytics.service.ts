@@ -61,6 +61,19 @@ export class AnalyticsService {
     return rows.length;
   }
 
+  /**
+   * Server-side event write (search instrumentation etc.). Fire-and-forget:
+   * recording must never slow down or fail the request that triggered it.
+   */
+  record(name: string, props: Record<string, unknown>): void {
+    this.eventRepository.save(this.eventRepository.create({
+      name,
+      platform: 'server',
+      props,
+      occurred_at: new Date(),
+    })).catch(err => this.logger.warn(`record(${name}) failed: ${err?.message}`));
+  }
+
   private safeTimestamp(raw?: string): Date {
     const now = Date.now();
     if (!raw) return new Date(now);
@@ -88,6 +101,7 @@ export class AnalyticsService {
     const [
       signupSeries, postSeries, bookingSeries, activeSeries,
       totals, categoryMix, provinceMix, funnel, topPosts, statusMix, clientErrors,
+      searchGaps,
     ] = await Promise.all([
       q(`SELECT to_char(date_trunc('day', date_created), 'YYYY-MM-DD') AS day, COUNT(*)::int AS value
          FROM "user" WHERE date_created >= $1 GROUP BY 1 ORDER BY 1`, [since]),
@@ -125,7 +139,7 @@ export class AnalyticsService {
 
       q(`SELECT COALESCE(province, 'unknown') AS key, COUNT(*)::int AS posts
          FROM "post" WHERE approval_status = 'APPROVED'
-         GROUP BY 1 ORDER BY posts DESC LIMIT 12`),
+         GROUP BY 1 ORDER BY posts DESC`),
 
       q(`SELECT name, COUNT(DISTINCT COALESCE("userId"::text, anon_id))::int AS people
          FROM "analytics_event"
@@ -152,6 +166,20 @@ export class AnalyticsService {
          FROM "analytics_event"
          WHERE occurred_at >= $1 AND name = 'client.error'
          GROUP BY 1, 2 ORDER BY count DESC LIMIT 20`, [since]),
+
+      // Demand-gap radar: what people searched for and how much supply answered.
+      // Zero-result searches ranked first — that's where providers are missing.
+      q(`SELECT COALESCE(NULLIF(props->>'q', ''), '—') AS q,
+                COALESCE(NULLIF(props->>'category', ''), 'all') AS category,
+                COALESCE(NULLIF(props->>'province', ''), 'all') AS province,
+                COUNT(*)::int AS searches,
+                COUNT(*) FILTER (WHERE (props->>'total')::int = 0)::int AS zero_results,
+                ROUND(AVG((props->>'total')::int))::int AS avg_results
+         FROM "analytics_event"
+         WHERE occurred_at >= $1 AND name = 'search.performed'
+           AND props ? 'total'
+         GROUP BY 1, 2, 3
+         ORDER BY zero_results DESC, searches DESC LIMIT 30`, [since]),
     ]);
 
     const funnelMap: Record<string, number> = {};
@@ -185,6 +213,7 @@ export class AnalyticsService {
       },
       top_posts: topPosts,
       client_errors: clientErrors,
+      search_gaps: searchGaps,
     };
 
     this.cache.set(key, result, SUMMARY_TTL);

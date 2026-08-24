@@ -59,7 +59,7 @@ const CategoryBadge = ({
                 styles.badgeText,
                 size === 'small' && styles.badgeTextSmall,
                 { color: foreground }
-            ]}>
+            ]} numberOfLines={1}>
                 {displayText}
             </Text>
         </View>

@@ -12,14 +12,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet, dimensions } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
-import { useCountUp } from '../../hooks/useCountUp';
 import { useTranslation } from 'react-i18next';
 import userService from '../../services/api/userService';
-import { ScreenLayout, SettingsSection, PressableScale } from '../../components';
+import { ScreenLayout, SettingsSection, PressableScale, StatTile, FadeSlideIn } from '../../components';
 import { ProfileSection, ProfileActionRow } from '../../components';
 import { ProfileBadge } from '../../components';
 import { DEFAULT_AVATAR_URL } from '../../config/app.config';
-import { showErrorModal } from '../../utils/errorManager';
+import { showErrorModal, isPostLogoutStraggler } from '../../utils/errorManager';
 import { confirmLogout } from '../../utils/navigationUtils';
 import { logger } from '../../utils/logger';
 
@@ -32,8 +31,6 @@ const ProviderProfile = ({ navigation }) => {
     const [imageError, setImageError] = useState(false);
     const [companyImageError, setCompanyImageError] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
-    const totalPostsDisplay = useCountUp(profile?.totalPosts || 0, !!profile);
-    const activePostsDisplay = useCountUp(profile?.activePosts || 0, !!profile);
 
     useEffect(() => {
         loadProfile();
@@ -60,8 +57,11 @@ const ProviderProfile = ({ navigation }) => {
                 activePosts: postsRes?.data?.activePosts ?? 0,
             });
         } catch (error) {
-            logger.error('Profile loading error:', error);
-            showErrorModal(t('common.error'), t('profile.saveError'));
+            // See CustomerProfile: a tokenless 401 here is the logout, not a fault.
+            if (!isPostLogoutStraggler(error)) {
+                logger.error('Profile loading error:', error);
+                showErrorModal(t('common.error'), t('profile.saveError'));
+            }
         } finally {
             setIsLoading(false);
         }
@@ -144,9 +144,9 @@ const ProviderProfile = ({ navigation }) => {
                         </View>
 
                         <View style={styles.profileInfo}>
-                            <Text style={[styles.profileName, { color: colors.text.primary }]}>{profile.name}</Text>
+                            <Text style={[styles.profileName, { color: colors.text.primary }]} numberOfLines={1}>{profile.name}</Text>
                             <View style={styles.phoneContainer}>
-                                <Ionicons name="call-outline" size={16} color={colors.primary} />
+                                <Ionicons name="call-outline" size={16} color={colors.iconAccent} />
                                 <Text style={[styles.profilePhone, { color: colors.text.secondary }]}>+976 {profile.phoneNumber}</Text>
                             </View>
                             <ProfileBadge type="provider" />
@@ -157,8 +157,10 @@ const ProviderProfile = ({ navigation }) => {
                             onPress={handleEditProfile}
                             activeOpacity={interactions.activeOpacityLight}
                             hitSlop={interactions.hitSlop}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('profile.editTitle')}
                         >
-                            <Ionicons name="create-outline" size={18} color={colors.primary} />
+                            <Ionicons name="create-outline" size={18} color={colors.iconAccent} />
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -175,18 +177,18 @@ const ProviderProfile = ({ navigation }) => {
                                     />
                                 ) : (
                                     <View style={[styles.companyIconContainer, { backgroundColor: colors.opacity.background.primary }]}>
-                                        <Ionicons name="business-outline" size={24} color={colors.primary} />
+                                        <Ionicons name="business-outline" size={24} color={colors.iconAccent} />
                                     </View>
                                 )}
                                 <View style={styles.companyInfo}>
-                                    <Text style={[styles.companyName, { color: colors.text.primary }]}>
+                                    <Text style={[styles.companyName, { color: colors.text.primary }]} numberOfLines={1}>
                                         {profile.companyName || t('company.title')}
                                     </Text>
                                     <Text style={[styles.companySubtitle, { color: colors.text.secondary }]}>
                                         {t('company.viewDetails')}
                                     </Text>
                                 </View>
-                                <Ionicons name="chevron-forward" size={20} color={colors.primary} />
+                                <Ionicons name="chevron-forward" size={20} color={colors.iconAccent} />
                             </View>
                         </PressableScale>
                     ) : (
@@ -211,32 +213,33 @@ const ProviderProfile = ({ navigation }) => {
                     )}
                 </View>
 
+                <FadeSlideIn index={0}>
                 <View style={[styles.statsSection, colors.elevation.md, { backgroundColor: colors.surface }]}>
-                    <View style={styles.statItem}>
-                        <View style={[styles.statIconContainer, { backgroundColor: colors.opacity.background.primary }]}>
-                            <Ionicons name="document-outline" size={20} color={colors.primary} />
-                        </View>
-                        <Text style={[styles.statValue, { color: colors.text.primary }]}>{totalPostsDisplay}</Text>
-                        <Text style={[styles.statLabel, { color: colors.text.secondary }]}>{t('profile.totalPosts')}</Text>
-                    </View>
-
-                    <View style={styles.statItem}>
-                        <View style={[styles.statIconContainer, { backgroundColor: colors.opacity.background.primary }]}>
-                            <Ionicons name="pulse-outline" size={20} color={colors.primary} />
-                        </View>
-                        <Text style={[styles.statValue, { color: colors.text.primary }]}>{activePostsDisplay}</Text>
-                        <Text style={[styles.statLabel, { color: colors.text.secondary }]}>{t('profile.activePosts')}</Text>
-                    </View>
-
-                    <View style={styles.statItem}>
-                        <View style={[styles.statIconContainer, { backgroundColor: colors.opacity.background.primary }]}>
-                            <Ionicons name="calendar-outline" size={20} color={colors.primary} />
-                        </View>
-                        <Text style={[styles.statValue, { color: colors.text.primary }]}>{profile.memberSince || '—'}</Text>
-                        <Text style={[styles.statLabel, { color: colors.text.secondary }]}>{t('profile.memberSince')}</Text>
-                    </View>
+                    <StatTile
+                        label={t('profile.totalPosts')}
+                        value={profile?.totalPosts || 0}
+                        icon="document-outline"
+                        ready={!!profile}
+                        style={styles.statItem}
+                    />
+                    <StatTile
+                        label={t('profile.activePosts')}
+                        value={profile?.activePosts || 0}
+                        icon="pulse-outline"
+                        ready={!!profile}
+                        emphasis
+                        style={styles.statItem}
+                    />
+                    <StatTile
+                        label={t('profile.memberSince')}
+                        value={profile.memberSince || '—'}
+                        icon="calendar-outline"
+                        style={styles.statItem}
+                    />
                 </View>
+                </FadeSlideIn>
 
+                <FadeSlideIn index={1}>
                 <ProfileSection>
                     <ProfileActionRow
                         icon="calendar-outline"
@@ -265,7 +268,9 @@ const ProviderProfile = ({ navigation }) => {
                         isLast
                     />
                 </ProfileSection>
+                </FadeSlideIn>
 
+                <FadeSlideIn index={2}>
                 <ProfileSection>
                     <ProfileActionRow
                         icon="log-out-outline"
@@ -275,6 +280,7 @@ const ProviderProfile = ({ navigation }) => {
                         variant="danger"
                     />
                 </ProfileSection>
+                </FadeSlideIn>
 
                 <SettingsSection />
 
@@ -335,13 +341,7 @@ const styles = StyleSheet.create({
         padding: spacing.lg,
         marginBottom: spacing.xl,
     },
-    statItem: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    statIconContainer: {
-        width: 40, height: 40, borderRadius: radius.full,
-        justifyContent: 'center', alignItems: 'center', marginBottom: spacing.sm,
-    },
-    statValue: { ...typography.styles.h2, marginBottom: spacing.xs, fontVariant: ['tabular-nums'] },
-    statLabel: { ...typography.styles.small, textAlign: 'center' },
+    statItem: { flex: 1 },
 });
 
 export default ProviderProfile;

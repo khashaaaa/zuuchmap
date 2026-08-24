@@ -177,28 +177,45 @@ export class AuthService {
       throw new HttpException('This verification was already used.', HttpStatus.GONE);
     }
 
-    if (session.status === 'VERIFIED') {
-      return { status: 'VERIFIED', auth: await this.completeSession(session) };
+    const status = await this.refreshStatus(session);
+    // Only the polling client consumes a session — see `handleCallback`.
+    if (status === 'VERIFIED') {
+      return { status, auth: await this.completeSession(session) };
     }
+    return { status };
+  }
+
+  /**
+   * Brings `session.status` up to date with verify.mn. Deliberately stops short
+   * of `completeSession`: reading the outcome and spending it are separate acts,
+   * and only the caller holding the client connection may spend it.
+   */
+  private async refreshStatus(
+    session: VerificationSession,
+    { force = false }: { force?: boolean } = {},
+  ): Promise<'PENDING' | 'VERIFIED' | 'EXPIRED'> {
+    if (session.status === 'VERIFIED') return 'VERIFIED';
 
     if (session.expires_at.getTime() < Date.now()) {
       if (session.status !== 'EXPIRED') {
         session.status = 'EXPIRED';
         await this.sessionRepository.save(session);
       }
-      return { status: 'EXPIRED' };
+      return 'EXPIRED';
     }
 
     if (this.devMode && !session.provider_session_id) {
       session.status = 'VERIFIED';
       session.verified_at = new Date();
       await this.sessionRepository.save(session);
-      return { status: 'VERIFIED', auth: await this.completeSession(session) };
+      return 'VERIFIED';
     }
 
-    // Respect the upstream rate limit — poll verify.mn at most every 3s per session.
+    // Respect the upstream rate limit — poll verify.mn at most every 3s per
+    // session. A provider callback is exempt: it fires because something
+    // actually changed, so throttling it just wastes the nudge.
     const since = session.last_checked_at ? Date.now() - session.last_checked_at.getTime() : Infinity;
-    if (since < UPSTREAM_POLL_MS) return { status: 'PENDING' };
+    if (!force && since < UPSTREAM_POLL_MS) return 'PENDING';
 
     session.last_checked_at = new Date();
     await this.sessionRepository.save(session);
@@ -209,22 +226,32 @@ export class AuthService {
       session.status = 'VERIFIED';
       session.verified_at = remote.verifiedAt ? new Date(remote.verifiedAt) : new Date();
       await this.sessionRepository.save(session);
-      return { status: 'VERIFIED', auth: await this.completeSession(session) };
+      return 'VERIFIED';
     }
 
     if (remote.sessionStatus === 'EXPIRED') {
       session.status = 'EXPIRED';
       await this.sessionRepository.save(session);
-      return { status: 'EXPIRED' };
+      return 'EXPIRED';
     }
 
-    return { status: 'PENDING' };
+    return 'PENDING';
   }
 
-  /** Wake-up nudge from verify.mn. Never trusted on its own. */
+  /**
+   * Wake-up nudge from verify.mn. Records the outcome so the client's next poll
+   * finds it immediately, and stops there.
+   *
+   * It must never call `completeSession`: that marks the session CONSUMED, and
+   * the token it mints here has no caller to return to. The client's next poll
+   * would then be answered with 410 — telling someone who verified correctly,
+   * and paid 150₮ to do it, to start over and pay again.
+   */
   async handleCallback(sessionId: string): Promise<void> {
     try {
-      await this.checkVerification(sessionId);
+      const session = await this.sessionRepository.findOne({ where: { id: sessionId } });
+      if (!session || session.status === 'CONSUMED') return;
+      await this.refreshStatus(session, { force: true });
     } catch (err) {
       this.logger.warn(`Callback check for ${sessionId} failed: ${err?.message}`);
     }

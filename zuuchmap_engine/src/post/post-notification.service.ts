@@ -2,7 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { User } from '../user/entities/user.entity';
-import { sendPushNotification } from '../utils/pushNotification';
+import { PushDevice } from '../user/entities/push-device.entity';
+import { sendPushNotifications } from '../utils/pushNotification';
 import { getAdminPhones } from '../admin/admin.guard';
 
 /**
@@ -19,6 +20,8 @@ export class PostNotificationService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(PushDevice)
+    private readonly pushDeviceRepository: Repository<PushDevice>,
   ) {}
 
   async notifyAdmins(postId: number, title: string, category?: string): Promise<void> {
@@ -27,10 +30,10 @@ export class PostNotificationService {
       if (!adminPhones.length) return;
       const admins = await this.userRepository.find({
         where: { phone_number: In(adminPhones) },
-        select: ['id', 'push_token'],
+        select: ['id'],
       });
       await this.dispatch(
-        admins,
+        admins.map((u) => u.id),
         'Шинэ зар бүртгэгдлээ',
         `"${title}" – шинэ зар шалгана уу.`,
         { postId, post_type: category, notifType: 'new_post' },
@@ -43,39 +46,77 @@ export class PostNotificationService {
   async notifyUsers(userIds: string[], title: string, body: string, data?: Record<string, any>): Promise<void> {
     if (!userIds.length) return;
     try {
-      const users = await this.userRepository.find({
-        where: { id: In(userIds) },
-        select: ['id', 'push_token'],
-      });
-      await this.dispatch(users, title, body, data);
+      await this.dispatch(userIds, title, body, data);
     } catch (err) {
       this.logger.warn(`notifyUsers failed (non-fatal): ${err?.message}`);
     }
   }
 
-  // Sends to each user and clears tokens Expo reports as DeviceNotRegistered,
-  // so dead tokens don't accumulate and every delivery failure leaves a log line.
+  /**
+   * Admin broadcast (campaigns: seasonal pushes, announcements). Targets every
+   * user holding a push token, optionally narrowed by user type and/or to
+   * owners of posts in one category. Returns how many devices were addressed.
+   */
+  async broadcast(
+    title: string,
+    body: string,
+    opts: { user_type?: string; category?: string } = {},
+  ): Promise<{ sent: number }> {
+    const qb = this.userRepository.createQueryBuilder('u')
+      .select(['u.id'])
+      .where(`EXISTS (SELECT 1 FROM "push_device" d WHERE d."userId" = u.id)`);
+    if (opts.user_type === 'PROVIDER' || opts.user_type === 'CUSTOMER') {
+      qb.andWhere('u.type = :t', { t: opts.user_type });
+    }
+    if (opts.category) {
+      qb.andWhere(
+        `EXISTS (SELECT 1 FROM "post" p WHERE p."userId" = u.id AND p.category = :cat)`,
+        { cat: opts.category },
+      );
+    }
+    const users = await qb.getMany();
+    // Report what actually went out. `users.length` counted the query result,
+    // so a campaign to a list full of stale tokens reported total success.
+    const sent = await this.dispatch(users.map((u) => u.id), title, body, { notifType: 'broadcast' });
+    return { sent };
+  }
+
+  /**
+   * Sends to every device the given accounts have registered.
+   *
+   * Takes user ids rather than user rows because the tokens no longer live on
+   * the user: one account can hold several devices, and all of them are
+   * addressed. One batched request per 100 devices (Expo's limit), and dead
+   * tokens are deleted in a single statement rather than one each.
+   *
+   * Returns the number of devices the push actually reached.
+   */
   private async dispatch(
-    users: Pick<User, 'id' | 'push_token'>[],
+    userIds: string[],
     title: string,
     body: string,
     data?: Record<string, any>,
-  ): Promise<void> {
-    const targets = users.filter(u => u.push_token?.startsWith('ExponentPushToken'));
-    // Cap concurrency — an unbounded Promise.all is one HTTP call per user.
-    const CHUNK = 20;
-    for (let i = 0; i < targets.length; i += CHUNK) {
-      await Promise.all(
-        targets.slice(i, i + CHUNK).map(async (u) => {
-          const result = await sendPushNotification(u.push_token, title, body, data);
-          if (result.deadToken) {
-            this.logger.warn(`Clearing dead push token for user ${u.id}`);
-            await this.userRepository
-              .update(u.id, { push_token: null as unknown as string })
-              .catch(err => this.logger.warn(`Failed to clear dead token: ${err?.message}`));
-          }
-        }),
-      );
+  ): Promise<number> {
+    if (!userIds.length) return 0;
+
+    const devices = await this.pushDeviceRepository.find({
+      where: { user: { id: In(userIds) } },
+      select: ['id', 'token'],
+    });
+    const targets = devices.filter(d => d.token?.startsWith('ExponentPushToken'));
+    if (!targets.length) return 0;
+
+    const { deadTokens } = await sendPushNotifications(
+      targets.map(d => d.token), title, body, data,
+    );
+
+    if (deadTokens.length) {
+      this.logger.warn(`Removing ${deadTokens.length} dead push device(s)`);
+      await this.pushDeviceRepository
+        .delete({ token: In(deadTokens) })
+        .catch(err => this.logger.warn(`Failed to remove dead devices: ${err?.message}`));
     }
+
+    return targets.length - deadTokens.length;
   }
 }

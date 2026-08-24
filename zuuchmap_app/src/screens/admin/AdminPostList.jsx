@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing, typography, radius, interactions, isTablet } from '../../design/theme';
+import { spacing, typography, radius, interactions, isTablet, toneForTheme } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useMinDisplayTime } from '../../hooks/useMinDisplayTime';
 import { useTranslation } from 'react-i18next';
@@ -23,8 +23,8 @@ import { EmptyState, SkeletonItem, FadeSlideIn, PressableScale, SelectionPop } f
 import ScreenError from '../../components/ScreenError';
 import postService from '../../services/api/postService';
 import { getPostImageUrl } from '../../config/api.config';
-import { getPostTitle } from '../../utils/postUtils';
-import { formatDateYYYYMMDD } from '../../utils/displayUtils';
+import { getPostTitle, getSchemaLabel } from '../../utils/postUtils';
+import { formatDate } from '../../utils/displayUtils';
 import categoryService from '../../services/api/categoryService';
 
 
@@ -49,7 +49,10 @@ const AdminPostList = ({ navigation, route }) => {
         queryFn: async () => {
             const typeParam = activeFilter === 'all' ? null : activeFilter;
             const res = await postService.getPendingPosts(typeParam);
-            const list = Array.isArray(res.data) ? res.data : (res.data?.data ?? []);
+            // `{ items, total }` since the queue started reporting its real depth;
+            // the other branches keep an older server shape working.
+            const body = res.data;
+            const list = Array.isArray(body) ? body : (body?.items ?? body?.data ?? []);
             return list.map(p => ({ ...p, postType: p.postType || p.category || '' }));
         },
         staleTime: 30 * 1000,
@@ -64,9 +67,12 @@ const AdminPostList = ({ navigation, route }) => {
         const hasErr = imageErrors[imgKey];
         const thumb = getPostImageUrl(item.images?.[0]);
         const title = getPostTitle(item, item.postType);
+        // Schema colour through toneForTheme — amber stays reserved for accents.
+        const schema = categories.find(c => c.key === item.postType);
+        const typeColor = schema?.color ? toneForTheme(schema.color, isDark) : colors.text.secondary;
 
         return (
-            <FadeSlideIn index={index}>
+            <FadeSlideIn index={index} style={isTablet && { flex: 1 }}>
                 <PressableScale
                     style={styles.card}
                     onPress={() => navigation.navigate('PostDetailScreen', { postId: item.id, postType: item.postType, role: 'admin' })}
@@ -74,7 +80,7 @@ const AdminPostList = ({ navigation, route }) => {
                     <View style={styles.imgBox}>
                         {hasErr || !thumb ? (
                             <View style={styles.noImg}>
-                                <Ionicons name="image-outline" size={28} color={colors.primary} />
+                                <Ionicons name="image-outline" size={28} color={colors.iconAccent} />
                             </View>
                         ) : (
                             <Image
@@ -87,21 +93,21 @@ const AdminPostList = ({ navigation, route }) => {
                     </View>
                     <View style={styles.cardBody}>
                         <Text style={styles.cardTitle} numberOfLines={2}>{title}</Text>
-                        <Text style={styles.cardType}>{item.postType ? t(`category.${item.postType}`, { defaultValue: item.postType }) : ''}</Text>
+                        <Text style={[styles.cardType, { color: typeColor }]}>{schema ? getSchemaLabel(schema) : (item.postType ? t(`category.${item.postType}`, { defaultValue: item.postType }) : '')}</Text>
                         {item.user && (
                             <Text style={styles.cardUser} numberOfLines={1}>
                                 {item.user.given_name || item.user.phone_number}
                             </Text>
                         )}
                         <Text style={styles.cardDate}>
-                            {formatDateYYYYMMDD(item.date_created)}
+                            {formatDate(item.date_created)}
                         </Text>
                     </View>
                     <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} style={styles.chevron} />
                 </PressableScale>
             </FadeSlideIn>
         );
-    }, [imageErrors, navigation, colors]);
+    }, [imageErrors, navigation, colors, categories, isDark, t]);
 
     const showSkeleton = useMinDisplayTime(loading);
 
@@ -130,7 +136,7 @@ const AdminPostList = ({ navigation, route }) => {
                             <Text style={[
                                 styles.filterText,
                                 { color: colors.text.secondary },
-                                activeFilter === type && { color: colors.primary },
+                                activeFilter === type && { color: colors.text.link },
                             ]}>
                                 {type === 'all' ? t('filter.all') : t(`category.${type}`)}
                             </Text>
@@ -152,6 +158,7 @@ const AdminPostList = ({ navigation, route }) => {
                 <EmptyState
                     icon="checkmark-circle-outline"
                     iconSize={64}
+                    variant="neutral"
                     title={t('admin.noPending')}
                     subtitle={t('admin.noPendingDesc')}
                 />
@@ -193,7 +200,7 @@ const createStyles = (colors) => StyleSheet.create({
     noImg: { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' },
     cardBody: { flex: 1, padding: spacing.md },
     cardTitle: { ...typography.styles.title, marginBottom: spacing.xs, color: colors.text.primary },
-    cardType: { ...typography.styles.badge, marginBottom: spacing.xs, color: colors.primary },
+    cardType: { ...typography.styles.badge, marginBottom: spacing.xs },
     cardUser: { ...typography.styles.small, marginBottom: spacing.xs, color: colors.text.secondary },
     cardDate: { ...typography.styles.small, color: colors.text.tertiary },
     chevron: { paddingRight: spacing.sm },

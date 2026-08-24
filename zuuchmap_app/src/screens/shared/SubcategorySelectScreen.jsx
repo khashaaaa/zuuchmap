@@ -2,12 +2,13 @@ import React, { useState, useMemo, useRef } from 'react';
 import { View, Text, FlatList, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing, typography, safeAreaHelpers, radius } from '../../design/theme';
+import { spacing, typography, safeAreaHelpers, radius, withAlpha } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import SearchInput from '../../components/SearchInput';
 import ScreenHeader from '../../components/ScreenHeader';
+import WizardSteps from '../../components/WizardSteps';
 import EmptyState from '../../components/EmptyState';
 import PressableScale from '../../components/PressableScale';
 import FadeSlideIn from '../../components/FadeSlideIn';
@@ -30,7 +31,7 @@ const SubcategoryCard = ({ item, isSelected, onSelect, colors, styles, label }) 
             <View style={styles.cardContent}>
                 <Text style={[styles.cardName, { color: colors.text.primary }]}>{displayName}</Text>
             </View>
-            <View style={[styles.arrow, { backgroundColor: isSelected ? `${colors.primary}20` : `${colors.primary}10`, borderColor: colors.border.light }]}>
+            <View style={[styles.arrow, { backgroundColor: withAlpha(colors.primary, isSelected ? 0.13 : 0.06), borderColor: colors.border.light }]}>
                 <Ionicons name="chevron-forward" size={20} color={isSelected ? colors.primary : colors.text.secondary} />
             </View>
         </PressableScale>
@@ -66,6 +67,13 @@ const SubcategorySelectScreen = ({ route, navigation }) => {
     }, [subcategories, search, t, i18n.language]);
 
     const handleSelect = (subcategory) => {
+        if (subcategory === null) {
+            if (navigatingRef.current) return;
+            navigatingRef.current = true;
+            setTimeout(() => { navigatingRef.current = false; }, 800);
+            navigation.navigate('ProviderLocationSelection', { category, subcategory: undefined });
+            return;
+        }
         // Double-taps land before the transition starts — push only one screen.
         if (navigatingRef.current) return;
         navigatingRef.current = true;
@@ -88,11 +96,14 @@ const SubcategorySelectScreen = ({ route, navigation }) => {
     return (
         <CustomSafeAreaView backgroundColor={colors.background} statusBarColor={colors.surface} statusBarStyle={isDark ? 'light-content' : 'dark-content'}>
             <ScreenHeader title={t('category.subcategoryTitle')} onBack={() => navigation.goBack()} />
+            {role === 'provider' && (
+                <WizardSteps current={2} labels={[t('provider.stepCategory'), t('provider.stepSubcategory'), t('provider.stepLocation'), t('provider.stepDetails')]} />
+            )}
 
             <View style={[styles.content, { backgroundColor: colors.background }]}>
                 <View style={styles.categoryInfo}>
                     <View style={styles.categoryInfoIcon}>
-                        <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
+                        <Ionicons name="checkmark-circle" size={24} color={colors.iconAccent} />
                     </View>
                     <View style={{ flex: 1 }}>
                         <Text style={[styles.categoryLabel, { color: colors.text.secondary }]}>{t('category.selectedLabel')}</Text>
@@ -117,6 +128,7 @@ const SubcategorySelectScreen = ({ route, navigation }) => {
                 ) : (
                     <FlatList
                         data={filtered}
+                        keyboardShouldPersistTaps="handled"
                         keyExtractor={(item, i) => (typeof item === 'object' ? item.value : item) + i}
                         renderItem={({ item, index }) => (
                             <FadeSlideIn index={index}>
@@ -138,6 +150,17 @@ const SubcategorySelectScreen = ({ route, navigation }) => {
                         initialNumToRender={10}
                         maxToRenderPerBatch={10}
                         windowSize={10}
+                        ListFooterComponent={role === 'provider' ? (
+                            <PressableScale
+                                style={[styles.skipButton, { borderColor: colors.border.light }]}
+                                onPress={() => handleSelect(null)}
+                                accessibilityRole="button"
+                            >
+                                <Text style={[styles.skipText, { color: colors.text.secondary }]}>
+                                    {t('provider.skipSubcategory')}
+                                </Text>
+                            </PressableScale>
+                        ) : null}
                     />
                 )}
             </View>
@@ -146,6 +169,15 @@ const SubcategorySelectScreen = ({ route, navigation }) => {
 };
 
 const createStyles = (colors) => StyleSheet.create({
+    skipButton: {
+        marginTop: spacing.md,
+        paddingVertical: spacing.lg,
+        borderRadius: radius.card,
+        borderWidth: 1,
+        borderStyle: 'dashed',
+        alignItems: 'center',
+    },
+    skipText: { ...typography.styles.label },
     content: { flex: 1, padding: spacing.lg },
     categoryInfo: {
         backgroundColor: colors.opacity.background.success,

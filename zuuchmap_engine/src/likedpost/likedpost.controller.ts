@@ -64,7 +64,12 @@ export class LikedpostController {
     @Request() req: any,
   ) {
     const user_id = req.user?.id;
-    if (!user_id) return { liked_post_ids: [] };
+    if (!user_id) return { liked_post_ids: [], liked_by_type: {} };
+    // Without ?post_type= the caller gets every type in one round-trip; with it,
+    // the flat array older app builds expect.
+    if (!post_type) {
+      return { liked_by_type: await this.likedPostService.getUserLikedPostIdsByType(user_id) };
+    }
     return { liked_post_ids: await this.likedPostService.getUserLikedPostIds(user_id, post_type) };
   }
 }

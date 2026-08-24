@@ -5,7 +5,6 @@ import {
     View,
     Text,
     FlatList,
-    TouchableOpacity,
     Image,
     RefreshControl,
     ActivityIndicator,
@@ -13,22 +12,22 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing, typography, safeAreaHelpers, radius, interactions } from '../../design/theme';
+import { spacing, typography, safeAreaHelpers, radius } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useMinDisplayTime } from '../../hooks/useMinDisplayTime';
 import { useTranslation } from 'react-i18next';
 import likeService from '../../services/api/likeService';
 import userService from '../../services/api/userService';
-import { API_CONFIG, getPostImageUrl } from '../../config/api.config';
+import { getPostImageUrl } from '../../config/api.config';
 import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import ScreenHeader from '../../components/ScreenHeader';
 import LikeButton from '../../components/LikeButton';
 import EmptyState from '../../components/EmptyState';
 import ScreenError from '../../components/ScreenError';
-import { SkeletonItem, FadeSlideIn, PressableScale } from '../../components';
-import { showErrorModal } from '../../utils/errorManager';
+import { SkeletonItem, SkeletonCrossfade, FadeSlideIn, PressableScale } from '../../components';
+import { showErrorModal, isPostLogoutStraggler } from '../../utils/errorManager';
 import { logger } from '../../utils/logger';
-import { getFixedImageUrl, getPostTitle, normalizePostType, getPostPrice, getSchemaLabel } from '../../utils/postUtils';
+import { getPostTitle, normalizePostType, getPostPrice, getSchemaLabel } from '../../utils/postUtils';
 import { useCategorySchemas } from '../../hooks/useCategorySchemas';
 
 const CustomerLikeList = ({ navigation }) => {
@@ -82,6 +81,10 @@ const CustomerLikeList = ({ navigation }) => {
 
     useEffect(() => {
         const status = error?.response?.status;
+        // A logout straggler is also a 401. Telling someone who just signed out
+        // that their session expired — and offering to sign them back in — is
+        // the logout arriving as an alarm.
+        if (isPostLogoutStraggler(error)) return;
         if (status === 401 || status === 403) {
             setIsAuthenticated(false);
             showErrorModal(
@@ -159,26 +162,26 @@ const CustomerLikeList = ({ navigation }) => {
         return (
         <FadeSlideIn index={index}>
         <PressableScale
-            style={[styles.post_card, { backgroundColor: colors.surface }]}
+            style={[styles.postCard, { backgroundColor: colors.surface }]}
             onPress={() => handlePostPress(item)}
         >
-            <View style={styles.image_container}>
+            <View style={styles.imageContainer}>
                 {imageUri ? (
                     <Image
                         source={{ uri: imageUri }}
-                        style={[styles.post_image, { backgroundColor: colors.background }]}
+                        style={styles.postImage}
                         resizeMode="cover"
                     />
                 ) : (
-                    <View style={[styles.no_image_container, { backgroundColor: colors.background }]}>
-                        <Ionicons name="image-outline" size={32} color={colors.primary} />
+                    <View style={styles.noImageContainer}>
+                        <Ionicons name="image-outline" size={32} color={colors.iconAccent} />
                     </View>
                 )}
             </View>
 
-            <View style={styles.post_content}>
-                <View style={styles.post_header}>
-                    <Text style={styles.post_title} numberOfLines={2}>
+            <View style={styles.postContent}>
+                <View style={styles.postHeader}>
+                    <Text style={styles.postTitle} numberOfLines={2}>
                         {getPostTitle(item, item.post_type || item.category)}
                     </Text>
                     <LikeButton
@@ -197,22 +200,22 @@ const CustomerLikeList = ({ navigation }) => {
                     />
                 </View>
 
-                <Text style={[styles.category_text, { color: colors.text.secondary }]}>
+                <Text style={[styles.categoryText, { color: colors.text.secondary }]}>
                     {categoryLabel(item.post_type || item.category)}
                 </Text>
 
                 {getPostPrice(item) && (
-                    <Text style={[styles.price_text, { color: colors.primary }]}>{getPostPrice(item)}</Text>
+                    <Text style={[styles.priceText, { color: colors.text.link }]}>{getPostPrice(item)}</Text>
                 )}
 
-                <View style={styles.post_footer}>
-                    <View style={styles.location_container}>
-                        <Ionicons name="location-outline" size={12} color={colors.primary} />
-                        <Text style={[styles.location_text, { color: colors.text.secondary }]} numberOfLines={1}>
+                <View style={styles.postFooter}>
+                    <View style={styles.locationContainer}>
+                        <Ionicons name="location-outline" size={12} color={colors.iconAccent} />
+                        <Text style={[styles.locationText, { color: colors.text.secondary }]} numberOfLines={1}>
                             {item.location || t('common.noData')}
                         </Text>
                     </View>
-                    <Text style={[styles.liked_at_text, { color: colors.text.tertiary }]}>
+                    <Text style={[styles.likedAtText, { color: colors.text.tertiary }]}>
                         {new Date(item.date_liked).toLocaleDateString()}
                     </Text>
                 </View>
@@ -248,6 +251,7 @@ const CustomerLikeList = ({ navigation }) => {
         return (
             <EmptyState
                 icon="heart-outline"
+                variant="invitation"
                 title={t('posts.noSaved')}
                 actionButton={{ text: t('posts.browse'), onPress: handleBrowsePosts }}
             />
@@ -257,8 +261,8 @@ const CustomerLikeList = ({ navigation }) => {
     const renderFooter = () => {
         if (!loadingMore) return null;
         return (
-            <View style={styles.loading_footer}>
-                <ActivityIndicator size="small" color={colors.primary} />
+            <View style={styles.loadingFooter}>
+                <ActivityIndicator size="small" color={colors.iconAccent} />
             </View>
         );
     };
@@ -266,39 +270,35 @@ const CustomerLikeList = ({ navigation }) => {
     const canGoBack = navigation.canGoBack();
     const showSkeleton = useMinDisplayTime(loading);
 
-    if (showSkeleton || !authChecked) {
-        return (
-            <CustomSafeAreaView backgroundColor={colors.background} statusBarColor={colors.surface} statusBarStyle={isDark ? 'light-content' : 'dark-content'}>
-                <ScreenHeader
-                    title={t('posts.savedTitle')}
-                    showBack={canGoBack}
-                    onBack={() => navigation.goBack()}
-                />
-                <FlatList
-                    data={Array(8).fill({})}
-                    renderItem={() => <SkeletonItem />}
-                    keyExtractor={(_, i) => `sk-${i}`}
-                    contentContainerStyle={[styles.list_container, { paddingTop: spacing.md }]}
-                    showsVerticalScrollIndicator={false}
-                />
-            </CustomSafeAreaView>
-        );
-    }
+    const pending = showSkeleton || !authChecked;
 
     return (
         <CustomSafeAreaView backgroundColor={colors.background} statusBarColor={colors.surface} statusBarStyle={isDark ? 'light-content' : 'dark-content'}>
             <ScreenHeader
-                title={`${t('posts.savedTitle')}${posts.length > 0 ? ` (${posts.length})` : ''}`}
+                title={`${t('posts.savedTitle')}${!pending && posts.length > 0 ? ` (${posts.length})` : ''}`}
                 showBack={canGoBack}
                 onBack={() => navigation.goBack()}
             />
 
+            <SkeletonCrossfade
+                loading={pending}
+                skeleton={(
+                    <FlatList
+                        data={Array(8).fill({})}
+                        renderItem={() => <SkeletonItem />}
+                        keyExtractor={(_, i) => `sk-${i}`}
+                        contentContainerStyle={[styles.listContainer, { paddingTop: spacing.md }]}
+                        showsVerticalScrollIndicator={false}
+                        scrollEnabled={false}
+                    />
+                )}
+            >
             <FlatList
                 data={posts}
                 renderItem={renderPostItem}
                 keyExtractor={(item) => `${item.post_type}-${item.id}`}
                 contentContainerStyle={[
-                    styles.list_container,
+                    styles.listContainer,
                     gStyles.scrollViewContentWithBottomInset(
                         safeAreaHelpers.getBottomSafeArea(insets)
                     ),
@@ -323,15 +323,16 @@ const CustomerLikeList = ({ navigation }) => {
                 removeClippedSubviews={true}
                 updateCellsBatchingPeriod={100}
             />
+            </SkeletonCrossfade>
         </CustomSafeAreaView>
     );
 };
 
 const createStyles = (colors) => StyleSheet.create({
-    list_container: {
+    listContainer: {
         padding: spacing.lg,
     },
-    post_card: {
+    postCard: {
         ...colors.elevation.md,
         backgroundColor: colors.surface,
         borderRadius: radius.lg,
@@ -344,81 +345,82 @@ const createStyles = (colors) => StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.border.light,
     },
-    image_container: {
-        width: 100,
+    imageContainer: {
+        // 96 and border.light, matching CustomerPostList and ProviderPostList —
+        // the same post was 4px wider here, on a different placeholder ground.
+        width: 96,
         alignSelf: 'stretch',
         overflow: 'hidden',
+        backgroundColor: colors.border.light,
     },
     // Absolutely positioned so the image can never dictate the card's height:
     // a percentage height inside a stretch-sized box falls back to the image's
     // intrinsic size (800px seed photos → screen-tall cards).
-    post_image: {
+    postImage: {
         position: 'absolute',
         top: 0,
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: colors.background,
     },
-    no_image_container: {
+    noImageContainer: {
         position: 'absolute',
         top: 0,
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: colors.background,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    post_content: {
+    postContent: {
         flex: 1,
         padding: spacing.md,
         justifyContent: 'space-between',
     },
-    post_header: {
+    postHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'flex-start',
         marginBottom: spacing.xs,
     },
-    post_title: {
+    postTitle: {
         ...typography.styles.title,
         color: colors.text.primary,
         flex: 1,
         marginRight: spacing.sm,
     },
-    category_text: {
+    categoryText: {
         ...typography.styles.small,
         color: colors.text.secondary,
         marginBottom: spacing.xs,
     },
-    price_text: {
+    priceText: {
         ...typography.styles.price,
-        color: colors.primary,
+        color: colors.text.link,
         marginBottom: spacing.xs,
     },
-    post_footer: {
+    postFooter: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
     },
-    location_container: {
+    locationContainer: {
         flexDirection: 'row',
         alignItems: 'center',
         flex: 1,
         marginRight: spacing.xs,
     },
-    location_text: {
+    locationText: {
         ...typography.styles.small,
         color: colors.text.secondary,
         marginLeft: spacing.xs,
     },
-    liked_at_text: {
+    likedAtText: {
         ...typography.styles.small,
         color: colors.text.tertiary,
         fontStyle: 'italic',
     },
-    loading_footer: {
+    loadingFooter: {
         paddingVertical: spacing.lg,
         alignItems: 'center',
     },

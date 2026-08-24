@@ -1,4 +1,3 @@
-import ErrorModal from '../components/ErrorModal';
 import i18n from '../i18n';
 
 // --- Modal ref management ---
@@ -32,6 +31,19 @@ const getDefaultMessages = () => ({
     500: i18n.t('errors.serverError'),
 });
 
+/**
+ * True for a 401 that arrived on a request carrying no token — a query that was
+ * still observed when logout cleared the session, not a failure anyone caused.
+ * `apiClient` tags these; the header check covers anything that reached here
+ * without passing through the interceptor.
+ *
+ * Screens and services that report their own errors must skip these, or logging
+ * out prints an ERROR pair and pops a modal at someone who did nothing wrong.
+ */
+export const isPostLogoutStraggler = (error) =>
+    error?.isPostLogoutStraggler === true
+    || (error?.response?.status === 401 && !error?.config?.headers?.Authorization);
+
 export const getErrorMessage = (error) => {
     const fallback = i18n.t('errors.unknown');
     if (error == null) return fallback;
@@ -58,17 +70,4 @@ export const getErrorMessage = (error) => {
     return fallback;
 };
 
-export const showErrorAlert = (title, error, options = {}) => {
-    const resolvedTitle = title ?? i18n.t('common.error');
-    const status = error?.response?.status;
-    const overrides = {
-        400: options.message400,
-        401: options.message401,
-        404: options.message404,
-        429: options.message429,
-        500: options.message500,
-    };
-    const message = (status && overrides[status]) ? overrides[status] : getErrorMessage(error);
-    showErrorModal(resolvedTitle, message, options.buttons || [{ text: i18n.t('common.ok') }]);
-};
 

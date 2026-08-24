@@ -2,10 +2,11 @@ import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams, useNavigate } from 'react-router-dom'
-import { X, Heart } from 'lucide-react'
+import { X, Heart, BellPlus, WifiOff } from 'lucide-react'
 import { toast } from 'sonner'
-import { postsApi, categoryApi, likesApi } from '@/lib/api'
-import { debounce, PROVINCES, DISTRICTS, getPostCategory, getCategoryLabel, getSubcategoryLabel, getFieldLabel, getOptionLabel } from '@/lib/utils'
+import { postsApi, categoryApi, likesApi, savedSearchApi } from '@/lib/api'
+import { debounce, PROVINCES, DISTRICTS, getPostCategory, getCategoryLabel, getSubcategoryLabel, getFieldLabel, getOptionLabel, getCategoryColor, apiErrorMessage } from '@/lib/utils'
+import Button from '@/components/Button'
 import Input from '@/components/Input'
 import SearchBar from '@/components/SearchBar'
 import CategoryPills from '@/components/CategoryPills'
@@ -14,10 +15,31 @@ import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
 import Pagination from '@/components/Pagination'
 import PostGrid from '@/components/PostGrid'
+import Modal from '@/components/Modal'
 import { useAuthStore } from '@/store'
 import { track } from '@/lib/analytics'
 
-const LIMIT = 12
+// 12 turned a 2.4k-listing catalogue into 200+ pages behind prev/next arrows.
+// 48 fills the 3-column grid 16 rows deep and cuts the page count by 4x; the
+// server caps `limit` at 100 (post.service.ts).
+const LIMIT = 48
+
+// Filter keys a saved search (or a shared link) can carry in the query string.
+// They are read once, applied to state, and stripped — category/page are the
+// only ones the URL keeps for the page's own navigation.
+const isCarriedFilter = (k) => ['subcategory', 'province', 'district', 'q'].includes(k) || k.startsWith('attr.')
+
+function useOnline() {
+  const [online, setOnline] = useState(() => (typeof navigator === 'undefined' ? true : navigator.onLine))
+  useEffect(() => {
+    const up = () => setOnline(true)
+    const down = () => setOnline(false)
+    window.addEventListener('online', up)
+    window.addEventListener('offline', down)
+    return () => { window.removeEventListener('online', up); window.removeEventListener('offline', down) }
+  }, [])
+  return online
+}
 
 export default function CustomerBrowse() {
   const { t } = useTranslation()
@@ -32,16 +54,33 @@ export default function CustomerBrowse() {
   const category = searchParams.get('category') ?? ''
   const page = Math.max(1, Number(searchParams.get('page')) || 1)
 
-  const [subcat, setSubcat] = useState('')
-  const [province, setProvince] = useState('')
-  const [district, setDistrict] = useState('')
-  const [searchInput, setSearchInput] = useState('')
-  const [search, setSearch] = useState('')
-  const [attrInputs, setAttrInputs] = useState({})
-  const [attrFilters, setAttrFilters] = useState({})
+  // Inbound filters from a saved search / shared link seed the state once;
+  // the effect below then takes them off the URL so the page's own
+  // category/page handling owns it again.
+  const carried = useMemo(() => Object.fromEntries([...searchParams.entries()].filter(([k]) => isCarriedFilter(k))), []) // eslint-disable-line
+  const carriedAttrs = () => Object.fromEntries(Object.entries(carried).filter(([k]) => k.startsWith('attr.')).map(([k, v]) => [k.slice(5), v]))
+  const [subcat, setSubcat] = useState(carried.subcategory ?? '')
+  const [province, setProvince] = useState(carried.province ?? '')
+  const [district, setDistrict] = useState(carried.district ?? '')
+  const [searchInput, setSearchInput] = useState(carried.q ?? '')
+  const [search, setSearch] = useState(carried.q ?? '')
+  const [attrInputs, setAttrInputs] = useState(carriedAttrs)
+  const [attrFilters, setAttrFilters] = useState(carriedAttrs)
   const [sort, setSort] = useState('')
   const [priceInputs, setPriceInputs] = useState({})
   const [priceFilters, setPriceFilters] = useState({})
+  const [saveOpen, setSaveOpen] = useState(false)
+  const [saveName, setSaveName] = useState('')
+  const online = useOnline()
+
+  useEffect(() => {
+    if (![...searchParams.keys()].some(isCarriedFilter)) return
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      for (const k of [...next.keys()]) if (isCarriedFilter(k)) next.delete(k)
+      return next
+    }, { replace: true })
+  }, [searchParams, setSearchParams])
 
   const setPage = useCallback((p) => {
     setSearchParams((prev) => {
@@ -126,7 +165,7 @@ export default function CustomerBrowse() {
     }
   }
 
-  const { data, isLoading, isError, refetch } = useQuery({
+  const { data, isLoading, isError, refetch, dataUpdatedAt } = useQuery({
     queryKey: ['posts', queryParams],
     queryFn: () => postsApi.getAll(queryParams),
     // v5 form of keepPreviousData — the old boolean was silently ignored and
@@ -162,15 +201,53 @@ export default function CustomerBrowse() {
   })
 
   const posts = Array.isArray(data) ? data : (data?.items ?? [])
+
+  // What a saved search remembers: the filters the engine can match a new
+  // post against. Price bounds and sort are display concerns and stay out.
+  const savedSearchBody = useMemo(() => {
+    const attrs = {}
+    if (category) for (const [k, v] of Object.entries(attrFilters)) if (v) attrs[`attr.${k}`] = v
+    return {
+      category: category || undefined,
+      subcategory: (category && subcat) || undefined,
+      province: province || undefined,
+      district: district || undefined,
+      q: search || undefined,
+      attrs: Object.keys(attrs).length ? attrs : undefined,
+    }
+  }, [category, subcat, province, district, search, attrFilters])
+  const canSaveSearch = Boolean(savedSearchBody.category || savedSearchBody.subcategory || savedSearchBody.province
+    || savedSearchBody.district || savedSearchBody.q || savedSearchBody.attrs)
+
+  const saveMut = useMutation({
+    mutationFn: (name) => savedSearchApi.create({ name, ...savedSearchBody }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['saved-searches'] })
+      setSaveOpen(false); setSaveName('')
+      toast.success(t('savedSearch.saved'))
+    },
+    onError: (e) => toast.error(
+      e?.response?.data?.message === 'SAVED_SEARCH_LIMIT' ? t('savedSearch.limitReached') : apiErrorMessage(e, t, t('common.error'))
+    ),
+  })
+  const defaultSaveName = () => [
+    category && getCategoryLabel(category, t, schemas),
+    province && t(`province.${province}`, { defaultValue: province }),
+    search,
+  ].filter(Boolean).join(' · ')
   const total = Array.isArray(data) ? data.length : (data?.total ?? 0)
 
   const clearAll = useCallback(() => {
+    // Drop anything still in flight first. Without this, a debounced call queued
+    // moments before Clear lands 400ms later and re-applies the filter it just
+    // cleared — the input reads empty while the results stay filtered.
+    debouncedSearch.cancel(); applyAttr.cancel(); applyPrice.cancel()
     setSubcat(''); setProvince(''); setDistrict('')
     setSearchInput(''); setSearch('')
     setAttrInputs({}); setAttrFilters({})
     setSort(''); setPriceInputs({}); setPriceFilters({})
     setSearchParams({}) // drops category + page together
-  }, [setSearchParams])
+  }, [setSearchParams, debouncedSearch, applyAttr, applyPrice])
 
   const schema = useMemo(() => schemas.find((s) => s.key === category), [schemas, category])
   const filterFields = useMemo(() => schema?.fields?.filter((f) => f.filterable) ?? [], [schema])
@@ -178,108 +255,187 @@ export default function CustomerBrowse() {
   const hasFilters = category || subcat || province || district || search || sort
     || Object.values(priceFilters).some(Boolean) || Object.values(attrFilters).some(Boolean)
 
+  const activeColor = category ? getCategoryColor(category, schemas) : null
+  const overline = 'text-[11px] font-semibold uppercase tracking-wider text-muted'
+
   return (
     <div className="flex flex-col lg:flex-row gap-6 items-start">
-      <aside className="w-full lg:w-64 shrink-0 lg:sticky lg:top-6 space-y-5">
-        <SearchBar
-          value={searchInput}
-          onChange={(e) => { setSearchInput(e.target.value); debouncedSearch(e.target.value) }}
-          placeholder={t('filter.searchPlaceholder')}
-          className="w-full"
-        />
-
-        <Input as="select" value={sort} onChange={(e) => { setSort(e.target.value); resetPage() }} className="bg-surface rounded-btn w-full">
-          <option value="">{t('sort.newest')}</option>
-          <option value="price_asc">{t('sort.priceAsc')}</option>
-          <option value="price_desc">{t('sort.priceDesc')}</option>
-          <option value="views">{t('sort.views')}</option>
-        </Input>
-
-        <div>
-          <p className="text-xs text-muted mb-1">{t('filter.price')}</p>
-          <div className="flex gap-2">
-            <Input type="number" inputMode="numeric" value={priceInputs.min ?? ''} placeholder={t('filter.min')} onChange={(e) => handlePriceChange('min', e.target.value)} className="bg-surface rounded-btn w-full" />
-            <Input type="number" inputMode="numeric" value={priceInputs.max ?? ''} placeholder={t('filter.max')} onChange={(e) => handlePriceChange('max', e.target.value)} className="bg-surface rounded-btn w-full" />
+      <aside className="w-full lg:w-64 shrink-0 lg:sticky lg:top-(--sticky-offset) lg:max-h-[calc(100vh-var(--sticky-offset)-1.5rem)] lg:overflow-y-auto">
+        {/* One contained rail: groups separated by hairlines, each named by an
+            overline, so the form reads as rhythm instead of eight equal rows. */}
+        <div className="bg-surface border border-border/20 shadow-card rounded-card p-4 divide-y divide-border/20">
+          <div className="pb-4">
+            <SearchBar
+              value={searchInput}
+              onChange={(e) => { setSearchInput(e.target.value); debouncedSearch(e.target.value) }}
+              placeholder={t('filter.searchPlaceholder')}
+              className="w-full"
+            />
           </div>
-        </div>
 
-        <div>
-          <p className="text-xs text-muted mb-2">{t('posts.category')}</p>
-          {schemasError && schemas.length === 0 && (
-            <ErrorState compact onRetry={refetchSchemas} />
+          <div className="py-4">
+            <p className={`${overline} mb-2`}>{t('filter.price')}</p>
+            <div className="flex gap-2">
+              <Input type="number" inputMode="numeric" value={priceInputs.min ?? ''} placeholder={t('filter.min')} onChange={(e) => handlePriceChange('min', e.target.value)} />
+              <Input type="number" inputMode="numeric" value={priceInputs.max ?? ''} placeholder={t('filter.max')} onChange={(e) => handlePriceChange('max', e.target.value)} />
+            </div>
+          </div>
+
+          <div className="py-4">
+            <p className={`${overline} mb-2`}>{t('posts.category')}</p>
+            {schemasError && schemas.length === 0 && (
+              <ErrorState compact onRetry={refetchSchemas} />
+            )}
+            <CategoryPills
+              categories={schemas.filter((s) => s.active).map((s) => ({
+                key: s.key,
+                label: getCategoryLabel(s.key, t, schemas),
+                color: getCategoryColor(s.key, schemas),
+              }))}
+              value={category}
+              onChange={handleCategory}
+              allLabel={t('filter.allCategories')}
+              as="button"
+              shape="lg"
+            />
+          </div>
+
+          {schema && (schema.subcategories?.length > 0 || filterFields.length > 0) && (
+            <div className="py-4 space-y-3">
+              <p className={overline}>{t('filter.specs')}</p>
+              {schema.subcategories?.length > 0 && (
+                <Input as="select" value={subcat} onChange={(e) => { setSubcat(e.target.value); resetPage() }}>
+                  <option value="">{t('posts.subcategory')}</option>
+                  {schema.subcategories.map((sub) => (
+                    <option key={sub.value} value={sub.value}>{getSubcategoryLabel(sub.value, t, schema)}</option>
+                  ))}
+                </Input>
+              )}
+              {filterFields.map((f) => f.type === 'select' ? (
+                <Input as="select" key={f.key} value={attrInputs[f.key] ?? ''} onChange={(e) => handleAttrChange(f.key, e.target.value, true)}>
+                  <option value="">{getFieldLabel(f, t)}</option>
+                  {f.options?.map((o) => <option key={o} value={o}>{getOptionLabel(o, t)}</option>)}
+                </Input>
+              ) : f.type === 'number' ? (
+                <div key={f.key}>
+                  <p className="text-xs text-muted mb-1">{getFieldLabel(f, t)}</p>
+                  <div className="flex gap-2">
+                    <Input type="number" inputMode="numeric" value={attrInputs[`${f.key}_min`] ?? ''} placeholder={t('filter.min')} onChange={(e) => handleAttrChange(`${f.key}_min`, e.target.value)} />
+                    <Input type="number" inputMode="numeric" value={attrInputs[`${f.key}_max`] ?? ''} placeholder={t('filter.max')} onChange={(e) => handleAttrChange(`${f.key}_max`, e.target.value)} />
+                  </div>
+                </div>
+              ) : (
+                <Input key={f.key} value={attrInputs[f.key] ?? ''} placeholder={getFieldLabel(f, t)} onChange={(e) => handleAttrChange(f.key, e.target.value)} />
+              ))}
+            </div>
           )}
-          <CategoryPills
-            categories={schemas.filter((s) => s.active).map((s) => ({
-              key: s.key,
-              label: getCategoryLabel(s.key, t, schemas),
-            }))}
-            value={category}
-            onChange={handleCategory}
-            allLabel={t('filter.allCategories')}
-            as="button"
-            shape="lg"
-          />
-        </div>
 
-        {schema && (schema.subcategories?.length > 0 || filterFields.length > 0) && (
-          <div className="space-y-3">
-            {schema.subcategories?.length > 0 && (
-              <Input as="select" value={subcat} onChange={(e) => { setSubcat(e.target.value); resetPage() }} className="bg-surface rounded-btn w-full">
-                <option value="">{t('posts.subcategory')}</option>
-                {schema.subcategories.map((sub) => (
-                  <option key={sub.value} value={sub.value}>{getSubcategoryLabel(sub.value, t, schema)}</option>
-                ))}
+          <div className="py-4 space-y-3">
+            <p className={overline}>{t('filter.location')}</p>
+            <Input as="select" value={province} onChange={(e) => handleProvince(e.target.value)}>
+              <option value="">{t('common.province')}</option>
+              {PROVINCES.map((p) => <option key={p} value={p}>{t(`province.${p}`, { defaultValue: p })}</option>)}
+            </Input>
+            {province === 'ULAANBAATAR' && (
+              <Input as="select" value={district} onChange={(e) => { setDistrict(e.target.value); resetPage() }}>
+                <option value="">{t('common.district')}</option>
+                {DISTRICTS.map((d) => <option key={d} value={d}>{t(`district.${d}`, { defaultValue: d })}</option>)}
               </Input>
             )}
-            {filterFields.map((f) => f.type === 'select' ? (
-              <Input as="select" key={f.key} value={attrInputs[f.key] ?? ''} onChange={(e) => handleAttrChange(f.key, e.target.value, true)} className="bg-surface rounded-btn w-full">
-                <option value="">{getFieldLabel(f, t)}</option>
-                {f.options?.map((o) => <option key={o} value={o}>{getOptionLabel(o, t)}</option>)}
-              </Input>
-            ) : f.type === 'number' ? (
-              <div key={f.key}>
-                <p className="text-xs text-muted mb-1">{getFieldLabel(f, t)}</p>
-                <div className="flex gap-2">
-                  <Input type="number" inputMode="numeric" value={attrInputs[`${f.key}_min`] ?? ''} placeholder={t('filter.min')} onChange={(e) => handleAttrChange(`${f.key}_min`, e.target.value)} className="bg-surface rounded-btn w-full" />
-                  <Input type="number" inputMode="numeric" value={attrInputs[`${f.key}_max`] ?? ''} placeholder={t('filter.max')} onChange={(e) => handleAttrChange(`${f.key}_max`, e.target.value)} className="bg-surface rounded-btn w-full" />
-                </div>
-              </div>
-            ) : (
-              <Input key={f.key} value={attrInputs[f.key] ?? ''} placeholder={getFieldLabel(f, t)} onChange={(e) => handleAttrChange(f.key, e.target.value)} className="bg-surface rounded-btn w-full" />
-            ))}
           </div>
-        )}
 
-        <div className="space-y-3">
-          <Input as="select" value={province} onChange={(e) => handleProvince(e.target.value)} className="bg-surface rounded-btn w-full">
-            <option value="">{t('common.province')}</option>
-            {PROVINCES.map((p) => <option key={p} value={p}>{t(`province.${p}`, { defaultValue: p })}</option>)}
-          </Input>
-          {province === 'ULAANBAATAR' && (
-            <Input as="select" value={district} onChange={(e) => { setDistrict(e.target.value); resetPage() }} className="bg-surface rounded-btn w-full">
-              <option value="">{t('common.district')}</option>
-              {DISTRICTS.map((d) => <option key={d} value={d}>{t(`district.${d}`, { defaultValue: d })}</option>)}
-            </Input>
+          {hasFilters && (
+            <div className="pt-4 space-y-2">
+              {canSaveSearch && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!isAuthed) return navigate('/login')
+                    setSaveName(defaultSaveName()); setSaveOpen(true)
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-primary-text bg-primary/10 hover:bg-primary/15 border border-primary/20 rounded-btn w-full justify-center transition-colors"
+                >
+                  <BellPlus size={14} /> {t('savedSearch.saveThis')}
+                </button>
+              )}
+              <button onClick={clearAll} className="flex items-center gap-1 px-3 py-2 text-sm text-muted hover:text-text border border-border/50 rounded-btn w-full justify-center transition-colors">
+                <X size={13} /> {t('common.clear')}
+              </button>
+            </div>
           )}
         </div>
-
-        {hasFilters && (
-          <button onClick={clearAll} className="flex items-center gap-1 px-3 py-2 text-sm text-muted hover:text-text border border-border/50 rounded-btn w-full justify-center transition-colors">
-            <X size={13} /> {t('common.clear')}
-          </button>
-        )}
       </aside>
 
       <div className="flex-1 min-w-0 w-full">
-        {!isLoading && posts.length > 0 && (
-          <p className="text-xs text-muted mb-4">{t('common.total', { count: total })}</p>
+        {/* No persistence layer here — this is React Query's in-memory cache.
+            When the network drops, say what the grid is showing and how old it is. */}
+        {!online && (
+          <div role="status" className="mb-4 flex items-center gap-2.5 p-3 rounded-card border bg-warning/10 border-warning/20 text-warning-text text-sm">
+            <WifiOff size={16} className="shrink-0" aria-hidden="true" />
+            {data && dataUpdatedAt
+              ? t('offline.showingSaved', { time: new Date(dataUpdatedAt).toLocaleTimeString('mn-MN', { hour: '2-digit', minute: '2-digit' }) })
+              : t('offline.noConnection')}
+          </div>
         )}
+        {/* Results header: what am I looking at, how much of it is there, and
+            how it is ordered — the answers a listings page owes up front. */}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div className="flex items-baseline gap-3 min-w-0">
+            <h1 className="text-xl md:text-2xl font-bold text-text truncate">
+              {category ? getCategoryLabel(category, t, schemas) : t('posts.allListings')}
+            </h1>
+            {!isLoading && (
+              <span className="text-sm text-text font-medium tabular-nums whitespace-nowrap">
+                {t('common.total', { count: total })}
+              </span>
+            )}
+          </div>
+          <Input
+            as="select"
+            value={sort}
+            onChange={(e) => { setSort(e.target.value); resetPage() }}
+            aria-label={t('filter.sort')}
+            className="w-auto"
+          >
+            <option value="">{t('sort.newest')}</option>
+            <option value="price_asc">{t('sort.priceAsc')}</option>
+            <option value="price_desc">{t('sort.priceDesc')}</option>
+            <option value="views">{t('sort.views')}</option>
+          </Input>
+        </div>
         <PostGrid
           isLoading={isLoading}
           isError={isError}
           onRetry={refetch}
           isEmpty={posts.length === 0}
-          emptyState={<EmptyState title={t('posts.browseEmpty')} description={t('posts.browseEmptyDesc')} />}
+          emptyState={
+            <EmptyState
+              title={t(hasFilters ? 'posts.noMatches' : 'posts.browseEmpty')}
+              description={t(hasFilters ? 'posts.noMatchesDesc' : 'posts.browseEmptyDesc')}
+              tint={activeColor}
+              action={
+                <div className="flex flex-col items-center gap-3">
+                  {hasFilters && (
+                    <Button variant="outline" size="sm" onClick={clearAll}>
+                      <X size={13} /> {t('common.clear')}
+                    </Button>
+                  )}
+                  {category && <div className="flex flex-wrap justify-center gap-2">
+                    {schemas.filter((s) => s.active && s.key !== category).slice(0, 3).map((s) => (
+                      <button
+                        key={s.key}
+                        type="button"
+                        onClick={() => handleCategory(s.key)}
+                        className="inline-flex items-center min-h-[36px] px-3.5 py-2 text-xs font-medium border border-border/50 text-muted hover:text-text bg-surface rounded-btn transition-colors"
+                      >
+                        {getCategoryLabel(s.key, t, schemas)}
+                      </button>
+                    ))}
+                  </div>}
+                </div>
+              }
+            />
+          }
           cols={3}
           skeletonCount={LIMIT}
         >
@@ -315,9 +471,31 @@ export default function CustomerBrowse() {
         </PostGrid>
         {!isLoading && posts.length > 0 && (
           <Pagination page={page} total={total} limit={LIMIT} onChange={setPage}
-            labels={{ previous: t('common.previousPage'), next: t('common.nextPage') }} />
+            labels={{ previous: t('common.previousPage'), next: t('common.nextPage'), page: t('common.page') }} />
         )}
       </div>
+
+      <Modal
+        open={saveOpen}
+        onClose={() => setSaveOpen(false)}
+        title={t('savedSearch.saveThis')}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setSaveOpen(false)}>{t('common.cancel')}</Button>
+            <Button onClick={() => saveMut.mutate(saveName.trim())} disabled={!saveName.trim() || saveMut.isPending}>
+              {saveMut.isPending ? t('common.saving') : t('common.save')}
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={(e) => { e.preventDefault(); if (saveName.trim()) saveMut.mutate(saveName.trim()) }} className="space-y-3">
+          <p className="text-sm text-muted">{t('savedSearch.hint')}</p>
+          <div>
+            <label htmlFor="saved-search-name" className="text-xs text-muted block mb-1.5">{t('savedSearch.name')}</label>
+            <Input id="saved-search-name" value={saveName} onChange={(e) => setSaveName(e.target.value)} maxLength={60} autoFocus placeholder={t('savedSearch.namePlaceholder')} />
+          </div>
+        </form>
+      </Modal>
     </div>
   )
 }

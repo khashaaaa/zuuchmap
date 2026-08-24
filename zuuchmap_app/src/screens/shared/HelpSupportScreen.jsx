@@ -1,27 +1,27 @@
 import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Linking, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Linking, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { ScreenLayout } from '../../components';
-import { spacing, typography, radius, interactions } from '../../design/theme';
+import PressableScale from '../../components/PressableScale';
+import { spacing, typography, radius } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 
 const ContactRow = ({ icon, label, value, onPress, colors }) => (
-  <TouchableOpacity
+  <PressableScale
     style={styles.contactRow}
     onPress={onPress}
-    activeOpacity={interactions.activeOpacity}
     accessibilityRole="link"
   >
     <View style={[styles.contactIcon, { backgroundColor: colors.opacity.background.primary }]}>
-      <Ionicons name={icon} size={20} color={colors.primary} />
+      <Ionicons name={icon} size={20} color={colors.iconAccent} />
     </View>
     <View style={styles.contactText}>
       <Text style={[styles.contactLabel, { color: colors.text.secondary }]}>{label}</Text>
-      <Text style={[styles.contactValue, { color: colors.primary }]}>{value}</Text>
+      <Text style={[styles.contactValue, { color: colors.text.link }]}>{value}</Text>
     </View>
     <Ionicons name="chevron-forward" size={20} color={colors.text.secondary} />
-  </TouchableOpacity>
+  </PressableScale>
 );
 
 const FaqItem = ({ question, answer, colors }) => (
@@ -64,7 +64,7 @@ const HelpSupportScreen = ({ navigation }) => {
           <View style={[styles.divider, { backgroundColor: colors.border.light }]} />
           <View style={styles.hoursRow}>
             <View style={[styles.contactIcon, { backgroundColor: colors.opacity.background.primary }]}>
-              <Ionicons name="time-outline" size={20} color={colors.primary} />
+              <Ionicons name="time-outline" size={20} color={colors.iconAccent} />
             </View>
             <View style={styles.contactText}>
               <Text style={[styles.contactLabel, { color: colors.text.secondary }]}>{t('helpSupport.hoursLabel')}</Text>

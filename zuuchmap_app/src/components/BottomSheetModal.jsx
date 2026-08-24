@@ -104,7 +104,7 @@ const BottomSheetModal = ({
                                     accessibilityRole="button"
                                     accessibilityLabel={t('common.close')}
                                 >
-                                    <Ionicons name="close" size={24} color={colors.primary} />
+                                    <Ionicons name="close" size={24} color={colors.iconAccent} />
                                 </TouchableOpacity>
                             )}
                         </View>

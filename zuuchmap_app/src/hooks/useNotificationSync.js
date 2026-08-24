@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
@@ -36,7 +37,12 @@ async function registerPushToken() {
         if (status !== 'granted') return;
         const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId: EAS_PROJECT_ID });
         if (!token) return;
-        await apiClient.put(API_CONFIG.ENDPOINTS.USER.SAVE_PUSH_TOKEN, { push_token: token });
+        await apiClient.put(API_CONFIG.ENDPOINTS.USER.SAVE_PUSH_TOKEN, {
+            push_token: token,
+            platform: Platform.OS,
+        });
+        // Kept so logout can unbind *this* device rather than the whole account.
+        await AsyncStorage.setItem(API_CONFIG.STORAGE_KEYS.PUSH_TOKEN, token).catch(() => {});
     } catch (err) {
         // Expo Go / simulator / denied permission — push simply stays off.
         logger.warn?.('Push token registration failed:', err?.message);

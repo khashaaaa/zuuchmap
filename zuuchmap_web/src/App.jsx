@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, lazy, Suspense } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AnimatePresence, useReducedMotion } from 'framer-motion'
 import { useQueryClient } from '@tanstack/react-query'
@@ -9,32 +9,54 @@ import ErrorBoundary from './components/ErrorBoundary'
 import { useRealtimeSync } from './hooks/useRealtimeSync'
 import { trackPageView } from './lib/analytics'
 
+// The landing page and the public chrome stay in the entry chunk: `/` is the
+// most common first paint, and making it wait on a second round trip is the
+// one place code-splitting would cost more than it saves.
 import LandingPage from './pages/LandingPage'
 import PublicHeader from './components/PublicHeader'
-import LoginPage from './pages/LoginPage'
-import VerifyPage from './pages/VerifyPage'
-import RoleSelectPage from './pages/RoleSelectPage'
-import PostDetail from './pages/PostDetail'
-import PolicyPage from './pages/PolicyPage'
-import HelpPage from './pages/HelpPage'
-import AccountDeletion from './pages/AccountDeletion'
-import AdminDashboard from './pages/AdminDashboard'
-import AdminPosts from './pages/AdminPosts'
-import AdminUsers from './pages/AdminUsers'
-import AdminUserDetail from './pages/AdminUserDetail'
-import AdminCategories from './pages/AdminCategories'
-import AdminAnalytics from './pages/AdminAnalytics'
-import ProviderDashboard from './pages/ProviderDashboard'
-import ProviderPosts from './pages/ProviderPosts'
-import ProviderPostForm from './pages/ProviderPostForm'
-import ProviderProfile from './pages/ProviderProfile'
-import ProviderCompany from './pages/ProviderCompany'
-import Bookings from './pages/Bookings'
-import CustomerDashboard from './pages/CustomerDashboard'
-import CustomerBrowse from './pages/CustomerBrowse'
-import CustomerMap from './pages/CustomerMap'
-import CustomerSaved from './pages/CustomerSaved'
-import CustomerProfile from './pages/CustomerProfile'
+import PublicFooter from './components/PublicFooter'
+
+// Everything else is route-split. Before this, all 41 routes lived in one
+// 1.07MB chunk — an anonymous visitor downloaded the whole admin console and
+// Leaflet (used by 2 routes) to read a listing.
+const LoginPage = lazy(() => import('./pages/LoginPage'))
+const VerifyPage = lazy(() => import('./pages/VerifyPage'))
+const RoleSelectPage = lazy(() => import('./pages/RoleSelectPage'))
+const PostDetail = lazy(() => import('./pages/PostDetail'))
+const PolicyPage = lazy(() => import('./pages/PolicyPage'))
+const HelpPage = lazy(() => import('./pages/HelpPage'))
+const AccountDeletion = lazy(() => import('./pages/AccountDeletion'))
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
+const AdminPosts = lazy(() => import('./pages/AdminPosts'))
+const AdminUsers = lazy(() => import('./pages/AdminUsers'))
+const AdminUserDetail = lazy(() => import('./pages/AdminUserDetail'))
+const AdminCategories = lazy(() => import('./pages/AdminCategories'))
+const AdminAnalytics = lazy(() => import('./pages/AdminAnalytics'))
+const ProviderDashboard = lazy(() => import('./pages/ProviderDashboard'))
+const ProviderPosts = lazy(() => import('./pages/ProviderPosts'))
+const ProviderPostForm = lazy(() => import('./pages/ProviderPostForm'))
+const ProviderProfile = lazy(() => import('./pages/ProviderProfile'))
+const ProviderCompany = lazy(() => import('./pages/ProviderCompany'))
+const Bookings = lazy(() => import('./pages/Bookings'))
+const CustomerDashboard = lazy(() => import('./pages/CustomerDashboard'))
+const CustomerBrowse = lazy(() => import('./pages/CustomerBrowse'))
+const CustomerMap = lazy(() => import('./pages/CustomerMap'))
+const CustomerSaved = lazy(() => import('./pages/CustomerSaved'))
+const CustomerProfile = lazy(() => import('./pages/CustomerProfile'))
+
+/**
+ * Chunk-load placeholder. Deliberately the same `.skeleton` tile the data
+ * loaders use, so a slow chunk and a slow query look like one wait rather than
+ * two different kinds of loading.
+ */
+function RouteFallback() {
+  return (
+    <div className="max-w-6xl w-full mx-auto px-4 py-6">
+      <div className="h-8 w-48 skeleton rounded-btn mb-4" />
+      <div className="h-64 skeleton rounded-card" />
+    </div>
+  )
+}
 
 function RootRedirect() {
   const { token, user, isAdmin, isLoading } = useAuthStore()
@@ -55,11 +77,12 @@ function PublicBrowse() {
     return <Navigate to="/customer/browse" replace />
   }
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col" style={{ '--sticky-offset': '5rem' }}>
       <PublicHeader />
-      <div className="max-w-6xl mx-auto px-4 py-6">
+      <div className="max-w-6xl w-full mx-auto px-4 py-6 flex-1">
         <CustomerBrowse />
       </div>
+      <PublicFooter />
     </div>
   )
 }
@@ -88,6 +111,11 @@ export default function App() {
   useEffect(() => { trackPageView(location.pathname) }, [location.pathname])
 
   return (
+    /* Suspense sits OUTSIDE AnimatePresence on purpose: AnimatePresence tracks
+       the keys of its DIRECT children, so interposing an unkeyed <Suspense>
+       between it and the pathname-keyed <Routes> silently kills every page
+       exit transition. */
+    <Suspense fallback={<RouteFallback />}>
     <AnimatePresence mode={shouldReduceMotion ? 'sync' : 'wait'}>
       <Routes location={location} key={location.pathname}>
         {/* Public */}
@@ -95,7 +123,7 @@ export default function App() {
         <Route path="/verify" element={<VerifyPage />} />
         <Route path="/onboarding" element={<RoleSelectPage />} />
         <Route path="/browse" element={<PublicBrowse />} />
-        <Route path="/posts/:id" element={<div className="min-h-screen bg-background"><PublicHeader /><PostDetail /></div>} />
+        <Route path="/posts/:id" element={<div className="min-h-screen bg-background" style={{ '--sticky-offset': '5rem' }}><PublicHeader /><PostDetail /></div>} />
         <Route path="/privacy" element={<PolicyPage doc="privacy" />} />
         <Route path="/terms" element={<PolicyPage doc="terms" />} />
         <Route path="/help" element={<HelpPage />} />
@@ -145,5 +173,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AnimatePresence>
+    </Suspense>
   )
 }

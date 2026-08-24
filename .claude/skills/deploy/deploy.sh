@@ -24,6 +24,13 @@ sys.exit(code)
 PYEOF
 }
 
+# Values duplicated across engine/web/app (socket events, category colours, the
+# palette, location codes, price units, shared translations, the post-title
+# chain) are only held together by convention. Check them before anything
+# reaches production — a drifted copy ships as two different products.
+echo "== 0/6 cross-repo sync check =="
+node "$ROOT/scripts/check-sync.js"
+
 if [ "$NO_PUSH" != "--no-push" ]; then
   if [ -n "$(git -C "$ROOT" status --porcelain)" ]; then
     echo "!! Working tree has uncommitted changes — commit them first (or run with --no-push)"; exit 1

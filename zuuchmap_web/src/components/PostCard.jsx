@@ -9,6 +9,8 @@ import { getImageUrl, getPostTitle, getPostCategory, getCategoryLabel, getCatego
 import { useThemeStore } from '../store'
 import CategoryBadge from './CategoryBadge'
 import StatusBadge from './StatusBadge'
+import AvailabilityStrip from './AvailabilityStrip'
+import { hideBrokenImage, getLocationLabel } from '@/lib/utils'
 
 function PostCard({ post, actions, to, index = 0 }) {
   const { t } = useTranslation()
@@ -16,7 +18,7 @@ function PostCard({ post, actions, to, index = 0 }) {
   const img = post.images?.[0]
   const title = getPostTitle(post, t)
   const price = formatPrice(post.price_amount, post.price_unit, t)
-  const location = [post.district, post.province].filter(Boolean).join(', ')
+  const location = getLocationLabel(post, t)
 
   // Emphasis is an admin-set schema flag (CategorySchema.emphasized) — no
   // hardcoded category keys. Same key/staleTime as every other consumer, so
@@ -27,7 +29,13 @@ function PostCard({ post, actions, to, index = 0 }) {
     staleTime: 5 * 60_000,
   })
   const category = getPostCategory(post)
-  const emphasized = !!schemas.find((s) => s.key === category)?.emphasized
+  const cardSchema = schemas.find((s) => s.key === category)
+  const emphasized = !!cardSchema?.emphasized
+  // Availability is a rental concern: the engine only sends busy_dates for
+  // has_rental_status categories, and the strip only means something there.
+  const showAvailability = !!cardSchema?.has_rental_status && Array.isArray(post.busy_dates)
+  // Paid placement. Server-decided — the card only renders what it is told.
+  const featured = !!post.featured_until && new Date(post.featured_until) > new Date()
 
   // Photo-less posts get a quiet category-tinted ground instead of a flat grey
   // slab — same colour discipline as CategoryBadge (fill from the stored hex,
@@ -57,8 +65,7 @@ function PostCard({ post, actions, to, index = 0 }) {
               alt={title}
               loading="lazy"
               decoding="async"
-              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
-            />
+              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.04]" onError={hideBrokenImage} />
           ) : (
             <div
               className="w-full h-full flex items-center justify-center text-sm"
@@ -73,6 +80,13 @@ function PostCard({ post, actions, to, index = 0 }) {
             <div className="absolute top-2 right-2">
               <StatusBadge status={post.approval_status} />
             </div>
+          )}
+          {/* Paid placement marker. Sits top-LEFT because top-right is the
+              StatusBadge slot. Bounded width — the label is translated. */}
+          {featured && (
+            <span className="absolute top-2 left-2 max-w-[70%] truncate px-2 py-0.5 rounded-md text-[11px] font-semibold bg-primary text-on-primary">
+              {t('admin.featured')}
+            </span>
           )}
           {/* Attention strip for emphasized categories — mirrors the app's
               CustomerPostList badge (danger fill, caps label over the photo). */}
@@ -99,6 +113,7 @@ function PostCard({ post, actions, to, index = 0 }) {
             </span>
           </div>
           <p className="text-xs text-muted mt-1">{formatDate(post.date_created)}</p>
+          {showAvailability && <AvailabilityStrip busyDates={post.busy_dates} className="mt-2.5" />}
         </div>
       </Link>
       {actions && <div className="px-3.5 pb-3.5 mt-2.5">{actions}</div>}

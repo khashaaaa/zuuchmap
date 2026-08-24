@@ -1,7 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG } from '../../config/api.config';
 import { logger } from '../../utils/logger';
-import i18n from '../../i18n';
 import { queryClient } from '../queryClient';
 
 // Login/logout signal — lets app-lifetime hooks (useNotificationSync) restart
@@ -67,24 +66,6 @@ export const getUserInfo = async () => {
 };
 
 // Catch sites branch on `error.code`, never on the (localized) message text.
-const authTokenMissingError = () => {
-    const error = new Error(i18n.t('errors.authTokenMissing'));
-    error.code = 'AUTH_TOKEN_MISSING';
-    return error;
-};
-
-export const createAuthHeaders = async () => {
-    const token = await getAuthToken();
-    if (!token) throw authTokenMissingError();
-    return { headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } };
-};
-
-export const createMultipartAuthHeaders = async () => {
-    const token = await getAuthToken();
-    if (!token) throw authTokenMissingError();
-    return { headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } };
-};
-
 export const storeAuthData = async (responseData, phoneNumber) => {
     try {
         queryClient.clear();
@@ -98,8 +79,10 @@ export const storeAuthData = async (responseData, phoneNumber) => {
         const existingInfo = await AsyncStorage.getItem(API_CONFIG.STORAGE_KEYS.USER_INFO);
         const existing = existingInfo ? JSON.parse(existingInfo) : {};
         const updated = {
+            // `phoneNumber`, matching saveUserInfo — the two writers used to put
+            // the number into the same object under different keys.
             ...existing,
-            phone_number: phoneNumber || existing.phone_number,
+            phoneNumber: phoneNumber || existing.phoneNumber,
             is_admin: responseData?.is_admin === true,
         };
         await AsyncStorage.setItem(API_CONFIG.STORAGE_KEYS.USER_INFO, JSON.stringify(updated));
@@ -112,7 +95,15 @@ export const storeAuthData = async (responseData, phoneNumber) => {
 
 export const saveUserInfo = async (phoneNumber, userType, additionalInfo = {}) => {
     try {
-        const existing = await getUserInfo() || {};
+        const stored = await getUserInfo() || {};
+        // Merging across a change of account carried the previous user's name and
+        // avatar into the new session: logout writes them, login does not pass
+        // them, and the spread kept them. A different number is a different
+        // person — start clean.
+        const samePerson = !phoneNumber
+            || !stored.phoneNumber
+            || stored.phoneNumber === phoneNumber;
+        const existing = samePerson ? stored : {};
         const userInfo = { ...existing, phoneNumber, userType, ...additionalInfo };
         await AsyncStorage.setItem(API_CONFIG.STORAGE_KEYS.USER_INFO, JSON.stringify(userInfo));
         if (userType)    await AsyncStorage.setItem(API_CONFIG.STORAGE_KEYS.USER_TYPE, userType);
@@ -131,12 +122,14 @@ export const clearAuthData = async () => {
         // their 401s would call back into here and loop the wipe.
         const token = await AsyncStorage.getItem(API_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
         if (!token) return;
+        // Same fields a deliberate logout drops, and no more. An expired session
+        // used to forget the user entirely while an intentional logout remembered
+        // them — backwards, and it is what let a stale identity linger. Neither
+        // path keeps a token; both keep the welcome-back details.
         await AsyncStorage.multiRemove([
             API_CONFIG.STORAGE_KEYS.AUTH_TOKEN,
             API_CONFIG.STORAGE_KEYS.USER_ID,
-            API_CONFIG.STORAGE_KEYS.USER_TYPE,
-            API_CONFIG.STORAGE_KEYS.PHONE_NUMBER,
-            API_CONFIG.STORAGE_KEYS.USER_INFO,
+            API_CONFIG.STORAGE_KEYS.PUSH_TOKEN,
         ]);
         queryClient.clear();
         emitAuthChanged();

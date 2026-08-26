@@ -1,11 +1,21 @@
-import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 
 export interface FieldDef {
   key: string;
   label: string;
   labels?: Record<string, string>;
   type:
-    | 'text' | 'textarea' | 'number' | 'select' | 'date' | 'phone'
+    | 'text'
+    | 'textarea'
+    | 'number'
+    | 'select'
+    | 'date'
+    | 'phone'
     // Stores a real JSON boolean. Filtered by jsonb containment.
     | 'boolean'
     // Stores a JSON array of `options` values. Filtered by the `?` operator.
@@ -44,7 +54,11 @@ export class CategorySchema {
   color: string;
 
   @Column({ type: 'jsonb', nullable: true, default: [] })
-  subcategories: Array<{ value: string; display: string; labels?: Record<string, string> }>;
+  subcategories: Array<{
+    value: string;
+    display: string;
+    labels?: Record<string, string>;
+  }>;
 
   @Column({ type: 'jsonb', nullable: true, default: [] })
   fields: FieldDef[];

@@ -67,7 +67,7 @@ describe('publicCompany', () => {
 
 describe('publicUser', () => {
   it('never serializes the push token', () => {
-    expect((publicUser(user) as any).push_token).toBeUndefined();
+    expect(publicUser(user).push_token).toBeUndefined();
   });
 
   it('strips company credentials through the nested projection', () => {

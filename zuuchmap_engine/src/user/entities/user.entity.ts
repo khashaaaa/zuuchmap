@@ -1,69 +1,78 @@
-import { Column, CreateDateColumn, Entity, Index, ManyToOne, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn, JoinColumn } from "typeorm";
-import { Company } from "../../company/entities/company.entity";
-import { UserType } from "../../enums/usertype";
-import { Post } from "../../post/entities/post.entity";
-import { Likedpost } from "../../likedpost/entities/likedpost.entity";
-import { Viewedpost } from "../../post/entities/viewedpost.entity";
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  ManyToOne,
+  OneToMany,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+  JoinColumn,
+} from 'typeorm';
+import { Company } from '../../company/entities/company.entity';
+import { UserType } from '../../enums/usertype';
+import { Post } from '../../post/entities/post.entity';
+import { Likedpost } from '../../likedpost/entities/likedpost.entity';
+import { Viewedpost } from '../../post/entities/viewedpost.entity';
 
 @Entity()
 export class User {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
-    @PrimaryGeneratedColumn('uuid')
-    id: string
+  @Column({
+    type: 'enum',
+    enum: UserType,
+    nullable: true,
+  })
+  type: string;
 
-    @Column({
-        type: 'enum',
-        enum: UserType,
-        nullable: true
-    })
-    type: string
+  @Index()
+  @Column({ nullable: true })
+  phone_number: string;
 
-    @Index()
-    @Column({ nullable: true })
-    phone_number: string
+  @Column({ nullable: true })
+  parent_name: string;
 
-    @Column({ nullable: true })
-    parent_name: string
+  @Column({ nullable: true })
+  given_name: string;
 
-    @Column({ nullable: true })
-    given_name: string
+  @Index()
+  @Column({ nullable: true })
+  email: string;
 
-    @Index()
-    @Column({ nullable: true })
-    email: string
+  @Column({ nullable: true })
+  address: string;
 
-    @Column({ nullable: true })
-    address: string
+  @Column({ nullable: true })
+  is_verified: boolean;
 
-    @Column({ nullable: true })
-    is_verified: boolean
+  @Column({ nullable: true })
+  profile_picture: string;
 
-    @Column({ nullable: true })
-    profile_picture: string
+  @Column({ default: 'FREE' })
+  plan: string;
 
-    @Column({ default: 'FREE' })
-    plan: string
+  // NULL on FREE. On PROVIDER, the moment entitlement lapses back to FREE.
+  @Column({ nullable: true, type: 'timestamp' })
+  plan_expires_at: Date | null;
 
-    // NULL on FREE. On PROVIDER, the moment entitlement lapses back to FREE.
-    @Column({ nullable: true, type: 'timestamp' })
-    plan_expires_at: Date | null
+  @ManyToOne(() => Company, (company) => company.users)
+  @JoinColumn()
+  company: Company;
 
-    @ManyToOne(() => Company, company => company.users)
-    @JoinColumn()
-    company: Company
+  @OneToMany(() => Post, (post) => post.user)
+  posts: Post[];
 
-    @OneToMany(() => Post, post => post.user)
-    posts: Post[]
+  @OneToMany(() => Likedpost, (likepost) => likepost.user)
+  likedposts: Likedpost[];
 
-    @OneToMany(() => Likedpost, likepost => likepost.user)
-    likedposts: Likedpost[]
+  @OneToMany(() => Viewedpost, (viewedpost) => viewedpost.user)
+  viewedposts: Viewedpost[];
 
-    @OneToMany(() => Viewedpost, viewedpost => viewedpost.user)
-    viewedposts: Viewedpost[]
+  @CreateDateColumn()
+  date_created: Date;
 
-    @CreateDateColumn()
-    date_created: Date
-
-    @UpdateDateColumn()
-    date_updated: Date
+  @UpdateDateColumn()
+  date_updated: Date;
 }

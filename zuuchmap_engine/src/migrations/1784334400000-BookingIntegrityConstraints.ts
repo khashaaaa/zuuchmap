@@ -57,7 +57,11 @@ export class BookingIntegrityConstraints1784334400000 implements MigrationInterf
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`DROP INDEX IF EXISTS "UQ_booking_one_pending_per_customer_post"`);
-    await queryRunner.query(`ALTER TABLE "booking" DROP CONSTRAINT IF EXISTS "EX_booking_accepted_no_overlap"`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "UQ_booking_one_pending_per_customer_post"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "booking" DROP CONSTRAINT IF EXISTS "EX_booking_accepted_no_overlap"`,
+    );
   }
 }

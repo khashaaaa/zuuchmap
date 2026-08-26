@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { SavedSearch } from './entities/saved-search.entity';
@@ -31,8 +36,16 @@ const isBlank = (v: unknown) => v === null || v === undefined || v === '';
  * `/posts` convention — `attr.<key>` is equality, `attr.<key>_min` /
  * `attr.<key>_max` are numeric bounds against `post.attributes[key]`.
  */
-export function matchesSavedSearch(post: MatchablePost, search: Partial<SavedSearch>): boolean {
-  for (const key of ['category', 'subcategory', 'province', 'district'] as const) {
+export function matchesSavedSearch(
+  post: MatchablePost,
+  search: Partial<SavedSearch>,
+): boolean {
+  for (const key of [
+    'category',
+    'subcategory',
+    'province',
+    'district',
+  ] as const) {
     const want = search[key];
     if (!isBlank(want) && post[key] !== want) return false;
   }
@@ -41,7 +54,8 @@ export function matchesSavedSearch(post: MatchablePost, search: Partial<SavedSea
   // via the shared tokeniser. It used to be a whole-phrase `includes` on the
   // title alone, so `кран түрээс` matched in browse and never notified.
   if (!isBlank(search.q)) {
-    if (!matchesSearchTerms(searchTerms(search.q), post.title, post.details)) return false;
+    if (!matchesSearchTerms(searchTerms(search.q), post.title, post.details))
+      return false;
   }
 
   const attrs = search.attrs ?? {};
@@ -76,13 +90,22 @@ export class SavedSearchService {
   ) {}
 
   list(userId: string): Promise<SavedSearch[]> {
-    return this.repo.find({ where: { user_id: userId }, order: { created_at: 'DESC' } });
+    return this.repo.find({
+      where: { user_id: userId },
+      order: { created_at: 'DESC' },
+    });
   }
 
-  async create(userId: string, dto: CreateSavedSearchDto): Promise<SavedSearch> {
+  async create(
+    userId: string,
+    dto: CreateSavedSearchDto,
+  ): Promise<SavedSearch> {
     const count = await this.repo.count({ where: { user_id: userId } });
     if (count >= SAVED_SEARCH_LIMIT) {
-      throw new BadRequestException({ code: 'SAVED_SEARCH_LIMIT', message: `At most ${SAVED_SEARCH_LIMIT} saved searches` });
+      throw new BadRequestException({
+        code: 'SAVED_SEARCH_LIMIT',
+        message: `At most ${SAVED_SEARCH_LIMIT} saved searches`,
+      });
     }
     const entity = this.repo.create({
       user_id: userId,
@@ -109,21 +132,27 @@ export class SavedSearchService {
    * except searches that already fired within the cooldown. Never throws:
    * a notification hiccup must not fail the approval.
    */
-  async notifyForApprovedPost(post: MatchablePost & { id: number; user?: { id?: string } | null }): Promise<void> {
+  async notifyForApprovedPost(
+    post: MatchablePost & { id: number; user?: { id?: string } | null },
+  ): Promise<void> {
     try {
       // Category is the one constraint nearly every search sets; narrowing on
       // it keeps the scan from walking the whole table on every approval.
       const candidates = await this.repo
         .createQueryBuilder('s')
-        .where('s.category IS NULL OR s.category = :category', { category: post.category })
+        .where('s.category IS NULL OR s.category = :category', {
+          category: post.category,
+        })
         .getMany();
 
       const ownerId = post.user?.id;
       const cutoff = Date.now() - NOTIFY_COOLDOWN_MS;
-      const hits = candidates.filter((s) =>
-        s.user_id !== ownerId
-        && (!s.last_notified_at || new Date(s.last_notified_at).getTime() < cutoff)
-        && matchesSavedSearch(post, s),
+      const hits = candidates.filter(
+        (s) =>
+          s.user_id !== ownerId &&
+          (!s.last_notified_at ||
+            new Date(s.last_notified_at).getTime() < cutoff) &&
+          matchesSavedSearch(post, s),
       );
       if (!hits.length) return;
 
@@ -134,9 +163,14 @@ export class SavedSearchService {
         `"${post.title ?? ''}" таны хадгалсан хайлтад тохирч байна.`,
         { type: 'saved_search', postId: post.id, category: post.category },
       );
-      await this.repo.update({ id: In(hits.map((s) => s.id)) }, { last_notified_at: new Date() });
+      await this.repo.update(
+        { id: In(hits.map((s) => s.id)) },
+        { last_notified_at: new Date() },
+      );
     } catch (err) {
-      this.logger.warn(`notifyForApprovedPost failed (non-fatal): ${err?.message}`);
+      this.logger.warn(
+        `notifyForApprovedPost failed (non-fatal): ${err?.message}`,
+      );
     }
   }
 }

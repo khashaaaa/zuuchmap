@@ -77,7 +77,9 @@ export type CacheInvalidationScope = 'post' | 'category';
 let broadcast: (scope: CacheInvalidationScope) => void = () => {};
 
 /** Wired by CacheCoordinator when Redis is enabled. */
-export function setCacheBroadcaster(fn: (scope: CacheInvalidationScope) => void): void {
+export function setCacheBroadcaster(
+  fn: (scope: CacheInvalidationScope) => void,
+): void {
   broadcast = fn;
 }
 

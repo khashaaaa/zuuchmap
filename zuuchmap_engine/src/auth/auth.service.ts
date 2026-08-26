@@ -1,6 +1,10 @@
 import {
-  Injectable, UnauthorizedException, InternalServerErrorException,
-  HttpException, HttpStatus, Logger,
+  Injectable,
+  UnauthorizedException,
+  InternalServerErrorException,
+  HttpException,
+  HttpStatus,
+  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Cron } from '@nestjs/schedule';
@@ -24,7 +28,8 @@ const RATE_TTL = Number(process.env.RATE_TTL_MS) || 60 * 60 * 1000;
  * is in fact the only limit on a *paid* action (150₮ to the end user per SMS).
  * The old name is still honoured so an existing .env keeps working.
  */
-const RATE_LIMIT = Number(process.env.VERIFY_RATE_LIMIT ?? process.env.OTP_RATE_LIMIT) || 5;
+const RATE_LIMIT =
+  Number(process.env.VERIFY_RATE_LIMIT ?? process.env.OTP_RATE_LIMIT) || 5;
 /** verify.mn 429s a session polled faster than every 2s; stay clear of it. */
 const UPSTREAM_POLL_MS = 3_000;
 
@@ -64,7 +69,7 @@ export class AuthService {
     private deviceRepository: Repository<TrustedDevice>,
     private jwtService: JwtService,
     private verifyMn: VerifyMnService,
-  ) { }
+  ) {}
 
   /** Dev convenience only — never active when NODE_ENV=production. */
   private get devMode(): boolean {
@@ -78,7 +83,10 @@ export class AuthService {
   private normalizePhone(phone: string): string {
     const digits = (phone ?? '').replace(/\D/g, '').replace(/^976/, '');
     if (!/^\d{8}$/.test(digits)) {
-      throw new HttpException('Enter a valid 8-digit Mongolian number.', HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        'Enter a valid 8-digit Mongolian number.',
+        HttpStatus.BAD_REQUEST,
+      );
     }
     return digits;
   }
@@ -87,13 +95,18 @@ export class AuthService {
    * Step 1. Either hands back an authenticated session (device already trusted)
    * or registers a verify.mn session the user completes by SMS.
    */
-  async startVerification(rawPhone: string, deviceId?: string): Promise<StartResult> {
+  async startVerification(
+    rawPhone: string,
+    deviceId?: string,
+  ): Promise<StartResult> {
     const phone_number = this.normalizePhone(rawPhone);
     const device_hash = deviceId ? this.hashDevice(deviceId) : undefined;
 
     // Known device on an existing account: skip SMS entirely (and its 150₮).
     if (device_hash) {
-      const user = await this.userRepository.findOne({ where: { phone_number } });
+      const user = await this.userRepository.findOne({
+        where: { phone_number },
+      });
       if (user) {
         const trusted = await this.deviceRepository.findOne({
           where: { user: { id: user.id }, device_hash },
@@ -132,7 +145,9 @@ export class AuthService {
     await this.sessionRepository.save(session);
 
     if (this.devMode) {
-      this.logger.warn(`DEV verification session ${session.id} — code ${code}, auto-verifies on first poll.`);
+      this.logger.warn(
+        `DEV verification session ${session.id} — code ${code}, auto-verifies on first poll.`,
+      );
       return {
         verified: false,
         session_id: session.id,
@@ -145,7 +160,11 @@ export class AuthService {
     }
 
     const callback = `${this.callbackBase()}/auth/verify/callback/${session.id}`;
-    const remote = await this.verifyMn.createSession(phone_number, code, callback);
+    const remote = await this.verifyMn.createSession(
+      phone_number,
+      code,
+      callback,
+    );
 
     session.provider_session_id = remote.sessionId;
     session.expires_at = new Date(remote.expiresAt);
@@ -176,12 +195,23 @@ export class AuthService {
    * Step 2. Client polls this. Returns a token the moment verify.mn confirms
    * the SMS arrived from the claimed number.
    */
-  async checkVerification(sessionId: string): Promise<{ status: string; auth?: AuthResult }> {
-    const session = await this.sessionRepository.findOne({ where: { id: sessionId } });
-    if (!session) throw new HttpException('Verification session not found.', HttpStatus.NOT_FOUND);
+  async checkVerification(
+    sessionId: string,
+  ): Promise<{ status: string; auth?: AuthResult }> {
+    const session = await this.sessionRepository.findOne({
+      where: { id: sessionId },
+    });
+    if (!session)
+      throw new HttpException(
+        'Verification session not found.',
+        HttpStatus.NOT_FOUND,
+      );
 
     if (session.status === 'CONSUMED') {
-      throw new HttpException('This verification was already used.', HttpStatus.GONE);
+      throw new HttpException(
+        'This verification was already used.',
+        HttpStatus.GONE,
+      );
     }
 
     const status = await this.refreshStatus(session);
@@ -221,7 +251,9 @@ export class AuthService {
     // Respect the upstream rate limit — poll verify.mn at most every 3s per
     // session. A provider callback is exempt: it fires because something
     // actually changed, so throttling it just wastes the nudge.
-    const since = session.last_checked_at ? Date.now() - session.last_checked_at.getTime() : Infinity;
+    const since = session.last_checked_at
+      ? Date.now() - session.last_checked_at.getTime()
+      : Infinity;
     if (!force && since < UPSTREAM_POLL_MS) return 'PENDING';
 
     session.last_checked_at = new Date();
@@ -231,7 +263,9 @@ export class AuthService {
 
     if (remote.sessionStatus === 'VERIFIED') {
       session.status = 'VERIFIED';
-      session.verified_at = remote.verifiedAt ? new Date(remote.verifiedAt) : new Date();
+      session.verified_at = remote.verifiedAt
+        ? new Date(remote.verifiedAt)
+        : new Date();
       await this.sessionRepository.save(session);
       return 'VERIFIED';
     }
@@ -256,19 +290,30 @@ export class AuthService {
    */
   async handleCallback(sessionId: string): Promise<void> {
     try {
-      const session = await this.sessionRepository.findOne({ where: { id: sessionId } });
+      const session = await this.sessionRepository.findOne({
+        where: { id: sessionId },
+      });
       if (!session || session.status === 'CONSUMED') return;
       await this.refreshStatus(session, { force: true });
     } catch (err) {
-      this.logger.warn(`Callback check for ${sessionId} failed: ${err?.message}`);
+      this.logger.warn(
+        `Callback check for ${sessionId} failed: ${err?.message}`,
+      );
     }
   }
 
   /** Creates the user on first verification, trusts the device, mints the token. */
-  private async completeSession(session: VerificationSession): Promise<AuthResult> {
-    let user = await this.userRepository.findOne({ where: { phone_number: session.phone_number } });
+  private async completeSession(
+    session: VerificationSession,
+  ): Promise<AuthResult> {
+    let user = await this.userRepository.findOne({
+      where: { phone_number: session.phone_number },
+    });
     if (!user) {
-      user = this.userRepository.create({ phone_number: session.phone_number, is_verified: true });
+      user = this.userRepository.create({
+        phone_number: session.phone_number,
+        is_verified: true,
+      });
       await this.userRepository.save(user);
     } else if (!user.is_verified) {
       user.is_verified = true;

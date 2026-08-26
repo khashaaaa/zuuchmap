@@ -1,6 +1,12 @@
 import {
-  Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Index,
-  CreateDateColumn, UpdateDateColumn,
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+  Index,
+  CreateDateColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 import { User } from './user.entity';
 
@@ -28,9 +34,27 @@ export class PushDevice {
   @JoinColumn()
   user: User;
 
+  /**
+   * Expo: the ExponentPushToken. Web: the subscription's endpoint URL, which
+   * the Push API already guarantees is unique per browser install — so one
+   * unique column keeps identifying one place to deliver to, whichever
+   * transport that place speaks.
+   */
   @Index({ unique: true })
   @Column()
   token: string;
+
+  /**
+   * 'EXPO' | 'WEB'. Providers who work from the website were unreachable
+   * entirely: notifications were Expo push plus an in-app socket, so closing
+   * the tab meant missing every booking request and every approval.
+   */
+  @Column({ default: 'EXPO' })
+  provider: string;
+
+  /** VAPID keying material for a WEB row (`{ keys: { p256dh, auth } }`). Null for Expo. */
+  @Column({ type: 'jsonb', nullable: true })
+  web_subscription: Record<string, any> | null;
 
   /** 'ios' | 'android' — informational, for diagnosing delivery per platform. */
   // Explicit type: a `string | null` property emits `Object` as its design type,

@@ -126,6 +126,15 @@ import ErrorBoundary from './src/components/ErrorBoundary';
 import { useTranslation } from 'react-i18next';
 import OfflineBanner from './src/components/OfflineBanner';
 import useOnline from './src/hooks/useOnline';
+import useOtaUpdates from './src/hooks/useOtaUpdates';
+import { initObservability } from './src/utils/observability';
+import MessagesScreen from './src/screens/shared/MessagesScreen';
+import MessageThreadScreen from './src/screens/shared/MessageThreadScreen';
+import BillingScreen from './src/screens/provider/BillingScreen';
+
+// Before the tree renders, so a crash during the first paint is still reported.
+// No-op without SENTRY_DSN.
+initObservability();
 
 import AdminDashboard from './src/screens/admin/AdminDashboard';
 import AdminPostList from './src/screens/admin/AdminPostList';
@@ -329,6 +338,9 @@ const ThemedApp = ({ initialRoute }) => {
   const insets = useSafeAreaInsets();
   const online = useOnline();
   useNotificationSync();
+  // Fetches a JavaScript update in the background and applies it the next time
+  // the app comes back from the background — never mid-form.
+  useOtaUpdates();
   return (
     <>
       {Platform.OS === 'android' && (
@@ -398,6 +410,11 @@ const ThemedApp = ({ initialRoute }) => {
             <Stack.Screen name="Notifications" component={NotificationsScreen} />
             <Stack.Screen name="BookingList" component={BookingListScreen} />
             <Stack.Screen name="AccountDeletion" component={AccountDeletionScreen} />
+            {/* Messaging belongs to neither role — a thread has a customer and
+                a provider, and both open it from here. */}
+            <Stack.Screen name="Messages" component={MessagesScreen} />
+            <Stack.Screen name="MessageThread" component={MessageThreadScreen} />
+            <Stack.Screen name="Billing" component={BillingScreen} />
 
             <Stack.Screen name="AdminDashboard" component={AdminDashboard} />
             <Stack.Screen name="AdminPostList" component={AdminPostList} />

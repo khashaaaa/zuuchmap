@@ -7,11 +7,7 @@ import { PostModule } from '../post/post.module';
 import { EventsModule } from '../events/events.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Booking]),
-    PostModule,
-    EventsModule,
-  ],
+  imports: [TypeOrmModule.forFeature([Booking]), PostModule, EventsModule],
   controllers: [BookingController],
   providers: [BookingService],
   exports: [BookingService],

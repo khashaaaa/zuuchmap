@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, InternalServerErrorException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  InternalServerErrorException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Company } from './entities/company.entity';
@@ -14,7 +19,7 @@ export class CompanyService {
     private readonly companyRepository: Repository<Company>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
-  ) { }
+  ) {}
 
   async create(createCompanyDto: CreateCompanyDto): Promise<Company> {
     try {
@@ -23,8 +28,11 @@ export class CompanyService {
       const savedCompany = await this.companyRepository.save(company);
 
       if (userId) {
-        const user = await this.userRepository.findOne({ where: { id: userId } });
-        if (!user) throw new NotFoundException(`User with ID ${userId} not found`);
+        const user = await this.userRepository.findOne({
+          where: { id: userId },
+        });
+        if (!user)
+          throw new NotFoundException(`User with ID ${userId} not found`);
         user.company = savedCompany;
         await this.userRepository.save(user);
       }
@@ -32,7 +40,9 @@ export class CompanyService {
       return savedCompany;
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
-      throw new BadRequestException('Failed to create company: ' + error.message);
+      throw new BadRequestException(
+        'Failed to create company: ' + error.message,
+      );
     }
   }
 
@@ -40,7 +50,7 @@ export class CompanyService {
     try {
       const company = await this.companyRepository.findOne({
         where: { id },
-        relations: ['users']
+        relations: ['users'],
       });
       if (!company) {
         throw new NotFoundException(`Company with ID ${id} not found`);
@@ -50,15 +60,24 @@ export class CompanyService {
       if (error instanceof NotFoundException) {
         throw error;
       }
-      throw new InternalServerErrorException('Failed to retrieve company: ' + error.message);
+      throw new InternalServerErrorException(
+        'Failed to retrieve company: ' + error.message,
+      );
     }
   }
 
-  async update(id: string, updateCompanyDto: UpdateCompanyDto): Promise<Company> {
+  async update(
+    id: string,
+    updateCompanyDto: UpdateCompanyDto,
+  ): Promise<Company> {
     try {
       const company = await this.findOne(id);
 
-      if (updateCompanyDto.logo && company.logo && company.logo !== updateCompanyDto.logo) {
+      if (
+        updateCompanyDto.logo &&
+        company.logo &&
+        company.logo !== updateCompanyDto.logo
+      ) {
         await deleteSingleImage(company.logo);
       }
 
@@ -66,7 +85,9 @@ export class CompanyService {
       return await this.companyRepository.save(company);
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
-      throw new InternalServerErrorException('Failed to update company: ' + error.message);
+      throw new InternalServerErrorException(
+        'Failed to update company: ' + error.message,
+      );
     }
   }
 }

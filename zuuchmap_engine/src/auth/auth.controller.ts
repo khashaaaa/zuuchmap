@@ -1,12 +1,19 @@
 import {
-  Controller, Post, Get, Body, Param, HttpCode, HttpException, HttpStatus,
+  Controller,
+  Post,
+  Get,
+  Body,
+  Param,
+  HttpCode,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) { }
+  constructor(private readonly authService: AuthService) {}
 
   /**
    * Begin phone verification.
@@ -20,9 +27,15 @@ export class AuthController {
   @Post('verify/start')
   async start(@Body() body: { phone_number: string; device_id?: string }) {
     if (!body?.phone_number) {
-      throw new HttpException('Phone number is required', HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        'Phone number is required',
+        HttpStatus.BAD_REQUEST,
+      );
     }
-    const result = await this.authService.startVerification(body.phone_number, body.device_id);
+    const result = await this.authService.startVerification(
+      body.phone_number,
+      body.device_id,
+    );
     return { success: true, data: result };
   }
 

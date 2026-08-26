@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import Redis from 'ioredis';
 import * as crypto from 'crypto';
 import { createRedis, redisEnabled } from './redis';
@@ -37,7 +42,9 @@ export class CacheCoordinator implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit(): void {
     if (!redisEnabled()) {
-      this.logger.log('Redis not configured — cache invalidation stays process-local');
+      this.logger.log(
+        'Redis not configured — cache invalidation stays process-local',
+      );
       return;
     }
     this.pub = createRedis('cache-pub');
@@ -54,8 +61,8 @@ export class CacheCoordinator implements OnModuleInit, OnModuleDestroy {
         if (now - this.lastPublishWarnAt > PUBLISH_WARN_INTERVAL_MS) {
           this.lastPublishWarnAt = now;
           this.logger.warn(
-            `Cache invalidation broadcast failed (${scope}): ${err?.message}. `
-            + 'Other instances may be serving stale reads.',
+            `Cache invalidation broadcast failed (${scope}): ${err?.message}. ` +
+              'Other instances may be serving stale reads.',
           );
         }
       });
@@ -66,9 +73,9 @@ export class CacheCoordinator implements OnModuleInit, OnModuleDestroy {
     // Redis were briefly down at boot (offline queue is disabled), leaving
     // this worker serving stale caches with no error ever surfacing again.
     this.sub.on('ready', () => {
-      this.sub?.subscribe(CHANNEL).catch((err) =>
-        this.logger.warn(`subscribe failed: ${err?.message}`),
-      );
+      this.sub
+        ?.subscribe(CHANNEL)
+        .catch((err) => this.logger.warn(`subscribe failed: ${err?.message}`));
     });
     this.sub.on('message', (_channel, message) => {
       const sep = message.indexOf(':');

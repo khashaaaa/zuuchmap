@@ -18,7 +18,11 @@ import { DataSource, QueryRunner } from 'typeorm';
 
 // Same env resolution as data-source.ts — one place decides how to reach the DB.
 dotenv.config({
-  path: path.resolve(process.cwd(), 'config/variables', `${process.env.NODE_ENV ?? 'development'}.env`),
+  path: path.resolve(
+    process.cwd(),
+    'config/variables',
+    `${process.env.NODE_ENV ?? 'development'}.env`,
+  ),
 });
 
 import { Post } from '../post/entities/post.entity';
@@ -63,8 +67,17 @@ afterEach(async () => {
 describe('schema shape', () => {
   it('has every table the entities declare', async () => {
     const expected = [
-      'analytics_event', 'booking', 'category_schema', 'company', 'likedpost',
-      'post', 'review', 'trusted_device', 'user', 'verification_session', 'viewedpost',
+      'analytics_event',
+      'booking',
+      'category_schema',
+      'company',
+      'likedpost',
+      'post',
+      'review',
+      'trusted_device',
+      'user',
+      'verification_session',
+      'viewedpost',
     ];
     const rows = await qr.query(
       `SELECT table_name FROM information_schema.tables WHERE table_schema='public'`,
@@ -109,9 +122,12 @@ describe('referential integrity', () => {
 
     await qr.query(`DELETE FROM post WHERE id = $1`, [row.postId]);
 
-    const [after] = await qr.query(`SELECT "postId", status FROM booking WHERE id = $1`, [row.booking_id]);
-    expect(after).toBeDefined();          // the booking outlived the post
-    expect(after.postId).toBeNull();      // ON DELETE SET NULL, not CASCADE
+    const [after] = await qr.query(
+      `SELECT "postId", status FROM booking WHERE id = $1`,
+      [row.booking_id],
+    );
+    expect(after).toBeDefined(); // the booking outlived the post
+    expect(after.postId).toBeNull(); // ON DELETE SET NULL, not CASCADE
     expect(after.status).toBe('ACCEPTED');
 
     // The whole point: the customer can still review that provider.
@@ -131,8 +147,14 @@ describe('referential integrity', () => {
 
     await qr.query(`DELETE FROM post WHERE id = $1`, [row.id]);
 
-    const [likes] = await qr.query(`SELECT COUNT(*)::int AS c FROM likedpost WHERE post_id = $1`, [row.id]);
-    const [views] = await qr.query(`SELECT COUNT(*)::int AS c FROM viewedpost WHERE post_id = $1`, [row.id]);
+    const [likes] = await qr.query(
+      `SELECT COUNT(*)::int AS c FROM likedpost WHERE post_id = $1`,
+      [row.id],
+    );
+    const [views] = await qr.query(
+      `SELECT COUNT(*)::int AS c FROM viewedpost WHERE post_id = $1`,
+      [row.id],
+    );
     expect(likes.c).toBe(0);
     expect(views.c).toBe(0);
   });
@@ -148,7 +170,9 @@ describe('referential integrity', () => {
          VALUES (CURRENT_DATE + 1, CURRENT_DATE + 2, 'PENDING', $1, $2, $3)`,
         [b.postId, b.customerId, b.providerId],
       ),
-    ).rejects.toMatchObject({ constraint: 'UQ_booking_one_pending_per_customer_post' });
+    ).rejects.toMatchObject({
+      constraint: 'UQ_booking_one_pending_per_customer_post',
+    });
   });
 
   it('refuses two accepted bookings overlapping on one post', async () => {
@@ -158,7 +182,8 @@ describe('referential integrity', () => {
     );
     expect(b).toBeDefined();
     const [other] = await qr.query(
-      `SELECT id FROM "user" WHERE id <> $1 AND type='CUSTOMER' LIMIT 1`, [b.providerId],
+      `SELECT id FROM "user" WHERE id <> $1 AND type='CUSTOMER' LIMIT 1`,
+      [b.providerId],
     );
     await expect(
       qr.query(
@@ -171,12 +196,13 @@ describe('referential integrity', () => {
 });
 
 describe('read paths TypeORM builds', () => {
-  const browse = (qb: any) => qb
-    .leftJoinAndSelect('post.user', 'user')
-    .leftJoinAndSelect('user.company', 'company')
-    .where('post.approval_status = :a', { a: 'APPROVED' })
-    .andWhere('post.status != :expired', { expired: Status.EXPIRED })
-    .andWhere('(post.expires_at IS NULL OR post.expires_at > NOW())');
+  const browse = (qb: any) =>
+    qb
+      .leftJoinAndSelect('post.user', 'user')
+      .leftJoinAndSelect('user.company', 'company')
+      .where('post.approval_status = :a', { a: 'APPROVED' })
+      .andWhere('post.status != :expired', { expired: Status.EXPIRED })
+      .andWhere('(post.expires_at IS NULL OR post.expires_at > NOW())');
 
   it('paginates the featured-ranked browse without tripping DISTINCT/ORDER BY', async () => {
     // take/skip plus a page-and-count pair over joined rows is the exact
@@ -184,7 +210,8 @@ describe('read paths TypeORM builds', () => {
     const qb = browse(qr.manager.getRepository(Post).createQueryBuilder('post'))
       .orderBy('post.is_featured', 'DESC')
       .addOrderBy('post.date_created', 'DESC')
-      .take(10).skip(0);
+      .take(10)
+      .skip(0);
 
     const items = await qb.getMany();
     const total = await qb.getCount();
@@ -224,13 +251,19 @@ describe('read paths TypeORM builds', () => {
       `SELECT id FROM post WHERE is_featured = true LIMIT 1`,
     );
     expect(p).toBeDefined();
-    await qr.query(`UPDATE post SET featured_until = NOW() - interval '1 hour' WHERE id = $1`, [p.id]);
+    await qr.query(
+      `UPDATE post SET featured_until = NOW() - interval '1 hour' WHERE id = $1`,
+      [p.id],
+    );
     // The statement the hourly sweep runs.
     await qr.query(
       `UPDATE post SET is_featured = false
         WHERE is_featured = true AND (featured_until IS NULL OR featured_until <= NOW())`,
     );
-    const [after] = await qr.query(`SELECT is_featured FROM post WHERE id = $1`, [p.id]);
+    const [after] = await qr.query(
+      `SELECT is_featured FROM post WHERE id = $1`,
+      [p.id],
+    );
     expect(after.is_featured).toBe(false);
   });
 
@@ -286,7 +319,9 @@ describe('read paths TypeORM builds', () => {
     );
     expect(owner).toBeDefined();
 
-    const quota = await qr.manager.getRepository(Post).createQueryBuilder('post')
+    const quota = await qr.manager
+      .getRepository(Post)
+      .createQueryBuilder('post')
       .where('post.userId = :ownerId', { ownerId: owner.id })
       .andWhere('post.approval_status != :rejected', { rejected: 'REJECTED' })
       .andWhere('post.status != :expired', { expired: Status.EXPIRED })
@@ -335,25 +370,37 @@ describe('read paths TypeORM builds', () => {
 
   it('reports the real depth of the moderation queue', async () => {
     const LIMIT = 50;
-    const [items, total] = await qr.manager.getRepository(Post).createQueryBuilder('post')
+    const [items, total] = await qr.manager
+      .getRepository(Post)
+      .createQueryBuilder('post')
       .leftJoinAndSelect('post.user', 'user')
       .where('post.approval_status = :s', { s: 'PENDING' })
       .orderBy('post.date_created', 'ASC')
-      .take(LIMIT).skip(0)
+      .take(LIMIT)
+      .skip(0)
       .getManyAndCount();
 
-    const [{ c }] = await qr.query(`SELECT COUNT(*)::int AS c FROM post WHERE approval_status='PENDING'`);
+    const [{ c }] = await qr.query(
+      `SELECT COUNT(*)::int AS c FROM post WHERE approval_status='PENDING'`,
+    );
     expect(total).toBe(c);
     expect(items.length).toBeLessThanOrEqual(LIMIT);
     // Oldest first: the tail of the queue must not starve behind new arrivals.
     if (items.length > 1) {
-      expect(items[0].date_created.getTime()).toBeLessThanOrEqual(items[1].date_created.getTime());
+      expect(items[0].date_created.getTime()).toBeLessThanOrEqual(
+        items[1].date_created.getTime(),
+      );
     }
   });
 
   it('finds posts by prefix through the generated search vector', async () => {
-    const [post] = await qr.query(`SELECT title FROM post WHERE title IS NOT NULL LIMIT 1`);
-    const word = String(post.title).split(/\s+/).find((w: string) => w.length > 4) ?? 'test';
+    const [post] = await qr.query(
+      `SELECT title FROM post WHERE title IS NOT NULL LIMIT 1`,
+    );
+    const word =
+      String(post.title)
+        .split(/\s+/)
+        .find((w: string) => w.length > 4) ?? 'test';
     const rows = await qr.query(
       `SELECT COUNT(*)::int AS c FROM post WHERE search_vector @@ to_tsquery('simple', $1)`,
       [`${word.replace(/[^\p{L}\p{N}]/gu, '')}:*`],
@@ -366,7 +413,9 @@ describe('push devices', () => {
   // Replaced a single `user.push_token`, where a second sign-in muted the first
   // device and either sign-out muted the whole account.
   it('keeps other devices reachable when one signs out', async () => {
-    const [u] = await qr.query(`SELECT id FROM "user" WHERE type='PROVIDER' LIMIT 1`);
+    const [u] = await qr.query(
+      `SELECT id FROM "user" WHERE type='PROVIDER' LIMIT 1`,
+    );
     await qr.query(
       `INSERT INTO push_device (token, platform, "userId") VALUES
          ('ExponentPushToken[A]','ios',$1), ('ExponentPushToken[B]','android',$1)`,
@@ -375,7 +424,8 @@ describe('push devices', () => {
 
     // One device unbinds itself, scoped to its own token.
     await qr.query(
-      `DELETE FROM push_device WHERE "userId" = $1 AND token = 'ExponentPushToken[A]'`, [u.id],
+      `DELETE FROM push_device WHERE "userId" = $1 AND token = 'ExponentPushToken[A]'`,
+      [u.id],
     );
 
     // Scoped to the two tokens this test created: the provider may already own
@@ -390,15 +440,21 @@ describe('push devices', () => {
   });
 
   it('moves a device to its new owner rather than leaving it with the old one', async () => {
-    const [a] = await qr.query(`SELECT id FROM "user" WHERE type='PROVIDER' LIMIT 1`);
-    const [b] = await qr.query(`SELECT id FROM "user" WHERE type='CUSTOMER' LIMIT 1`);
+    const [a] = await qr.query(
+      `SELECT id FROM "user" WHERE type='PROVIDER' LIMIT 1`,
+    );
+    const [b] = await qr.query(
+      `SELECT id FROM "user" WHERE type='CUSTOMER' LIMIT 1`,
+    );
     await qr.query(
-      `INSERT INTO push_device (token, "userId") VALUES ('ExponentPushToken[X]',$1)`, [a.id],
+      `INSERT INTO push_device (token, "userId") VALUES ('ExponentPushToken[X]',$1)`,
+      [a.id],
     );
     // The same physical install signs in as someone else.
     await qr.query(
       `INSERT INTO push_device (token, "userId") VALUES ('ExponentPushToken[X]',$1)
-       ON CONFLICT (token) DO UPDATE SET "userId" = EXCLUDED."userId"`, [b.id],
+       ON CONFLICT (token) DO UPDATE SET "userId" = EXCLUDED."userId"`,
+      [b.id],
     );
 
     const rows = await qr.query(

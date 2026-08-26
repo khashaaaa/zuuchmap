@@ -54,6 +54,9 @@ export default function NotificationsPage() {
   // the admin console when that is where the action is), a booking opens the
   // list on the recipient's side.
   const targetFor = (n) => {
+    // Messages first: a message notification also carries a postId, and the
+    // thread — not the listing — is what the reader is being called to.
+    if (n.conversationId) return `/messages/${n.conversationId}`
     if (n.postId) return isAdmin && n.role === 'admin' ? `/admin/posts/${n.postId}` : `/posts/${n.postId}`
     if (n.bookingRole === 'provider') return '/provider/bookings'
     if (n.bookingRole === 'customer') return '/customer/bookings'

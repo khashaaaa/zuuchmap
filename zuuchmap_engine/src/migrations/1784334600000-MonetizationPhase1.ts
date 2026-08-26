@@ -15,9 +15,15 @@ export class MonetizationPhase11784334600000 implements MigrationInterface {
   name = 'MonetizationPhase11784334600000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "post" ADD "featured_until" TIMESTAMP`);
-    await queryRunner.query(`ALTER TABLE "user" ADD "plan" character varying NOT NULL DEFAULT 'FREE'`);
-    await queryRunner.query(`ALTER TABLE "user" ADD "plan_expires_at" TIMESTAMP`);
+    await queryRunner.query(
+      `ALTER TABLE "post" ADD "featured_until" TIMESTAMP`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "user" ADD "plan" character varying NOT NULL DEFAULT 'FREE'`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "user" ADD "plan_expires_at" TIMESTAMP`,
+    );
     await queryRunner.query(
       `CREATE INDEX "IDX_post_featured_until" ON "post" ("featured_until") WHERE "featured_until" IS NOT NULL`,
     );

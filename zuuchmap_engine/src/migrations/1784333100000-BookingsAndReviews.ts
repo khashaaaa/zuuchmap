@@ -23,10 +23,18 @@ export class BookingsAndReviews1784333100000 implements MigrationInterface {
         CONSTRAINT "FK_booking_provider" FOREIGN KEY ("providerId") REFERENCES "user"("id") ON DELETE CASCADE
       )
     `);
-    await queryRunner.query(`CREATE INDEX "IDX_booking_status" ON "booking" ("status")`);
-    await queryRunner.query(`CREATE INDEX "IDX_booking_post" ON "booking" ("postId")`);
-    await queryRunner.query(`CREATE INDEX "IDX_booking_customer" ON "booking" ("customerId")`);
-    await queryRunner.query(`CREATE INDEX "IDX_booking_provider" ON "booking" ("providerId")`);
+    await queryRunner.query(
+      `CREATE INDEX "IDX_booking_status" ON "booking" ("status")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_booking_post" ON "booking" ("postId")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_booking_customer" ON "booking" ("customerId")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_booking_provider" ON "booking" ("providerId")`,
+    );
 
     await queryRunner.query(`
       CREATE TABLE "review" (
@@ -43,7 +51,9 @@ export class BookingsAndReviews1784333100000 implements MigrationInterface {
         CONSTRAINT "FK_review_author" FOREIGN KEY ("authorId") REFERENCES "user"("id") ON DELETE CASCADE
       )
     `);
-    await queryRunner.query(`CREATE INDEX "IDX_review_provider" ON "review" ("providerId")`);
+    await queryRunner.query(
+      `CREATE INDEX "IDX_review_provider" ON "review" ("providerId")`,
+    );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

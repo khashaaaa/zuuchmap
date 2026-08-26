@@ -40,7 +40,9 @@ export class PostDeletionIntegrity1784334800000 implements MigrationInterface {
     );
 
     // A booking outlives its post: it is the record that a deal happened.
-    await queryRunner.query(`ALTER TABLE "booking" DROP CONSTRAINT "FK_booking_post"`);
+    await queryRunner.query(
+      `ALTER TABLE "booking" DROP CONSTRAINT "FK_booking_post"`,
+    );
     await queryRunner.query(
       `ALTER TABLE "booking" ADD CONSTRAINT "FK_booking_post"
          FOREIGN KEY ("postId") REFERENCES "post"(id) ON DELETE SET NULL`,
@@ -48,12 +50,18 @@ export class PostDeletionIntegrity1784334800000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "booking" DROP CONSTRAINT "FK_booking_post"`);
+    await queryRunner.query(
+      `ALTER TABLE "booking" DROP CONSTRAINT "FK_booking_post"`,
+    );
     await queryRunner.query(
       `ALTER TABLE "booking" ADD CONSTRAINT "FK_booking_post"
          FOREIGN KEY ("postId") REFERENCES "post"(id) ON DELETE CASCADE`,
     );
-    await queryRunner.query(`ALTER TABLE "viewedpost" DROP CONSTRAINT "FK_viewedpost_post"`);
-    await queryRunner.query(`ALTER TABLE "likedpost" DROP CONSTRAINT "FK_likedpost_post"`);
+    await queryRunner.query(
+      `ALTER TABLE "viewedpost" DROP CONSTRAINT "FK_viewedpost_post"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "likedpost" DROP CONSTRAINT "FK_likedpost_post"`,
+    );
   }
 }

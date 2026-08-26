@@ -70,6 +70,34 @@ export const API_CONFIG = {
       DELETE: (id) => `/saved-searches/${id}`,
     },
 
+    // Payments — QPay invoices for a provider plan.
+    PAYMENTS: {
+      CATALOGUE: '/payments/catalogue',
+      INVOICE: '/payments/invoice',
+      CHECK: (id) => `/payments/${id}/check`,
+      MINE: '/payments/mine',
+    },
+
+    // In-app messaging — one thread per (listing, customer).
+    CONVERSATIONS: {
+      LIST: '/conversations',
+      UNREAD_COUNT: '/conversations/unread-count',
+      OPEN: '/conversations',
+      DETAIL: (id) => `/conversations/${id}`,
+      MESSAGES: (id) => `/conversations/${id}/messages`,
+      SEND: (id) => `/conversations/${id}/messages`,
+      READ: (id) => `/conversations/${id}/read`,
+    },
+
+    // User-filed moderation flags on listings that are already live.
+    REPORTS: {
+      REASONS: '/reports/reasons',
+      CREATE: '/reports',
+      LIST: '/reports',
+      COUNT: '/reports/count',
+      RESOLVE: (id) => `/reports/${id}`,
+    },
+
     LIKE: {
       LIKE: '/like',
       UNLIKE: (postType, postId) => `/like/${postType}/${postId}`,

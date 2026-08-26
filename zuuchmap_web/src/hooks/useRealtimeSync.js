@@ -80,6 +80,29 @@ export function useRealtimeSync() {
       useNotificationStore.getState().add({ message: t('notifications.bookingCancelled'), kind: 'info', bookingRole: 'provider' })
     })
 
+    on(SOCKET_EVENTS.MESSAGE_CREATED, ({ conversationId, preview } = {}) => {
+      // The inbox list, the badge, and the open thread if it happens to be
+      // this one — a message arriving in the thread you are reading must
+      // appear without a refresh, which is most of the point of a chat.
+      qc.invalidateQueries({ queryKey: ['conversations'] })
+      qc.invalidateQueries({ queryKey: ['messages', 'unread'] })
+      if (conversationId) qc.invalidateQueries({ queryKey: ['conversation', conversationId] })
+      toast(preview || t('messages.title'))
+      useNotificationStore.getState().add({
+        message: preview || t('messages.title'),
+        kind: 'info',
+        conversationId,
+      })
+    })
+
+    on(SOCKET_EVENTS.REPORT_CREATED, () => {
+      // Admin-only by construction — the gateway emits this to the admin room.
+      qc.invalidateQueries({ queryKey: ['reports'] })
+      if (isAdmin) {
+        useNotificationStore.getState().add({ message: t('report.queue'), kind: 'info' })
+      }
+    })
+
     return () => {
       Object.entries(handlers).forEach(([event, fn]) => socket.off(event, fn))
       disconnectSocket()

@@ -198,6 +198,11 @@ const CustomerProfile = ({ navigation }) => {
                         onPress={() => navigation.navigate('BookingList', { role: 'customer' })}
                     />
                     <ProfileActionRow
+                        icon="chatbubbles-outline"
+                        text={t('messages.title')}
+                        onPress={() => navigation.navigate('Messages')}
+                    />
+                    <ProfileActionRow
                         icon="bookmark-outline"
                         text={t('savedSearch.title')}
                         onPress={() => navigation.navigate('SavedSearches')}

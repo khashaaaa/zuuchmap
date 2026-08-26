@@ -9,6 +9,7 @@ import PageHeader from '@/components/PageHeader'
 import ConfirmModal from '@/components/ConfirmModal'
 import AvatarPicker from '@/components/AvatarPicker'
 import ErrorState from '@/components/ErrorState'
+import WebPushToggle from './WebPushToggle'
 
 /**
  * The whole profile page minus the role-specific parts. CustomerProfile and
@@ -85,6 +86,10 @@ export default function ProfileBase({ stats = null, extraMenuItems = [] }) {
           {mut.isPending ? t('common.saving') : t('common.save')}
         </Button>
       </form>
+
+      {/* Browser push — a provider working from the website received nothing
+          once the tab was closed until this existed. */}
+      <WebPushToggle />
 
       <SettingsMenu
         className="mt-4"

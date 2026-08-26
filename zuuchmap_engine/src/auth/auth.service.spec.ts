@@ -34,7 +34,10 @@ describe('AuthService — phone verification', () => {
     };
     sessions = {
       create: jest.fn((x) => ({ id: 'sess-1', ...x })),
-      save: jest.fn(async (x) => { sessionRow = x; return x; }),
+      save: jest.fn(async (x) => {
+        sessionRow = x;
+        return x;
+      }),
       findOne: jest.fn(async () => sessionRow),
       delete: jest.fn(async () => ({ affected: 0 })),
     };
@@ -61,17 +64,23 @@ describe('AuthService — phone verification', () => {
     service = new AuthService(users, sessions, devices, jwt, verifyMn);
   });
 
-  afterAll(() => { process.env = OLD_ENV; });
+  afterAll(() => {
+    process.env = OLD_ENV;
+  });
 
   it('rejects a malformed phone number before calling the provider', async () => {
-    await expect(service.startVerification('12345')).rejects.toThrow(HttpException);
+    await expect(service.startVerification('12345')).rejects.toThrow(
+      HttpException,
+    );
     expect(verifyMn.createSession).not.toHaveBeenCalled();
   });
 
   it('normalizes a +976-prefixed number', async () => {
     await service.startVerification('+976 9911 2233');
     expect(verifyMn.createSession).toHaveBeenCalledWith(
-      '99112233', expect.any(String), expect.stringContaining('/auth/verify/callback/'),
+      '99112233',
+      expect.any(String),
+      expect.stringContaining('/auth/verify/callback/'),
     );
   });
 
@@ -81,7 +90,10 @@ describe('AuthService — phone verification', () => {
     expect(started.auth).toBeUndefined();
     expect(started.sms_uri).toMatch(/^sms:144773\?body=\d{6}$/);
 
-    verifyMn.getStatus.mockResolvedValue({ sessionStatus: 'PENDING', callbackStatus: 'PENDING' });
+    verifyMn.getStatus.mockResolvedValue({
+      sessionStatus: 'PENDING',
+      callbackStatus: 'PENDING',
+    });
     const status = await service.checkVerification('sess-1');
     expect(status.status).toBe('PENDING');
     expect(status.auth).toBeUndefined();
@@ -132,10 +144,16 @@ describe('AuthService — phone verification', () => {
   // that protects the provider from our polling must not swallow it.
   it('lets a callback bypass the upstream poll throttle', async () => {
     await service.startVerification('99112233');
-    verifyMn.getStatus.mockResolvedValue({ sessionStatus: 'PENDING', callbackStatus: 'SENT' });
+    verifyMn.getStatus.mockResolvedValue({
+      sessionStatus: 'PENDING',
+      callbackStatus: 'SENT',
+    });
     await service.checkVerification('sess-1');
     verifyMn.getStatus.mockClear();
-    verifyMn.getStatus.mockResolvedValue({ sessionStatus: 'VERIFIED', callbackStatus: 'SENT' });
+    verifyMn.getStatus.mockResolvedValue({
+      sessionStatus: 'VERIFIED',
+      callbackStatus: 'SENT',
+    });
 
     await service.handleCallback('sess-1');
     expect(verifyMn.getStatus).toHaveBeenCalled();
@@ -144,7 +162,10 @@ describe('AuthService — phone verification', () => {
 
   it('ignores a callback for a session already consumed', async () => {
     await service.startVerification('99112233');
-    verifyMn.getStatus.mockResolvedValue({ sessionStatus: 'VERIFIED', callbackStatus: 'SENT' });
+    verifyMn.getStatus.mockResolvedValue({
+      sessionStatus: 'VERIFIED',
+      callbackStatus: 'SENT',
+    });
     await service.checkVerification('sess-1');
     expect(sessionRow.status).toBe('CONSUMED');
 
@@ -154,10 +175,15 @@ describe('AuthService — phone verification', () => {
 
   it('refuses to reuse a consumed session', async () => {
     await service.startVerification('99112233', 'device-abc');
-    verifyMn.getStatus.mockResolvedValue({ sessionStatus: 'VERIFIED', callbackStatus: 'SENT' });
+    verifyMn.getStatus.mockResolvedValue({
+      sessionStatus: 'VERIFIED',
+      callbackStatus: 'SENT',
+    });
     await service.checkVerification('sess-1');
 
-    await expect(service.checkVerification('sess-1')).rejects.toMatchObject({ status: 410 });
+    await expect(service.checkVerification('sess-1')).rejects.toMatchObject({
+      status: 410,
+    });
   });
 
   it('reports EXPIRED past the TTL without calling the provider', async () => {
@@ -172,8 +198,16 @@ describe('AuthService — phone verification', () => {
   });
 
   it('skips the provider entirely for an already-trusted device', async () => {
-    users.findOne.mockResolvedValue({ id: 'user-1', phone_number: '99112233', is_verified: true });
-    devices.findOne.mockResolvedValue({ id: 'dev-1', device_hash: 'hash', user: { id: 'user-1' } });
+    users.findOne.mockResolvedValue({
+      id: 'user-1',
+      phone_number: '99112233',
+      is_verified: true,
+    });
+    devices.findOne.mockResolvedValue({
+      id: 'dev-1',
+      device_hash: 'hash',
+      user: { id: 'user-1' },
+    });
 
     const started = await service.startVerification('99112233', 'device-abc');
 
@@ -195,7 +229,10 @@ describe('AuthService — phone verification', () => {
 
   it('throttles upstream polling to stay under the provider rate limit', async () => {
     await service.startVerification('99112233');
-    verifyMn.getStatus.mockResolvedValue({ sessionStatus: 'PENDING', callbackStatus: 'PENDING' });
+    verifyMn.getStatus.mockResolvedValue({
+      sessionStatus: 'PENDING',
+      callbackStatus: 'PENDING',
+    });
 
     await service.checkVerification('sess-1');
     await service.checkVerification('sess-1');
@@ -205,8 +242,12 @@ describe('AuthService — phone verification', () => {
 
   it('propagates a provider credential failure instead of authenticating', async () => {
     await service.startVerification('99112233');
-    verifyMn.getStatus.mockRejectedValue(new HttpException('SMS provider rejected our credentials.', 503));
+    verifyMn.getStatus.mockRejectedValue(
+      new HttpException('SMS provider rejected our credentials.', 503),
+    );
 
-    await expect(service.checkVerification('sess-1')).rejects.toThrow(HttpException);
+    await expect(service.checkVerification('sess-1')).rejects.toThrow(
+      HttpException,
+    );
   });
 });

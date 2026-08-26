@@ -4,7 +4,11 @@ import * as dotenv from 'dotenv';
 import * as path from 'path';
 
 dotenv.config({
-  path: path.resolve(process.cwd(), 'config/variables', `${process.env.NODE_ENV ?? 'development'}.env`),
+  path: path.resolve(
+    process.cwd(),
+    'config/variables',
+    `${process.env.NODE_ENV ?? 'development'}.env`,
+  ),
 });
 
 export const AppDataSource = new DataSource({
@@ -15,7 +19,10 @@ export const AppDataSource = new DataSource({
   password: process.env.PG_PWD,
   database: process.env.PG_NAME,
   synchronize: false,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  ssl:
+    process.env.NODE_ENV === 'production'
+      ? { rejectUnauthorized: false }
+      : false,
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
   migrations: [__dirname + '/../migrations/*{.ts,.js}'],
 });

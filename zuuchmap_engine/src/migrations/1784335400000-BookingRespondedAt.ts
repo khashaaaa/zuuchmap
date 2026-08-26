@@ -19,7 +19,9 @@ export class BookingRespondedAt1784335400000 implements MigrationInterface {
   name = 'BookingRespondedAt1784335400000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "booking" ADD "responded_at" TIMESTAMP`);
+    await queryRunner.query(
+      `ALTER TABLE "booking" ADD "responded_at" TIMESTAMP`,
+    );
     await queryRunner.query(`
       UPDATE "booking"
          SET "responded_at" = "date_updated"

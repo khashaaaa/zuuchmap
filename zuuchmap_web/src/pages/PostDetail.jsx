@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import {
   CheckCircle, XCircle, MapPin, Eye, Phone, Mail, Globe,
   ArrowLeft, Heart, Building2, Pencil, Trash2, Calendar, Sparkles, CalendarRange,
-  ChevronLeft, ChevronRight, X as CloseIcon } from 'lucide-react'
+  ChevronLeft, ChevronRight, MessageSquare, Flag, X as CloseIcon } from 'lucide-react'
 import { MapContainer, TileLayer, Marker } from 'react-leaflet'
 import { motion, useReducedMotion } from 'framer-motion'
 import 'leaflet/dist/leaflet.css'
@@ -36,6 +36,9 @@ import InfoSection from '@/components/InfoSection'
 import CollapsibleSection from '@/components/CollapsibleSection'
 import CategoryBadge from '@/components/CategoryBadge'
 import ErrorState from '@/components/ErrorState'
+import ReportModal from '@/components/ReportModal'
+import { messagesApi } from '@/lib/api'
+import useDocumentMeta from '@/hooks/useDocumentMeta'
 
 // React renders a raw boolean as nothing and an array as concatenated text, so
 // every attribute value goes through here before display.
@@ -58,6 +61,7 @@ export default function PostDetail() {
   const cameFromQueue = useLocation().state?.from === 'queue'
   const qc = useQueryClient()
   const { token, user: currentUser, isAdmin } = useAuthStore()
+  const [reportOpen, setReportOpen] = useState(false)
   const { theme } = useThemeStore()
   const shouldReduceMotion = useReducedMotion()
 
@@ -79,6 +83,17 @@ export default function PostDetail() {
   useEffect(() => {
     if (post?.id) track('post.detail.view', { post_id: post.id, category: post.category })
   }, [post?.id, post?.category])
+
+  // Per-listing title, description and social card. index.html carries one set
+  // of tags for the whole SPA, so every listing shared the landing page's blurb
+  // and OG image. Google runs JavaScript and sees this; Facebook and Messenger
+  // do not, and are served pre-rendered tags by the engine via nginx instead.
+  useDocumentMeta({
+    title: post?.title || post?.name || undefined,
+    description: (post?.details || post?.description || '').replace(/\s+/g, ' ').slice(0, 200) || undefined,
+    image: post?.images?.[0] || undefined,
+    url: post?.id ? `${window.location.origin}/posts/${post.id}` : undefined,
+  })
 
   const { data: schemas = [], isError: schemasError, refetch: refetchSchemas } = useQuery({
     queryKey: ['categories'],
@@ -730,6 +745,36 @@ export default function PostDetail() {
               </div>
             )}
 
+            {/* Message the owner. Available on every listing, not just bookable
+                ones: "is this still available" is the question customers
+                actually have, and it used to be answerable only by phone —
+                which left the platform with no record of what was agreed. */}
+            {token && !isOwner && !isAdmin && post.user && (
+              <div className="pt-4 border-t border-border/50 flex flex-wrap gap-2">
+                <Button
+                  variant="secondary"
+                  className="flex-1"
+                  onClick={async () => {
+                    try {
+                      const thread = await messagesApi.open(post.id)
+                      navigate(`/messages/${thread.id}`)
+                    } catch {
+                      toast.error(t('messages.failed'))
+                    }
+                  }}
+                >
+                  <MessageSquare size={14} /> {t('messages.messageProvider')}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setReportOpen(true)}
+                  aria-label={t('report.action')}
+                >
+                  <Flag size={14} /> {t('report.action')}
+                </Button>
+              </div>
+            )}
+
             {/* The same reasoning as the save button above: a signed-out visitor
                 on a bookable rental got no booking affordance and no reason why,
                 even though "sign in to save" sat right beside it. Arriving from
@@ -884,6 +929,8 @@ export default function PostDetail() {
         onConfirm={() => { deleteMut.mutate(); setShowDeleteModal(false) }}
         isPending={deleteMut.isPending}
       />
+
+      <ReportModal open={reportOpen} onClose={() => setReportOpen(false)} postId={post.id} />
     </div>
   )
 }

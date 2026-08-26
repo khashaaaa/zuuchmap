@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Review } from './entities/review.entity';
@@ -7,11 +12,12 @@ import { Booking } from '../booking/entities/booking.entity';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { BookingService } from '../booking/booking.service';
 
-const safeAuthor = (u: any) => u && ({
-  id: u.id,
-  given_name: u.given_name,
-  profile_picture: u.profile_picture,
-});
+const safeAuthor = (u: any) =>
+  u && {
+    id: u.id,
+    given_name: u.given_name,
+    profile_picture: u.profile_picture,
+  };
 
 @Injectable()
 export class ReviewService {
@@ -27,14 +33,27 @@ export class ReviewService {
 
   // One review per author per provider — repeat submissions update the existing one
   async upsert(authorId: string, dto: CreateReviewDto) {
-    if (dto.provider_id === authorId) throw new BadRequestException({ code: 'REVIEW_SELF', message: 'You cannot review yourself' });
+    if (dto.provider_id === authorId)
+      throw new BadRequestException({
+        code: 'REVIEW_SELF',
+        message: 'You cannot review yourself',
+      });
 
-    const provider = await this.userRepository.findOne({ where: { id: dto.provider_id } });
+    const provider = await this.userRepository.findOne({
+      where: { id: dto.provider_id },
+    });
     if (!provider) throw new NotFoundException('Provider not found');
 
-    const eligible = await this.bookingService.hasAcceptedBooking(authorId, dto.provider_id);
+    const eligible = await this.bookingService.hasAcceptedBooking(
+      authorId,
+      dto.provider_id,
+    );
     if (!eligible) {
-      throw new ForbiddenException({ code: 'REVIEW_NEEDS_BOOKING', message: 'Only customers with an accepted booking can review this provider' });
+      throw new ForbiddenException({
+        code: 'REVIEW_NEEDS_BOOKING',
+        message:
+          'Only customers with an accepted booking can review this provider',
+      });
     }
 
     let review = await this.reviewRepository.findOne({
@@ -50,7 +69,7 @@ export class ReviewService {
     } else {
       review = this.reviewRepository.create({
         provider,
-        author: { id: authorId } as any,
+        author: { id: authorId },
         rating: dto.rating,
         comment: dto.comment,
       });
@@ -69,7 +88,8 @@ export class ReviewService {
         order: { date_updated: 'DESC' },
         take: 100,
       }),
-      this.reviewRepository.createQueryBuilder('r')
+      this.reviewRepository
+        .createQueryBuilder('r')
         .select('COUNT(*)', 'count')
         .addSelect('AVG(r.rating)', 'average')
         .where('r."providerId" = :providerId', { providerId })
@@ -93,26 +113,40 @@ export class ReviewService {
   // than counting as an instant or an eternal reply.
   async providerStats(providerId: string) {
     const [resp, completed, user] = await Promise.all([
-      this.bookingRepository.createQueryBuilder('b')
-        .select('AVG(EXTRACT(EPOCH FROM (b.responded_at - b.date_created)))', 'avg_seconds')
+      this.bookingRepository
+        .createQueryBuilder('b')
+        .select(
+          'AVG(EXTRACT(EPOCH FROM (b.responded_at - b.date_created)))',
+          'avg_seconds',
+        )
         .where('b."providerId" = :providerId', { providerId })
-        .andWhere('b.status IN (:...statuses)', { statuses: ['ACCEPTED', 'DECLINED'] })
+        .andWhere('b.status IN (:...statuses)', {
+          statuses: ['ACCEPTED', 'DECLINED'],
+        })
         .andWhere('b.responded_at IS NOT NULL')
         .getRawOne(),
-      this.bookingRepository.createQueryBuilder('b')
+      this.bookingRepository
+        .createQueryBuilder('b')
         .where('b."providerId" = :providerId', { providerId })
         .andWhere('b.status = :status', { status: 'ACCEPTED' })
         .andWhere('b.end_date < NOW()')
         .getCount(),
-      this.userRepository.findOne({ where: { id: providerId }, relations: ['company'] }),
+      this.userRepository.findOne({
+        where: { id: providerId },
+        relations: ['company'],
+      }),
     ]);
-    const avgSeconds = resp?.avg_seconds == null ? null : Number(resp.avg_seconds);
+    const avgSeconds =
+      resp?.avg_seconds == null ? null : Number(resp.avg_seconds);
     return {
-      avg_response_hours: avgSeconds == null || Number.isNaN(avgSeconds)
-        ? null
-        : Math.round((avgSeconds / 3600) * 10) / 10,
+      avg_response_hours:
+        avgSeconds == null || Number.isNaN(avgSeconds)
+          ? null
+          : Math.round((avgSeconds / 3600) * 10) / 10,
       completed_bookings: Number(completed ?? 0),
-      member_since: user?.date_created ? new Date(user.date_created).toISOString() : null,
+      member_since: user?.date_created
+        ? new Date(user.date_created).toISOString()
+        : null,
       company_verified: !!user?.company?.is_verified,
     };
   }

@@ -42,14 +42,25 @@ interface Window {
  * so "try again in an hour" is true no matter how often the user retries.
  * Returns false (allow) on any storage error.
  */
-export async function incrAndCheckOverLimit(key: string, limit: number, ttlMs: number): Promise<boolean> {
+export async function incrAndCheckOverLimit(
+  key: string,
+  limit: number,
+  ttlMs: number,
+): Promise<boolean> {
   const r = redis();
   if (r) {
     try {
-      const count = (await r.eval(ATOMIC_INCR, 1, `rate:${key}`, ttlMs)) as number;
+      const count = (await r.eval(
+        ATOMIC_INCR,
+        1,
+        `rate:${key}`,
+        ttlMs,
+      )) as number;
       return count > limit;
     } catch (err: any) {
-      logger.warn(`rate counter storage error — allowing (fail open): ${err?.message}`);
+      logger.warn(
+        `rate counter storage error — allowing (fail open): ${err?.message}`,
+      );
       return false;
     }
   }

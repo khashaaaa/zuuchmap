@@ -247,6 +247,16 @@ const ProviderProfile = ({ navigation }) => {
                         onPress={() => navigation.navigate('BookingList', { role: 'provider' })}
                     />
                     <ProfileActionRow
+                        icon="chatbubbles-outline"
+                        text={t('messages.title')}
+                        onPress={() => navigation.navigate('Messages')}
+                    />
+                    <ProfileActionRow
+                        icon="card-outline"
+                        text={t('billing.title')}
+                        onPress={() => navigation.navigate('Billing')}
+                    />
+                    <ProfileActionRow
                         icon="help-circle-outline"
                         text={t('profile.helpSupport')}
                         onPress={() => navigation.navigate('HelpSupport')}

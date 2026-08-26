@@ -16,12 +16,20 @@ export class PostSnapshotAndRejectionField1784335300000 implements MigrationInte
   name = 'PostSnapshotAndRejectionField1784335300000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "post" ADD COLUMN IF NOT EXISTS "previous_snapshot" jsonb`);
-    await queryRunner.query(`ALTER TABLE "post" ADD COLUMN IF NOT EXISTS "rejection_field" character varying`);
+    await queryRunner.query(
+      `ALTER TABLE "post" ADD COLUMN IF NOT EXISTS "previous_snapshot" jsonb`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "post" ADD COLUMN IF NOT EXISTS "rejection_field" character varying`,
+    );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "post" DROP COLUMN IF EXISTS "rejection_field"`);
-    await queryRunner.query(`ALTER TABLE "post" DROP COLUMN IF EXISTS "previous_snapshot"`);
+    await queryRunner.query(
+      `ALTER TABLE "post" DROP COLUMN IF EXISTS "rejection_field"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "post" DROP COLUMN IF EXISTS "previous_snapshot"`,
+    );
   }
 }

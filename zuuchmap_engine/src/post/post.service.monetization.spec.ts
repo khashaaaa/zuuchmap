@@ -26,10 +26,12 @@ const quotaQb = (activeCount: number) => ({
  */
 const withManager = (repo: any) => {
   repo.manager = {
-    transaction: jest.fn(async (cb: any) => cb({
-      query: jest.fn(async () => [{ '?column?': 1 }]),
-      getRepository: jest.fn(() => repo),
-    })),
+    transaction: jest.fn(async (cb: any) =>
+      cb({
+        query: jest.fn(async () => [{ '?column?': 1 }]),
+        getRepository: jest.fn(() => repo),
+      }),
+    ),
   };
   return repo;
 };
@@ -41,13 +43,26 @@ describe('PostService post quota', () => {
       save: jest.fn(async (x: any) => x),
       ...quotaQb(activeCount),
     });
-    const userRepo = { findOne: jest.fn(async () => ({ id: 'owner-1', plan })) };
-    const categoryService = {
-      getCategory: jest.fn().mockResolvedValue({ active: true, subcategories: [], post_expiry_days: null }),
+    const userRepo = {
+      findOne: jest.fn(async () => ({ id: 'owner-1', plan })),
     };
-    const notifications = { notifyAdmins: jest.fn().mockResolvedValue(undefined) };
+    const categoryService = {
+      getCategory: jest.fn().mockResolvedValue({
+        active: true,
+        subcategories: [],
+        post_expiry_days: null,
+      }),
+    };
+    const notifications = {
+      notifyAdmins: jest.fn().mockResolvedValue(undefined),
+    };
     const svc = new PostService(
-      postRepo as any, userRepo as any, {} as any, categoryService as any, notifications as any, undefined as any,
+      postRepo,
+      userRepo as any,
+      {} as any,
+      categoryService as any,
+      notifications as any,
+      undefined as any,
     );
     return { svc, postRepo };
   };
@@ -62,7 +77,9 @@ describe('PostService post quota', () => {
 
   it('rejects a FREE provider’s fourth post', async () => {
     const { svc } = makeService('FREE', 3);
-    await expect(svc.create(dto, [], 'owner-1')).rejects.toThrow('POST_QUOTA_EXCEEDED');
+    await expect(svc.create(dto, [], 'owner-1')).rejects.toThrow(
+      'POST_QUOTA_EXCEEDED',
+    );
   });
 
   it('allows a PROVIDER past the FREE ceiling', async () => {
@@ -72,7 +89,9 @@ describe('PostService post quota', () => {
 
   it('rejects a PROVIDER at 25', async () => {
     const { svc } = makeService('PROVIDER', 25);
-    await expect(svc.create(dto, [], 'owner-1')).rejects.toThrow('POST_QUOTA_EXCEEDED');
+    await expect(svc.create(dto, [], 'owner-1')).rejects.toThrow(
+      'POST_QUOTA_EXCEEDED',
+    );
   });
 
   // The sweep cron only runs at midnight, so between expiry and the sweep a post
@@ -82,8 +101,12 @@ describe('PostService post quota', () => {
     const { svc, postRepo } = makeService('FREE', 0);
     await svc.create(dto, [], 'owner-1');
     const qb = (postRepo.createQueryBuilder as jest.Mock).mock.results[0].value;
-    const clauses = (qb.andWhere as jest.Mock).mock.calls.map((c: any[]) => c[0]);
-    expect(clauses).toContain('(post.expires_at IS NULL OR post.expires_at > NOW())');
+    const clauses = (qb.andWhere as jest.Mock).mock.calls.map(
+      (c: any[]) => c[0],
+    );
+    expect(clauses).toContain(
+      '(post.expires_at IS NULL OR post.expires_at > NOW())',
+    );
   });
 
   // The pre-flight check cannot see a second create that has counted but not
@@ -99,7 +122,8 @@ describe('PostService post quota', () => {
 
     // The row lock, and the insert, both happened against the transaction's
     // manager rather than the ambient repository.
-    const inner = await (postRepo.manager.transaction as jest.Mock).mock.results[0].value;
+    const inner = await (postRepo.manager.transaction as jest.Mock).mock
+      .results[0].value;
     expect(inner).toBeDefined();
   });
 
@@ -119,15 +143,27 @@ describe('PostService post quota', () => {
         return qb;
       }),
     });
-    const userRepo = { findOne: jest.fn(async () => ({ id: 'owner-1', plan: 'FREE' })) };
+    const userRepo = {
+      findOne: jest.fn(async () => ({ id: 'owner-1', plan: 'FREE' })),
+    };
     const categoryService = {
-      getCategory: jest.fn().mockResolvedValue({ active: true, subcategories: [], post_expiry_days: null }),
+      getCategory: jest.fn().mockResolvedValue({
+        active: true,
+        subcategories: [],
+        post_expiry_days: null,
+      }),
     };
     const svc = new PostService(
-      postRepo as any, userRepo as any, {} as any, categoryService as any,
-      { notifyAdmins: jest.fn().mockResolvedValue(undefined) } as any, undefined as any,
+      postRepo,
+      userRepo as any,
+      {} as any,
+      categoryService as any,
+      { notifyAdmins: jest.fn().mockResolvedValue(undefined) } as any,
+      undefined as any,
     );
-    await expect(svc.create(dto, [], 'owner-1')).rejects.toThrow('POST_QUOTA_EXCEEDED');
+    await expect(svc.create(dto, [], 'owner-1')).rejects.toThrow(
+      'POST_QUOTA_EXCEEDED',
+    );
     expect(postRepo.save).not.toHaveBeenCalled();
   });
 
@@ -139,15 +175,31 @@ describe('PostService post quota', () => {
       ...quotaQb(3),
     });
     const past = new Date(Date.now() - 86_400_000);
-    const userRepo = { findOne: jest.fn(async () => ({ id: 'owner-1', plan: 'PROVIDER', plan_expires_at: past })) };
+    const userRepo = {
+      findOne: jest.fn(async () => ({
+        id: 'owner-1',
+        plan: 'PROVIDER',
+        plan_expires_at: past,
+      })),
+    };
     const categoryService = {
-      getCategory: jest.fn().mockResolvedValue({ active: true, subcategories: [], post_expiry_days: null }),
+      getCategory: jest.fn().mockResolvedValue({
+        active: true,
+        subcategories: [],
+        post_expiry_days: null,
+      }),
     };
     const svc = new PostService(
-      postRepo as any, userRepo as any, {} as any, categoryService as any,
-      { notifyAdmins: jest.fn().mockResolvedValue(undefined) } as any, undefined as any,
+      postRepo,
+      userRepo as any,
+      {} as any,
+      categoryService as any,
+      { notifyAdmins: jest.fn().mockResolvedValue(undefined) } as any,
+      undefined as any,
     );
-    await expect(svc.create(dto, [], 'owner-1')).rejects.toThrow('POST_QUOTA_EXCEEDED');
+    await expect(svc.create(dto, [], 'owner-1')).rejects.toThrow(
+      'POST_QUOTA_EXCEEDED',
+    );
   });
 });
 
@@ -158,20 +210,29 @@ describe('PostService plan-based expiry', () => {
       save: jest.fn(async (x: any) => x),
       ...quotaQb(0),
     });
-    const userRepo = { findOne: jest.fn(async () => ({ id: 'owner-1', plan })) };
+    const userRepo = {
+      findOne: jest.fn(async () => ({ id: 'owner-1', plan })),
+    };
     const categoryService = {
       getCategory: jest.fn().mockResolvedValue({
-        active: true, subcategories: [], post_expiry_days: categoryExpiryDays,
+        active: true,
+        subcategories: [],
+        post_expiry_days: categoryExpiryDays,
       }),
     };
     const svc = new PostService(
-      postRepo as any, userRepo as any, {} as any, categoryService as any,
-      { notifyAdmins: jest.fn().mockResolvedValue(undefined) } as any, undefined as any,
+      postRepo,
+      userRepo as any,
+      {} as any,
+      categoryService as any,
+      { notifyAdmins: jest.fn().mockResolvedValue(undefined) } as any,
+      undefined as any,
     );
     return { svc };
   };
   const dto: any = { category: 'sos', title: 't', details: 'd' };
-  const days = (date: Date) => Math.round((date.getTime() - Date.now()) / 86_400_000);
+  const days = (date: Date) =>
+    Math.round((date.getTime() - Date.now()) / 86_400_000);
 
   beforeEach(() => sharedCache.invalidatePrefix(''));
 
@@ -209,9 +270,18 @@ describe('PostService featured ordering', () => {
     const qb: any = {
       calls,
       leftJoinAndSelect: () => qb,
-      addSelect: (...a: any[]) => { calls.push(['addSelect', ...a]); return qb; },
-      orderBy: (...a: any[]) => { calls.push(['orderBy', ...a]); return qb; },
-      addOrderBy: (...a: any[]) => { calls.push(['addOrderBy', ...a]); return qb; },
+      addSelect: (...a: any[]) => {
+        calls.push(['addSelect', ...a]);
+        return qb;
+      },
+      orderBy: (...a: any[]) => {
+        calls.push(['orderBy', ...a]);
+        return qb;
+      },
+      addOrderBy: (...a: any[]) => {
+        calls.push(['addOrderBy', ...a]);
+        return qb;
+      },
       andWhere: () => qb,
       skip: () => qb,
       take: () => qb,
@@ -220,10 +290,15 @@ describe('PostService featured ordering', () => {
     };
     return qb;
   };
-  const makeService = (qb: any) => new PostService(
-    { createQueryBuilder: () => qb } as any, {} as any, {} as any,
-    { getCategory: jest.fn() } as any, { notifyAdmins: jest.fn().mockResolvedValue(undefined) } as any, undefined as any,
-  );
+  const makeService = (qb: any) =>
+    new PostService(
+      { createQueryBuilder: () => qb } as any,
+      {} as any,
+      {} as any,
+      { getCategory: jest.fn() } as any,
+      { notifyAdmins: jest.fn().mockResolvedValue(undefined) } as any,
+      undefined as any,
+    );
 
   beforeEach(() => sharedCache.invalidatePrefix(''));
 
@@ -231,7 +306,11 @@ describe('PostService featured ordering', () => {
     const qb = makeQb();
     await makeService(qb).findAll({ approval_status: 'APPROVED' });
     expect(qb.calls).toContainEqual(['orderBy', 'post.is_featured', 'DESC']);
-    expect(qb.calls).toContainEqual(['addOrderBy', 'post.date_created', 'DESC']);
+    expect(qb.calls).toContainEqual([
+      'addOrderBy',
+      'post.date_created',
+      'DESC',
+    ]);
   });
 
   // The ordering has to stay on a stored column. Ordering by the predicate
@@ -240,7 +319,9 @@ describe('PostService featured ordering', () => {
   it('never sorts on a NOW()-dependent expression', async () => {
     const qb = makeQb();
     await makeService(qb).findAll({ approval_status: 'APPROVED' });
-    const sortCalls = JSON.stringify(qb.calls.filter((c: any[]) => /order|Select/i.test(c[0])));
+    const sortCalls = JSON.stringify(
+      qb.calls.filter((c: any[]) => /order|Select/i.test(c[0])),
+    );
     expect(sortCalls).not.toContain('NOW()');
     expect(sortCalls).not.toContain('featured_rank');
   });
@@ -249,7 +330,10 @@ describe('PostService featured ordering', () => {
   // not silently reorder it, or "cheapest first" stops being true.
   it('does not apply featured ranking to an explicit price sort', async () => {
     const qb = makeQb();
-    await makeService(qb).findAll({ approval_status: 'APPROVED', sort: 'price_asc' });
+    await makeService(qb).findAll({
+      approval_status: 'APPROVED',
+      sort: 'price_asc',
+    });
     expect(JSON.stringify(qb.calls)).not.toContain('is_featured');
   });
 });
@@ -258,37 +342,65 @@ describe('addMonths', () => {
   // Bare setMonth() rolls a day the target month lacks into the next one,
   // which silently hands the buyer extra days.
   it('clamps to the last day of a shorter month', () => {
-    expect(addMonths(new Date(2026, 0, 31), 1).toDateString()).toBe(new Date(2026, 1, 28).toDateString());
-    expect(addMonths(new Date(2024, 0, 31), 1).toDateString()).toBe(new Date(2024, 1, 29).toDateString());
-    expect(addMonths(new Date(2026, 2, 31), 1).toDateString()).toBe(new Date(2026, 3, 30).toDateString());
+    expect(addMonths(new Date(2026, 0, 31), 1).toDateString()).toBe(
+      new Date(2026, 1, 28).toDateString(),
+    );
+    expect(addMonths(new Date(2024, 0, 31), 1).toDateString()).toBe(
+      new Date(2024, 1, 29).toDateString(),
+    );
+    expect(addMonths(new Date(2026, 2, 31), 1).toDateString()).toBe(
+      new Date(2026, 3, 30).toDateString(),
+    );
   });
 
   it('leaves a day every target month has alone', () => {
-    expect(addMonths(new Date(2026, 0, 15), 3).toDateString()).toBe(new Date(2026, 3, 15).toDateString());
-    expect(addMonths(new Date(2026, 11, 15), 1).toDateString()).toBe(new Date(2027, 0, 15).toDateString());
+    expect(addMonths(new Date(2026, 0, 15), 3).toDateString()).toBe(
+      new Date(2026, 3, 15).toDateString(),
+    );
+    expect(addMonths(new Date(2026, 11, 15), 1).toDateString()).toBe(
+      new Date(2027, 0, 15).toDateString(),
+    );
   });
 });
 
 describe('PostService.relistIfLapsed', () => {
-  const makeService = (post: any, plan = 'FREE', categoryExpiryDays: number | null = null) => {
+  const makeService = (
+    post: any,
+    plan = 'FREE',
+    categoryExpiryDays: number | null = null,
+  ) => {
     const postRepo = { createQueryBuilder: jest.fn() };
-    const userRepo = { findOne: jest.fn(async () => ({ id: 'owner-1', plan })) };
+    const userRepo = {
+      findOne: jest.fn(async () => ({ id: 'owner-1', plan })),
+    };
     const categoryService = {
       getCategory: jest.fn().mockResolvedValue({
-        active: true, subcategories: [], post_expiry_days: categoryExpiryDays,
+        active: true,
+        subcategories: [],
+        post_expiry_days: categoryExpiryDays,
       }),
     };
     const svc = new PostService(
-      postRepo as any, userRepo as any, {} as any, categoryService as any,
-      { notifyAdmins: jest.fn().mockResolvedValue(undefined) } as any, undefined as any,
+      postRepo as any,
+      userRepo as any,
+      {} as any,
+      categoryService as any,
+      { notifyAdmins: jest.fn().mockResolvedValue(undefined) } as any,
+      undefined as any,
     );
     return { svc, post };
   };
-  const daysFromNow = (d: Date) => Math.round((d.getTime() - Date.now()) / 86_400_000);
+  const daysFromNow = (d: Date) =>
+    Math.round((d.getTime() - Date.now()) / 86_400_000);
 
   it('leaves a post whose window is still open alone', async () => {
     const future = new Date(Date.now() + 5 * 86_400_000);
-    const { svc, post } = makeService({ id: 1, category: 'sos', expires_at: future, user: { id: 'owner-1' } });
+    const { svc, post } = makeService({
+      id: 1,
+      category: 'sos',
+      expires_at: future,
+      user: { id: 'owner-1' },
+    });
     await expect(svc.relistIfLapsed(post)).resolves.toBe(false);
     expect(post.expires_at).toBe(future);
   });
@@ -297,7 +409,10 @@ describe('PostService.relistIfLapsed', () => {
   // never return: the provider saw "approved" and the post stayed invisible.
   it('reopens the window on a lapsed post using the category default', async () => {
     const { svc, post } = makeService({
-      id: 1, category: 'sos', expires_at: new Date(Date.now() - 86_400_000), user: { id: 'owner-1' },
+      id: 1,
+      category: 'sos',
+      expires_at: new Date(Date.now() - 86_400_000),
+      user: { id: 'owner-1' },
     });
     await expect(svc.relistIfLapsed(post)).resolves.toBe(true);
     expect(daysFromNow(post.expires_at)).toBe(30);
@@ -305,7 +420,12 @@ describe('PostService.relistIfLapsed', () => {
 
   it('gives a paid plan its longer window on relist', async () => {
     const { svc, post } = makeService(
-      { id: 1, category: 'sos', expires_at: new Date(Date.now() - 86_400_000), user: { id: 'owner-1' } },
+      {
+        id: 1,
+        category: 'sos',
+        expires_at: new Date(Date.now() - 86_400_000),
+        user: { id: 'owner-1' },
+      },
       'PROVIDER',
     );
     await svc.relistIfLapsed(post);
@@ -314,8 +434,14 @@ describe('PostService.relistIfLapsed', () => {
 
   it('respects a category that has chosen a shorter window', async () => {
     const { svc, post } = makeService(
-      { id: 1, category: 'sos', expires_at: new Date(Date.now() - 86_400_000), user: { id: 'owner-1' } },
-      'PROVIDER', 7,
+      {
+        id: 1,
+        category: 'sos',
+        expires_at: new Date(Date.now() - 86_400_000),
+        user: { id: 'owner-1' },
+      },
+      'PROVIDER',
+      7,
     );
     await svc.relistIfLapsed(post);
     expect(daysFromNow(post.expires_at)).toBe(7);
@@ -324,8 +450,11 @@ describe('PostService.relistIfLapsed', () => {
   // A fresh window is useless while the sweep's EXPIRED stamp still filters it.
   it('clears an EXPIRED status alongside the new window', async () => {
     const { svc, post } = makeService({
-      id: 1, category: 'sos', status: 'EXPIRED',
-      expires_at: new Date(Date.now() - 86_400_000), user: { id: 'owner-1' },
+      id: 1,
+      category: 'sos',
+      status: 'EXPIRED',
+      expires_at: new Date(Date.now() - 86_400_000),
+      user: { id: 'owner-1' },
     });
     await svc.relistIfLapsed(post);
     expect(post.status).toBe('ACTIVE');
@@ -338,7 +467,8 @@ describe('PostService.providerStats — plan block', () => {
       manager: { query: jest.fn(async () => []) },
       createQueryBuilder: jest.fn(() => {
         const qb: any = {
-          where: jest.fn(() => qb), andWhere: jest.fn(() => qb),
+          where: jest.fn(() => qb),
+          andWhere: jest.fn(() => qb),
           getCount: jest.fn(async () => activeCount),
         };
         return qb;
@@ -346,22 +476,39 @@ describe('PostService.providerStats — plan block', () => {
     };
     const userRepo = { findOne: jest.fn(async () => owner) };
     return new PostService(
-      postRepo as any, userRepo as any, {} as any, {} as any,
-      { notifyAdmins: jest.fn() } as any, undefined as any,
+      postRepo as any,
+      userRepo as any,
+      {} as any,
+      {} as any,
+      { notifyAdmins: jest.fn() } as any,
+      undefined as any,
     );
   };
 
   it('reports the FREE ceiling and the live post count', async () => {
     const svc = makeService({ id: 'owner-1', plan: 'FREE' }, 2);
     const { plan } = await svc.providerStats('owner-1');
-    expect(plan).toEqual({ name: 'FREE', expires_at: null, post_limit: 3, posts_active: 2 });
+    expect(plan).toEqual({
+      name: 'FREE',
+      expires_at: null,
+      post_limit: 3,
+      posts_active: 2,
+    });
   });
 
   it('reports the paid ceiling and the expiry date', async () => {
     const expires = new Date(Date.now() + 30 * 86_400_000);
-    const svc = makeService({ id: 'owner-1', plan: 'PROVIDER', plan_expires_at: expires }, 7);
+    const svc = makeService(
+      { id: 'owner-1', plan: 'PROVIDER', plan_expires_at: expires },
+      7,
+    );
     const { plan } = await svc.providerStats('owner-1');
-    expect(plan).toEqual({ name: 'PROVIDER', expires_at: expires, post_limit: 25, posts_active: 7 });
+    expect(plan).toEqual({
+      name: 'PROVIDER',
+      expires_at: expires,
+      post_limit: 25,
+      posts_active: 7,
+    });
   });
 
   // Entitlement is derived on read, so a lapsed plan must read as FREE here too
@@ -369,18 +516,33 @@ describe('PostService.providerStats — plan block', () => {
   // the plan were still running.
   it('reports a lapsed plan as FREE with no expiry', async () => {
     const svc = makeService(
-      { id: 'owner-1', plan: 'PROVIDER', plan_expires_at: new Date(Date.now() - 86_400_000) }, 7,
+      {
+        id: 'owner-1',
+        plan: 'PROVIDER',
+        plan_expires_at: new Date(Date.now() - 86_400_000),
+      },
+      7,
     );
     const { plan } = await svc.providerStats('owner-1');
-    expect(plan).toEqual({ name: 'FREE', expires_at: null, post_limit: 3, posts_active: 7 });
+    expect(plan).toEqual({
+      name: 'FREE',
+      expires_at: null,
+      post_limit: 3,
+      posts_active: 7,
+    });
   });
 
   // The number shown must be the number the create path measures against.
   it('counts quota through the same predicate as the create path', async () => {
     const svc = makeService({ id: 'owner-1', plan: 'FREE' }, 1);
     await svc.providerStats('owner-1');
-    const qb = ((svc as any).postRepository.createQueryBuilder as jest.Mock).mock.results[0].value;
-    const clauses = (qb.andWhere as jest.Mock).mock.calls.map((c: any[]) => c[0]);
-    expect(clauses).toContain('(post.expires_at IS NULL OR post.expires_at > NOW())');
+    const qb = ((svc as any).postRepository.createQueryBuilder as jest.Mock)
+      .mock.results[0].value;
+    const clauses = (qb.andWhere as jest.Mock).mock.calls.map(
+      (c: any[]) => c[0],
+    );
+    expect(clauses).toContain(
+      '(post.expires_at IS NULL OR post.expires_at > NOW())',
+    );
   });
 });

@@ -25,9 +25,15 @@ export class VerificationAndAnalytics1784333200000 implements MigrationInterface
         CONSTRAINT "PK_verification_session_id" PRIMARY KEY ("id")
       )
     `);
-    await queryRunner.query(`CREATE INDEX "IDX_verification_session_provider" ON "verification_session" ("provider_session_id")`);
-    await queryRunner.query(`CREATE INDEX "IDX_verification_session_phone" ON "verification_session" ("phone_number")`);
-    await queryRunner.query(`CREATE INDEX "IDX_verification_session_phone_status" ON "verification_session" ("phone_number", "status")`);
+    await queryRunner.query(
+      `CREATE INDEX "IDX_verification_session_provider" ON "verification_session" ("provider_session_id")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_verification_session_phone" ON "verification_session" ("phone_number")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_verification_session_phone_status" ON "verification_session" ("phone_number", "status")`,
+    );
 
     await queryRunner.query(`
       CREATE TABLE "trusted_device" (
@@ -42,8 +48,12 @@ export class VerificationAndAnalytics1784333200000 implements MigrationInterface
         CONSTRAINT "FK_trusted_device_user" FOREIGN KEY ("userId") REFERENCES "user"("id") ON DELETE CASCADE
       )
     `);
-    await queryRunner.query(`CREATE INDEX "IDX_trusted_device_user" ON "trusted_device" ("userId")`);
-    await queryRunner.query(`CREATE INDEX "IDX_trusted_device_hash" ON "trusted_device" ("device_hash")`);
+    await queryRunner.query(
+      `CREATE INDEX "IDX_trusted_device_user" ON "trusted_device" ("userId")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_trusted_device_hash" ON "trusted_device" ("device_hash")`,
+    );
 
     await queryRunner.query(`
       CREATE TABLE "analytics_event" (
@@ -60,10 +70,18 @@ export class VerificationAndAnalytics1784333200000 implements MigrationInterface
         CONSTRAINT "FK_analytics_event_user" FOREIGN KEY ("userId") REFERENCES "user"("id") ON DELETE SET NULL
       )
     `);
-    await queryRunner.query(`CREATE INDEX "IDX_analytics_event_occurred" ON "analytics_event" ("occurred_at")`);
-    await queryRunner.query(`CREATE INDEX "IDX_analytics_event_name_occurred" ON "analytics_event" ("name", "occurred_at")`);
-    await queryRunner.query(`CREATE INDEX "IDX_analytics_event_anon" ON "analytics_event" ("anon_id")`);
-    await queryRunner.query(`CREATE INDEX "IDX_analytics_event_user" ON "analytics_event" ("userId")`);
+    await queryRunner.query(
+      `CREATE INDEX "IDX_analytics_event_occurred" ON "analytics_event" ("occurred_at")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_analytics_event_name_occurred" ON "analytics_event" ("name", "occurred_at")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_analytics_event_anon" ON "analytics_event" ("anon_id")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_analytics_event_user" ON "analytics_event" ("userId")`,
+    );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

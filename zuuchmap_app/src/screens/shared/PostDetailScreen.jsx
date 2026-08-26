@@ -46,7 +46,9 @@ import {
     DetailItem, ContactRow, MetaRow, SectionCard, CollapsibleSectionCard, TagList,
 } from '../../components/PostDetailSections';
 import { usePostModeration } from '../../hooks/usePostModeration';
-import { showErrorModal, showInfoModal } from '../../utils/errorManager';
+import { showErrorModal, showInfoModal, showWarningModal, getErrorMessage } from '../../utils/errorManager';
+import messageService from '../../services/api/messageService';
+import reportService, { REPORT_REASONS } from '../../services/api/reportService';
 
 
 // i18n key map for known attribute keys
@@ -235,6 +237,11 @@ const PostDetailScreen = ({ route, navigation }) => {
     const isBookable = post?.status === 'ACTIVE'
         && (!post?.expires_at || new Date(post.expires_at) > new Date());
     const bookingOpen = canBook && isBookable;
+    // Messaging and reporting apply to every listing, not just rentable ones:
+    // "is this still available" is the question customers actually have, and it
+    // used to be answerable only by phone — leaving no record of what was agreed.
+    const canContact = Boolean(currentUserId) && !isAdmin
+        && Boolean(post?.user) && post?.user?.id !== currentUserId;
 
     const viewIncrementRef = useRef(false);
 
@@ -286,6 +293,44 @@ const PostDetailScreen = ({ route, navigation }) => {
                 },
             ],
             'warning'
+        );
+    };
+
+    const handleMessage = async () => {
+        try {
+            const thread = await messageService.open(post.id);
+            navigation.navigate('MessageThread', {
+                id: thread.id,
+                title: thread.other_party?.given_name,
+            });
+        } catch (error) {
+            showErrorModal(t('common.error'), getErrorMessage(error) || t('messages.failed'));
+        }
+    };
+
+    const handleReport = () => {
+        // A closed reason list, translated client-side. Free text alone cannot
+        // be triaged, and the admin queue is filtered by kind.
+        showWarningModal(
+            t('report.title'),
+            t('report.lead'),
+            [
+                ...REPORT_REASONS.map((reason) => ({
+                    text: t(`report.reasons.${reason}`),
+                    onPress: async () => {
+                        try {
+                            const result = await reportService.create(post.id, reason);
+                            showInfoModal(
+                                t('report.title'),
+                                result?.duplicate ? t('report.duplicate') : t('report.submitted')
+                            );
+                        } catch (error) {
+                            showErrorModal(t('common.error'), getErrorMessage(error) || t('report.failed'));
+                        }
+                    },
+                })),
+                { text: t('common.cancel'), style: 'cancel' },
+            ]
         );
     };
 
@@ -916,6 +961,24 @@ const PostDetailScreen = ({ route, navigation }) => {
                                 icon="call-outline"
                                 onPress={handleCall}
                                 label={t('posts.call')}
+                                colors={colors}
+                                styles={styles}
+                            />
+                        )}
+                        {canContact && (
+                            <IconAction
+                                icon="chatbubble-outline"
+                                onPress={handleMessage}
+                                label={t('messages.messageProvider')}
+                                colors={colors}
+                                styles={styles}
+                            />
+                        )}
+                        {canContact && (
+                            <IconAction
+                                icon="flag-outline"
+                                onPress={handleReport}
+                                label={t('report.action')}
                                 colors={colors}
                                 styles={styles}
                             />

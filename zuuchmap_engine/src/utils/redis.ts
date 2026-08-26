@@ -17,6 +17,32 @@ export function redisEnabled(): boolean {
   return !!(process.env.REDIS_URL || process.env.REDIS_HOST);
 }
 
+/**
+ * Every client this module hands out, kept so the readiness probe can report
+ * on them. The alternative — opening a fresh connection per probe — would make
+ * the health check the noisiest Redis client in the process.
+ */
+const clients = new Map<string, Redis>();
+
+/**
+ * Aggregate Redis health for `/engine/health/ready`.
+ *
+ * "Not configured" is healthy: Redis is optional and its absence just means
+ * single-instance mode (see CLAUDE.md known issues). Only a client that was
+ * asked for and is not `ready` is a degradation — and ioredis reconnects on
+ * its own, so this reports the live status rather than a latched failure.
+ */
+export function redisStatus(): { ok: boolean; detail?: string } {
+  if (!redisEnabled()) return { ok: true, detail: 'not configured' };
+  if (clients.size === 0) return { ok: false, detail: 'no client created' };
+  const down = [...clients.entries()].filter(([, c]) => c.status !== 'ready');
+  if (down.length === 0) return { ok: true };
+  return {
+    ok: false,
+    detail: down.map(([role, c]) => `${role}:${c.status}`).join(', '),
+  };
+}
+
 function baseOptions(): RedisOptions {
   return {
     // Fail FAST, not open-ended: when Redis is unreachable a command rejects
@@ -48,6 +74,7 @@ export function createRedis(role: string): Redis {
         ...opts,
       });
 
+  clients.set(role, client);
   client.on('error', (err) => logger.warn(`[${role}] ${err?.message}`));
   client.on('connect', () => logger.log(`[${role}] connected`));
   client.on('reconnecting', () => logger.warn(`[${role}] reconnecting`));

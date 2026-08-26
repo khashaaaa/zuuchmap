@@ -39,11 +39,15 @@ export class SavedSearchAndReviewPrompt1784335200000 implements MigrationInterfa
       `CREATE INDEX "IDX_saved_search_user_id" ON "saved_search" ("user_id")`,
     );
 
-    await queryRunner.query(`ALTER TABLE "booking" ADD "review_prompted_at" TIMESTAMP`);
+    await queryRunner.query(
+      `ALTER TABLE "booking" ADD "review_prompted_at" TIMESTAMP`,
+    );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "booking" DROP COLUMN "review_prompted_at"`);
+    await queryRunner.query(
+      `ALTER TABLE "booking" DROP COLUMN "review_prompted_at"`,
+    );
     await queryRunner.query(`DROP TABLE "saved_search"`);
   }
 }

@@ -8,14 +8,15 @@ import { sharedCache } from '../utils/cache';
  */
 const withManager = (repo: any) => {
   repo.manager = {
-    transaction: jest.fn(async (cb: any) => cb({
-      query: jest.fn(async () => [{ '?column?': 1 }]),
-      getRepository: jest.fn(() => repo),
-    })),
+    transaction: jest.fn(async (cb: any) =>
+      cb({
+        query: jest.fn(async () => [{ '?column?': 1 }]),
+        getRepository: jest.fn(() => repo),
+      }),
+    ),
   };
   return repo;
 };
-
 
 describe('PostService.create expiry from category schema', () => {
   const makeService = (schema: Record<string, unknown>) => {
@@ -23,15 +24,27 @@ describe('PostService.create expiry from category schema', () => {
       create: jest.fn((x: any) => x),
       save: jest.fn(async (x: any) => x),
     });
-    const categoryService = { getCategory: jest.fn().mockResolvedValue({ active: true, subcategories: [], ...schema }) };
-    const notifications = { notifyAdmins: jest.fn().mockResolvedValue(undefined) };
+    const categoryService = {
+      getCategory: jest
+        .fn()
+        .mockResolvedValue({ active: true, subcategories: [], ...schema }),
+    };
+    const notifications = {
+      notifyAdmins: jest.fn().mockResolvedValue(undefined),
+    };
     const svc = new PostService(
-      postRepo as any, {} as any, {} as any, categoryService as any, notifications as any, undefined as any,
+      postRepo,
+      {} as any,
+      {} as any,
+      categoryService as any,
+      notifications as any,
+      undefined as any,
     );
     return { svc, postRepo };
   };
   const dto: any = { category: 'sos', title: 't', details: 'd' };
-  const days = (date: Date) => Math.round((date.getTime() - Date.now()) / 86_400_000);
+  const days = (date: Date) =>
+    Math.round((date.getTime() - Date.now()) / 86_400_000);
 
   beforeEach(() => sharedCache.invalidatePrefix(''));
 
@@ -52,22 +65,50 @@ describe('PostService.create expiry from category schema', () => {
   // let any signed-in user plant a post on another account.
   it('binds the owner from the ownerId argument, ignoring any body user field', async () => {
     const quotaQb = () => {
-      const qb: any = { where: jest.fn(() => qb), andWhere: jest.fn(() => qb), getCount: jest.fn(async () => 0) };
+      const qb: any = {
+        where: jest.fn(() => qb),
+        andWhere: jest.fn(() => qb),
+        getCount: jest.fn(async () => 0),
+      };
       return qb;
     };
-    const postRepo = withManager({ create: jest.fn((x: any) => x), save: jest.fn(async (x: any) => x), createQueryBuilder: jest.fn(quotaQb) });
+    const postRepo = withManager({
+      create: jest.fn((x: any) => x),
+      save: jest.fn(async (x: any) => x),
+      createQueryBuilder: jest.fn(quotaQb),
+    });
     const owner = { id: 'caller-uuid' };
     const userRepo = { findOne: jest.fn().mockResolvedValue(owner) };
-    const categoryService = { getCategory: jest.fn().mockResolvedValue({ active: true, subcategories: [], post_expiry_days: 30 }) };
-    const notifications = { notifyAdmins: jest.fn().mockResolvedValue(undefined) };
+    const categoryService = {
+      getCategory: jest.fn().mockResolvedValue({
+        active: true,
+        subcategories: [],
+        post_expiry_days: 30,
+      }),
+    };
+    const notifications = {
+      notifyAdmins: jest.fn().mockResolvedValue(undefined),
+    };
     const svc = new PostService(
-      postRepo as any, userRepo as any, {} as any, categoryService as any, notifications as any, undefined as any,
+      postRepo,
+      userRepo as any,
+      {} as any,
+      categoryService as any,
+      notifications as any,
+      undefined as any,
     );
 
-    const spoofed: any = { category: 'sos', title: 't', details: 'd', user: 'victim-uuid' };
+    const spoofed: any = {
+      category: 'sos',
+      title: 't',
+      details: 'd',
+      user: 'victim-uuid',
+    };
     const saved = await svc.create(spoofed, [], owner.id);
 
-    expect(userRepo.findOne).toHaveBeenCalledWith({ where: { id: 'caller-uuid' } });
+    expect(userRepo.findOne).toHaveBeenCalledWith({
+      where: { id: 'caller-uuid' },
+    });
     expect(saved.user).toBe(owner);
   });
 });
@@ -93,7 +134,12 @@ describe('PostService.findAll sorting and price range', () => {
     };
     const postRepo = { createQueryBuilder: jest.fn(() => qb) };
     service = new PostService(
-      postRepo as any, {} as any, {} as any, {} as any, {} as any, undefined as any,
+      postRepo as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      undefined as any,
     );
   });
 
@@ -107,13 +153,21 @@ describe('PostService.findAll sorting and price range', () => {
 
   it('sorts by price ascending with nulls last, newest as tiebreaker', async () => {
     await service.findAll({ sort: 'price_asc' });
-    expect(qb.orderBy).toHaveBeenCalledWith('post.price_amount', 'ASC', 'NULLS LAST');
+    expect(qb.orderBy).toHaveBeenCalledWith(
+      'post.price_amount',
+      'ASC',
+      'NULLS LAST',
+    );
     expect(qb.addOrderBy).toHaveBeenCalledWith('post.date_created', 'DESC');
   });
 
   it('sorts by price descending with nulls last', async () => {
     await service.findAll({ sort: 'price_desc' });
-    expect(qb.orderBy).toHaveBeenCalledWith('post.price_amount', 'DESC', 'NULLS LAST');
+    expect(qb.orderBy).toHaveBeenCalledWith(
+      'post.price_amount',
+      'DESC',
+      'NULLS LAST',
+    );
   });
 
   it('sorts by views descending', async () => {
@@ -128,23 +182,34 @@ describe('PostService.findAll sorting and price range', () => {
     await service.findAll({ sort: 'evil; DROP TABLE post' });
     expect(qb.orderBy).toHaveBeenCalledWith('post.is_featured', 'DESC');
     expect(qb.addOrderBy).toHaveBeenCalledWith('post.date_created', 'DESC');
-    expect(qb.orderBy).not.toHaveBeenCalledWith(expect.stringContaining('DROP TABLE'), expect.anything());
+    expect(qb.orderBy).not.toHaveBeenCalledWith(
+      expect.stringContaining('DROP TABLE'),
+      expect.anything(),
+    );
   });
 
   it('applies price_min and price_max as numeric bounds', async () => {
     await service.findAll({ price_min: '50000', price_max: '200000' });
-    expect(qb.andWhere).toHaveBeenCalledWith('post.price_amount >= :priceMin', { priceMin: 50000 });
-    expect(qb.andWhere).toHaveBeenCalledWith('post.price_amount <= :priceMax', { priceMax: 200000 });
+    expect(qb.andWhere).toHaveBeenCalledWith('post.price_amount >= :priceMin', {
+      priceMin: 50000,
+    });
+    expect(qb.andWhere).toHaveBeenCalledWith('post.price_amount <= :priceMax', {
+      priceMax: 200000,
+    });
   });
 
   it('ignores non-numeric price bounds', async () => {
     await service.findAll({ price_min: 'abc' });
-    const priceCalls = qb.andWhere.mock.calls.filter(([sql]: [string]) => sql.includes('price_amount'));
+    const priceCalls = qb.andWhere.mock.calls.filter(([sql]: [string]) =>
+      sql.includes('price_amount'),
+    );
     expect(priceCalls).toHaveLength(0);
   });
 
   it('survives a duplicated q param (array) without throwing', async () => {
-    await expect(service.findAll({ q: ['hello', 'world'] as any })).resolves.toBeDefined();
+    await expect(
+      service.findAll({ q: ['hello', 'world'] as any }),
+    ).resolves.toBeDefined();
     expect(qb.getMany).toHaveBeenCalled();
   });
 
@@ -171,10 +236,17 @@ describe('PostService.findAll sorting and price range', () => {
   it('clamps page and limit in findByUser too', async () => {
     const find = jest.fn().mockResolvedValue([]);
     const svc = new PostService(
-      { find } as any, {} as any, {} as any, {} as any, {} as any, undefined as any,
+      { find } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      undefined as any,
     );
     await svc.findByUser('u1', -1, 99999);
-    expect(find).toHaveBeenCalledWith(expect.objectContaining({ take: 100, skip: 0 }));
+    expect(find).toHaveBeenCalledWith(
+      expect.objectContaining({ take: 100, skip: 0 }),
+    );
   });
 
   it('keeps cache entries distinct per sort and price range', async () => {
@@ -204,7 +276,12 @@ describe('PostService.findAll sorting and price range', () => {
 
 describe('PostService.remove — live booking guard', () => {
   const makeService = (liveBookings: number) => {
-    const post = { id: 1, category: 'vehiclerent', images: [], user: { id: 'owner-1' } };
+    const post = {
+      id: 1,
+      category: 'vehiclerent',
+      images: [],
+      user: { id: 'owner-1' },
+    };
     const query = jest.fn(async () => [{ count: liveBookings }]);
     const postRepo = {
       findOne: jest.fn(async () => post),
@@ -212,8 +289,12 @@ describe('PostService.remove — live booking guard', () => {
       manager: { query },
     };
     const svc = new PostService(
-      postRepo as any, {} as any, {} as any, {} as any,
-      { notifyAdmins: jest.fn() } as any, undefined as any,
+      postRepo as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      { notifyAdmins: jest.fn() } as any,
+      undefined as any,
     );
     return { svc, postRepo };
   };
@@ -236,7 +317,9 @@ describe('PostService.remove — live booking guard', () => {
 
   it('still refuses a post that is not yours before looking at bookings', async () => {
     const { svc, postRepo } = makeService(0);
-    await expect(svc.remove(1, 'someone-else')).rejects.toThrow(/only delete your own/i);
+    await expect(svc.remove(1, 'someone-else')).rejects.toThrow(
+      /only delete your own/i,
+    );
     expect(postRepo.manager.query).not.toHaveBeenCalled();
   });
 });

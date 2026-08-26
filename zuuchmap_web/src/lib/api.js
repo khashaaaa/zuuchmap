@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { toast } from 'sonner'
 import { getToken } from './auth'
+import { getVisitorId } from './visitor'
 import { useAuthStore } from '../store'
 import i18n from '../i18n'
 
@@ -24,6 +25,10 @@ export const client = axios.create({ baseURL: BASE })
 client.interceptors.request.use((cfg) => {
   const token = getToken()
   if (token) cfg.headers.Authorization = `Bearer ${token}`
+  // Lets the server dedupe anonymous views without keying on an IP address that
+  // a whole carrier may share. Harmless on authenticated requests, which key on
+  // the account instead.
+  cfg.headers['X-Visitor-Id'] = getVisitorId()
   return cfg
 })
 
@@ -152,4 +157,45 @@ export const bookingsApi = {
 export const reviewsApi = {
   upsert: (body) => client.post('/reviews', body).then(data),
   forProvider: (providerId) => client.get(`/reviews/provider/${providerId}`).then(data),
+}
+
+// Payments — QPay invoices for a provider plan. `catalogue` is public so the
+// upgrade screen can price itself before anyone signs in.
+export const paymentsApi = {
+  catalogue: () => client.get('/payments/catalogue').then(data),
+  createInvoice: (plan, months = 1) =>
+    client.post('/payments/invoice', { plan, months }).then(data),
+  // Polled while the QR is on screen; scoped server-side to the caller's own
+  // invoices, so an id on its own reveals nothing.
+  check: (id) => client.get(`/payments/${id}/check`).then(data),
+  mine: () => client.get('/payments/mine').then(data),
+}
+
+// Messaging — one thread per (listing, customer).
+export const messagesApi = {
+  list: () => client.get('/conversations').then(data),
+  unreadCount: () => client.get('/conversations/unread-count').then(data),
+  open: (post_id, body) => client.post('/conversations', { post_id, ...(body ? { body } : {}) }).then(data),
+  detail: (id) => client.get(`/conversations/${id}`).then(data),
+  // `before` is a cursor on date_created — an offset would drift under the
+  // thread every time the other side sends something.
+  history: (id, before) => client.get(`/conversations/${id}/messages`, { params: before ? { before } : {} }).then(data),
+  send: (id, body) => client.post(`/conversations/${id}/messages`, { body }).then(data),
+  markRead: (id) => client.put(`/conversations/${id}/read`).then(data),
+}
+
+// Reports — user-filed moderation flags on listings that are already live.
+export const reportsApi = {
+  reasons: () => client.get('/reports/reasons').then(data),
+  create: (post_id, reason, detail) => client.post('/reports', { post_id, reason, ...(detail ? { detail } : {}) }).then(data),
+  list: (params) => client.get('/reports', { params }).then(data),
+  count: () => client.get('/reports/count').then(data),
+  resolve: (id, status, resolution) => client.put(`/reports/${id}`, { status, ...(resolution ? { resolution } : {}) }).then(data),
+}
+
+// Web push — a browser subscription, stored beside the app's Expo devices.
+export const webPushApi = {
+  vapidKey: () => client.get('/user/push/vapid-key').then(data),
+  subscribe: (endpoint, keys) => client.put('/user/push/web', { endpoint, keys }).then(data),
+  unsubscribe: (endpoint) => client.delete('/user/push/web', { data: { endpoint } }).then(data),
 }

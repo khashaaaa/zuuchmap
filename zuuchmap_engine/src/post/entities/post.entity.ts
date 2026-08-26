@@ -1,6 +1,12 @@
 import {
-  Column, CreateDateColumn, Entity, ManyToOne,
-  PrimaryGeneratedColumn, UpdateDateColumn, JoinColumn, Index,
+  Column,
+  CreateDateColumn,
+  Entity,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+  JoinColumn,
+  Index,
 } from 'typeorm';
 import { User } from '../../user/entities/user.entity';
 
@@ -25,7 +31,11 @@ export interface PostSnapshot {
 @Index(['category', 'approval_status'])
 @Index(['approval_status', 'date_created'])
 // Serves the default browse: equality on approval_status, then both sort keys.
-@Index('IDX_post_browse_order', ['approval_status', 'is_featured', 'date_created'])
+@Index('IDX_post_browse_order', [
+  'approval_status',
+  'is_featured',
+  'date_created',
+])
 @Index(['user'])
 export class Post {
   @PrimaryGeneratedColumn()

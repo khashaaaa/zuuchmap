@@ -1,5 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ThrottlerGuard, ThrottlerRequest, ThrottlerException } from '@nestjs/throttler';
+import {
+  ThrottlerGuard,
+  ThrottlerRequest,
+  ThrottlerException,
+} from '@nestjs/throttler';
 import { JwtService } from '@nestjs/jwt';
 import { jwtSecret } from './jwt-secret';
 
@@ -42,7 +46,9 @@ export class AppThrottlerGuard extends ThrottlerGuard {
     return req.ip;
   }
 
-  protected async handleRequest(requestProps: ThrottlerRequest): Promise<boolean> {
+  protected async handleRequest(
+    requestProps: ThrottlerRequest,
+  ): Promise<boolean> {
     try {
       return await super.handleRequest(requestProps);
     } catch (err: any) {
@@ -50,7 +56,9 @@ export class AppThrottlerGuard extends ThrottlerGuard {
       // set .name, so match by type, not by string.)
       if (err instanceof ThrottlerException) throw err;
       // Anything else is a storage/backend failure → fail open.
-      this.logger.warn(`Rate-limit storage error — allowing request (fail open): ${err?.message}`);
+      this.logger.warn(
+        `Rate-limit storage error — allowing request (fail open): ${err?.message}`,
+      );
       return true;
     }
   }

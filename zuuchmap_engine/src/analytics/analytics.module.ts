@@ -10,4 +10,4 @@ import { AnalyticsEvent } from './entities/analytics-event.entity';
   providers: [AnalyticsService],
   exports: [AnalyticsService],
 })
-export class AnalyticsModule { }
+export class AnalyticsModule {}

@@ -1,4 +1,16 @@
-import { Controller, Get, Post, Body, Patch, Param, ForbiddenException, UseInterceptors, UploadedFile, UseGuards, Req } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  ForbiddenException,
+  UseInterceptors,
+  UploadedFile,
+  UseGuards,
+  Req,
+} from '@nestjs/common';
 import { CompanyService } from './company.service';
 import { isAdmin } from '../admin/admin.guard';
 import { publicCompany } from '../utils/public-user';
@@ -7,14 +19,14 @@ import { UpdateCompanyDto } from './dto/update-company.dto';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import {
   createCompanyLogoInterceptor,
-  ImageUploadHandler
+  ImageUploadHandler,
 } from '../utils/uploader';
 
 // No per-route try/catch: the global AllExceptionsFilter normalizes errors
 // and keeps the machine-readable `code` field (e.g. COMPANY_FORBIDDEN) intact.
 @Controller('company')
 export class CompanyController {
-  constructor(private readonly companyService: CompanyService) { }
+  constructor(private readonly companyService: CompanyService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard)
@@ -27,7 +39,10 @@ export class CompanyController {
     createCompanyDto.userId = req.user.id;
 
     if (file) {
-      const compressedLogo = await ImageUploadHandler.handleSingleUpload(file, 'COMPANY_LOGO');
+      const compressedLogo = await ImageUploadHandler.handleSingleUpload(
+        file,
+        'COMPANY_LOGO',
+      );
       if (compressedLogo) createCompanyDto.logo = compressedLogo;
     }
 
@@ -38,7 +53,10 @@ export class CompanyController {
   private assertCanManage(req: any, id: string): void {
     if (isAdmin(req.user?.phone_number)) return;
     if (req.user?.company?.id !== id) {
-      throw new ForbiddenException({ code: 'COMPANY_FORBIDDEN', message: 'You can only manage your own company' });
+      throw new ForbiddenException({
+        code: 'COMPANY_FORBIDDEN',
+        message: 'You can only manage your own company',
+      });
     }
   }
 
@@ -59,12 +77,18 @@ export class CompanyController {
   ) {
     this.assertCanManage(req, id);
     if (file) {
-      const compressedLogo = await ImageUploadHandler.handleSingleUpload(file, 'COMPANY_LOGO');
+      const compressedLogo = await ImageUploadHandler.handleSingleUpload(
+        file,
+        'COMPANY_LOGO',
+      );
       if (compressedLogo) updateCompanyDto.logo = compressedLogo;
     }
 
     // Past assertCanManage, so this is the owner or an admin — the two callers
     // entitled to read back the registration number and tax ID they just saved.
-    return publicCompany(await this.companyService.update(id, updateCompanyDto), { includePrivate: true });
+    return publicCompany(
+      await this.companyService.update(id, updateCompanyDto),
+      { includePrivate: true },
+    );
   }
 }

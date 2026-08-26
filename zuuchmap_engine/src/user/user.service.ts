@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, InternalServerErrorException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
@@ -18,31 +23,40 @@ export class UserService {
     private readonly postRepository: Repository<Post>,
     @InjectRepository(PushDevice)
     private readonly pushDeviceRepository: Repository<PushDevice>,
-  ) { }
+  ) {}
 
   async findByPhoneNumber(phone_number: string): Promise<User | null> {
     try {
       const user = await this.userRepository.findOne({
         where: { phone_number },
-        relations: ['company']
+        relations: ['company'],
       });
 
       return user;
     } catch (error) {
-      this.logger.error(`Failed to find user by phone number ${phone_number}: ${error.message}`);
-      throw new InternalServerErrorException('Failed to retrieve user by phone number: ' + error.message);
+      this.logger.error(
+        `Failed to find user by phone number ${phone_number}: ${error.message}`,
+      );
+      throw new InternalServerErrorException(
+        'Failed to retrieve user by phone number: ' + error.message,
+      );
     }
   }
 
-  async setUserType(phone_number: string, type: string): Promise<{ success: boolean; message: string; user?: User }> {
+  async setUserType(
+    phone_number: string,
+    type: string,
+  ): Promise<{ success: boolean; message: string; user?: User }> {
     try {
       const user = await this.userRepository.findOne({
         where: { phone_number },
-        relations: ['company']
+        relations: ['company'],
       });
 
       if (!user) {
-        throw new NotFoundException(`User with phone number ${phone_number} not found`);
+        throw new NotFoundException(
+          `User with phone number ${phone_number} not found`,
+        );
       }
 
       user.type = type;
@@ -51,15 +65,19 @@ export class UserService {
       return {
         success: true,
         message: `Successfully set user type to ${type}`,
-        user: savedUser
+        user: savedUser,
       };
     } catch (error) {
-      this.logger.error(`Failed to set user type for ${phone_number}: ${error.message}`);
+      this.logger.error(
+        `Failed to set user type for ${phone_number}: ${error.message}`,
+      );
 
       if (error instanceof NotFoundException) {
         throw error;
       }
-      throw new InternalServerErrorException('Failed to set user type: ' + error.message);
+      throw new InternalServerErrorException(
+        'Failed to set user type: ' + error.message,
+      );
     }
   }
 
@@ -74,7 +92,11 @@ export class UserService {
       }),
       this.postRepository.count({ where: { user: { id: userId } } }),
       this.postRepository.count({
-        where: { user: { id: userId }, approval_status: 'APPROVED', status: 'ACTIVE' as any },
+        where: {
+          user: { id: userId },
+          approval_status: 'APPROVED',
+          status: 'ACTIVE' as any,
+        },
       }),
     ]);
     return { totalPosts, activePosts, posts };
@@ -90,7 +112,9 @@ export class UserService {
       });
     } catch (error) {
       this.logger.error(`Failed to retrieve all users: ${error.message}`);
-      throw new InternalServerErrorException('Failed to retrieve users: ' + error.message);
+      throw new InternalServerErrorException(
+        'Failed to retrieve users: ' + error.message,
+      );
     }
   }
 
@@ -110,15 +134,21 @@ export class UserService {
         throw error;
       }
       this.logger.error(`Failed to retrieve user ${id}: ${error.message}`);
-      throw new InternalServerErrorException('Failed to retrieve user: ' + error.message);
+      throw new InternalServerErrorException(
+        'Failed to retrieve user: ' + error.message,
+      );
     }
   }
 
-  async update(id: string, updateUserDto: UpdateUserDto, profilePicture?: string | null): Promise<User> {
+  async update(
+    id: string,
+    updateUserDto: UpdateUserDto,
+    profilePicture?: string | null,
+  ): Promise<User> {
     try {
       const user = await this.userRepository.findOne({
         where: { id },
-        relations: ['company']
+        relations: ['company'],
       });
 
       if (!user) {
@@ -140,7 +170,9 @@ export class UserService {
         throw error;
       }
       this.logger.error(`Failed to update user ${id}: ${error.message}`);
-      throw new InternalServerErrorException('Failed to update user: ' + error.message);
+      throw new InternalServerErrorException(
+        'Failed to update user: ' + error.message,
+      );
     }
   }
 
@@ -149,14 +181,25 @@ export class UserService {
    * a device that previously belonged to another account moves here rather than
    * leaving the old owner able to push to someone else's phone.
    */
-  async savePushToken(userId: string, pushToken: string, platform?: string): Promise<void> {
+  async savePushToken(
+    userId: string,
+    pushToken: string,
+    platform?: string,
+  ): Promise<void> {
     try {
       await this.pushDeviceRepository.upsert(
-        { user: { id: userId } as User, token: pushToken, platform: platform ?? null, last_seen_at: new Date() },
+        {
+          user: { id: userId } as User,
+          token: pushToken,
+          platform: platform ?? null,
+          last_seen_at: new Date(),
+        },
         { conflictPaths: ['token'], skipUpdateIfNoValuesChanged: false },
       );
     } catch (error) {
-      this.logger.error(`Failed to save push token for user ${userId}: ${error.message}`);
+      this.logger.error(
+        `Failed to save push token for user ${userId}: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -172,10 +215,47 @@ export class UserService {
   async removePushToken(userId: string, pushToken?: string): Promise<void> {
     try {
       await this.pushDeviceRepository.delete(
-        pushToken ? { user: { id: userId } as User, token: pushToken } : { user: { id: userId } as User },
+        pushToken
+          ? { user: { id: userId } as User, token: pushToken }
+          : { user: { id: userId } as User },
       );
     } catch (error) {
-      this.logger.error(`Failed to remove push token for user ${userId}: ${error.message}`);
+      this.logger.error(
+        `Failed to remove push token for user ${userId}: ${error.message}`,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Binds a browser to this account for web push.
+   *
+   * Stored in the same table as an Expo device, keyed on the subscription
+   * endpoint — which the Push API already guarantees is unique per browser
+   * install — so the whole notification path stays one query and one fan-out
+   * regardless of which transport a recipient happens to have.
+   */
+  async saveWebPushSubscription(
+    userId: string,
+    endpoint: string,
+    keys: { p256dh: string; auth: string },
+  ): Promise<void> {
+    try {
+      await this.pushDeviceRepository.upsert(
+        {
+          user: { id: userId } as User,
+          token: endpoint,
+          provider: 'WEB',
+          web_subscription: { keys } as Record<string, any>,
+          platform: 'web',
+          last_seen_at: new Date(),
+        },
+        { conflictPaths: ['token'], skipUpdateIfNoValuesChanged: false },
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to save web push subscription for user ${userId}: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -197,9 +277,14 @@ export class UserService {
         .createQueryBuilder()
         .update()
         .set({ expires_at: gracedAt })
-        .where('user_id = :id AND status != :expired AND (expires_at IS NULL OR expires_at > :gracedAt)', {
-          id, expired: 'EXPIRED', gracedAt,
-        })
+        .where(
+          'user_id = :id AND status != :expired AND (expires_at IS NULL OR expires_at > :gracedAt)',
+          {
+            id,
+            expired: 'EXPIRED',
+            gracedAt,
+          },
+        )
         .execute();
 
       await this.userRepository.delete(id);
@@ -208,7 +293,9 @@ export class UserService {
         throw error;
       }
       this.logger.error(`Failed to delete user ${id}: ${error.message}`);
-      throw new InternalServerErrorException('Failed to delete user: ' + error.message);
+      throw new InternalServerErrorException(
+        'Failed to delete user: ' + error.message,
+      );
     }
   }
 }

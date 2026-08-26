@@ -9,6 +9,11 @@ import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
 import { queryClient } from './lib/queryClient'
 import { useThemeStore } from './store'
+import { initObservability } from './lib/observability'
+
+// Before the tree renders, so a crash during the first paint is still reported.
+// No-op without VITE_SENTRY_DSN.
+initObservability()
 
 // A data router (rather than <BrowserRouter>) so useBlocker can guard
 // in-app navigation away from dirty forms. App keeps its own <Routes>.

@@ -1,4 +1,11 @@
-import { IsEmail, IsOptional, IsString, IsUUID, MaxLength, ValidateIf } from 'class-validator';
+import {
+  IsEmail,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  ValidateIf,
+} from 'class-validator';
 
 /**
  * Bounded and type-checked because CompanyService assigns these straight onto
@@ -7,7 +14,6 @@ import { IsEmail, IsOptional, IsString, IsUUID, MaxLength, ValidateIf } from 'cl
  * nothing about it — a non-string or a megabyte of text reached the row intact.
  */
 export class CreateCompanyDto {
-
   @IsOptional()
   @IsString()
   @MaxLength(120)

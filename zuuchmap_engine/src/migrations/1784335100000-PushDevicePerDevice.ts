@@ -50,7 +50,9 @@ export class PushDevicePerDevice1784335100000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "user" ADD "push_token" character varying`);
+    await queryRunner.query(
+      `ALTER TABLE "user" ADD "push_token" character varying`,
+    );
     // Only one token per user can survive the trip back; keep the most recent.
     await queryRunner.query(`
       UPDATE "user" u SET "push_token" = d.token

@@ -45,6 +45,10 @@ const CustomerSaved = lazy(() => import('./pages/CustomerSaved'))
 const CustomerProfile = lazy(() => import('./pages/CustomerProfile'))
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage'))
 const SavedSearchesPage = lazy(() => import('./pages/SavedSearchesPage'))
+const MessagesPage = lazy(() => import('./pages/MessagesPage'))
+const MessageThread = lazy(() => import('./pages/MessageThread'))
+const ProviderBilling = lazy(() => import('./pages/ProviderBilling'))
+const AdminReports = lazy(() => import('./pages/AdminReports'))
 
 /**
  * Chunk-load placeholder. Deliberately the same `.skeleton` tile the data
@@ -136,6 +140,10 @@ export default function App() {
         <Route element={<AuthedRoute />}>
           <Route element={<AppLayout />}>
             <Route path="/notifications" element={<ErrorBoundary queryClient={qc}><NotificationsPage /></ErrorBoundary>} />
+            {/* Both sides of a thread live here — a conversation has a customer
+                and a provider, so it cannot sit under either role's routes. */}
+            <Route path="/messages" element={<ErrorBoundary queryClient={qc}><MessagesPage /></ErrorBoundary>} />
+            <Route path="/messages/:id" element={<ErrorBoundary queryClient={qc}><MessageThread /></ErrorBoundary>} />
           </Route>
         </Route>
 
@@ -148,6 +156,7 @@ export default function App() {
             <Route path="/admin/users/:id" element={<ErrorBoundary queryClient={qc}><AdminUserDetail /></ErrorBoundary>} />
             <Route path="/admin/categories" element={<ErrorBoundary queryClient={qc}><AdminCategories /></ErrorBoundary>} />
             <Route path="/admin/analytics" element={<ErrorBoundary queryClient={qc}><AdminAnalytics /></ErrorBoundary>} />
+            <Route path="/admin/reports" element={<ErrorBoundary queryClient={qc}><AdminReports /></ErrorBoundary>} />
             <Route path="/admin/profile" element={<ErrorBoundary queryClient={qc}><ProviderProfile /></ErrorBoundary>} />
           </Route>
         </Route>
@@ -163,6 +172,7 @@ export default function App() {
             <Route path="/provider/profile" element={<ErrorBoundary queryClient={qc}><ProviderProfile /></ErrorBoundary>} />
             <Route path="/provider/company" element={<ErrorBoundary queryClient={qc}><ProviderCompany /></ErrorBoundary>} />
             <Route path="/provider/bookings" element={<ErrorBoundary queryClient={qc}><Bookings mode="provider" /></ErrorBoundary>} />
+            <Route path="/provider/billing" element={<ErrorBoundary queryClient={qc}><ProviderBilling /></ErrorBoundary>} />
           </Route>
         </Route>
 

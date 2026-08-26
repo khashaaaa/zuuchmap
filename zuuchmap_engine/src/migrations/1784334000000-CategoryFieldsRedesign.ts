@@ -136,7 +136,7 @@ export class CategoryFieldsRedesign1784334000000 implements MigrationInterface {
   public async down(): Promise<void> {
     throw new Error(
       'CategoryFieldsRedesign is not reversible: post attributes were pruned. ' +
-      'Restore from the pre-migration database backup instead.',
+        'Restore from the pre-migration database backup instead.',
     );
   }
 }

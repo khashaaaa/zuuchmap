@@ -25,17 +25,18 @@ import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import {
   createProfilePictureInterceptor,
-  ImageUploadHandler
+  ImageUploadHandler,
 } from '../utils/uploader';
 import { isAdmin } from '../admin/admin.guard';
 import { profileSummary } from '../utils/public-user';
+import { vapidPublicKey } from '../utils/webPush';
 
 // No per-route try/catch here: the global AllExceptionsFilter already
 // normalizes errors — the old rethrow wrappers only stripped the
 // machine-readable `code` clients branch on.
 @Controller('user')
 export class UserController {
-  constructor(private readonly userService: UserService) { }
+  constructor(private readonly userService: UserService) {}
 
   /**
    * LEGACY — kept only for app builds already installed.
@@ -59,7 +60,9 @@ export class UserController {
     const user = await this.userService.findByPhoneNumber(phone_number);
 
     if (!user) {
-      throw new NotFoundException(`User with phone number ${phone_number} not found`);
+      throw new NotFoundException(
+        `User with phone number ${phone_number} not found`,
+      );
     }
 
     return {
@@ -82,15 +85,22 @@ export class UserController {
     const { type } = body;
 
     if (!type || !['PROVIDER', 'CUSTOMER'].includes(type)) {
-      throw new HttpException('Type must be either "PROVIDER" or "CUSTOMER"', HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        'Type must be either "PROVIDER" or "CUSTOMER"',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
-    const result = await this.userService.setUserType(req.user.phone_number, type);
+    const result = await this.userService.setUserType(
+      req.user.phone_number,
+      type,
+    );
 
     return {
       ...result,
       userType: type,
-      redirectTo: type === 'PROVIDER' ? 'ProviderDashboard' : 'CustomerDashboard'
+      redirectTo:
+        type === 'PROVIDER' ? 'ProviderDashboard' : 'CustomerDashboard',
     };
   }
 
@@ -136,6 +146,46 @@ export class UserController {
     return { success: true };
   }
 
+  /**
+   * The VAPID public key the browser needs to subscribe. Served rather than
+   * built into the web bundle so the key pair can be rotated without a deploy
+   * of the front end — and so the two halves can never drift apart.
+   */
+  @Get('push/vapid-key')
+  @UseGuards(JwtAuthGuard)
+  getVapidKey() {
+    return { key: vapidPublicKey() };
+  }
+
+  /** Binds this browser for web push. Idempotent — the client re-sends on every load. */
+  @Put('push/web')
+  @UseGuards(JwtAuthGuard)
+  async saveWebPush(
+    @Req() req,
+    @Body('endpoint') endpoint: string,
+    @Body('keys') keys: { p256dh?: string; auth?: string },
+  ) {
+    if (!endpoint || !keys?.p256dh || !keys?.auth) {
+      throw new HttpException(
+        'endpoint and keys are required',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    await this.userService.saveWebPushSubscription(req.user.id, endpoint, {
+      p256dh: keys.p256dh,
+      auth: keys.auth,
+    });
+    return { success: true };
+  }
+
+  /** Called on logout, and when the browser reports the subscription revoked. */
+  @Delete('push/web')
+  @UseGuards(JwtAuthGuard)
+  async clearWebPush(@Req() req, @Body('endpoint') endpoint?: string) {
+    await this.userService.removePushToken(req.user.id, endpoint);
+    return { success: true };
+  }
+
   @Patch(':id')
   @UseGuards(JwtAuthGuard)
   @UseInterceptors(createProfilePictureInterceptor())
@@ -145,9 +195,7 @@ export class UserController {
     @Body() updateUserDto: UpdateUserDto,
     @UploadedFile(
       new ParseFilePipe({
-        validators: [
-          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 })
-        ],
+        validators: [new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 })],
         fileIsRequired: false,
       }),
     )
@@ -159,13 +207,20 @@ export class UserController {
 
     let profilePicture: string | undefined = undefined;
     if (file) {
-      const processedImage = await ImageUploadHandler.handleSingleUpload(file, 'PROFILE');
+      const processedImage = await ImageUploadHandler.handleSingleUpload(
+        file,
+        'PROFILE',
+      );
       if (processedImage) {
         profilePicture = processedImage;
       }
     }
 
-    const updatedUser = await this.userService.update(id, updateUserDto, profilePicture);
+    const updatedUser = await this.userService.update(
+      id,
+      updateUserDto,
+      profilePicture,
+    );
 
     return {
       ...updatedUser,

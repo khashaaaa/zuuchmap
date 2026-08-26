@@ -17,15 +17,29 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 const MAINTENANCE_INCLUDED = {
   key: 'maintenance_included',
   label: 'Засвар үйлчилгээтэй',
-  labels: { mn: 'Засвар үйлчилгээтэй', en: 'Maintenance included', zh: '含维护保养', ru: 'С техобслуживанием' },
-  type: 'boolean', required: false, group: 'details',
+  labels: {
+    mn: 'Засвар үйлчилгээтэй',
+    en: 'Maintenance included',
+    zh: '含维护保养',
+    ru: 'С техобслуживанием',
+  },
+  type: 'boolean',
+  required: false,
+  group: 'details',
 };
 
 const RENT_TO_BUY = {
   key: 'rent_to_buy',
   label: 'Түрээслээд худалдан авах боломжтой',
-  labels: { mn: 'Түрээслээд худалдан авах боломжтой', en: 'Rent-to-buy option', zh: '可租转购', ru: 'С правом выкупа' },
-  type: 'boolean', required: false, group: 'details',
+  labels: {
+    mn: 'Түрээслээд худалдан авах боломжтой',
+    en: 'Rent-to-buy option',
+    zh: '可租转购',
+    ru: 'С правом выкупа',
+  },
+  type: 'boolean',
+  required: false,
+  group: 'details',
 };
 
 const APPENDS: Array<{ category: string; field: Record<string, unknown> }> = [

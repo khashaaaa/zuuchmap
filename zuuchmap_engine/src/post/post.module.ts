@@ -15,12 +15,28 @@ import { AnalyticsModule } from '../analytics/analytics.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Post, CategorySchema, Viewedpost, User, PushDevice]),
+    TypeOrmModule.forFeature([
+      Post,
+      CategorySchema,
+      Viewedpost,
+      User,
+      PushDevice,
+    ]),
     EventsModule,
     AnalyticsModule,
   ],
   controllers: [PostController],
-  providers: [PostService, CategoryService, ViewedpostService, PostNotificationService],
-  exports: [PostService, CategoryService, PostNotificationService, TypeOrmModule],
+  providers: [
+    PostService,
+    CategoryService,
+    ViewedpostService,
+    PostNotificationService,
+  ],
+  exports: [
+    PostService,
+    CategoryService,
+    PostNotificationService,
+    TypeOrmModule,
+  ],
 })
 export class PostModule {}

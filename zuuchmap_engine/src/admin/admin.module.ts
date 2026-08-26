@@ -8,9 +8,16 @@ import { Company } from '../company/entities/company.entity';
 import { EventsModule } from '../events/events.module';
 import { PostModule } from '../post/post.module';
 import { SavedSearchModule } from '../saved-search/saved-search.module';
+import { UserModule } from '../user/user.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Post, User, Company]), EventsModule, PostModule, SavedSearchModule],
+  imports: [
+    TypeOrmModule.forFeature([Post, User, Company]),
+    EventsModule,
+    PostModule,
+    SavedSearchModule,
+    UserModule,
+  ],
   controllers: [AdminController],
   providers: [AdminService],
 })

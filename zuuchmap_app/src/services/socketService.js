@@ -20,6 +20,8 @@ export const SOCKET_EVENTS = {
     BOOKING_REQUESTED: 'booking.requested',
     BOOKING_RESPONDED: 'booking.responded',
     BOOKING_CANCELLED: 'booking.cancelled',
+    MESSAGE_CREATED: 'message.created',
+    REPORT_CREATED: 'report.created',
     AUTH_ERROR: 'auth_error',
 };
 

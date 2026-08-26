@@ -5,7 +5,10 @@
     "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
@@ -88,6 +91,14 @@
             "./assets/fonts/Commissioner-ExtraBold.ttf"
           ]
         }
+      ],
+      "expo-updates",
+      [
+        "@sentry/react-native/expo",
+        {
+          "organization": "$SENTRY_ORG",
+          "project": "$SENTRY_PROJECT"
+        }
       ]
     ],
     "runtimeVersion": "1.0.1",
@@ -96,6 +107,12 @@
       "eas": {
         "projectId": "40d1a5b1-f537-4097-88f7-ffad9545f7d0"
       }
+    },
+    "updates": {
+      "enabled": true,
+      "url": "https://u.expo.dev/40d1a5b1-f537-4097-88f7-ffad9545f7d0",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
     }
   }
 }

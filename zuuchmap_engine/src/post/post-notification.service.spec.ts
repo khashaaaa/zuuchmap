@@ -15,7 +15,11 @@ describe('PostNotificationService.dispatch', () => {
       data: statuses.map((s) =>
         s === 'ok'
           ? { status: 'ok', id: 'ticket' }
-          : { status: 'error', message: 'gone', details: { error: 'DeviceNotRegistered' } },
+          : {
+              status: 'error',
+              message: 'gone',
+              details: { error: 'DeviceNotRegistered' },
+            },
       ),
     }),
   });
@@ -29,18 +33,25 @@ describe('PostNotificationService.dispatch', () => {
       find: jest.fn(async () => [{ id: 'admin-1' }]),
       createQueryBuilder: jest.fn(),
     };
-    const svc = new PostNotificationService(userRepo as any, pushDeviceRepo as any);
+    const svc = new PostNotificationService(
+      userRepo as any,
+      pushDeviceRepo as any,
+    );
     return { svc, pushDeviceRepo, userRepo };
   };
 
-  afterEach(() => { jest.restoreAllMocks(); });
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
 
   it('addresses every device the recipients own, in one batched request', async () => {
-    const fetchMock = jest.fn(async () => expoResponse(['ok', 'ok', 'ok']) as any);
+    const fetchMock = jest.fn(
+      async () => expoResponse(['ok', 'ok', 'ok']) as any,
+    );
     global.fetch = fetchMock as any;
     const { svc } = make([
       { id: 'd1', token: 'ExponentPushToken[a]' },
-      { id: 'd2', token: 'ExponentPushToken[b]' },   // same user, second device
+      { id: 'd2', token: 'ExponentPushToken[b]' }, // same user, second device
       { id: 'd3', token: 'ExponentPushToken[c]' },
     ]);
 
@@ -50,13 +61,17 @@ describe('PostNotificationService.dispatch', () => {
     const sent = JSON.parse((fetchMock.mock.calls[0] as any)[1].body);
     expect(sent).toHaveLength(3);
     expect(sent.map((m: any) => m.to)).toEqual([
-      'ExponentPushToken[a]', 'ExponentPushToken[b]', 'ExponentPushToken[c]',
+      'ExponentPushToken[a]',
+      'ExponentPushToken[b]',
+      'ExponentPushToken[c]',
     ]);
     expect(sent[0].data).toEqual({ postId: 5 });
   });
 
   it('deletes the tokens Expo reports as unregistered', async () => {
-    global.fetch = jest.fn(async () => expoResponse(['ok', 'error']) as any) as any;
+    global.fetch = jest.fn(
+      async () => expoResponse(['ok', 'error']) as any,
+    ) as any;
     const { svc, pushDeviceRepo } = make([
       { id: 'd1', token: 'ExponentPushToken[live]' },
       { id: 'd2', token: 'ExponentPushToken[dead]' },
@@ -66,20 +81,26 @@ describe('PostNotificationService.dispatch', () => {
 
     expect(pushDeviceRepo.delete).toHaveBeenCalledTimes(1);
     const [arg] = pushDeviceRepo.delete.mock.calls[0] as any[];
-    expect(arg.token._value ?? arg.token.value).toEqual(['ExponentPushToken[dead]']);
+    expect(arg.token._value ?? arg.token.value).toEqual([
+      'ExponentPushToken[dead]',
+    ]);
   });
 
   it('reports what Expo accepted, not what was attempted, when a batch fails', async () => {
     // An HTTP failure yields no ticket and no dead token. Counting
     // targets-minus-dead called that a delivery.
-    global.fetch = jest.fn(async () => ({ ok: false, status: 502 }) as any) as any;
+    global.fetch = jest.fn(
+      async () => ({ ok: false, status: 502 }) as any,
+    ) as any;
     const { svc } = make([
       { id: 'd1', token: 'ExponentPushToken[a]' },
       { id: 'd2', token: 'ExponentPushToken[b]' },
     ]);
 
     const userRepoQb = {
-      select: () => userRepoQb, where: () => userRepoQb, andWhere: () => userRepoQb,
+      select: () => userRepoQb,
+      where: () => userRepoQb,
+      andWhere: () => userRepoQb,
       getMany: async () => [{ id: 'u1' }],
     };
     (svc as any).userRepository.createQueryBuilder = () => userRepoQb;
@@ -117,28 +138,38 @@ describe('PostNotificationService.dispatch', () => {
     // The app decides received-vs-own bookings from this exact value; an
     // underscore spelling here is what made every provider land on the
     // customer tab.
-    await svc.notifyUsers(['u1'], 't', 'b', { bookingId: 9, notifType: SOCKET_EVENTS.BOOKING_REQUESTED });
+    await svc.notifyUsers(['u1'], 't', 'b', {
+      bookingId: 9,
+      notifType: SOCKET_EVENTS.BOOKING_REQUESTED,
+    });
 
     const sent = JSON.parse((fetchMock.mock.calls[0] as any)[1].body);
     expect(sent[0].data.notifType).toBe('booking.requested');
   });
 
   describe('notifyEach — one request, many payloads', () => {
-    const makeWithUsers = (devices: Array<{ id: string; token: string; user: { id: string } }>) => {
+    const makeWithUsers = (
+      devices: Array<{ id: string; token: string; user: { id: string } }>,
+    ) => {
       const pushDeviceRepo = {
         find: jest.fn(async () => devices),
         delete: jest.fn(async (_c: any) => ({ affected: 1 })),
       };
-      const svc = new PostNotificationService({ find: jest.fn() } as any, pushDeviceRepo as any);
+      const svc = new PostNotificationService(
+        { find: jest.fn() } as any,
+        pushDeviceRepo as any,
+      );
       return { svc, pushDeviceRepo };
     };
 
     it('sends every recipient its own payload in a single call', async () => {
-      const fetchMock = jest.fn(async () => expoResponse(['ok', 'ok', 'ok']) as any);
+      const fetchMock = jest.fn(
+        async () => expoResponse(['ok', 'ok', 'ok']) as any,
+      );
       global.fetch = fetchMock as any;
       const { svc } = makeWithUsers([
         { id: 'd1', token: 'ExponentPushToken[c1]', user: { id: 'c1' } },
-        { id: 'd2', token: 'ExponentPushToken[c1b]', user: { id: 'c1' } },  // second device
+        { id: 'd2', token: 'ExponentPushToken[c1b]', user: { id: 'c1' } }, // second device
         { id: 'd3', token: 'ExponentPushToken[c2]', user: { id: 'c2' } },
       ]);
 
@@ -151,9 +182,12 @@ describe('PostNotificationService.dispatch', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
       const sent = JSON.parse((fetchMock.mock.calls[0] as any)[1].body);
       expect(sent).toHaveLength(3);
-      expect(sent.filter((m: any) => m.data.bookingId === 1).map((m: any) => m.to))
-        .toEqual(['ExponentPushToken[c1]', 'ExponentPushToken[c1b]']);
-      expect(sent.find((m: any) => m.to === 'ExponentPushToken[c2]').data).toEqual({ bookingId: 2 });
+      expect(
+        sent.filter((m: any) => m.data.bookingId === 1).map((m: any) => m.to),
+      ).toEqual(['ExponentPushToken[c1]', 'ExponentPushToken[c1b]']);
+      expect(
+        sent.find((m: any) => m.to === 'ExponentPushToken[c2]').data,
+      ).toEqual({ bookingId: 2 });
     });
 
     it('prunes dead tokens from the batch like the single-payload path does', async () => {
@@ -169,13 +203,17 @@ describe('PostNotificationService.dispatch', () => {
       const fetchMock = jest.fn();
       global.fetch = fetchMock as any;
       const { svc } = makeWithUsers([]);
-      await expect(svc.notifyEach([{ userId: 'c1', title: 'a', body: 'b' }])).resolves.toBe(0);
+      await expect(
+        svc.notifyEach([{ userId: 'c1', title: 'a', body: 'b' }]),
+      ).resolves.toBe(0);
       expect(fetchMock).not.toHaveBeenCalled();
     });
   });
 
   it('swallows a transport failure so the caller is never rolled back', async () => {
-    global.fetch = jest.fn(async () => { throw new Error('network down'); }) as any;
+    global.fetch = jest.fn(async () => {
+      throw new Error('network down');
+    }) as any;
     const { svc } = make([{ id: 'd1', token: 'ExponentPushToken[a]' }]);
     await expect(svc.notifyUsers(['u1'], 't', 'b')).resolves.toBeUndefined();
   });

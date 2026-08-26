@@ -6,7 +6,11 @@ import { sharedCache } from '../utils/cache';
 describe('CategoryService', () => {
   let service: CategoryService;
   let repo: {
-    find: jest.Mock; findOne: jest.Mock; create: jest.Mock; save: jest.Mock; count: jest.Mock;
+    find: jest.Mock;
+    findOne: jest.Mock;
+    create: jest.Mock;
+    save: jest.Mock;
+    count: jest.Mock;
   };
 
   beforeEach(() => {
@@ -24,7 +28,9 @@ describe('CategoryService', () => {
   });
 
   describe('validateCategoryData', () => {
-    const valid = (over: Partial<CategorySchema> = {}): Partial<CategorySchema> => ({
+    const valid = (
+      over: Partial<CategorySchema> = {},
+    ): Partial<CategorySchema> => ({
       key: 'testcat',
       label: 'Test',
       fields: [{ key: 'foo_bar', label: 'F', type: 'text' }],
@@ -37,91 +43,140 @@ describe('CategoryService', () => {
     });
 
     it('rejects field keys that shadow post columns', () => {
-      expect(() => service.validateCategoryData(valid({
-        fields: [{ key: 'title', label: 'T', type: 'text' }],
-      }))).toThrow(BadRequestException);
+      expect(() =>
+        service.validateCategoryData(
+          valid({
+            fields: [{ key: 'title', label: 'T', type: 'text' }],
+          }),
+        ),
+      ).toThrow(BadRequestException);
     });
 
     it('rejects a category key that would break URLs and cache lookups', () => {
-      expect(() => service.validateCategoryData(valid({ key: 'Vehicle Rent!' })))
-        .toThrow(BadRequestException);
+      expect(() =>
+        service.validateCategoryData(valid({ key: 'Vehicle Rent!' })),
+      ).toThrow(BadRequestException);
     });
 
     it('accepts a snake_case category key', () => {
-      expect(() => service.validateCategoryData(valid({ key: 'heavy_haulage' }))).not.toThrow();
+      expect(() =>
+        service.validateCategoryData(valid({ key: 'heavy_haulage' })),
+      ).not.toThrow();
     });
 
     it('rejects an emoji icon — mobile renders icons through Ionicons', () => {
-      expect(() => service.validateCategoryData(valid({ icon: '🚗' })))
-        .toThrow(BadRequestException);
+      expect(() => service.validateCategoryData(valid({ icon: '🚗' }))).toThrow(
+        BadRequestException,
+      );
     });
 
     it('accepts an Ionicons glyph name', () => {
-      expect(() => service.validateCategoryData(valid({ icon: 'car-outline' }))).not.toThrow();
+      expect(() =>
+        service.validateCategoryData(valid({ icon: 'car-outline' })),
+      ).not.toThrow();
     });
 
     it('rejects a non-hex colour', () => {
-      expect(() => service.validateCategoryData(valid({ color: 'red' })))
-        .toThrow(BadRequestException);
+      expect(() =>
+        service.validateCategoryData(valid({ color: 'red' })),
+      ).toThrow(BadRequestException);
     });
 
     it('rejects non-snake_case subcategory values', () => {
-      expect(() => service.validateCategoryData(valid({
-        subcategories: [{ value: 'Power Tools', display: 'Power Tools' }],
-      }))).toThrow(BadRequestException);
+      expect(() =>
+        service.validateCategoryData(
+          valid({
+            subcategories: [{ value: 'Power Tools', display: 'Power Tools' }],
+          }),
+        ),
+      ).toThrow(BadRequestException);
     });
 
     it('rejects non-snake_case field keys', () => {
-      expect(() => service.validateCategoryData(valid({
-        fields: [{ key: 'Foo Bar', label: 'F', type: 'text' }],
-      }))).toThrow(BadRequestException);
+      expect(() =>
+        service.validateCategoryData(
+          valid({
+            fields: [{ key: 'Foo Bar', label: 'F', type: 'text' }],
+          }),
+        ),
+      ).toThrow(BadRequestException);
     });
 
     it('rejects unknown field types', () => {
-      expect(() => service.validateCategoryData(valid({
-        fields: [{ key: 'foo', label: 'F', type: 'checkbox' as any }],
-      }))).toThrow(BadRequestException);
+      expect(() =>
+        service.validateCategoryData(
+          valid({
+            fields: [{ key: 'foo', label: 'F', type: 'checkbox' as any }],
+          }),
+        ),
+      ).toThrow(BadRequestException);
     });
 
     it('rejects duplicate field keys', () => {
-      expect(() => service.validateCategoryData(valid({
-        fields: [
-          { key: 'foo', label: 'F', type: 'text' },
-          { key: 'foo', label: 'F2', type: 'text' },
-        ],
-      }))).toThrow(BadRequestException);
+      expect(() =>
+        service.validateCategoryData(
+          valid({
+            fields: [
+              { key: 'foo', label: 'F', type: 'text' },
+              { key: 'foo', label: 'F2', type: 'text' },
+            ],
+          }),
+        ),
+      ).toThrow(BadRequestException);
     });
 
     it('rejects select fields without options', () => {
-      expect(() => service.validateCategoryData(valid({
-        fields: [{ key: 'foo', label: 'F', type: 'select' }],
-      }))).toThrow(BadRequestException);
+      expect(() =>
+        service.validateCategoryData(
+          valid({
+            fields: [{ key: 'foo', label: 'F', type: 'select' }],
+          }),
+        ),
+      ).toThrow(BadRequestException);
     });
 
     it('accepts select fields with options', () => {
-      expect(() => service.validateCategoryData(valid({
-        fields: [{ key: 'foo', label: 'F', type: 'select', options: ['A'] }],
-      }))).not.toThrow();
+      expect(() =>
+        service.validateCategoryData(
+          valid({
+            fields: [
+              { key: 'foo', label: 'F', type: 'select', options: ['A'] },
+            ],
+          }),
+        ),
+      ).not.toThrow();
     });
 
     it('rejects duplicate subcategory values', () => {
-      expect(() => service.validateCategoryData(valid({
-        subcategories: [{ value: 'a', display: 'A' }, { value: 'a', display: 'A2' }],
-      }))).toThrow(BadRequestException);
+      expect(() =>
+        service.validateCategoryData(
+          valid({
+            subcategories: [
+              { value: 'a', display: 'A' },
+              { value: 'a', display: 'A2' },
+            ],
+          }),
+        ),
+      ).toThrow(BadRequestException);
     });
 
     it('accepts empty fields and subcategories', () => {
-      expect(() => service.validateCategoryData({ key: 'x', label: 'X' })).not.toThrow();
+      expect(() =>
+        service.validateCategoryData({ key: 'x', label: 'X' }),
+      ).not.toThrow();
     });
 
     it('accepts a reasonable post_expiry_days', () => {
-      expect(() => service.validateCategoryData(valid({ post_expiry_days: 45 }))).not.toThrow();
+      expect(() =>
+        service.validateCategoryData(valid({ post_expiry_days: 45 })),
+      ).not.toThrow();
     });
 
     it('rejects zero, negative, fractional and oversized post_expiry_days', () => {
       for (const bad of [0, -7, 1.5, 366]) {
-        expect(() => service.validateCategoryData(valid({ post_expiry_days: bad })))
-          .toThrow(BadRequestException);
+        expect(() =>
+          service.validateCategoryData(valid({ post_expiry_days: bad })),
+        ).toThrow(BadRequestException);
       }
     });
   });
@@ -129,12 +184,16 @@ describe('CategoryService', () => {
   describe('getCategory', () => {
     it('throws NotFound for a missing key', async () => {
       repo.findOne.mockResolvedValue(null);
-      await expect(service.getCategory('nope')).rejects.toThrow(NotFoundException);
+      await expect(service.getCategory('nope')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('returns the category when found', async () => {
       repo.findOne.mockResolvedValue({ key: 'vehiclerent' });
-      await expect(service.getCategory('vehiclerent')).resolves.toEqual({ key: 'vehiclerent' });
+      await expect(service.getCategory('vehiclerent')).resolves.toEqual({
+        key: 'vehiclerent',
+      });
     });
   });
 
@@ -170,13 +229,25 @@ describe('CategoryService', () => {
       expect(seeded).toHaveLength(13);
       for (const cat of seeded) {
         expect(() => service.validateCategoryData(cat)).not.toThrow();
-        expect(cat.labels).toEqual(expect.objectContaining({ mn: expect.any(String), en: expect.any(String) }));
+        expect(cat.labels).toEqual(
+          expect.objectContaining({
+            mn: expect.any(String),
+            en: expect.any(String),
+          }),
+        );
       }
       const rentals = seeded.filter((c: any) => c.has_rental_status);
-      expect(rentals.map((c: any) => c.key).sort()).toEqual(
-        ['construction', 'designservice', 'machineryrent', 'miningsupport', 'sos',
-          'toolrent', 'transport', 'vehiclerent', 'winterservice'],
-      );
+      expect(rentals.map((c: any) => c.key).sort()).toEqual([
+        'construction',
+        'designservice',
+        'machineryrent',
+        'miningsupport',
+        'sos',
+        'toolrent',
+        'transport',
+        'vehiclerent',
+        'winterservice',
+      ]);
     });
 
     const seed = async () => {
@@ -194,7 +265,8 @@ describe('CategoryService', () => {
       expect(cat.has_price).toBe(true);
       expect(cat.default_price_unit).toBe('TOTAL');
       expect(cat.fields.find((f: any) => f.key === 'condition')).toMatchObject({
-        type: 'select', filterable: true,
+        type: 'select',
+        filterable: true,
       });
     });
 
@@ -204,16 +276,22 @@ describe('CategoryService', () => {
       // Tonnage shares the `capacity` key with machinery so one filter serves
       // both; the unit is what differs, not the key.
       expect(cat.fields.find((f: any) => f.key === 'capacity')).toMatchObject({
-        type: 'number', filterable: true, unit: 'т',
+        type: 'number',
+        filterable: true,
+        unit: 'т',
       });
-      expect(cat.fields.find((f: any) => f.key === 'capacity_tons')).toBeUndefined();
+      expect(
+        cat.fields.find((f: any) => f.key === 'capacity_tons'),
+      ).toBeUndefined();
     });
 
     it('uses correct Mongolian terms for plumbing, scaffolding and compactor', async () => {
       const cats = await seed();
       const sub = (key: string, value: string) =>
         byKey(cats, key).subcategories.find((s: any) => s.value === value);
-      expect(sub('construction', 'plumbing').labels.mn).toBe('Сантехникийн ажил');
+      expect(sub('construction', 'plumbing').labels.mn).toBe(
+        'Сантехникийн ажил',
+      );
       expect(sub('jobvacancy', 'plumber').labels.mn).toBe('Сантехникч');
       expect(sub('toolrent', 'scaffolding').labels.mn).toBe('Барилгын шат');
       expect(sub('machineryrent', 'compactor').labels.mn).toBe('Нягтруулагч');
@@ -226,46 +304,72 @@ describe('CategoryService', () => {
       expect(year.labels.mn).toBe('Үйлдвэрлэсэн он');
       // It is a year — typing it `number` is what turns on range filtering.
       expect(year).toMatchObject({ type: 'number', filterable: true });
-      expect(fields.find((f: any) => f.key === 'manufactured_date')).toBeUndefined();
+      expect(
+        fields.find((f: any) => f.key === 'manufactured_date'),
+      ).toBeUndefined();
       // imported_date is gone: import year does not change a rental decision.
-      expect(fields.find((f: any) => f.key === 'imported_date')).toBeUndefined();
+      expect(
+        fields.find((f: any) => f.key === 'imported_date'),
+      ).toBeUndefined();
     });
 
     it('enriches machineryrent and sos subcategories', async () => {
       const cats = await seed();
-      const values = (key: string) => byKey(cats, key).subcategories.map((s: any) => s.value);
+      const values = (key: string) =>
+        byKey(cats, key).subcategories.map((s: any) => s.value);
       expect(values('machineryrent')).toEqual(
-        expect.arrayContaining(['forklift', 'grader', 'concrete_mixer', 'drilling_rig']),
+        expect.arrayContaining([
+          'forklift',
+          'grader',
+          'concrete_mixer',
+          'drilling_rig',
+        ]),
       );
       expect(values('sos')).toEqual(
-        expect.arrayContaining(['fuel_delivery', 'mobile_repair', 'jump_start']),
+        expect.arrayContaining([
+          'fuel_delivery',
+          'mobile_repair',
+          'jump_start',
+        ]),
       );
     });
 
     it('gives construction filterable experience_years and team_size fields', async () => {
       const fields = byKey(await seed(), 'construction').fields;
-      expect(fields.find((f: any) => f.key === 'experience_years')).toMatchObject({
-        type: 'number', filterable: true,
+      expect(
+        fields.find((f: any) => f.key === 'experience_years'),
+      ).toMatchObject({
+        type: 'number',
+        filterable: true,
       });
-      expect(fields.find((f: any) => f.key === 'team_size')).toMatchObject({ type: 'number' });
+      expect(fields.find((f: any) => f.key === 'team_size')).toMatchObject({
+        type: 'number',
+      });
     });
 
     it('seeds sos as the only emphasized category', async () => {
       const cats = await seed();
       expect(byKey(cats, 'sos').emphasized).toBe(true);
-      expect(cats.filter((c) => c.emphasized).map((c) => c.key)).toEqual(['sos']);
+      expect(cats.filter((c) => c.emphasized).map((c) => c.key)).toEqual([
+        'sos',
+      ]);
     });
 
     it('keeps every seeded colour in the shared-luminance family (≥3:1 on both grounds)', async () => {
-      const s2l = (v: number) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+      const s2l = (v: number) =>
+        v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
       const lum = (hex: string) => {
         const n = parseInt(hex.slice(1), 16);
-        return 0.2126 * s2l(((n >> 16) & 255) / 255)
-          + 0.7152 * s2l(((n >> 8) & 255) / 255)
-          + 0.0722 * s2l((n & 255) / 255);
+        return (
+          0.2126 * s2l(((n >> 16) & 255) / 255) +
+          0.7152 * s2l(((n >> 8) & 255) / 255) +
+          0.0722 * s2l((n & 255) / 255)
+        );
       };
-      const cr = (a: number, b: number) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
-      const dark = lum('#1F2124'); const light = lum('#FFFFFF');
+      const cr = (a: number, b: number) =>
+        (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+      const dark = lum('#1F2124');
+      const light = lum('#FFFFFF');
       for (const cat of await seed()) {
         const l = lum(cat.color);
         expect(cr(l, dark)).toBeGreaterThanOrEqual(3);
@@ -278,13 +382,33 @@ describe('CategoryService', () => {
 // ─── Redesigned schema invariants ─────────────────────────────────────────
 import { CATEGORY_SEED } from './category.service';
 
-const POST_COLUMNS = ['title', 'details', 'province', 'district', 'address', 'latitude', 'longitude',
-  'price_amount', 'price_unit', 'contact_phone', 'contact_email', 'available_from', 'available_until',
-  'website', 'images', 'status', 'views', 'category', 'subcategory'];
+const POST_COLUMNS = [
+  'title',
+  'details',
+  'province',
+  'district',
+  'address',
+  'latitude',
+  'longitude',
+  'price_amount',
+  'price_unit',
+  'contact_phone',
+  'contact_email',
+  'available_from',
+  'available_until',
+  'website',
+  'images',
+  'status',
+  'views',
+  'category',
+  'subcategory',
+];
 
 describe('CATEGORY_SEED', () => {
-  const core = (c: any) => (c.fields ?? []).filter((f: any) => (f.group ?? 'core') === 'core');
-  const details = (c: any) => (c.fields ?? []).filter((f: any) => f.group === 'details');
+  const core = (c: any) =>
+    (c.fields ?? []).filter((f: any) => (f.group ?? 'core') === 'core');
+  const details = (c: any) =>
+    (c.fields ?? []).filter((f: any) => f.group === 'details');
 
   it('defines exactly 13 categories', () => {
     expect(CATEGORY_SEED).toHaveLength(13);
@@ -292,7 +416,10 @@ describe('CATEGORY_SEED', () => {
 
   it('gives every category 2-5 required core fields', () => {
     for (const c of CATEGORY_SEED) {
-      expect({ key: c.key, n: core(c).length }).toEqual({ key: c.key, n: expect.any(Number) });
+      expect({ key: c.key, n: core(c).length }).toEqual({
+        key: c.key,
+        n: expect.any(Number),
+      });
       expect(core(c).length).toBeGreaterThanOrEqual(2);
       expect(core(c).length).toBeLessThanOrEqual(5);
       for (const f of core(c)) expect(f.required).toBe(true);
@@ -345,7 +472,10 @@ describe('CATEGORY_SEED', () => {
   it('exposes at most four browse filters per category', () => {
     for (const c of CATEGORY_SEED) {
       const n = (c.fields ?? []).filter((f: any) => f.filterable).length;
-      expect({ key: c.key, filters: n }).toEqual({ key: c.key, filters: expect.any(Number) });
+      expect({ key: c.key, filters: n }).toEqual({
+        key: c.key,
+        filters: expect.any(Number),
+      });
       expect(n).toBeLessThanOrEqual(4);
     }
   });
@@ -379,7 +509,9 @@ describe('CATEGORY_SEED', () => {
     expect(values).toContain('rebar');
     expect(values).not.toContain('wholesale');
     expect(values).not.toContain('retail');
-    expect((ms.fields ?? []).some((f: any) => f.key === 'sale_type')).toBe(true);
+    expect((ms.fields ?? []).some((f: any) => f.key === 'sale_type')).toBe(
+      true,
+    );
   });
 
   it('gives every subcategory mn and en labels', () => {

@@ -41,6 +41,13 @@ export function resolveNotificationRoute(data = {}) {
     };
   }
 
+  // A new chat message. Tested before the postId rule below: a message push
+  // carries the listing too, and the thread — not the listing — is what the
+  // recipient is being called to.
+  if (data.type === 'message' && data.conversationId) {
+    return { screen: 'MessageThread', params: { id: data.conversationId } };
+  }
+
   // A saved search matched a newly approved post.
   if (data.type === 'saved_search' && data.postId) {
     return { screen: 'PostDetailScreen', params: { ...postParams, role: 'customer' } };

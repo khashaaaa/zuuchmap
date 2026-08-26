@@ -16,14 +16,21 @@ export class LikedpostService {
     private postRepository: Repository<Post>,
   ) {}
 
-  async likePost(user_id: string, post_type: string, post_id: number): Promise<{
+  async likePost(
+    user_id: string,
+    post_type: string,
+    post_id: number,
+  ): Promise<{
     success: boolean;
     message: string;
     liked_post?: Likedpost;
   }> {
     const [user, post] = await Promise.all([
       this.userRepository.findOne({ where: { id: user_id } }),
-      this.postRepository.findOne({ where: { id: post_id }, relations: ['user'] }),
+      this.postRepository.findOne({
+        where: { id: post_id },
+        relations: ['user'],
+      }),
     ]);
     if (!user) throw new BadRequestException('User not found');
     if (post?.user?.id === user_id) {
@@ -37,27 +44,47 @@ export class LikedpostService {
 
     try {
       const liked_post = await this.likedPostRepository.save(
-        this.likedPostRepository.create({ user_id, post_type, post_id, date_liked: new Date() })
+        this.likedPostRepository.create({
+          user_id,
+          post_type,
+          post_id,
+          date_liked: new Date(),
+        }),
       );
       return { success: true, message: 'Post liked successfully', liked_post };
     } catch (error) {
-      if (error.code === '23505') return { success: false, message: 'Post already liked' };
+      if (error.code === '23505')
+        return { success: false, message: 'Post already liked' };
       throw error;
     }
   }
 
-  async unlikePost(user_id: string, post_type: string, post_id: number): Promise<{
+  async unlikePost(
+    user_id: string,
+    post_type: string,
+    post_id: number,
+  ): Promise<{
     success: boolean;
     message: string;
   }> {
-    const result = await this.likedPostRepository.delete({ user_id, post_type, post_id });
+    const result = await this.likedPostRepository.delete({
+      user_id,
+      post_type,
+      post_id,
+    });
     return (result?.affected ?? 0) > 0
       ? { success: true, message: 'Post unliked successfully' }
       : { success: false, message: 'Post was not liked' };
   }
 
-  async checkPostLiked(user_id: string, post_type: string, post_id: number): Promise<boolean> {
-    const like = await this.likedPostRepository.findOne({ where: { user_id, post_type, post_id } });
+  async checkPostLiked(
+    user_id: string,
+    post_type: string,
+    post_id: number,
+  ): Promise<boolean> {
+    const like = await this.likedPostRepository.findOne({
+      where: { user_id, post_type, post_id },
+    });
     return !!like;
   }
 
@@ -93,12 +120,19 @@ export class LikedpostService {
           location:
             post.location ||
             post.address ||
-            (post.province && post.district ? `${post.province}, ${post.district}` : null),
+            (post.province && post.district
+              ? `${post.province}, ${post.district}`
+              : null),
         };
       })
       .filter(Boolean);
 
-    return { posts: enriched, total, page, total_pages: Math.ceil(total / limit) };
+    return {
+      posts: enriched,
+      total,
+      page,
+      total_pages: Math.ceil(total / limit),
+    };
   }
 
   async getLikeStatistics(post_type: string, post_id: number) {
@@ -106,16 +140,24 @@ export class LikedpostService {
     seven_days_ago.setDate(seven_days_ago.getDate() - 7);
     const [total_likes, recent_likes] = await Promise.all([
       this.likedPostRepository.count({ where: { post_type, post_id } }),
-      this.likedPostRepository.count({ where: { post_type, post_id, date_liked: MoreThan(seven_days_ago) } }),
+      this.likedPostRepository.count({
+        where: { post_type, post_id, date_liked: MoreThan(seven_days_ago) },
+      }),
     ]);
     return { total_likes, recent_likes };
   }
 
-  async getUserLikedPostIds(user_id: string, post_type?: string): Promise<number[]> {
+  async getUserLikedPostIds(
+    user_id: string,
+    post_type?: string,
+  ): Promise<number[]> {
     const where: any = { user_id };
     if (post_type) where.post_type = post_type;
-    const liked = await this.likedPostRepository.find({ where, select: ['post_id'] });
-    return liked.map(lp => lp.post_id);
+    const liked = await this.likedPostRepository.find({
+      where,
+      select: ['post_id'],
+    });
+    return liked.map((lp) => lp.post_id);
   }
 
   /**
@@ -123,9 +165,12 @@ export class LikedpostService {
    * asking per type meant one request per category on screen — and the answer
    * never depended on which posts were visible.
    */
-  async getUserLikedPostIdsByType(user_id: string): Promise<Record<string, number[]>> {
+  async getUserLikedPostIdsByType(
+    user_id: string,
+  ): Promise<Record<string, number[]>> {
     const liked = await this.likedPostRepository.find({
-      where: { user_id }, select: ['post_type', 'post_id'],
+      where: { user_id },
+      select: ['post_type', 'post_id'],
     });
     return liked.reduce<Record<string, number[]>>((acc, lp) => {
       (acc[lp.post_type] ??= []).push(lp.post_id);

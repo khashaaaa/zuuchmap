@@ -1,10 +1,4 @@
-import {
-  Controller,
-  Get,
-  Param,
-  Delete,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Param, Delete, UseGuards } from '@nestjs/common';
 import { UserService } from './user.service';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { isAdmin, AdminGuard } from '../admin/admin.guard';
@@ -23,7 +17,7 @@ import { profileSummary } from '../utils/public-user';
 @Controller('user')
 @UseGuards(JwtAuthGuard, AdminGuard)
 export class UserAdminController {
-  constructor(private readonly userService: UserService) { }
+  constructor(private readonly userService: UserService) {}
 
   @Get()
   async findAll() {
@@ -50,7 +44,7 @@ export class UserAdminController {
     await this.userService.remove(id);
     return {
       message: `User with ID ${id} successfully deleted`,
-      success: true
+      success: true,
     };
   }
 }

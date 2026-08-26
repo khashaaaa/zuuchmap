@@ -1,8 +1,15 @@
-import { IsInt, IsISO8601, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsInt,
+  IsISO8601,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateBookingDto {
-  @Type(() => Number) @IsInt()
+  @Type(() => Number)
+  @IsInt()
   post_id: number;
 
   @IsISO8601()
@@ -11,6 +18,8 @@ export class CreateBookingDto {
   @IsISO8601()
   end_date: string;
 
-  @IsOptional() @IsString() @MaxLength(1000)
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
   message?: string;
 }

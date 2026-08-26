@@ -8,12 +8,26 @@
 export function publicUser(user: any): any {
   if (!user) return user ?? null;
   const {
-    id, type, phone_number, parent_name, given_name, email,
-    profile_picture, is_verified, date_created,
+    id,
+    type,
+    phone_number,
+    parent_name,
+    given_name,
+    email,
+    profile_picture,
+    is_verified,
+    date_created,
   } = user;
   const out: any = {
-    id, type, phone_number, parent_name, given_name, email,
-    profile_picture, is_verified, date_created,
+    id,
+    type,
+    phone_number,
+    parent_name,
+    given_name,
+    email,
+    profile_picture,
+    is_verified,
+    date_created,
   };
   if (user.company !== undefined) out.company = publicCompany(user.company);
   return out;
@@ -30,14 +44,21 @@ export function profileSummary(user: any): {
   profileCompleteness: number;
 } {
   const fields = [
-    user.parent_name, user.given_name, user.email,
-    user.address, user.type, user.profile_picture,
+    user.parent_name,
+    user.given_name,
+    user.email,
+    user.address,
+    user.type,
+    user.profile_picture,
   ];
-  const completed = fields.filter(f => f !== null && f !== undefined && f !== '').length;
+  const completed = fields.filter(
+    (f) => f !== null && f !== undefined && f !== '',
+  ).length;
   return {
-    fullName: user.parent_name && user.given_name
-      ? `${user.parent_name} ${user.given_name}`
-      : user.given_name || user.parent_name || null,
+    fullName:
+      user.parent_name && user.given_name
+        ? `${user.parent_name} ${user.given_name}`
+        : user.given_name || user.parent_name || null,
     hasCompany: !!user.company,
     isProfileComplete: !!(user.parent_name && user.given_name && user.type),
     profileCompleteness: Math.round((completed / fields.length) * 100),
@@ -63,7 +84,10 @@ const COMPANY_PRIVATE_FIELDS = ['registration_number', 'tax_id'] as const;
  * `includePrivate` is opt-in, for the two callers entitled to them: the owner
  * managing their own company, and an admin.
  */
-export function publicCompany(company: any, { includePrivate = false } = {}): any {
+export function publicCompany(
+  company: any,
+  { includePrivate = false } = {},
+): any {
   if (!company) return company ?? null;
   const { users, ...rest } = company;
   if (!includePrivate) {

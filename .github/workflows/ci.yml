@@ -1,0 +1,188 @@
+# Continuous integration for the Zuuchmap monorepo.
+#
+# The three apps have their own package.json, node_modules and lockfile (no npm
+# workspaces), so each gets its own job and its own cache key. They are
+# independent — a web-only change should not wait on the engine's Postgres.
+#
+# What is deliberately NOT a gate: `npm run lint`. The engine's eslint config is
+# type-aware and the existing code carries ~1,500 `no-unsafe-*` findings on
+# `any`; gating on it would fail every PR for reasons that predate it. It runs
+# in a non-blocking job instead so the number can be watched, and the real gates
+# are the ones that can actually go from green to red: types, tests, the
+# cross-repo contracts, and a build that succeeds.
+
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  # A second push to the same branch makes the first run irrelevant.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    name: Cross-repo contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # scripts/check-sync.js has zero dependencies on purpose — nothing to install.
+      - name: Verify the 16 duplicated contracts
+        run: npm run check:sync
+
+  engine:
+    name: Engine — types, unit, integration
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: zuuchmap
+          POSTGRES_PASSWORD: zuuchmap
+          POSTGRES_DB: zuuchmap_test
+        ports:
+          - 5432:5432
+        # Without a health check the first migration races the server's boot.
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: zuuchmap_engine/package-lock.json
+
+      - name: Install
+        working-directory: zuuchmap_engine
+        run: npm ci
+
+      # The app reads config/variables/<NODE_ENV>.env, so CI writes one rather
+      # than teaching the app a second way to be configured. Every value here is
+      # a throwaway for the ephemeral service container.
+      - name: Write the CI env file
+        working-directory: zuuchmap_engine
+        run: |
+          mkdir -p config/variables
+          cat > config/variables/development.env <<'ENV'
+          PG_HOST=localhost
+          PG_PORT=5432
+          PG_USER=zuuchmap
+          PG_PWD=zuuchmap
+          PG_NAME=zuuchmap_test
+          PROG_PORT=8282
+          JWT_SECRET=ci-secret-not-used-anywhere-real
+          ALLOWED_ORIGIN=http://localhost:5173
+          ADMIN_PHONES=99999999
+          THROTTLER_TTL=60000
+          THROTTLER_LIMIT=1000
+          PUBLIC_ENGINE_URL=http://localhost:8282
+          PUBLIC_WEB_URL=http://localhost:5173
+          ENV
+
+      - name: Typecheck
+        working-directory: zuuchmap_engine
+        run: npx tsc --noEmit
+
+      - name: Unit tests
+        working-directory: zuuchmap_engine
+        run: npm test
+
+      - name: Migrations
+        working-directory: zuuchmap_engine
+        run: npm run migration:run
+
+      # Talks to the real Postgres above: schema assertions plus the end-to-end
+      # journey over HTTP (create → approve → view → message → report).
+      - name: Integration and end-to-end
+        working-directory: zuuchmap_engine
+        run: npm run test:int
+
+      - name: Build
+        working-directory: zuuchmap_engine
+        run: npm run build
+
+  web:
+    name: Web — lint, tests, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: zuuchmap_web/package-lock.json
+
+      - name: Install
+        working-directory: zuuchmap_web
+        run: npm ci
+
+      # Advisory, like the engine's: the web app carries ~23 pre-existing
+      # findings (react-hooks/set-state-in-effect, react-refresh export rules)
+      # that predate this workflow. Gating on them would fail every PR for
+      # reasons unrelated to it.
+      - name: Lint (advisory)
+        continue-on-error: true
+        working-directory: zuuchmap_web
+        run: npm run lint
+
+      - name: Tests
+        working-directory: zuuchmap_web
+        run: npm test
+
+      - name: Build
+        working-directory: zuuchmap_web
+        run: npm run build
+
+  app:
+    name: App — tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: zuuchmap_app/package-lock.json
+
+      - name: Install
+        working-directory: zuuchmap_app
+        run: npm ci
+
+      - name: Tests
+        working-directory: zuuchmap_app
+        run: npm test
+
+  engine-lint:
+    name: Engine lint (advisory)
+    runs-on: ubuntu-latest
+    # Reports the count without blocking: the existing findings predate this
+    # workflow, and a gate nobody can pass is a gate everybody learns to ignore.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: zuuchmap_engine/package-lock.json
+      - name: Install
+        working-directory: zuuchmap_engine
+        run: npm ci
+      # --no-fix: the package script fixes in place, which is right locally and
+      # meaningless in CI, where the fixed files are thrown away.
+      - name: Lint
+        working-directory: zuuchmap_engine
+        run: npx eslint "src/**/*.ts" --no-fix

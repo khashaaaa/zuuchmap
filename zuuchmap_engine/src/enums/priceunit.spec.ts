@@ -11,8 +11,17 @@ describe('PriceUnit', () => {
 
   it('exposes every unit the clients offer', () => {
     expect(PRICE_UNITS).toEqual([
-      'HOUR', 'MOTO_HOUR', 'DAY', 'WEEK', 'MONTH',
-      'PROJECT', 'UNIT', 'PIECE', 'SQM', 'TRIP', 'TOTAL',
+      'HOUR',
+      'MOTO_HOUR',
+      'DAY',
+      'WEEK',
+      'MONTH',
+      'PROJECT',
+      'UNIT',
+      'PIECE',
+      'SQM',
+      'TRIP',
+      'TOTAL',
     ]);
   });
 

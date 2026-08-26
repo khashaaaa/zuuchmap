@@ -1,4 +1,11 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger, Optional } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+  Logger,
+  Optional,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository, SelectQueryBuilder } from 'typeorm';
 import { Cron } from '@nestjs/schedule';
@@ -12,7 +19,7 @@ import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { ImageUploadHandler, deleteMultipleImages } from '../utils/uploader';
 import { publicUser } from '../utils/public-user';
-import { ViewedpostService } from './viewedpost.service';
+import { ViewedpostService, Viewer } from './viewedpost.service';
 import { EventsGateway } from '../events/events.gateway';
 import { sharedCache, invalidatePostReadCaches } from '../utils/cache';
 import { CategoryService } from './category.service';
@@ -27,7 +34,10 @@ const POST_EXPIRY_DAYS = 30;
  * What each plan entitles a provider to. `expiryDays: null` means "use the
  * category's own `post_expiry_days`", which is the pre-monetization behaviour.
  */
-export const PLAN_LIMITS: Record<string, { posts: number; expiryDays: number | null }> = {
+export const PLAN_LIMITS: Record<
+  string,
+  { posts: number; expiryDays: number | null }
+> = {
   [Plan.FREE]: { posts: 3, expiryDays: null },
   [Plan.PROVIDER]: { posts: 25, expiryDays: 90 },
 };
@@ -43,16 +53,18 @@ export const expiryDaysFor = (
 ): number => {
   const categoryDays = schema?.post_expiry_days || POST_EXPIRY_DAYS;
   const planDays = (PLAN_LIMITS[plan] ?? PLAN_LIMITS[Plan.FREE]).expiryDays;
-  return schema?.post_expiry_days ? categoryDays : Math.max(categoryDays, planDays ?? 0);
+  return schema?.post_expiry_days
+    ? categoryDays
+    : Math.max(categoryDays, planDays ?? 0);
 };
 
 const TTL = {
-  posts: 30_000,   // 30 s
-  map: 60_000,     // 60 s
+  posts: 30_000, // 30 s
+  map: 60_000, // 60 s
   similar: 5 * 60_000, // 5 min
   // Longer than `posts` on purpose: a total that is a minute stale is a
   // cosmetic difference on a result header, and it saves a full pass per page.
-  count: 60_000,   // 60 s
+  count: 60_000, // 60 s
 } as const;
 
 /** How far ahead `busy_dates` looks. Two weeks is what a booking calendar shows. */
@@ -66,18 +78,33 @@ const isoDay = (d: Date) => d.toISOString().slice(0, 10);
  * without a database; bookings are whole-day, so the maths is in UTC days.
  */
 export function expandBusyDates(
-  rows: { postId: number; start_date: Date | string; end_date: Date | string }[],
+  rows: {
+    postId: number;
+    start_date: Date | string;
+    end_date: Date | string;
+  }[],
   today: Date = new Date(),
   days: number = BUSY_DATES_DAYS,
 ): Map<number, string[]> {
-  const from = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  const from = Date.UTC(
+    today.getUTCFullYear(),
+    today.getUTCMonth(),
+    today.getUTCDate(),
+  );
   const to = from + days * 86_400_000;
   const out = new Map<number, Set<string>>();
   for (const r of rows) {
-    const s = new Date(r.start_date); const e = new Date(r.end_date);
+    const s = new Date(r.start_date);
+    const e = new Date(r.end_date);
     if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) continue;
-    let cur = Math.max(Date.UTC(s.getUTCFullYear(), s.getUTCMonth(), s.getUTCDate()), from);
-    const end = Math.min(Date.UTC(e.getUTCFullYear(), e.getUTCMonth(), e.getUTCDate()), to - 86_400_000);
+    let cur = Math.max(
+      Date.UTC(s.getUTCFullYear(), s.getUTCMonth(), s.getUTCDate()),
+      from,
+    );
+    const end = Math.min(
+      Date.UTC(e.getUTCFullYear(), e.getUTCMonth(), e.getUTCDate()),
+      to - 86_400_000,
+    );
     for (; cur <= end; cur += 86_400_000) {
       if (!out.has(r.postId)) out.set(r.postId, new Set());
       out.get(r.postId)!.add(isoDay(new Date(cur)));
@@ -143,14 +170,17 @@ export function validateRequiredAttributes(
 export const ATTR_MAX_KEYS = 60;
 export const ATTR_MAX_BYTES = 8 * 1024;
 
-export function attributesOutOfBounds(attributes: Record<string, any> | undefined | null): string | null {
+export function attributesOutOfBounds(
+  attributes: Record<string, any> | undefined | null,
+): string | null {
   if (!attributes || typeof attributes !== 'object') return null;
-  if (Object.keys(attributes).length > ATTR_MAX_KEYS) return 'ATTRIBUTES_TOO_MANY_KEYS';
+  if (Object.keys(attributes).length > ATTR_MAX_KEYS)
+    return 'ATTRIBUTES_TOO_MANY_KEYS';
   let size: number;
   try {
     size = Buffer.byteLength(JSON.stringify(attributes));
   } catch {
-    return 'ATTRIBUTES_UNSERIALISABLE';   // cyclic or otherwise unstorable
+    return 'ATTRIBUTES_UNSERIALISABLE'; // cyclic or otherwise unstorable
   }
   return size > ATTR_MAX_BYTES ? 'ATTRIBUTES_TOO_LARGE' : null;
 }
@@ -185,7 +215,10 @@ export function buildAttrFilter(
       });
     } else if (type === 'multiselect') {
       // `?` asks whether the stored array contains this value.
-      qb.andWhere(`post.attributes->:${p}_k ? :${p}`, { [`${p}_k`]: key, [p]: String(val) });
+      qb.andWhere(`post.attributes->:${p}_k ? :${p}`, {
+        [`${p}_k`]: key,
+        [p]: String(val),
+      });
     } else if (type === 'select') {
       // Enumerated fields match by containment so the GIN index can serve them.
       qb.andWhere(`post.attributes @> :${p}::jsonb`, {
@@ -193,7 +226,9 @@ export function buildAttrFilter(
       });
     } else {
       // Free text stays a substring scan.
-      qb.andWhere(`post.attributes->>'${key}' ILIKE :${p}`, { [p]: `%${String(val)}%` });
+      qb.andWhere(`post.attributes->>'${key}' ILIKE :${p}`, {
+        [p]: `%${String(val)}%`,
+      });
     }
     i++;
   }
@@ -221,7 +256,9 @@ export class PostService {
    * pick an indexable predicate. Returns an empty map when no category filter
    * is set (a cross-category attribute query cannot assume a single schema).
    */
-  private async attributeFieldTypes(category?: string): Promise<Map<string, string>> {
+  private async attributeFieldTypes(
+    category?: string,
+  ): Promise<Map<string, string>> {
     const types = new Map<string, string>();
     if (!category) return types;
 
@@ -233,14 +270,21 @@ export class PostService {
       }
     } catch (err) {
       // Filtering must still work if the schema lookup fails — fall back to ILIKE.
-      this.logger.warn(`Could not resolve field types for ${category}: ${err?.message}`);
+      this.logger.warn(
+        `Could not resolve field types for ${category}: ${err?.message}`,
+      );
     }
     return types;
   }
 
   /** `price_unit` is a plain varchar column, so the enum is only enforced here. */
   private assertPriceUnit(unit?: string | null): void {
-    if (unit !== undefined && unit !== null && unit !== '' && !isPriceUnit(unit)) {
+    if (
+      unit !== undefined &&
+      unit !== null &&
+      unit !== '' &&
+      !isPriceUnit(unit)
+    ) {
       throw new BadRequestException('INVALID_PRICE_UNIT');
     }
   }
@@ -249,15 +293,15 @@ export class PostService {
 
   /** Rejects categories/subcategories that no schema defines, and bad statuses. Returns the schema. */
 
-/**
- * The category, or null when there genuinely is no such category.
- *
- * `.catch(() => null)` used to stand here, which flattened a failed lookup into
- * the same answer as an unknown key — so a database blip reached the provider as
- * "Unknown category 'vehiclerent'" and sent them off to fix a category that was
- * never broken. Only NotFound is the caller's problem; everything else is ours
- * and must keep its own status code.
- */
+  /**
+   * The category, or null when there genuinely is no such category.
+   *
+   * `.catch(() => null)` used to stand here, which flattened a failed lookup into
+   * the same answer as an unknown key — so a database blip reached the provider as
+   * "Unknown category 'vehiclerent'" and sent them off to fix a category that was
+   * never broken. Only NotFound is the caller's problem; everything else is ours
+   * and must keep its own status code.
+   */
   private async findCategory(key: string): Promise<CategorySchema | null> {
     try {
       return await this.categoryService.getCategory(key);
@@ -268,7 +312,9 @@ export class PostService {
   }
 
   private async validateCategoryAndStatus(
-    category: string, subcategory?: string, status?: string,
+    category: string,
+    subcategory?: string,
+    status?: string,
   ): Promise<CategorySchema> {
     const schema = await this.findCategory(category);
     if (!schema || schema.active === false) {
@@ -279,7 +325,9 @@ export class PostService {
       (schema.subcategories?.length ?? 0) > 0 &&
       !schema.subcategories.some((s) => s.value === subcategory)
     ) {
-      throw new BadRequestException(`Unknown subcategory '${subcategory}' for category '${category}'`);
+      throw new BadRequestException(
+        `Unknown subcategory '${subcategory}' for category '${category}'`,
+      );
     }
     this.validateStatus(status);
     return schema;
@@ -297,9 +345,15 @@ export class PostService {
    * derived on read rather than swept by a job, so a missed cron run can never
    * hand out paid features for free.
    */
-  private effectivePlan(user?: { plan?: string; plan_expires_at?: Date | null } | null): string {
+  private effectivePlan(
+    user?: { plan?: string; plan_expires_at?: Date | null } | null,
+  ): string {
     if (!user?.plan || user.plan === Plan.FREE) return Plan.FREE;
-    if (user.plan_expires_at && new Date(user.plan_expires_at).getTime() <= Date.now()) return Plan.FREE;
+    if (
+      user.plan_expires_at &&
+      new Date(user.plan_expires_at).getTime() <= Date.now()
+    )
+      return Plan.FREE;
     return user.plan;
   }
 
@@ -318,7 +372,10 @@ export class PostService {
    * Shared with `providerStats` so the number the provider is shown is the same
    * one the create path measures against.
    */
-  private activePostCount(ownerId: string, em?: EntityManager): Promise<number> {
+  private activePostCount(
+    ownerId: string,
+    em?: EntityManager,
+  ): Promise<number> {
     return (em ? em.getRepository(Post) : this.postRepository)
       .createQueryBuilder('post')
       .where('post.userId = :ownerId', { ownerId })
@@ -328,18 +385,36 @@ export class PostService {
       .getCount();
   }
 
-  private async assertQuota(ownerId: string, plan: string, em?: EntityManager): Promise<void> {
+  private async assertQuota(
+    ownerId: string,
+    plan: string,
+    em?: EntityManager,
+  ): Promise<void> {
     const limit = (PLAN_LIMITS[plan] ?? PLAN_LIMITS[Plan.FREE]).posts;
     const active = await this.activePostCount(ownerId, em);
     if (active >= limit) {
-      throw new BadRequestException({ message: 'POST_QUOTA_EXCEEDED', limit, plan });
+      throw new BadRequestException({
+        message: 'POST_QUOTA_EXCEEDED',
+        limit,
+        plan,
+      });
     }
   }
 
-  async create(dto: CreatePostDto, files: Express.Multer.File[], ownerId: string): Promise<Post> {
-    const schema = await this.validateCategoryAndStatus(dto.category, dto.subcategory ?? dto.secondcategory, dto.status);
+  async create(
+    dto: CreatePostDto,
+    files: Express.Multer.File[],
+    ownerId: string,
+  ): Promise<Post> {
+    const schema = await this.validateCategoryAndStatus(
+      dto.category,
+      dto.subcategory ?? dto.secondcategory,
+      dto.status,
+    );
     this.assertPriceUnit(dto.price_unit);
-    const owner = ownerId ? await this.userRepository.findOne({ where: { id: ownerId } }) : null;
+    const owner = ownerId
+      ? await this.userRepository.findOne({ where: { id: ownerId } })
+      : null;
     const plan = this.effectivePlan(owner);
     if (ownerId) await this.assertQuota(ownerId, plan);
     const oversized = attributesOutOfBounds(dto.attributes);
@@ -347,7 +422,10 @@ export class PostService {
 
     const missing = validateRequiredAttributes(schema, dto.attributes ?? {});
     if (missing.length) {
-      throw new BadRequestException({ message: 'MISSING_REQUIRED_ATTRIBUTES', fields: missing });
+      throw new BadRequestException({
+        message: 'MISSING_REQUIRED_ATTRIBUTES',
+        fields: missing,
+      });
     }
     const expiryDays = expiryDaysFor(schema, plan);
     const postData: Partial<Post> = {
@@ -365,8 +443,12 @@ export class PostService {
       price_unit: dto.price_unit,
       contact_phone: dto.contact_phone,
       contact_email: dto.contact_email,
-      available_from: dto.available_from ? new Date(dto.available_from) : undefined,
-      available_until: dto.available_until ? new Date(dto.available_until) : undefined,
+      available_from: dto.available_from
+        ? new Date(dto.available_from)
+        : undefined,
+      available_until: dto.available_until
+        ? new Date(dto.available_until)
+        : undefined,
       website: dto.website,
       attributes: dto.attributes || {},
       images: [],
@@ -377,7 +459,9 @@ export class PostService {
     const post = this.postRepository.create(postData as Post);
 
     if (ownerId) {
-      const user = await this.userRepository.findOne({ where: { id: ownerId } });
+      const user = await this.userRepository.findOne({
+        where: { id: ownerId },
+      });
       if (user) post.user = user;
     }
 
@@ -392,7 +476,9 @@ export class PostService {
     // upload never holds the lock.
     const saved = await this.postRepository.manager.transaction(async (em) => {
       if (ownerId) {
-        await em.query('SELECT 1 FROM "user" WHERE id = $1 FOR UPDATE', [ownerId]);
+        await em.query('SELECT 1 FROM "user" WHERE id = $1 FOR UPDATE', [
+          ownerId,
+        ]);
         await this.assertQuota(ownerId, plan, em);
       }
       return em.getRepository(Post).save(post);
@@ -405,36 +491,48 @@ export class PostService {
     }
 
     invalidatePostReadCaches();
-    this.events?.emitPostCreated({ id: saved.id, category: saved.category, title: saved.title });
+    this.events?.emitPostCreated({
+      id: saved.id,
+      category: saved.category,
+      title: saved.title,
+    });
 
     // Push notification to admins (fires async, doesn't block response)
-    this.notifications.notifyAdmins(saved.id, saved.title, saved.category)
-      .catch(err => this.logger.warn(`notifyAdmins backstop: ${err?.message}`));
+    this.notifications
+      .notifyAdmins(saved.id, saved.title, saved.category)
+      .catch((err) =>
+        this.logger.warn(`notifyAdmins backstop: ${err?.message}`),
+      );
 
     return saved;
   }
 
-  async findAll(filters: {
-    category?: string;
-    subcategory?: string;
-    province?: string;
-    district?: string;
-    approval_status?: string;
-    status?: string;
-    page?: number;
-    limit?: number;
-    q?: string;
-    attrs?: Record<string, string>;
-    sort?: string;
-    price_min?: string;
-    price_max?: string;
-  } = {}): Promise<{ items: Post[]; total: number }> {
+  async findAll(
+    filters: {
+      category?: string;
+      subcategory?: string;
+      province?: string;
+      district?: string;
+      approval_status?: string;
+      status?: string;
+      page?: number;
+      limit?: number;
+      q?: string;
+      attrs?: Record<string, string>;
+      sort?: string;
+      price_min?: string;
+      price_max?: string;
+    } = {},
+  ): Promise<{ items: Post[]; total: number }> {
     const hasAttrs = filters.attrs && Object.keys(filters.attrs).length > 0;
     const useCache = !filters.q && !hasAttrs;
     // Clamp pagination before anything touches SQL: Postgres rejects negative
     // LIMIT/OFFSET outright, and an uncapped limit lets one request drag the
     // whole table (with user+company joins) into memory.
-    const limit = Math.min(Math.max(Math.floor(filters.limit || 50) || 50, 1), 100);
+    const limit = Math.min(
+      Math.max(Math.floor(filters.limit || 50) || 50, 1),
+      100,
+    );
     const page = Math.max(Math.floor(filters.page || 1) || 1, 1);
     // encodeURIComponent each part so a ':' inside a query param can't
     // collide with the key separator.
@@ -445,7 +543,8 @@ export class PostService {
       if (cached) return cached;
     }
 
-    const qb = this.postRepository.createQueryBuilder('post')
+    const qb = this.postRepository
+      .createQueryBuilder('post')
       .leftJoinAndSelect('post.user', 'user')
       .leftJoinAndSelect('user.company', 'company');
 
@@ -453,13 +552,22 @@ export class PostService {
     // Price sorts push unpriced posts last so "cheapest" never means "no price".
     switch (filters.sort) {
       case 'price_asc':
-        qb.orderBy('post.price_amount', 'ASC', 'NULLS LAST').addOrderBy('post.date_created', 'DESC');
+        qb.orderBy('post.price_amount', 'ASC', 'NULLS LAST').addOrderBy(
+          'post.date_created',
+          'DESC',
+        );
         break;
       case 'price_desc':
-        qb.orderBy('post.price_amount', 'DESC', 'NULLS LAST').addOrderBy('post.date_created', 'DESC');
+        qb.orderBy('post.price_amount', 'DESC', 'NULLS LAST').addOrderBy(
+          'post.date_created',
+          'DESC',
+        );
         break;
       case 'views':
-        qb.orderBy('post.views', 'DESC').addOrderBy('post.date_created', 'DESC');
+        qb.orderBy('post.views', 'DESC').addOrderBy(
+          'post.date_created',
+          'DESC',
+        );
         break;
       default:
         // Paid placement applies only to the default (newest-first) browse.
@@ -469,25 +577,45 @@ export class PostService {
         // The predicate form could not be indexed — NOW() is not immutable — so
         // every browse read and sorted the whole matching set to return one
         // page. IDX_post_browse_order serves this ordering directly.
-        qb.orderBy('post.is_featured', 'DESC')
-          .addOrderBy('post.date_created', 'DESC');
+        qb.orderBy('post.is_featured', 'DESC').addOrderBy(
+          'post.date_created',
+          'DESC',
+        );
     }
 
     const priceMin = Number(filters.price_min);
-    if (filters.price_min !== undefined && filters.price_min !== '' && !Number.isNaN(priceMin)) {
+    if (
+      filters.price_min !== undefined &&
+      filters.price_min !== '' &&
+      !Number.isNaN(priceMin)
+    ) {
       qb.andWhere('post.price_amount >= :priceMin', { priceMin });
     }
     const priceMax = Number(filters.price_max);
-    if (filters.price_max !== undefined && filters.price_max !== '' && !Number.isNaN(priceMax)) {
+    if (
+      filters.price_max !== undefined &&
+      filters.price_max !== '' &&
+      !Number.isNaN(priceMax)
+    ) {
       qb.andWhere('post.price_amount <= :priceMax', { priceMax });
     }
 
-    if (filters.category) qb.andWhere('post.category = :category', { category: filters.category });
-    if (filters.subcategory) qb.andWhere('post.subcategory = :subcategory', { subcategory: filters.subcategory });
-    if (filters.province) qb.andWhere('post.province = :province', { province: filters.province });
-    if (filters.district) qb.andWhere('post.district = :district', { district: filters.district });
-    if (filters.approval_status) qb.andWhere('post.approval_status = :approval_status', { approval_status: filters.approval_status });
-    if (filters.status) qb.andWhere('post.status = :status', { status: filters.status });
+    if (filters.category)
+      qb.andWhere('post.category = :category', { category: filters.category });
+    if (filters.subcategory)
+      qb.andWhere('post.subcategory = :subcategory', {
+        subcategory: filters.subcategory,
+      });
+    if (filters.province)
+      qb.andWhere('post.province = :province', { province: filters.province });
+    if (filters.district)
+      qb.andWhere('post.district = :district', { district: filters.district });
+    if (filters.approval_status)
+      qb.andWhere('post.approval_status = :approval_status', {
+        approval_status: filters.approval_status,
+      });
+    if (filters.status)
+      qb.andWhere('post.status = :status', { status: filters.status });
 
     // Exclude expired posts from public queries. The expiry-date guard applies
     // even when the caller filters by status: the cron flips `status` on a
@@ -507,7 +635,9 @@ export class PostService {
       const terms = searchTerms(filters.q);
       if (terms.length) {
         const tsq = terms.map((t) => `${t}:*`).join(' & ');
-        qb.andWhere(`post.search_vector @@ to_tsquery('simple', :tsq)`, { tsq });
+        qb.andWhere(`post.search_vector @@ to_tsquery('simple', :tsq)`, {
+          tsq,
+        });
       }
     }
 
@@ -530,15 +660,27 @@ export class PostService {
       qb.getMany(),
       cachedTotal !== undefined && cachedTotal !== null
         ? Promise.resolve(cachedTotal)
-        : qb.getCount().then((n) => { this.cache.set(countKey, n, TTL.count); return n; }),
+        : qb.getCount().then((n) => {
+            this.cache.set(countKey, n, TTL.count);
+            return n;
+          }),
     ]);
 
     // Demand-gap signal: record public searches (text/attribute queries) and any
     // filtered browse that came back empty. Cached repeats within the TTL are not
     // re-recorded — aggregates need the shape of demand, not every request.
     const isSearch = !!(filters.q || hasAttrs);
-    const isFilteredBrowse = !!(filters.category || filters.subcategory || filters.province || filters.district);
-    if (filters.approval_status === 'APPROVED' && page === 1 && (isSearch || (isFilteredBrowse && total === 0))) {
+    const isFilteredBrowse = !!(
+      filters.category ||
+      filters.subcategory ||
+      filters.province ||
+      filters.district
+    );
+    if (
+      filters.approval_status === 'APPROVED' &&
+      page === 1 &&
+      (isSearch || (isFilteredBrowse && total === 0))
+    ) {
       this.analytics?.record('search.performed', {
         q: filters.q ? String(filters.q).slice(0, 100) : undefined,
         category: filters.category,
@@ -552,7 +694,9 @@ export class PostService {
 
     // Never let raw User entities (push_token, device fields, …) reach clients.
     const result = {
-      items: await this.attachBusyDates(items.map((p) => ({ ...p, user: publicUser(p.user) }) as Post)),
+      items: await this.attachBusyDates(
+        items.map((p) => ({ ...p, user: publicUser(p.user) })),
+      ),
       total,
     };
     if (useCache) this.cache.set(cacheKey, result, TTL.posts);
@@ -565,28 +709,39 @@ export class PostService {
    * their own module, which imports this one — so this reads the table directly
    * rather than closing a module cycle for one SELECT.
    */
-  async attachBusyDates<T extends Pick<Post, 'id' | 'category'>>(posts: T[], days = BUSY_DATES_DAYS): Promise<T[]> {
+  async attachBusyDates<T extends Pick<Post, 'id' | 'category'>>(
+    posts: T[],
+    days = BUSY_DATES_DAYS,
+  ): Promise<T[]> {
     if (!posts.length) return posts;
     let rentalKeys: Set<string>;
     try {
       const schemas = await this.categoryService.getCategories();
-      rentalKeys = new Set(schemas.filter((c) => c.has_rental_status).map((c) => c.key));
+      rentalKeys = new Set(
+        schemas.filter((c) => c.has_rental_status).map((c) => c.key),
+      );
     } catch (err) {
-      this.logger.warn(`attachBusyDates: schema lookup failed — ${err?.message}`);
+      this.logger.warn(
+        `attachBusyDates: schema lookup failed — ${err?.message}`,
+      );
       return posts;
     }
-    const ids = posts.filter((p) => rentalKeys.has(p.category)).map((p) => p.id);
+    const ids = posts
+      .filter((p) => rentalKeys.has(p.category))
+      .map((p) => p.id);
     if (!ids.length) return posts;
 
-    const rows: { postId: number; start_date: Date; end_date: Date }[] = await this.postRepository.manager.query(
-      `SELECT "postId", start_date, end_date FROM "booking"
+    const rows: { postId: number; start_date: Date; end_date: Date }[] =
+      await this.postRepository.manager.query(
+        `SELECT "postId", start_date, end_date FROM "booking"
         WHERE "postId" = ANY($1) AND status = 'ACCEPTED'
           AND end_date >= CURRENT_DATE AND start_date < CURRENT_DATE + ($2 || ' days')::interval`,
-      [ids, String(days)],
-    );
+        [ids, String(days)],
+      );
     const busy = expandBusyDates(rows, new Date(), days);
     for (const p of posts) {
-      if (rentalKeys.has(p.category)) (p as any).busy_dates = busy.get(p.id) ?? [];
+      if (rentalKeys.has(p.category))
+        (p as any).busy_dates = busy.get(p.id) ?? [];
     }
     return posts;
   }
@@ -605,7 +760,8 @@ export class PostService {
     const post = await this.findOne(id);
     const price = post.price_amount == null ? null : Number(post.price_amount);
 
-    const items = await this.postRepository.createQueryBuilder('post')
+    const items = await this.postRepository
+      .createQueryBuilder('post')
       .leftJoinAndSelect('post.user', 'user')
       .leftJoinAndSelect('user.company', 'company')
       .addSelect(
@@ -618,14 +774,18 @@ export class PostService {
       .andWhere('post.approval_status = :approved', { approved: 'APPROVED' })
       .andWhere('post.status = :active', { active: Status.ACTIVE })
       .andWhere('(post.expires_at IS NULL OR post.expires_at > NOW())')
-      .setParameters({ district: post.district ?? '', province: post.province ?? '', price })
+      .setParameters({
+        district: post.district ?? '',
+        province: post.province ?? '',
+        price,
+      })
       .orderBy('loc_rank', 'ASC')
       .addOrderBy('price_dist', 'ASC', 'NULLS LAST')
       .addOrderBy('post.date_created', 'DESC')
       .take(take)
       .getMany();
 
-    const result = items.map((p) => ({ ...p, user: publicUser(p.user) }) as Post);
+    const result = items.map((p) => ({ ...p, user: publicUser(p.user) }));
     await this.attachBusyDates(result);
     this.cache.set(cacheKey, result, TTL.similar);
     return result;
@@ -636,12 +796,22 @@ export class PostService {
     if (cached) return cached;
 
     // Slim payload: map pins only need display fields — no user join (privacy + size)
-    const result = await this.postRepository.createQueryBuilder('post')
+    const result = await this.postRepository
+      .createQueryBuilder('post')
       .select([
-        'post.id', 'post.category', 'post.subcategory', 'post.title',
-        'post.latitude', 'post.longitude', 'post.province', 'post.district',
-        'post.price_amount', 'post.price_unit', 'post.images',
-        'post.status', 'post.date_created',
+        'post.id',
+        'post.category',
+        'post.subcategory',
+        'post.title',
+        'post.latitude',
+        'post.longitude',
+        'post.province',
+        'post.district',
+        'post.price_amount',
+        'post.price_unit',
+        'post.images',
+        'post.status',
+        'post.date_created',
       ])
       .where('post.latitude IS NOT NULL AND post.longitude IS NOT NULL')
       .andWhere('post.latitude BETWEEN -90 AND 90')
@@ -660,7 +830,9 @@ export class PostService {
     if (result.length === MAP_PIN_LIMIT) {
       // Never silent: hitting the cap means pins are missing from the map and
       // the fix is a viewport-bounded query, not a bigger number.
-      this.logger.warn(`Map pin cap reached (${MAP_PIN_LIMIT}) — some approved posts are not on the map`);
+      this.logger.warn(
+        `Map pin cap reached (${MAP_PIN_LIMIT}) — some approved posts are not on the map`,
+      );
     }
 
     await this.attachBusyDates(result);
@@ -680,9 +852,20 @@ export class PostService {
    * of with the dashboard being rendered.
    */
   async providerStats(userId: string): Promise<{
-    totals: { posts: number; views: number; likes: number; bookings_pending: number; bookings_accepted: number };
+    totals: {
+      posts: number;
+      views: number;
+      likes: number;
+      bookings_pending: number;
+      bookings_accepted: number;
+    };
     posts: Array<Record<string, unknown>>;
-    plan: { name: string; expires_at: Date | null; post_limit: number; posts_active: number };
+    plan: {
+      name: string;
+      expires_at: Date | null;
+      post_limit: number;
+      posts_active: number;
+    };
   }> {
     const rows = await this.postRepository.manager.query(
       `SELECT p.id, p.title, p.category, p.approval_status, p.status,
@@ -715,7 +898,13 @@ export class PostService {
         bookings_pending: acc.bookings_pending + Number(r.bookings_pending),
         bookings_accepted: acc.bookings_accepted + Number(r.bookings_accepted),
       }),
-      { posts: 0, views: 0, likes: 0, bookings_pending: 0, bookings_accepted: 0 },
+      {
+        posts: 0,
+        views: 0,
+        likes: 0,
+        bookings_pending: 0,
+        bookings_accepted: 0,
+      },
     );
 
     // The plan belongs in this payload rather than a second endpoint: a provider
@@ -747,7 +936,8 @@ export class PostService {
    * point where the window is reopened.
    */
   async relistIfLapsed(post: Post): Promise<boolean> {
-    if (!post.expires_at || new Date(post.expires_at).getTime() > Date.now()) return false;
+    if (!post.expires_at || new Date(post.expires_at).getTime() > Date.now())
+      return false;
 
     const owner = post.user?.id
       ? await this.userRepository.findOne({ where: { id: post.user.id } })
@@ -763,7 +953,9 @@ export class PostService {
     // The nightly sweep may already have stamped it EXPIRED; a fresh window
     // without clearing that leaves it filtered out by status instead.
     if (post.status === Status.EXPIRED) post.status = Status.ACTIVE;
-    this.logger.log(`relistIfLapsed: #${post.id} → ${next.toISOString()} (${days}d)`);
+    this.logger.log(
+      `relistIfLapsed: #${post.id} → ${next.toISOString()} (${days}d)`,
+    );
     return true;
   }
 
@@ -779,7 +971,10 @@ export class PostService {
   }
 
   async findOne(id: number): Promise<Post> {
-    const post = await this.postRepository.findOne({ where: { id }, relations: ['user', 'user.company'] });
+    const post = await this.postRepository.findOne({
+      where: { id },
+      relations: ['user', 'user.company'],
+    });
     if (!post) throw new NotFoundException(`Post #${id} not found`);
     return post;
   }
@@ -792,21 +987,33 @@ export class PostService {
    * dashboard's headline number partly a reflection of the provider checking on
    * it, which is exactly the number they are trying to read.
    */
-  async incrementViews(postId: number, userId: string): Promise<void> {
+  async incrementViews(postId: number, viewer: Viewer): Promise<void> {
     const post = await this.postRepository.findOne({
       where: { id: postId },
       relations: ['user'],
       select: { id: true, user: { id: true } },
     });
-    if (!post || post.user?.id === userId) return;
+    if (!post) return;
+    // A provider opening their own listing is still not audience — that rule
+    // predates anonymous views and is the reason the number is readable.
+    if (viewer.userId && post.user?.id === viewer.userId) return;
 
-    const result = await this.viewedpostService.recordView(userId, 'post', postId);
+    const result = await this.viewedpostService.recordView(
+      viewer,
+      'post',
+      postId,
+    );
     if (!result.already_viewed) {
       await this.postRepository.increment({ id: postId }, 'views', 1);
     }
   }
 
-  async update(id: number, dto: UpdatePostDto, files: Express.Multer.File[], userId: string): Promise<Post> {
+  async update(
+    id: number,
+    dto: UpdatePostDto,
+    files: Express.Multer.File[],
+    userId: string,
+  ): Promise<Post> {
     const post = await this.findOne(id);
 
     if (!post.user || post.user.id !== userId) {
@@ -821,9 +1028,14 @@ export class PostService {
       const oversized = attributesOutOfBounds(dto.attributes);
       if (oversized) throw new BadRequestException({ message: oversized });
 
-      const missing = schema ? validateRequiredAttributes(schema, dto.attributes) : [];
+      const missing = schema
+        ? validateRequiredAttributes(schema, dto.attributes)
+        : [];
       if (missing.length) {
-        throw new BadRequestException({ message: 'MISSING_REQUIRED_ATTRIBUTES', fields: missing });
+        throw new BadRequestException({
+          message: 'MISSING_REQUIRED_ATTRIBUTES',
+          fields: missing,
+        });
       }
     }
 
@@ -835,17 +1047,36 @@ export class PostService {
     // status toggle, availability dates) must not pull an approved post from
     // browse until an admin re-approves it.
     const strEq = (a: any, b: any) => `${a ?? ''}` === `${b ?? ''}`;
-    const numEq = (a: any, b: any) => (a == null && b == null) || Number(a) === Number(b);
+    const numEq = (a: any, b: any) =>
+      (a == null && b == null) || Number(a) === Number(b);
     const contentChanged =
-      (['subcategory', 'title', 'details', 'province', 'district', 'address',
-        'location', 'price_unit', 'contact_phone', 'contact_email', 'website'] as const)
-        .some((f) => dto[f] !== undefined && !strEq(dto[f], post[f])) ||
-      (dto.secondcategory !== undefined && !strEq(dto.secondcategory, post.subcategory)) ||
-      (['latitude', 'longitude', 'price_amount'] as const)
-        .some((f) => dto[f] !== undefined && !numEq(dto[f], post[f])) ||
-      (dto.attributes !== undefined && JSON.stringify(dto.attributes) !== JSON.stringify(post.attributes ?? {})) ||
+      (
+        [
+          'subcategory',
+          'title',
+          'details',
+          'province',
+          'district',
+          'address',
+          'location',
+          'price_unit',
+          'contact_phone',
+          'contact_email',
+          'website',
+        ] as const
+      ).some((f) => dto[f] !== undefined && !strEq(dto[f], post[f])) ||
+      (dto.secondcategory !== undefined &&
+        !strEq(dto.secondcategory, post.subcategory)) ||
+      (['latitude', 'longitude', 'price_amount'] as const).some(
+        (f) => dto[f] !== undefined && !numEq(dto[f], post[f]),
+      ) ||
+      (dto.attributes !== undefined &&
+        JSON.stringify(dto.attributes) !==
+          JSON.stringify(post.attributes ?? {})) ||
       (files?.length ?? 0) > 0 ||
-      (dto.existingImages !== undefined && JSON.stringify(dto.existingImages) !== JSON.stringify(post.images ?? []));
+      (dto.existingImages !== undefined &&
+        JSON.stringify(dto.existingImages) !==
+          JSON.stringify(post.images ?? []));
 
     Object.assign(post, {
       subcategory: dto.subcategory ?? dto.secondcategory ?? post.subcategory,
@@ -863,12 +1094,18 @@ export class PostService {
       contact_email: dto.contact_email ?? post.contact_email,
       // An omitted key means "unchanged"; an empty one means "clear it". Without
       // that distinction an availability window, once set, could never be removed.
-      available_from: dto.available_from === undefined
-        ? post.available_from
-        : (dto.available_from ? new Date(dto.available_from) : null),
-      available_until: dto.available_until === undefined
-        ? post.available_until
-        : (dto.available_until ? new Date(dto.available_until) : null),
+      available_from:
+        dto.available_from === undefined
+          ? post.available_from
+          : dto.available_from
+            ? new Date(dto.available_from)
+            : null,
+      available_until:
+        dto.available_until === undefined
+          ? post.available_until
+          : dto.available_until
+            ? new Date(dto.available_until)
+            : null,
       website: dto.website ?? post.website,
       status: dto.status ?? post.status,
       attributes: dto.attributes ?? post.attributes,
@@ -878,7 +1115,9 @@ export class PostService {
     // used to sit inside the `files?.length` branch, so removing photos without
     // adding any left them in R2 forever — reachable as soon as the app started
     // sending `existingImages: []` for "delete every photo".
-    const removedImages = (post.images || []).filter(img => !existingImages.includes(img));
+    const removedImages = (post.images || []).filter(
+      (img) => !existingImages.includes(img),
+    );
     if (removedImages.length) await deleteMultipleImages(removedImages);
 
     if (files?.length) {
@@ -892,7 +1131,8 @@ export class PostService {
       // Keep the version the admin already approved so they can review a diff.
       // First edit of a round wins: a second edit before re-approval must not
       // overwrite the baseline with an intermediate draft.
-      if (wasApproved && post.previous_snapshot == null) post.previous_snapshot = snapshot;
+      if (wasApproved && post.previous_snapshot == null)
+        post.previous_snapshot = snapshot;
       post.approval_status = 'PENDING';
       post.rejection_reason = null as unknown as string;
       post.rejection_field = null;
@@ -951,10 +1191,14 @@ export class PostService {
         .createQueryBuilder()
         .update(Post)
         .set({ is_featured: false })
-        .where('is_featured = true AND (featured_until IS NULL OR featured_until <= NOW())')
+        .where(
+          'is_featured = true AND (featured_until IS NULL OR featured_until <= NOW())',
+        )
         .execute();
       if (result.affected) {
-        this.logger.log(`retireLapsedFeatures: cleared ${result.affected} lapsed placement(s)`);
+        this.logger.log(
+          `retireLapsedFeatures: cleared ${result.affected} lapsed placement(s)`,
+        );
         invalidatePostReadCaches();
       }
     } catch (err) {
@@ -969,11 +1213,16 @@ export class PostService {
         .createQueryBuilder()
         .update(Post)
         .set({ status: Status.EXPIRED })
-        .where('status != :expired AND expires_at IS NOT NULL AND expires_at <= NOW()', {
-          expired: Status.EXPIRED,
-        })
+        .where(
+          'status != :expired AND expires_at IS NOT NULL AND expires_at <= NOW()',
+          {
+            expired: Status.EXPIRED,
+          },
+        )
         .execute();
-      this.logger.log(`expireOldPosts: marked ${result.affected ?? 0} post(s) as EXPIRED`);
+      this.logger.log(
+        `expireOldPosts: marked ${result.affected ?? 0} post(s) as EXPIRED`,
+      );
       if ((result.affected ?? 0) > 0) {
         invalidatePostReadCaches();
       }
@@ -992,17 +1241,20 @@ export class PostService {
     by_category: { key: string; count: number }[];
   }> {
     const cached = this.cache.get<{
-      total: number; provinces: number; by_category: { key: string; count: number }[];
+      total: number;
+      provinces: number;
+      by_category: { key: string; count: number }[];
     }>('posts:public-stats');
     if (cached) return cached;
 
     // Same visibility rules as the browse list. Counting bare APPROVED made the
     // landing page advertise more listings than /browse could show, because
     // expired-but-unswept posts were still in the total.
-    const live = (qb: SelectQueryBuilder<Post>) => qb
-      .where('post.approval_status = :status', { status: 'APPROVED' })
-      .andWhere('post.status != :expired', { expired: Status.EXPIRED })
-      .andWhere('(post.expires_at IS NULL OR post.expires_at > NOW())');
+    const live = (qb: SelectQueryBuilder<Post>) =>
+      qb
+        .where('post.approval_status = :status', { status: 'APPROVED' })
+        .andWhere('post.status != :expired', { expired: Status.EXPIRED })
+        .andWhere('(post.expires_at IS NULL OR post.expires_at > NOW())');
 
     const rows = await live(this.postRepository.createQueryBuilder('post'))
       .select('post.category', 'key')
@@ -1010,7 +1262,9 @@ export class PostService {
       .groupBy('post.category')
       .getRawMany<{ key: string; count: number }>();
 
-    const provinceRow = await live(this.postRepository.createQueryBuilder('post'))
+    const provinceRow = await live(
+      this.postRepository.createQueryBuilder('post'),
+    )
       .select('COUNT(DISTINCT post.province)::int', 'count')
       .andWhere('post.province IS NOT NULL')
       .getRawOne<{ count: number }>();

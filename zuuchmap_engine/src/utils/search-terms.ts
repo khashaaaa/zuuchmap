@@ -20,7 +20,7 @@ const MAX_TERMS = 8;
 
 /** Query → the terms browse would prefix-match, in order, bounded and cleaned. */
 export function searchTerms(raw: unknown): string[] {
-  const text = String(Array.isArray(raw) ? raw[0] ?? '' : raw ?? '');
+  const text = String(Array.isArray(raw) ? (raw[0] ?? '') : (raw ?? ''));
   return text
     .trim()
     .substring(0, MAX_QUERY_CHARS)
@@ -39,7 +39,9 @@ export function searchTerms(raw: unknown): string[] {
  * strips the hyphen and asks for `selfdumper`. Emitting both keeps a query for
  * a hyphenated word matching the post that contains it.
  */
-export function documentTokens(...parts: (string | null | undefined)[]): string[] {
+export function documentTokens(
+  ...parts: (string | null | undefined)[]
+): string[] {
   const tokens: string[] = [];
   for (const chunk of parts.filter(Boolean).join(' ').trim().split(/\s+/)) {
     if (!chunk) continue;
@@ -56,7 +58,10 @@ export function documentTokens(...parts: (string | null | undefined)[]): string[
  * Does `text` satisfy the query the way `search_vector @@ to_tsquery` would?
  * Every term must prefix-match some token — AND across terms, `:*` on each.
  */
-export function matchesSearchTerms(terms: string[], ...parts: (string | null | undefined)[]): boolean {
+export function matchesSearchTerms(
+  terms: string[],
+  ...parts: (string | null | undefined)[]
+): boolean {
   if (!terms.length) return true;
   const tokens = documentTokens(...parts);
   return terms.every((term) => tokens.some((tok) => tok.startsWith(term)));

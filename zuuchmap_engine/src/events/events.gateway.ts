@@ -24,6 +24,8 @@ export const SOCKET_EVENTS = {
   BOOKING_REQUESTED: 'booking.requested',
   BOOKING_RESPONDED: 'booking.responded',
   BOOKING_CANCELLED: 'booking.cancelled',
+  MESSAGE_CREATED: 'message.created',
+  REPORT_CREATED: 'report.created',
   AUTH_ERROR: 'auth_error',
 } as const;
 
@@ -35,7 +37,10 @@ export const LEGACY_USER_ROOM_PREFIX = 'provider:';
 export const userRoom = (userId: string) => `${USER_ROOM_PREFIX}${userId}`;
 
 @WebSocketGateway({
-  cors: { origin: process.env.ALLOWED_ORIGIN ?? 'https://zuuchmap.com', credentials: true },
+  cors: {
+    origin: process.env.ALLOWED_ORIGIN ?? 'https://zuuchmap.com',
+    credentials: true,
+  },
   namespace: '/events',
   path: '/engine/socket.io',
 })
@@ -86,7 +91,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (room === ROOM_ADMIN) {
       if (!client.data?.isAdmin) return { ok: false, reason: 'unauthorized' };
     } else {
-      const prefix = [USER_ROOM_PREFIX, LEGACY_USER_ROOM_PREFIX].find((p) => room.startsWith(p));
+      const prefix = [USER_ROOM_PREFIX, LEGACY_USER_ROOM_PREFIX].find((p) =>
+        room.startsWith(p),
+      );
       if (!prefix) return { ok: false, reason: 'invalid_room' };
       if (client.data?.userId !== room.slice(prefix.length)) {
         return { ok: false, reason: 'unauthorized' };
@@ -102,7 +109,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Before the adapter is up there is nothing to emit to. Worth saying once
       // per event rather than never: a silent no-op here is realtime quietly
       // not working, which is indistinguishable from "nothing happened".
-      this.logger.warn(`Dropped ${event} for ${room} — gateway server not ready`);
+      this.logger.warn(
+        `Dropped ${event} for ${room} — gateway server not ready`,
+      );
       return;
     }
     try {
@@ -127,13 +136,24 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     });
   }
 
-  emitPostApproved(postId: number, userId: string, title?: string, category?: string) {
+  emitPostApproved(
+    postId: number,
+    userId: string,
+    title?: string,
+    category?: string,
+  ) {
     const payload = { postId, title, category };
     this.emit(ROOM_ADMIN, SOCKET_EVENTS.POST_APPROVED, payload);
     this.emitToUser(userId, SOCKET_EVENTS.POST_APPROVED, payload);
   }
 
-  emitPostRejected(postId: number, userId: string, reason: string, title?: string, category?: string) {
+  emitPostRejected(
+    postId: number,
+    userId: string,
+    reason: string,
+    title?: string,
+    category?: string,
+  ) {
     const payload = { postId, reason, title, category };
     this.emit(ROOM_ADMIN, SOCKET_EVENTS.POST_REJECTED, payload);
     this.emitToUser(userId, SOCKET_EVENTS.POST_REJECTED, payload);
@@ -148,4 +168,29 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.emitToUser(userId, event, data);
   }
 
+  /**
+   * A new chat message, to the recipient only. The sender already has it —
+   * echoing it back would race the optimistic row the sender's client renders.
+   */
+  emitMessage(
+    recipientId: string,
+    payload: {
+      conversationId: string;
+      messageId: string;
+      postId: number | null;
+      senderId: string;
+      preview: string;
+    },
+  ) {
+    this.emitToUser(recipientId, SOCKET_EVENTS.MESSAGE_CREATED, payload);
+  }
+
+  /** A listing was flagged. Admin-only — the reported provider is not told. */
+  emitReportCreated(payload: {
+    reportId: string;
+    postId: number;
+    reason: string;
+  }) {
+    this.emit(ROOM_ADMIN, SOCKET_EVENTS.REPORT_CREATED, payload);
+  }
 }

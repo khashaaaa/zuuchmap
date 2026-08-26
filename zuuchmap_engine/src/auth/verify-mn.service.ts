@@ -54,20 +54,34 @@ export class VerifyMnService {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
-      const res = await fetch(`${BASE_URL}${path}`, { ...init, signal: controller.signal });
+      const res = await fetch(`${BASE_URL}${path}`, {
+        ...init,
+        signal: controller.signal,
+      });
       const body = await res.text();
 
       if (!res.ok) {
         // Never log the key; log status + path only.
-        this.logger.warn(`verify.mn ${init.method ?? 'GET'} ${path} → ${res.status}`);
+        this.logger.warn(
+          `verify.mn ${init.method ?? 'GET'} ${path} → ${res.status}`,
+        );
         if (res.status === 401) {
-          throw new HttpException('SMS provider rejected our credentials.', HttpStatus.SERVICE_UNAVAILABLE);
+          throw new HttpException(
+            'SMS provider rejected our credentials.',
+            HttpStatus.SERVICE_UNAVAILABLE,
+          );
         }
         if (res.status === 429) {
-          throw new HttpException('Checked too quickly. Try again in a few seconds.', HttpStatus.TOO_MANY_REQUESTS);
+          throw new HttpException(
+            'Checked too quickly. Try again in a few seconds.',
+            HttpStatus.TOO_MANY_REQUESTS,
+          );
         }
         if (res.status === 404) {
-          throw new HttpException('Verification session not found.', HttpStatus.NOT_FOUND);
+          throw new HttpException(
+            'Verification session not found.',
+            HttpStatus.NOT_FOUND,
+          );
         }
         throw new HttpException('SMS provider error.', HttpStatus.BAD_GATEWAY);
       }
@@ -76,17 +90,27 @@ export class VerifyMnService {
     } catch (err) {
       if (err instanceof HttpException) throw err;
       if (err?.name === 'AbortError') {
-        throw new HttpException('SMS provider timed out.', HttpStatus.GATEWAY_TIMEOUT);
+        throw new HttpException(
+          'SMS provider timed out.',
+          HttpStatus.GATEWAY_TIMEOUT,
+        );
       }
       this.logger.error(`verify.mn ${path} failed: ${err?.message}`);
-      throw new HttpException('SMS provider unreachable.', HttpStatus.BAD_GATEWAY);
+      throw new HttpException(
+        'SMS provider unreachable.',
+        HttpStatus.BAD_GATEWAY,
+      );
     } finally {
       clearTimeout(timer);
     }
   }
 
   /** Registers a code the user must SMS to the shortcode. */
-  async createSession(phone: string, text: string, callback: string): Promise<VerifySession> {
+  async createSession(
+    phone: string,
+    text: string,
+    callback: string,
+  ): Promise<VerifySession> {
     return this.request<VerifySession>('/sessions', {
       method: 'POST',
       headers: {
@@ -102,6 +126,9 @@ export class VerifyMnService {
    * is only ever a "check now" nudge — this call is what we actually trust.
    */
   async getStatus(sessionId: string): Promise<VerifyStatus> {
-    return this.request<VerifyStatus>(`/sessions/${encodeURIComponent(sessionId)}`, { method: 'GET' });
+    return this.request<VerifyStatus>(
+      `/sessions/${encodeURIComponent(sessionId)}`,
+      { method: 'GET' },
+    );
   }
 }

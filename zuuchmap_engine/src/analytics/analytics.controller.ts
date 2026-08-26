@@ -1,5 +1,12 @@
 import {
-  Body, Controller, Get, HttpCode, Post, Query, Req, UseGuards,
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Post,
+  Query,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AnalyticsService, IncomingEvent } from './analytics.service';
@@ -9,7 +16,7 @@ import { AdminGuard } from '../admin/admin.guard';
 
 @Controller('analytics')
 export class AnalyticsController {
-  constructor(private readonly analyticsService: AnalyticsService) { }
+  constructor(private readonly analyticsService: AnalyticsService) {}
 
   /**
    * Public collector. Anonymous visitors are the whole point — attribution for

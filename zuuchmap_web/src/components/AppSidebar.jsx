@@ -6,6 +6,7 @@ import { useId, useMemo, useState } from 'react'
 import {
   LayoutDashboard, FileText, Users, Map, Heart, User, Building2,
   LogOut, ChevronRight, Search, Tag, Plus, CalendarRange, BarChart3, BellRing,
+  MessageSquare, Flag, CreditCard,
 } from 'lucide-react'
 import { useAuthStore } from '../store'
 import { usersApi } from '@/lib/api'
@@ -20,6 +21,7 @@ function buildNav(t) {
       { to: '/admin/users', label: t('nav.users'), icon: Users },
       { to: '/admin/categories', label: t('admin.categories'), icon: Tag },
       { to: '/admin/analytics', label: t('analytics.title'), icon: BarChart3 },
+      { to: '/admin/reports', label: t('report.queue'), icon: Flag },
       { to: '/admin/profile', label: t('nav.profile'), icon: User },
     ],
     provider: [
@@ -27,6 +29,8 @@ function buildNav(t) {
       { to: '/provider/posts', label: t('nav.myPosts'), icon: FileText, end: true },
       { to: '/provider/posts/new', label: t('posts.add'), icon: Plus },
       { to: '/provider/bookings', label: t('booking.receivedBookings'), icon: CalendarRange },
+      { to: '/messages', label: t('messages.title'), icon: MessageSquare },
+      { to: '/provider/billing', label: t('billing.title'), icon: CreditCard },
       { to: '/provider/company', label: t('nav.company'), icon: Building2 },
       { to: '/provider/profile', label: t('nav.profile'), icon: User },
     ],
@@ -37,6 +41,7 @@ function buildNav(t) {
       { to: '/customer/saved', label: t('nav.saved'), icon: Heart },
       { to: '/customer/saved-searches', label: t('savedSearch.title'), icon: BellRing },
       { to: '/customer/bookings', label: t('booking.myBookings'), icon: CalendarRange },
+      { to: '/messages', label: t('messages.title'), icon: MessageSquare },
       { to: '/customer/profile', label: t('nav.profile'), icon: User },
     ],
   }

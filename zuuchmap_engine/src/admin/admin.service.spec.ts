@@ -15,7 +15,14 @@ describe('AdminService.getPendingPosts', () => {
     };
     const postRepo = { createQueryBuilder: jest.fn(() => qb) };
     const svc = new AdminService(
-      postRepo as any, {} as any, {} as any, {} as any, {} as any, {} as any, undefined as any,
+      postRepo as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      undefined as any,
+      {} as any,
     );
     return { svc, qb };
   };
@@ -45,6 +52,8 @@ describe('AdminService.getPendingPosts', () => {
   it('filters by category only when one is given', async () => {
     const { svc, qb } = makeService([], 0);
     await svc.getPendingPosts('sos');
-    expect(qb.andWhere).toHaveBeenCalledWith('post.category = :category', { category: 'sos' });
+    expect(qb.andWhere).toHaveBeenCalledWith('post.category = :category', {
+      category: 'sos',
+    });
   });
 });

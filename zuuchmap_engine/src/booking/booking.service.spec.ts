@@ -26,12 +26,20 @@ describe('BookingService — post availability', () => {
       count: jest.fn(async () => 0),
     };
     const postRepo = { findOne: jest.fn(async () => post) };
-    const notifications = { notifyUsers: jest.fn().mockResolvedValue(undefined) };
+    const notifications = {
+      notifyUsers: jest.fn().mockResolvedValue(undefined),
+    };
     const categoryService = {
-      getCategory: jest.fn().mockResolvedValue({ has_rental_status: true, label: 'Vehicle' }),
+      getCategory: jest
+        .fn()
+        .mockResolvedValue({ has_rental_status: true, label: 'Vehicle' }),
     };
     const svc = new BookingService(
-      bookingRepo as any, postRepo as any, notifications as any, categoryService as any, undefined as any,
+      bookingRepo as any,
+      postRepo as any,
+      notifications as any,
+      categoryService as any,
+      undefined as any,
     );
     return { svc, bookingRepo };
   };
@@ -89,10 +97,16 @@ describe('BookingService.hasAcceptedBooking', () => {
   it('counts accepted bookings by customer and provider alone', async () => {
     const bookingRepo = { count: jest.fn(async () => 1) };
     const svc = new BookingService(
-      bookingRepo as any, {} as any, {} as any, {} as any, undefined as any,
+      bookingRepo as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      undefined as any,
     );
 
-    await expect(svc.hasAcceptedBooking('customer-1', 'provider-1')).resolves.toBe(true);
+    await expect(
+      svc.hasAcceptedBooking('customer-1', 'provider-1'),
+    ).resolves.toBe(true);
     expect(bookingRepo.count).toHaveBeenCalledWith({
       where: {
         customer: { id: 'customer-1' },
@@ -109,13 +123,20 @@ describe('BookingService.respond — accepting stale requests', () => {
       findOne: jest.fn(async () => booking),
       save: jest.fn(async (x: any) => x),
       createQueryBuilder: jest.fn(() => {
-        const qb: any = { where: jest.fn(() => qb), andWhere: jest.fn(() => qb), getOne: jest.fn(async () => null) };
+        const qb: any = {
+          where: jest.fn(() => qb),
+          andWhere: jest.fn(() => qb),
+          getOne: jest.fn(async () => null),
+        };
         return qb;
       }),
     };
     const svc = new BookingService(
-      bookingRepo as any, {} as any,
-      { notifyUsers: jest.fn().mockResolvedValue(undefined) } as any, {} as any, undefined as any,
+      bookingRepo as any,
+      {} as any,
+      { notifyUsers: jest.fn().mockResolvedValue(undefined) } as any,
+      {} as any,
+      undefined as any,
     );
     return { svc, bookingRepo };
   };
@@ -158,11 +179,18 @@ describe('BookingService.expireStaleBookings', () => {
   const makeService = () => {
     const execute = jest.fn(async () => ({ affected: 4 }));
     const qb: any = {
-      update: jest.fn(() => qb), set: jest.fn(() => qb), where: jest.fn(() => qb), execute,
+      update: jest.fn(() => qb),
+      set: jest.fn(() => qb),
+      where: jest.fn(() => qb),
+      execute,
     };
     const bookingRepo = { createQueryBuilder: jest.fn(() => qb) };
     const svc = new BookingService(
-      bookingRepo as any, {} as any, {} as any, {} as any, undefined as any,
+      bookingRepo as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      undefined as any,
     );
     return { svc, qb };
   };
@@ -189,30 +217,53 @@ describe('BookingService.expireStaleBookings', () => {
 describe('BookingService.promptReviews', () => {
   const makeService = (due: any[]) => {
     const qb: any = {
-      leftJoin: jest.fn().mockReturnThis(), addSelect: jest.fn().mockReturnThis(),
-      where: jest.fn().mockReturnThis(), andWhere: jest.fn().mockReturnThis(),
+      leftJoin: jest.fn().mockReturnThis(),
+      addSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
       getMany: jest.fn(async () => due),
     };
-    const bookingRepo = { createQueryBuilder: jest.fn(() => qb), update: jest.fn(async (..._a: any[]) => ({})) };
+    const bookingRepo = {
+      createQueryBuilder: jest.fn(() => qb),
+      update: jest.fn(async (..._a: any[]) => ({})),
+    };
     const notifications = {
       notifyUsers: jest.fn(async (..._a: any[]) => undefined),
       notifyEach: jest.fn(async (..._a: any[]) => 0),
     };
-    const svc = new BookingService(bookingRepo as any, {} as any, notifications as any, {} as any, undefined as any);
+    const svc = new BookingService(
+      bookingRepo as any,
+      {} as any,
+      notifications as any,
+      {} as any,
+      undefined as any,
+    );
     return { svc, bookingRepo, notifications };
   };
 
   it('pushes every due customer in one batch, each with its own payload, and stamps review_prompted_at', async () => {
     const due = [
-      { id: 1, customer: { id: 'c1' }, provider: { id: 'p1' }, post: { id: 11 } },
-      { id: 2, customer: { id: 'c2' }, provider: { id: 'p1' }, post: { id: 12 } },
+      {
+        id: 1,
+        customer: { id: 'c1' },
+        provider: { id: 'p1' },
+        post: { id: 11 },
+      },
+      {
+        id: 2,
+        customer: { id: 'c2' },
+        provider: { id: 'p1' },
+        post: { id: 12 },
+      },
     ];
     const { svc, bookingRepo, notifications } = makeService(due);
     await svc.promptReviews();
 
     expect(bookingRepo.update).toHaveBeenCalledTimes(1);
-    expect((bookingRepo.update.mock.calls[0][0] as any).id._value).toEqual([1, 2]);
-    expect((bookingRepo.update.mock.calls[0][1] as any).review_prompted_at).toBeInstanceOf(Date);
+    expect(bookingRepo.update.mock.calls[0][0].id._value).toEqual([1, 2]);
+    expect(
+      bookingRepo.update.mock.calls[0][1].review_prompted_at,
+    ).toBeInstanceOf(Date);
     // One call, not one per customer: looping notifyUsers cost a separate
     // HTTPS round-trip to Expo for every recipient, while the transport
     // batches a hundred messages per request.
@@ -222,11 +273,21 @@ describe('BookingService.promptReviews', () => {
     expect(items).toHaveLength(2);
     expect(items[0]).toMatchObject({
       userId: 'c1',
-      data: { type: 'review_prompt', bookingId: 1, postId: 11, providerId: 'p1' },
+      data: {
+        type: 'review_prompt',
+        bookingId: 1,
+        postId: 11,
+        providerId: 'p1',
+      },
     });
     expect(items[1]).toMatchObject({
       userId: 'c2',
-      data: { type: 'review_prompt', bookingId: 2, postId: 12, providerId: 'p1' },
+      data: {
+        type: 'review_prompt',
+        bookingId: 2,
+        postId: 12,
+        providerId: 'p1',
+      },
     });
   });
 

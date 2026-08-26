@@ -1,24 +1,36 @@
 import { IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateSavedSearchDto {
-  @IsString() @MaxLength(80)
+  @IsString()
+  @MaxLength(80)
   name: string;
 
-  @IsOptional() @IsString() @MaxLength(64)
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
   category?: string;
 
-  @IsOptional() @IsString() @MaxLength(64)
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
   subcategory?: string;
 
-  @IsOptional() @IsString() @MaxLength(32)
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
   province?: string;
 
-  @IsOptional() @IsString() @MaxLength(32)
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
   district?: string;
 
-  @IsOptional() @IsString() @MaxLength(200)
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
   q?: string;
 
-  @IsOptional() @IsObject()
+  @IsOptional()
+  @IsObject()
   attrs?: Record<string, any>;
 }

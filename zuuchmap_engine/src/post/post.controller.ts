@@ -1,7 +1,19 @@
 import {
-  Controller, Get, Post, Patch, Delete, Put,
-  Param, Body, Query, Req, UseGuards, UseInterceptors,
-  UploadedFiles, ParseIntPipe, NotFoundException,
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Put,
+  Param,
+  Body,
+  Query,
+  Req,
+  UseGuards,
+  UseInterceptors,
+  UploadedFiles,
+  ParseIntPipe,
+  NotFoundException,
 } from '@nestjs/common';
 import { publicUser } from '../utils/public-user';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -12,6 +24,7 @@ import { CategoryService } from './category.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { createPostImageUploadInterceptor } from '../utils/uploader';
+import { visitorKey } from '../utils/visitor';
 
 @Controller('posts')
 export class PostController {
@@ -38,7 +51,21 @@ export class PostController {
   @Get()
   @UseGuards(OptionalJwtAuthGuard)
   findAll(@Query() query: Record<string, string>, @Req() req) {
-    const { category, subcategory, province, district, approval_status, status, page, limit, q, sort, price_min, price_max, ...rest } = query;
+    const {
+      category,
+      subcategory,
+      province,
+      district,
+      approval_status,
+      status,
+      page,
+      limit,
+      q,
+      sort,
+      price_min,
+      price_max,
+      ...rest
+    } = query;
     // Attribute filters arrive as attr.<key>=value (or attr.<key>_min / attr.<key>_max)
     const attrs: Record<string, string> = {};
     for (const [k, v] of Object.entries(rest)) {
@@ -91,15 +118,16 @@ export class PostController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
-    return this.postService.findByUser(req.user.id, page ? +page : 1, limit ? +limit : 50);
+    return this.postService.findByUser(
+      req.user.id,
+      page ? +page : 1,
+      limit ? +limit : 50,
+    );
   }
 
   @Get(':id')
   @UseGuards(OptionalJwtAuthGuard)
-  async findOne(
-    @Param('id', ParseIntPipe) id: number,
-    @Req() req?,
-  ) {
+  async findOne(@Param('id', ParseIntPipe) id: number, @Req() req?) {
     const post = await this.postService.findOne(id);
     // Unapproved posts are visible only to their owner and admins. 404 (not
     // 403) so unmoderated content doesn't leak its existence.
@@ -128,10 +156,19 @@ export class PostController {
     return items;
   }
 
+  /**
+   * Optional auth: anonymous traffic is most of the traffic on the public
+   * landing, browse and detail pages, and leaving it out made the view count
+   * providers see — and that a paid plan advertises — a fraction of the truth.
+   * Signed-in viewers still dedupe by account; everyone else by visitor key.
+   */
   @Put(':id/views')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(OptionalJwtAuthGuard)
   incrementViews(@Param('id', ParseIntPipe) id: number, @Req() req) {
-    return this.postService.incrementViews(id, req.user.id);
+    return this.postService.incrementViews(id, {
+      userId: req.user?.id ?? null,
+      visitorKey: req.user?.id ? null : visitorKey(req),
+    });
   }
 
   @Patch(':id')

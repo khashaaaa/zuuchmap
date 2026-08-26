@@ -24,7 +24,9 @@ export class UnifyOperatingHours1784333000000 implements MigrationInterface {
                 ELSE '{}'::jsonb END
       WHERE "attributes" ? 'opening_hours'
     `);
-    await queryRunner.query(`ALTER TABLE "post" DROP COLUMN IF EXISTS "operating_hours"`);
+    await queryRunner.query(
+      `ALTER TABLE "post" DROP COLUMN IF EXISTS "operating_hours"`,
+    );
     // Rename the field key in the materialstore schema definition
     await queryRunner.query(`
       UPDATE "category_schema" SET "fields" = (
@@ -36,7 +38,9 @@ export class UnifyOperatingHours1784333000000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "post" ADD COLUMN IF NOT EXISTS "operating_hours" character varying`);
+    await queryRunner.query(
+      `ALTER TABLE "post" ADD COLUMN IF NOT EXISTS "operating_hours" character varying`,
+    );
     await queryRunner.query(`
       UPDATE "post" SET "operating_hours" = "attributes"->>'operating_hours'
       WHERE "attributes" ? 'operating_hours'

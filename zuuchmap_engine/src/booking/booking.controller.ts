@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Put, Param, Body, Req, UseGuards, ParseIntPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Param,
+  Body,
+  Req,
+  UseGuards,
+  ParseIntPipe,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { BookingService } from './booking.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
@@ -30,12 +40,20 @@ export class BookingController {
   }
 
   @Put(':id/accept')
-  accept(@Param('id', ParseIntPipe) id: number, @Body() body: { message?: string }, @Req() req) {
+  accept(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { message?: string },
+    @Req() req,
+  ) {
     return this.bookingService.respond(id, req.user.id, true, body?.message);
   }
 
   @Put(':id/decline')
-  decline(@Param('id', ParseIntPipe) id: number, @Body() body: { message?: string }, @Req() req) {
+  decline(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { message?: string },
+    @Req() req,
+  ) {
     return this.bookingService.respond(id, req.user.id, false, body?.message);
   }
 

@@ -26,7 +26,11 @@ export class CategoryEmphasisAndExpiry1784333700000 implements MigrationInterfac
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "category_schema" DROP COLUMN IF EXISTS "post_expiry_days"`);
-    await queryRunner.query(`ALTER TABLE "category_schema" DROP COLUMN IF EXISTS "emphasized"`);
+    await queryRunner.query(
+      `ALTER TABLE "category_schema" DROP COLUMN IF EXISTS "post_expiry_days"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "category_schema" DROP COLUMN IF EXISTS "emphasized"`,
+    );
   }
 }

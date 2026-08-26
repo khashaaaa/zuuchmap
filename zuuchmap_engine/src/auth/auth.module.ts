@@ -26,4 +26,4 @@ import { jwtSecret } from 'src/utils/jwt-secret';
   providers: [AuthService, JwtStrategy, VerifyMnService],
   exports: [AuthService],
 })
-export class AuthModule { }
+export class AuthModule {}

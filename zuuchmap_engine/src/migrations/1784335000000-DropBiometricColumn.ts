@@ -18,10 +18,14 @@ export class DropBiometricColumn1784335000000 implements MigrationInterface {
   name = 'DropBiometricColumn1784335000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "user" DROP COLUMN IF EXISTS "biometric"`);
+    await queryRunner.query(
+      `ALTER TABLE "user" DROP COLUMN IF EXISTS "biometric"`,
+    );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "user" ADD "biometric" character varying`);
+    await queryRunner.query(
+      `ALTER TABLE "user" ADD "biometric" character varying`,
+    );
   }
 }

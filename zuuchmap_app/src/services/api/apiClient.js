@@ -19,6 +19,16 @@ apiClient.interceptors.request.use(
         if (config.data instanceof FormData) {
             delete config.headers['Content-Type'];
         }
+        // Lets the engine dedupe anonymous views without keying on an IP that a
+        // whole carrier may share. Already generated for analytics; reusing it
+        // avoids minting a second per-install identifier for the same purpose.
+        try {
+            const { getAnonId } = await import('../../utils/device');
+            config.headers['X-Visitor-Id'] = await getAnonId();
+        } catch {
+            // Storage unavailable — the view simply does not dedupe. Never a
+            // reason to fail the request it was riding along on.
+        }
         return config;
     },
     (error) => Promise.reject(error)

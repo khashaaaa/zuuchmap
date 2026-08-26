@@ -21,6 +21,11 @@ import { BookingModule } from './booking/booking.module';
 import { ReviewModule } from './review/review.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { SavedSearchModule } from './saved-search/saved-search.module';
+import { HealthModule } from './health/health.module';
+import { PaymentModule } from './payment/payment.module';
+import { ReportModule } from './report/report.module';
+import { MessagingModule } from './messaging/messaging.module';
+import { SeoModule } from './seo/seo.module';
 
 @Module({
   imports: [
@@ -29,10 +34,12 @@ import { SavedSearchModule } from './saved-search/saved-search.module';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (cs: ConfigService) => ({
-        throttlers: [{
-          ttl: cs.get<number>('THROTTLER_TTL') ?? 60000,
-          limit: cs.get<number>('THROTTLER_LIMIT') ?? 100,
-        }],
+        throttlers: [
+          {
+            ttl: cs.get<number>('THROTTLER_TTL') ?? 60000,
+            limit: cs.get<number>('THROTTLER_LIMIT') ?? 100,
+          },
+        ],
         // Redis-backed when configured — the default in-memory store keeps one
         // record per client IP per window with no size cap, so high IP
         // cardinality (a distributed flood) grows memory unbounded until pm2's
@@ -61,12 +68,20 @@ import { SavedSearchModule } from './saved-search/saved-search.module';
         synchronize: false,
         migrationsRun: true,
         autoLoadEntities: true,
-        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+        ssl:
+          process.env.NODE_ENV === 'production'
+            ? { rejectUnauthorized: false }
+            : false,
         migrations: [__dirname + '/migrations/*{.ts,.js}'],
         // Survive transient DB outages: keep retrying instead of crashing on boot/reconnect
         retryAttempts: 30,
         retryDelay: 3000,
-        extra: { max: 20, min: 5, idleTimeoutMillis: 30_000, connectionTimeoutMillis: 10_000 },
+        extra: {
+          max: 20,
+          min: 5,
+          idleTimeoutMillis: 30_000,
+          connectionTimeoutMillis: 10_000,
+        },
       }),
     }),
     AuthModule,
@@ -80,6 +95,11 @@ import { SavedSearchModule } from './saved-search/saved-search.module';
     ReviewModule,
     AnalyticsModule,
     SavedSearchModule,
+    HealthModule,
+    PaymentModule,
+    ReportModule,
+    MessagingModule,
+    SeoModule,
   ],
   controllers: [],
   providers: [

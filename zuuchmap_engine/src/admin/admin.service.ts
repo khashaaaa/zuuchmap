@@ -1,11 +1,16 @@
-import { Injectable, BadRequestException, Logger, Optional } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  Logger,
+  Optional,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Post } from '../post/entities/post.entity';
 import { User } from '../user/entities/user.entity';
 import { Company } from '../company/entities/company.entity';
 import { UserType } from '../enums/usertype';
-import { Plan, isPlan } from '../enums/plan';
+import { PlanService } from '../user/plan.service';
 import { PostNotificationService } from '../post/post-notification.service';
 import { PostService } from '../post/post.service';
 import { SavedSearchService } from '../saved-search/saved-search.service';
@@ -14,21 +19,10 @@ import { sharedCache, invalidatePostReadCaches } from '../utils/cache';
 
 const STATS_TTL = 30_000; // 30 s
 
-/**
- * Bare `setMonth(getMonth() + n)` rolls a day that the target month does not
- * have into the following one — a plan bought on 31 January would expire on
- * 3 March, handing out two free days. Clamp to the last day of the target
- * month instead, which is what "one month later" means to the person paying.
- */
-export function addMonths(from: Date, months: number): Date {
-  const day = from.getDate();
-  const target = new Date(from.getTime());
-  target.setDate(1);
-  target.setMonth(target.getMonth() + months);
-  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
-  target.setDate(Math.min(day, lastDay));
-  return target;
-}
+// Lives in PlanService now — both the admin grant and a settled QPay invoice
+// have to agree on what "another month" means. Re-exported because callers
+// (and its tests) have always imported it from here.
+export { addMonths } from '../user/plan.service';
 
 @Injectable()
 export class AdminService {
@@ -46,31 +40,20 @@ export class AdminService {
     private readonly notifications: PostNotificationService,
     private readonly posts: PostService,
     @Optional() private readonly savedSearches: SavedSearchService,
+    private readonly plans: PlanService,
   ) {}
 
   /**
-   * Grants or revokes a provider plan. `months` is ignored for FREE.
-   *
-   * Entitlement is stored, never computed here — `PostService.effectivePlan()`
-   * re-derives it on every read, so a lapsed plan degrades on its own.
+   * Grants or revokes a provider plan — the manual path, used after a bank
+   * transfer has been reconciled by hand. Delegates to PlanService so it
+   * cannot drift from the path a QPay invoice takes.
    */
-  async setUserPlan(userId: string, plan: string, months = 1): Promise<{ plan: string; plan_expires_at: Date | null }> {
-    if (!isPlan(plan)) throw new BadRequestException('INVALID_PLAN');
-    const clamped = Math.min(Math.max(Math.floor(months) || 1, 1), 24);
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-    if (!user) throw new BadRequestException(`User ${userId} not found`);
-    user.plan = plan;
-    if (plan === Plan.FREE) {
-      user.plan_expires_at = null;
-    } else {
-      // Extend from whichever is later, so renewing early never burns time.
-      const base = user.plan_expires_at && new Date(user.plan_expires_at) > new Date()
-        ? new Date(user.plan_expires_at) : new Date();
-      user.plan_expires_at = addMonths(base, clamped);
-    }
-    await this.userRepository.save(user);
-    this.logger.log(`setUserPlan: ${userId} -> ${plan} until ${user.plan_expires_at?.toISOString() ?? 'n/a'}`);
-    return { plan: user.plan, plan_expires_at: user.plan_expires_at };
+  async setUserPlan(
+    userId: string,
+    plan: string,
+    months = 1,
+  ): Promise<{ plan: string; plan_expires_at: Date | null }> {
+    return this.plans.setPlan(userId, plan, months);
   }
 
   /**
@@ -80,39 +63,58 @@ export class AdminService {
    * state register — the badge tells customers a human confirmed the company
    * exists, so it must never be granted as a side effect of payment.
    */
-  async setCompanyVerified(companyId: string, isVerified: boolean): Promise<{ is_verified: boolean }> {
-    const company = await this.companyRepository.findOne({ where: { id: companyId } });
-    if (!company) throw new BadRequestException(`Company ${companyId} not found`);
+  async setCompanyVerified(
+    companyId: string,
+    isVerified: boolean,
+  ): Promise<{ is_verified: boolean }> {
+    const company = await this.companyRepository.findOne({
+      where: { id: companyId },
+    });
+    if (!company)
+      throw new BadRequestException(`Company ${companyId} not found`);
     company.is_verified = !!isVerified;
     await this.companyRepository.save(company);
-    this.logger.log(`setCompanyVerified: ${companyId} -> ${company.is_verified}`);
+    this.logger.log(
+      `setCompanyVerified: ${companyId} -> ${company.is_verified}`,
+    );
     return { is_verified: company.is_verified };
   }
 
   /** Opens a paid placement window on one post. `days` of 0 clears it. */
-  async featurePost(postId: number, days: number): Promise<{ featured_until: Date | null }> {
+  async featurePost(
+    postId: number,
+    days: number,
+  ): Promise<{ featured_until: Date | null }> {
     const clamped = Math.min(Math.max(Math.floor(days) || 0, 0), 90);
     const post = await this.postRepository.findOne({ where: { id: postId } });
     if (!post) throw new BadRequestException(`Post #${postId} not found`);
     if (clamped === 0) {
       post.featured_until = null;
     } else {
-      const base = post.featured_until && new Date(post.featured_until) > new Date()
-        ? new Date(post.featured_until) : new Date();
+      const base =
+        post.featured_until && new Date(post.featured_until) > new Date()
+          ? new Date(post.featured_until)
+          : new Date();
       base.setDate(base.getDate() + clamped);
       post.featured_until = base;
     }
     // Kept in step with the window it mirrors. The hourly sweep only has to
     // catch windows that *lapse*; every deliberate change lands here first, so
     // an admin never sees their own action take an hour to show.
-    post.is_featured = !!post.featured_until && new Date(post.featured_until) > new Date();
+    post.is_featured =
+      !!post.featured_until && new Date(post.featured_until) > new Date();
     await this.postRepository.save(post);
     invalidatePostReadCaches();
-    this.logger.log(`featurePost: #${postId} featured_until=${post.featured_until?.toISOString() ?? 'cleared'}`);
+    this.logger.log(
+      `featurePost: #${postId} featured_until=${post.featured_until?.toISOString() ?? 'cleared'}`,
+    );
     return { featured_until: post.featured_until };
   }
 
-  async editPost(postId: number, updates: { title?: string; details?: string }): Promise<Post> {
+  async editPost(
+    postId: number,
+    updates: { title?: string; details?: string },
+  ): Promise<Post> {
     const post = await this.postRepository.findOne({ where: { id: postId } });
     if (!post) throw new BadRequestException(`Post #${postId} not found`);
     if (updates.title?.trim()) post.title = updates.title.trim();
@@ -135,7 +137,8 @@ export class AdminService {
   async getPendingPosts(category?: string, page = 1, limit = 50) {
     const take = Math.min(Math.max(Math.floor(limit || 50) || 50, 1), 200);
     const safePage = Math.max(Math.floor(page || 1) || 1, 1);
-    const qb = this.postRepository.createQueryBuilder('post')
+    const qb = this.postRepository
+      .createQueryBuilder('post')
       .leftJoinAndSelect('post.user', 'user')
       .where('post.approval_status = :s', { s: 'PENDING' })
       .orderBy('post.date_created', 'ASC')
@@ -153,7 +156,10 @@ export class AdminService {
   }
 
   private async findPostWithUser(postId: number): Promise<Post> {
-    const post = await this.postRepository.findOne({ where: { id: postId }, relations: ['user'] });
+    const post = await this.postRepository.findOne({
+      where: { id: postId },
+      relations: ['user'],
+    });
     if (!post) throw new BadRequestException(`Post #${postId} not found`);
     return post;
   }
@@ -226,9 +232,11 @@ export class AdminService {
    * on today's schema is a stale choice, not an attack.
    */
   async rejectPost(postId: number, reason: string, fieldKey?: string | null) {
-    if (!reason?.trim()) throw new BadRequestException('Rejection reason is required');
+    if (!reason?.trim())
+      throw new BadRequestException('Rejection reason is required');
     const field = fieldKey?.trim() || null;
-    if (field && !/^[a-z0-9_]{1,64}$/i.test(field)) throw new BadRequestException('INVALID_FIELD_KEY');
+    if (field && !/^[a-z0-9_]{1,64}$/i.test(field))
+      throw new BadRequestException('INVALID_FIELD_KEY');
     const post = await this.findPostWithUser(postId);
 
     post.approval_status = 'REJECTED';
@@ -243,9 +251,21 @@ export class AdminService {
         [userId],
         `"${post.title}" зөвшөөрөгдсөнгүй`,
         `Шалтгаан: ${reason.trim()}`,
-        { postId, post_type: post.category, reason: reason.trim(), field_key: field ?? undefined, notifType: 'rejected' },
+        {
+          postId,
+          post_type: post.category,
+          reason: reason.trim(),
+          field_key: field ?? undefined,
+          notifType: 'rejected',
+        },
       );
-      this.events.emitPostRejected(postId, userId, reason.trim(), post.title, post.category);
+      this.events.emitPostRejected(
+        postId,
+        userId,
+        reason.trim(),
+        post.title,
+        post.category,
+      );
     }
     this.events.emitStatsUpdated();
     invalidatePostReadCaches();
@@ -260,23 +280,44 @@ export class AdminService {
     const [postCounts, userCounts, byCategory] = await Promise.all([
       this.postRepository
         .createQueryBuilder('post')
-        .select("SUM(CASE WHEN post.approval_status = 'PENDING' THEN 1 ELSE 0 END)", 'pending')
-        .addSelect("SUM(CASE WHEN post.approval_status = 'APPROVED' THEN 1 ELSE 0 END)", 'approved')
-        .addSelect("SUM(CASE WHEN post.approval_status = 'REJECTED' THEN 1 ELSE 0 END)", 'rejected')
+        .select(
+          "SUM(CASE WHEN post.approval_status = 'PENDING' THEN 1 ELSE 0 END)",
+          'pending',
+        )
+        .addSelect(
+          "SUM(CASE WHEN post.approval_status = 'APPROVED' THEN 1 ELSE 0 END)",
+          'approved',
+        )
+        .addSelect(
+          "SUM(CASE WHEN post.approval_status = 'REJECTED' THEN 1 ELSE 0 END)",
+          'rejected',
+        )
         .addSelect('COUNT(*)', 'total')
         .getRawOne(),
       this.userRepository
         .createQueryBuilder('user')
         .select('COUNT(*)', 'total')
-        .addSelect(`SUM(CASE WHEN user.type = '${UserType.PROVIDER}' THEN 1 ELSE 0 END)`, 'providers')
-        .addSelect(`SUM(CASE WHEN user.type = '${UserType.CUSTOMER}' THEN 1 ELSE 0 END)`, 'customers')
+        .addSelect(
+          `SUM(CASE WHEN user.type = '${UserType.PROVIDER}' THEN 1 ELSE 0 END)`,
+          'providers',
+        )
+        .addSelect(
+          `SUM(CASE WHEN user.type = '${UserType.CUSTOMER}' THEN 1 ELSE 0 END)`,
+          'customers',
+        )
         .getRawOne(),
       this.postRepository
         .createQueryBuilder('post')
         .select('post.category', 'postType')
         .addSelect('COUNT(*)', 'total')
-        .addSelect("SUM(CASE WHEN post.approval_status = 'PENDING' THEN 1 ELSE 0 END)", 'pending')
-        .addSelect("SUM(CASE WHEN post.approval_status = 'APPROVED' THEN 1 ELSE 0 END)", 'approved')
+        .addSelect(
+          "SUM(CASE WHEN post.approval_status = 'PENDING' THEN 1 ELSE 0 END)",
+          'pending',
+        )
+        .addSelect(
+          "SUM(CASE WHEN post.approval_status = 'APPROVED' THEN 1 ELSE 0 END)",
+          'approved',
+        )
         .groupBy('post.category')
         .getRawMany(),
     ]);
@@ -291,7 +332,7 @@ export class AdminService {
       totalUsers: Number(userCounts.total),
       totalProviders: Number(userCounts.providers),
       totalCustomers: Number(userCounts.customers),
-      byType: byCategory.map(row => ({
+      byType: byCategory.map((row) => ({
         postType: row.postType,
         total: Number(row.total),
         pending: Number(row.pending),

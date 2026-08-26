@@ -41,8 +41,12 @@ export class FeaturedRankIndex1784335500000 implements MigrationInterface {
       `CREATE INDEX "IDX_post_browse_order"
          ON "post" ("approval_status", "is_featured" DESC, "date_created" DESC)`,
     );
-    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_60fc2bf4245759a0671aee7730"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_6458284fd3105a3705e94e8ee6"`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "IDX_60fc2bf4245759a0671aee7730"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "IDX_6458284fd3105a3705e94e8ee6"`,
+    );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

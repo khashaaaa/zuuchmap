@@ -20,4 +20,4 @@ export enum PriceUnit {
 export const PRICE_UNITS: string[] = Object.values(PriceUnit);
 
 export const isPriceUnit = (v: unknown): boolean =>
-  typeof v === 'string' && (PRICE_UNITS as string[]).includes(v);
+  typeof v === 'string' && PRICE_UNITS.includes(v);

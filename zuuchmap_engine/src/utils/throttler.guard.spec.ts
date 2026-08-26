@@ -21,7 +21,10 @@ describe('AppThrottlerGuard.getTracker', () => {
     process.env = OLD_ENV;
   });
 
-  const req = (headers: Record<string, string> = {}) => ({ headers, ip: '10.0.0.9' });
+  const req = (headers: Record<string, string> = {}) => ({
+    headers,
+    ip: '10.0.0.9',
+  });
 
   it('buckets an authenticated request by user id, not by IP', async () => {
     const token = new JwtService().sign({ sub: 'user-1' }, { secret: SECRET });
@@ -32,7 +35,10 @@ describe('AppThrottlerGuard.getTracker', () => {
   });
 
   it('ignores a token signed with the wrong secret and buckets by IP', async () => {
-    const forged = new JwtService().sign({ sub: 'user-1' }, { secret: 'wrong'.repeat(7) });
+    const forged = new JwtService().sign(
+      { sub: 'user-1' },
+      { secret: 'wrong'.repeat(7) },
+    );
     const tracker = await guard.getTracker(
       req({ authorization: `Bearer ${forged}`, 'x-real-ip': '1.2.3.4' }),
     );
@@ -40,7 +46,9 @@ describe('AppThrottlerGuard.getTracker', () => {
   });
 
   it('prefers the nginx-set X-Real-IP for anonymous requests', async () => {
-    expect(await guard.getTracker(req({ 'x-real-ip': '1.2.3.4' }))).toBe('1.2.3.4');
+    expect(await guard.getTracker(req({ 'x-real-ip': '1.2.3.4' }))).toBe(
+      '1.2.3.4',
+    );
   });
 
   it('falls back to req.ip when no proxy header is present (local dev)', async () => {

@@ -48,6 +48,9 @@ const TTL = {
   posts: 30_000,   // 30 s
   map: 60_000,     // 60 s
   similar: 5 * 60_000, // 5 min
+  // Longer than `posts` on purpose: a total that is a minute stale is a
+  // cosmetic difference on a result header, and it saves a full pass per page.
+  count: 60_000,   // 60 s
 } as const;
 
 /** How far ahead `busy_dates` looks. Two weeks is what a booking calendar shows. */
@@ -418,11 +421,11 @@ export class PostService {
         // Paid placement applies only to the default (newest-first) browse.
         // Featured never hides or filters anything — it lifts within the same
         // result set, so an unpaid post is always still reachable.
-        // TypeORM splits an orderBy string on its first dot and treats the left
-        // side as an alias, so a raw CASE cannot go here directly. Select the
-        // rank as a named expression and order by that name instead.
-        qb.addSelect('CASE WHEN post.featured_until > NOW() THEN 0 ELSE 1 END', 'featured_rank')
-          .orderBy('featured_rank', 'ASC')
+        // Ordered by the stored `is_featured`, not by `featured_until > NOW()`.
+        // The predicate form could not be indexed — NOW() is not immutable — so
+        // every browse read and sorted the whole matching set to return one
+        // page. IDX_post_browse_order serves this ordering directly.
+        qb.orderBy('post.is_featured', 'DESC')
           .addOrderBy('post.date_created', 'DESC');
     }
 
@@ -474,7 +477,20 @@ export class PostService {
 
     qb.take(limit).skip((page - 1) * limit);
 
-    const [items, total] = await qb.getManyAndCount();
+    // The count is the same for every page of a filter set, and it costs a
+    // second full pass (20 ms / 12k buffers at 62k posts) that getManyAndCount
+    // paid on every request. Cache it under a key that deliberately omits page,
+    // limit and sort, so paging and re-sorting reuse one count — and so a
+    // search, which the item cache skips, still only counts once per window.
+    const countKey = `posts:count:${k(filters.category)}:${k(filters.subcategory)}:${k(filters.province)}:${k(filters.district)}:${k(filters.approval_status)}:${k(filters.status)}:${k(filters.price_min)}:${k(filters.price_max)}:${k(filters.q)}:${hasAttrs ? JSON.stringify(filters.attrs) : ''}`;
+    const cachedTotal = this.cache.get<number>(countKey);
+    // getCount() ignores take/skip, so it counts the filter set, not the page.
+    const [items, total] = await Promise.all([
+      qb.getMany(),
+      cachedTotal !== undefined && cachedTotal !== null
+        ? Promise.resolve(cachedTotal)
+        : qb.getCount().then((n) => { this.cache.set(countKey, n, TTL.count); return n; }),
+    ]);
 
     // Demand-gap signal: record public searches (text/attribute queries) and any
     // filtered browse that came back empty. Cached repeats within the TTL are not
@@ -870,6 +886,33 @@ export class PostService {
   }
 
   // ─── Scheduled jobs ────────────────────────────────────────────────────────
+
+  /**
+   * Retires lapsed featured placement.
+   *
+   * `is_featured` is a materialised `featured_until > NOW()`, so something has
+   * to age it out. Hourly rather than daily: the flag decides paid placement,
+   * and a day of over-serving a window someone paid for by the day is a
+   * refundable amount of wrong. Only lapses are swept — every deliberate
+   * feature/unfeature writes the flag on the spot.
+   */
+  @Cron('0 * * * *')
+  async retireLapsedFeatures(): Promise<void> {
+    try {
+      const result = await this.postRepository
+        .createQueryBuilder()
+        .update(Post)
+        .set({ is_featured: false })
+        .where('is_featured = true AND (featured_until IS NULL OR featured_until <= NOW())')
+        .execute();
+      if (result.affected) {
+        this.logger.log(`retireLapsedFeatures: cleared ${result.affected} lapsed placement(s)`);
+        invalidatePostReadCaches();
+      }
+    } catch (err) {
+      this.logger.error(`retireLapsedFeatures failed: ${err?.message}`);
+    }
+  }
 
   @Cron('0 0 * * *')
   async expireOldPosts(): Promise<void> {

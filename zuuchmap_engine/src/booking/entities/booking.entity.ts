@@ -43,6 +43,12 @@ export class Booking {
   @Column({ nullable: true, type: 'text' })
   response_message: string;
 
+  // When the provider answered — accept or decline. Its own column because
+  // date_updated is bumped by any later write (the review-prompt sweep, for
+  // one), which made it useless as a proxy for the response.
+  @Column({ nullable: true, type: 'timestamp' })
+  responded_at: Date | null;
+
   // Set by the nightly review-prompt sweep once the customer has been nudged.
   @Column({ nullable: true, type: 'timestamp' })
   review_prompted_at: Date | null;

@@ -1,4 +1,3 @@
-import { Platform } from 'react-native';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { API_CONFIG, getPostImageUrl } from '../../config/api.config';
 import { getUserId, getAuthToken } from './authHelpers';
@@ -62,14 +61,7 @@ const buildFormData = async (postData) => {
         const uri = await compressImage(newImages[i]);
         const ext = uri.split('.').pop()?.toLowerCase() || 'jpeg';
         const type = ['jpg', 'jpeg', 'png', 'webp'].includes(ext) ? ext : 'jpeg';
-        if (Platform.OS === 'web') {
-          // RN-style {uri,name,type} file objects serialize to "[object Object]"
-          // in browser FormData — convert the uri to a real File instead.
-          const blob = await (await fetch(uri)).blob();
-          formData.append('images', new File([blob], `${i}.${type}`, { type: `image/${type}` }));
-        } else {
-          formData.append('images', { uri, name: `${i}.${type}`, type: `image/${type}` });
-        }
+        formData.append('images', { uri, name: `${i}.${type}`, type: `image/${type}` });
       } catch (err) {
         logger.error('Error processing image:', err);
       }

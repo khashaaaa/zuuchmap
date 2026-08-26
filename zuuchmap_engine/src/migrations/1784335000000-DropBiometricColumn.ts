@@ -9,9 +9,10 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * is NULL for every row. Its only remaining readers were two fields on the
  * `/user/check` response, removed alongside this.
  *
- * Biometrics still gate the locally-stored token on the device. That is a
- * client-side lock and always was; the server has no business recording it,
- * which is exactly why this column never got written.
+ * Gating the stored token behind a device unlock would be a client-side lock,
+ * and the server would have no business recording it either way — which is
+ * exactly why this column never got written. (No such gate is implemented: the
+ * app keeps its token in AsyncStorage.)
  */
 export class DropBiometricColumn1784335000000 implements MigrationInterface {
   name = 'DropBiometricColumn1784335000000';

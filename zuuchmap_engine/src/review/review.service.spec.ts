@@ -69,10 +69,11 @@ describe('ReviewService.providerStats', () => {
 
   const makeService = ({ avgSeconds, completed, user }: any) => {
     const builders = [qb({ avg_seconds: avgSeconds }), qb(completed)];
+    const respBuilder = builders[0];
     const bookingRepo = { createQueryBuilder: jest.fn(() => builders.shift()) };
     const userRepo = { findOne: jest.fn(async () => user) };
     const svc = new ReviewService({} as any, userRepo as any, {} as any, bookingRepo as any);
-    return { svc, bookingRepo, userRepo, builders };
+    return { svc, bookingRepo, userRepo, builders, respBuilder };
   };
 
   const created = new Date('2025-03-01T00:00:00.000Z');
@@ -109,5 +110,18 @@ describe('ReviewService.providerStats', () => {
     expect(stats.avg_response_hours).toBe(0);
     expect(stats.member_since).toBeNull();
     expect(userRepo.findOne).toHaveBeenCalledWith({ where: { id: 'p1' }, relations: ['company'] });
+  });
+
+  // The stat is only as good as the column it reads. date_updated is bumped by
+  // any later write to the row — the nightly review-prompt sweep, above all —
+  // so measuring from it reported hundreds of hours for providers who answered
+  // in minutes. responded_at is written once, when the provider answers.
+  it('measures from responded_at, not from the row\'s last update', async () => {
+    const { svc, respBuilder } = makeService({ avgSeconds: '5400', completed: 1, user: null });
+    await svc.providerStats('p1');
+    const expr = respBuilder.select.mock.calls[0][0];
+    expect(expr).toContain('responded_at');
+    expect(expr).not.toContain('date_updated');
+    expect(respBuilder.andWhere).toHaveBeenCalledWith('b.responded_at IS NOT NULL');
   });
 });

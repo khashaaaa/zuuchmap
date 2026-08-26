@@ -24,7 +24,7 @@ import ScreenHeader from '../../components/ScreenHeader';
 import ScreenLoading from '../../components/ScreenLoading';
 import ScreenError from '../../components/ScreenError';
 import { TextInput, Button } from '../../components';
-import { validateEmail, validatePhone, validateRequired } from '../../utils/formUtils';
+import { normalizeWebsiteUrl, validateEmail, validatePhone, validateRequired } from '../../utils/formUtils';
 import { logger } from '../../utils/logger';
 import { showErrorModal, showWarningModal } from '../../utils/errorManager';
 
@@ -70,12 +70,6 @@ const SECTIONS = [
 
 // Flat, in-order field list used to chain keyboard focus across sections.
 const FIELD_ORDER = SECTIONS.flatMap((s) => s.fields.map((f) => f.key));
-
-const normalizeWebsiteUrl = (url) => {
-    if (!url || url.trim() === '') return '';
-    const trimmed = url.trim();
-    return /^https?:\/\//.test(trimmed) ? trimmed : `https://${trimmed}`;
-};
 
 // Serves both routes: with a companyId it views/edits an existing company,
 // without one it creates a new company.

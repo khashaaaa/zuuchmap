@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Param, Body, Req, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, Req, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { ReviewService } from './review.service';
@@ -20,11 +20,5 @@ export class ReviewController {
     const result = await this.reviewService.forProvider(providerId);
     const own = req.user?.id ? await this.reviewService.ownForProvider(req.user.id, providerId) : null;
     return { ...result, own };
-  }
-
-  @Delete(':id')
-  @UseGuards(JwtAuthGuard)
-  remove(@Param('id', ParseIntPipe) id: number, @Req() req) {
-    return this.reviewService.remove(id, req.user.id, req.user.phone_number ?? req.user.phone);
   }
 }

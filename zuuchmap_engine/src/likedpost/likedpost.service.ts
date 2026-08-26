@@ -85,7 +85,7 @@ export class LikedpostService {
           image_url: post.images?.[0]
             ? post.images[0].startsWith('http')
               ? post.images[0]
-              : `${process.env.API_URL || 'https://zuuchmap.com'}/engine/uploads/posts/${post.images[0]}`
+              : `${process.env.PUBLIC_ENGINE_URL || 'https://zuuchmap.com/engine'}/uploads/posts/${post.images[0]}`
             : null,
           price: post.price_amount
             ? `${Number(post.price_amount).toLocaleString()} ₮${post.price_unit ? `/${post.price_unit}` : ''}`

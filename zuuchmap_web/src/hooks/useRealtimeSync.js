@@ -6,7 +6,7 @@ import { useAuthStore, useNotificationStore } from '@/store'
 import { connectSocket, disconnectSocket, destroySocket, SOCKET_EVENTS, ROOM_ADMIN, userRoom } from '@/lib/socket'
 
 export function useRealtimeSync() {
-  const { token, user, isAdmin } = useAuthStore()
+  const { token, user, isAdmin, isLoading } = useAuthStore()
   const qc = useQueryClient()
   const { t } = useTranslation()
 
@@ -22,10 +22,10 @@ export function useRealtimeSync() {
     const handlers = {}
     const on = (event, fn) => { handlers[event] = fn; socket.on(event, fn) }
 
-    on(SOCKET_EVENTS.POST_CREATED, () => {
+    on(SOCKET_EVENTS.POST_CREATED, ({ postId } = {}) => {
       qc.invalidateQueries({ queryKey: ['admin-pending'], refetchType: 'none' })
       qc.invalidateQueries({ queryKey: ['admin-stats'] })
-      useNotificationStore.getState().add({ message: t('notifications.postCreated') })
+      useNotificationStore.getState().add({ message: t('notifications.postCreated'), kind: 'info', postId, role: 'admin' })
     })
 
     on(SOCKET_EVENTS.POST_APPROVED, ({ postId }) => {
@@ -38,7 +38,7 @@ export function useRealtimeSync() {
       if (postId) qc.invalidateQueries({ queryKey: ['post', String(postId)] })
       if (!isAdmin) {
         toast.success(t('admin.approveSuccess'))
-        useNotificationStore.getState().add({ message: t('notifications.postApproved') })
+        useNotificationStore.getState().add({ message: t('notifications.postApproved'), kind: 'success', postId })
       }
     })
 
@@ -51,19 +51,19 @@ export function useRealtimeSync() {
       if (postId) qc.invalidateQueries({ queryKey: ['post', String(postId)] })
       if (!isAdmin) {
         toast.error(`${t('posts.rejectionReason')}: ${reason}`)
-        useNotificationStore.getState().add({ message: `${t('notifications.postRejected')}: ${reason}` })
+        useNotificationStore.getState().add({ message: `${t('notifications.postRejected')}: ${reason}`, kind: 'error', postId })
       }
     })
 
     on(SOCKET_EVENTS.STATS_UPDATED, () => {
       qc.invalidateQueries({ queryKey: ['admin-stats'] })
-      if (isAdmin) useNotificationStore.getState().add({ message: t('notifications.statsUpdated') })
+      if (isAdmin) useNotificationStore.getState().add({ message: t('notifications.statsUpdated'), kind: 'info' })
     })
 
     on(SOCKET_EVENTS.BOOKING_REQUESTED, () => {
       qc.invalidateQueries({ queryKey: ['bookings'] })
       toast(t('notifications.bookingRequested'))
-      useNotificationStore.getState().add({ message: t('notifications.bookingRequested') })
+      useNotificationStore.getState().add({ message: t('notifications.bookingRequested'), kind: 'info', bookingRole: 'provider' })
     })
 
     on(SOCKET_EVENTS.BOOKING_RESPONDED, ({ status }) => {
@@ -71,13 +71,13 @@ export function useRealtimeSync() {
       const accepted = status === 'ACCEPTED'
       const message = accepted ? t('notifications.bookingAccepted') : t('notifications.bookingDeclined')
       if (accepted) toast.success(message); else toast.error(message)
-      useNotificationStore.getState().add({ message })
+      useNotificationStore.getState().add({ message, kind: accepted ? 'success' : 'error', bookingRole: 'customer' })
     })
 
     on(SOCKET_EVENTS.BOOKING_CANCELLED, () => {
       qc.invalidateQueries({ queryKey: ['bookings'] })
       toast(t('notifications.bookingCancelled'))
-      useNotificationStore.getState().add({ message: t('notifications.bookingCancelled') })
+      useNotificationStore.getState().add({ message: t('notifications.bookingCancelled'), kind: 'info', bookingRole: 'provider' })
     })
 
     return () => {
@@ -87,9 +87,15 @@ export function useRealtimeSync() {
   }, [token, user?.id, isAdmin]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    // Wait for `init()` to finish before treating a missing token as a sign-out.
+    // The store starts with `token: null` and hydrates from localStorage after
+    // mount, so clearing on the first render wiped every persisted notification
+    // on every page load — the exact "refresh erased them" bug the notification
+    // store was given localStorage to fix.
+    if (isLoading) return
     if (!token) {
       destroySocket()
       useNotificationStore.getState().clear()
     }
-  }, [token])
+  }, [token, isLoading])
 }

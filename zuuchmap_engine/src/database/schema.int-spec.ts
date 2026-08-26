@@ -179,32 +179,72 @@ describe('read paths TypeORM builds', () => {
     .andWhere('(post.expires_at IS NULL OR post.expires_at > NOW())');
 
   it('paginates the featured-ranked browse without tripping DISTINCT/ORDER BY', async () => {
-    // A raw CASE in addSelect plus take/skip plus getManyAndCount is the exact
+    // take/skip plus a page-and-count pair over joined rows is the exact
     // combination that made Postgres reject the query once already.
     const qb = browse(qr.manager.getRepository(Post).createQueryBuilder('post'))
-      .addSelect('CASE WHEN post.featured_until > NOW() THEN 0 ELSE 1 END', 'featured_rank')
-      .orderBy('featured_rank', 'ASC')
+      .orderBy('post.is_featured', 'DESC')
       .addOrderBy('post.date_created', 'DESC')
       .take(10).skip(0);
 
-    const [items, total] = await qb.getManyAndCount();
+    const items = await qb.getMany();
+    const total = await qb.getCount();
     expect(items.length).toBeGreaterThan(0);
     expect(total).toBeGreaterThanOrEqual(items.length);
   });
 
   it('lifts live featured windows above the rest on the default sort', async () => {
     const rows = await qr.query(
-      `SELECT (featured_until > NOW()) AS is_featured
+      `SELECT is_featured
          FROM post
         WHERE approval_status='APPROVED' AND status <> 'EXPIRED'
           AND (expires_at IS NULL OR expires_at > NOW())
-        ORDER BY CASE WHEN featured_until > NOW() THEN 0 ELSE 1 END ASC, date_created DESC
+        ORDER BY is_featured DESC, date_created DESC
         LIMIT 40`,
     );
     const featured = rows.filter((r: any) => r.is_featured).length;
     expect(featured).toBeGreaterThan(0);
     // Every featured row must precede every unfeatured one.
     expect(rows.slice(0, featured).every((r: any) => r.is_featured)).toBe(true);
+  });
+
+  // is_featured is a materialised `featured_until > NOW()`. It is allowed to
+  // lag a lapse by up to an hour (the sweep interval), but it must never claim
+  // placement for a post that was never featured, or drop a live window.
+  it('keeps is_featured consistent with the window it mirrors', async () => {
+    const [wrong] = await qr.query(
+      `SELECT COUNT(*)::int AS c FROM post
+        WHERE (is_featured AND featured_until IS NULL)
+           OR (NOT is_featured AND featured_until > NOW())`,
+    );
+    expect(wrong.c).toBe(0);
+  });
+
+  it('sweeps a lapsed placement off the ranking', async () => {
+    const [p] = await qr.query(
+      `SELECT id FROM post WHERE is_featured = true LIMIT 1`,
+    );
+    expect(p).toBeDefined();
+    await qr.query(`UPDATE post SET featured_until = NOW() - interval '1 hour' WHERE id = $1`, [p.id]);
+    // The statement the hourly sweep runs.
+    await qr.query(
+      `UPDATE post SET is_featured = false
+        WHERE is_featured = true AND (featured_until IS NULL OR featured_until <= NOW())`,
+    );
+    const [after] = await qr.query(`SELECT is_featured FROM post WHERE id = $1`, [p.id]);
+    expect(after.is_featured).toBe(false);
+  });
+
+  it('carries an index that can serve the default browse ordering', async () => {
+    // Without it the ordering falls back to reading and sorting every matching
+    // row per page — 41,691 rows for twenty, measured at 62k posts.
+    const [idx] = await qr.query(
+      `SELECT indexdef FROM pg_indexes
+        WHERE tablename = 'post' AND indexname = 'IDX_post_browse_order'`,
+    );
+    expect(idx).toBeDefined();
+    expect(idx.indexdef).toContain('approval_status');
+    expect(idx.indexdef).toContain('is_featured DESC');
+    expect(idx.indexdef).toContain('date_created DESC');
   });
 
   it('never returns a post whose window has closed, however its status reads', async () => {
@@ -338,7 +378,14 @@ describe('push devices', () => {
       `DELETE FROM push_device WHERE "userId" = $1 AND token = 'ExponentPushToken[A]'`, [u.id],
     );
 
-    const rows = await qr.query(`SELECT token FROM push_device WHERE "userId" = $1`, [u.id]);
+    // Scoped to the two tokens this test created: the provider may already own
+    // devices from the fixture corpus, and those must be left alone too — which
+    // is the whole point of a per-device table.
+    const rows = await qr.query(
+      `SELECT token FROM push_device
+        WHERE "userId" = $1 AND token IN ('ExponentPushToken[A]','ExponentPushToken[B]')`,
+      [u.id],
+    );
     expect(rows.map((r: any) => r.token)).toEqual(['ExponentPushToken[B]']);
   });
 
@@ -374,6 +421,49 @@ describe('push devices', () => {
         WHERE table_name='user' AND column_name='push_token'`,
     );
     expect(cols).toEqual([]);
+  });
+});
+
+describe('provider response time', () => {
+  // The stat used to be measured as date_updated - date_created, on the stated
+  // assumption that status was the only field that ever changed on an answered
+  // booking. review_prompted_at broke that: the nightly prompt sweep touches
+  // every finished ACCEPTED row, so a provider who answered in an hour and
+  // completed the rental three weeks later reported a 500-hour response time.
+  it('measures the answer, not the last time anything touched the row', async () => {
+    const [b] = await qr.query(
+      `SELECT id, "providerId" FROM booking WHERE status='ACCEPTED' LIMIT 1`,
+    );
+    expect(b).toBeDefined();
+
+    await qr.query(
+      `UPDATE booking
+          SET date_created = now() - interval '30 days',
+              responded_at = now() - interval '30 days' + interval '90 minutes',
+              date_updated = now()
+        WHERE id = $1`,
+      [b.id],
+    );
+
+    const [row] = await qr.query(
+      `SELECT AVG(EXTRACT(EPOCH FROM (responded_at - date_created))) / 3600 AS hours
+         FROM booking WHERE id = $1`,
+      [b.id],
+    );
+    expect(Number(row.hours)).toBeCloseTo(1.5, 1);
+  });
+
+  it('leaves an unanswered request out of the average rather than scoring it', async () => {
+    const [b] = await qr.query(
+      `SELECT id FROM booking WHERE status='PENDING' AND responded_at IS NULL LIMIT 1`,
+    );
+    expect(b).toBeDefined();
+    const [row] = await qr.query(
+      `SELECT AVG(EXTRACT(EPOCH FROM (responded_at - date_created))) AS secs
+         FROM booking WHERE id = $1`,
+      [b.id],
+    );
+    expect(row.secs).toBeNull();
   });
 });
 

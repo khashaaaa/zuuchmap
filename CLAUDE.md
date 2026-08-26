@@ -23,9 +23,11 @@ Construction marketplace for Mongolia. Providers post rentals/services/jobs acro
 
 ## Cross-repo sync
 
-Seven values are duplicated across the three apps by design. `npm run check:sync`
-(`scripts/check-sync.js`, zero deps) verifies all of them and **gates deploy.sh
-as step 0/6** — run it after touching any of:
+These values are duplicated across the three apps by design. `npm run check:sync`
+(`scripts/check-sync.js`, zero deps) verifies them and **gates deploy.sh as step
+0/6** — run it after touching any of them. It reports **16 contracts** against the
+14 rows below: the locations row covers `provinces` + `districts`, and the i18n
+row covers `i18n:mn` + `i18n:en`.
 
 | Contract | Copies |
 |---|---|
@@ -36,6 +38,13 @@ as step 0/6** — run it after touching any of:
 | `PriceUnit` | engine `enums/priceunit.ts` · `web/lib/utils.js` · `app/config/app.config.js` |
 | shared i18n keys | `app/i18n/locales/{mn,en}.js` · `web/i18n/{mn,en}.js` — each tree keeps ~280 platform-specific keys, but a key present in **both** must have the same value |
 | `getPostTitle` | `app/utils/postUtils.js` · `web/lib/utils.js` — checked *behaviourally*: both are lifted, stubbed and run over shared fixtures |
+| `postHealth` | `app/utils/postHealth.js` · `web/lib/postHealth.js` — behavioural; the same listing must score the same on both |
+| map clustering | `app/screens/customer/CustomerMapView.jsx` (`gridCluster`) · `web/lib/mapCluster.js` — behavioural, across four zoom levels |
+| `formatPrice` | `app/utils/displayUtils.js` · `web/lib/utils.js` — behavioural; mn-MN grouping, no decimal tail, and never a `/unit` suffix on `TOTAL` |
+| `formatDate` | `app/utils/displayUtils.js` · `web/lib/utils.js` — behavioural; `YYYY.MM.DD` built by hand on both. **Neither side may use `Intl`** — RN's JSC has no full ICU on Android, so a locale-driven format silently falls back to en-US there |
+| price unit labels | `app/i18n/locales/{mn,en}.js` (`priceUnit.HOUR`) · `web/i18n/{mn,en}.js` (`priceUnit.hour`) — the casing differs, so the shared-i18n contract above cannot see these; compared case-insensitively instead |
+| typeface | `app/design/theme.js` (bundled Commissioner TTFs) · `web/src/index.css` (`@font-face`, self-hosted). **Never load it from Google Fonts** — that serves Commissioner as four `unicode-range` subsets, stranding Ө/Ү in `cyrillic-ext` and ₮ in `latin-ext`, so those glyphs render in the fallback face until a second request lands |
+| form validation | `app/utils/formUtils.js` · `web/lib/utils.js` — `validateEmail` `validatePhone` `validateRequired` `normalizeWebsiteUrl`, behavioural. The company DTOs have no server-side decorators, so these are the only gate; no call site may hand-roll the `https://` prefix rule |
 
 ---
 
@@ -118,7 +127,7 @@ GET  /analytics/summary           JWT+AdminGuard  ?days=7|30|90
 - `q` is Postgres full-text (prefix-matching tsvector over title+details).
 - Post has `category` + `subcategory` only; legacy `secondcategory` still accepted as DTO input alias.
 
-**Phone verification (verify.mn, Mobile-Originated):** we never send an SMS. `verify/start` registers a code; the *user* texts it to shortcode `144773` from the number they claim, and possession is proven by the message arriving from that number — so the code is not a secret and is rendered in the UI. Costs the end user 150₮ per verification, so it runs only at signup and on a new device: `TrustedDevice` stores `sha256(device_id)` and a match short-circuits to a token. Biometrics gate the locally-stored token on the device only; the server never accepts a biometric claim.
+**Phone verification (verify.mn, Mobile-Originated):** we never send an SMS. `verify/start` registers a code; the *user* texts it to shortcode `144773` from the number they claim, and possession is proven by the message arriving from that number — so the code is not a secret and is rendered in the UI. Costs the end user 150₮ per verification, so it runs only at signup and on a new device: `TrustedDevice` stores `sha256(device_id)` and a match short-circuits to a token. The token is then held in AsyncStorage, unencrypted and behind no device-side unlock — `expo-local-authentication` was a declared-but-never-imported dependency, dropped in the dead-code sweep, so there is no biometric gate. The server never accepts a biometric claim: `user.biometric` and the OTP endpoint that trusted it are both gone.
 
 **Realtime:** `events/events.gateway.ts` — Socket.io rooms `admin` + `user:<id>` (legacy `provider:<id>` joins/emits kept for pre-rename app builds; drop when those are gone). Event names + payload shapes (`{postId, category, …}`) are exported as `SOCKET_EVENTS` and mirrored in `zuuchmap_web/src/lib/socket.js` and `zuuchmap_app/src/services/socketService.js` — change all three together. In the app, only `useNotificationSync` subscribes to the socket; screens never do.
 

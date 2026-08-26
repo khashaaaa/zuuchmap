@@ -12,8 +12,8 @@
 // Mirrored in zuuchmap_web/src/lib/postHealth.js and checked behaviourally by
 // scripts/check-sync.js — change both together.
 
-export const HEALTH_PHOTO_TARGET = 5;
-export const HEALTH_DETAILS_TARGET = 120; // characters
+const HEALTH_PHOTO_TARGET = 5;
+const HEALTH_DETAILS_TARGET = 120; // characters
 
 const WEIGHTS = { photos: 35, attributes: 30, details: 20, price: 15 };
 

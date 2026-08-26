@@ -102,6 +102,10 @@ export class AdminService {
       base.setDate(base.getDate() + clamped);
       post.featured_until = base;
     }
+    // Kept in step with the window it mirrors. The hourly sweep only has to
+    // catch windows that *lapse*; every deliberate change lands here first, so
+    // an admin never sees their own action take an hour to show.
+    post.is_featured = !!post.featured_until && new Date(post.featured_until) > new Date();
     await this.postRepository.save(post);
     invalidatePostReadCaches();
     this.logger.log(`featurePost: #${postId} featured_until=${post.featured_until?.toISOString() ?? 'cleared'}`);

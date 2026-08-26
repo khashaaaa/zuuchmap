@@ -17,12 +17,15 @@ export interface PostSnapshot {
 }
 
 @Entity('post')
-@Index(['category'])
+// Single-column indexes on `category` and `approval_status` used to sit here.
+// Both were strict prefixes of the composites below, so they cost writes and
+// bought no reads — see FeaturedRankIndex for the measurements.
 @Index(['subcategory'])
 @Index(['status'])
-@Index(['approval_status'])
 @Index(['category', 'approval_status'])
 @Index(['approval_status', 'date_created'])
+// Serves the default browse: equality on approval_status, then both sort keys.
+@Index('IDX_post_browse_order', ['approval_status', 'is_featured', 'date_created'])
 @Index(['user'])
 export class Post {
   @PrimaryGeneratedColumn()
@@ -129,6 +132,15 @@ export class Post {
   @Index()
   @Column({ nullable: true, type: 'timestamp' })
   featured_until: Date | null;
+
+  /**
+   * `featured_until > NOW()`, materialised so the browse can be ordered by an
+   * indexable column instead of a NOW()-dependent CASE. Written with
+   * featured_until and refreshed by an hourly sweep; ranking only, never
+   * visibility. The badge still reads featured_until, which is exact.
+   */
+  @Column({ type: 'boolean', default: false })
+  is_featured: boolean;
 
   @CreateDateColumn()
   date_created: Date;

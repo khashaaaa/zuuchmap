@@ -10,6 +10,8 @@ describe('AdminService.getPendingPosts', () => {
       take: jest.fn(() => qb),
       skip: jest.fn(() => qb),
       getManyAndCount: jest.fn(async () => [items, total]),
+      getMany: jest.fn(async () => items),
+      getCount: jest.fn(async () => total),
     };
     const postRepo = { createQueryBuilder: jest.fn(() => qb) };
     const svc = new AdminService(

@@ -4,6 +4,8 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import AppSidebar from './AppSidebar'
 import AppHeader from './AppHeader'
+import useOnline from '@/hooks/useOnline'
+import { WifiOff } from 'lucide-react'
 
 const FOCUSABLE_SELECTOR = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
 
@@ -12,6 +14,7 @@ export default function AppLayout() {
   const location = useLocation()
   const shouldReduceMotion = useReducedMotion()
   const { t } = useTranslation()
+  const online = useOnline()
   const drawerRef = useRef(null)
   const lastFocusedRef = useRef(null)
 
@@ -86,6 +89,18 @@ export default function AppLayout() {
       {/* Main */}
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <AppHeader onMenuClick={() => setMobileOpen(true)} />
+        {/* One banner for the whole app. Offline used to be visible on browse
+            and nowhere else, so a booking or a post submitted on a dead
+            connection came back as a generic server error. */}
+        {!online && (
+          <div
+            role="status"
+            className="flex items-center justify-center gap-2 px-3 py-1.5 bg-warning/15 text-warning text-xs font-medium border-b border-warning/20"
+          >
+            <WifiOff size={13} aria-hidden="true" />
+            {t('offline.noConnection')}
+          </div>
+        )}
         <main className="flex-1 overflow-y-auto">
           <motion.div
             key={location.pathname}

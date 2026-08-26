@@ -32,3 +32,30 @@ export const categoryPin = (color) => {
   }
   return pinCache.get(fill)
 }
+
+const clusterCache = new Map()
+
+/**
+ * Cluster badge. Mirrors the app's `clusterMarkerContainer` / `clusterDisc`
+ * pair: a pill in the dominant category's colour with a white disc carrying the
+ * count. The count sits on white rather than on the tint because a schema
+ * colour is admin-editable and was never tuned to hold text — the disc is
+ * legible on any hue, so the tint is free to say "these are mostly tool rentals"
+ * before the tap.
+ */
+export const clusterPin = (color, count, textColor) => {
+  const tint = color || 'var(--color-muted)'
+  const label = count > 999 ? '999+' : String(count)
+  const key = `${tint}|${label}|${textColor}`
+  if (!clusterCache.has(key)) {
+    const width = count > 99 ? 52 : count > 9 ? 44 : 40
+    clusterCache.set(key, L.divIcon({
+      className: 'map-cluster-wrap',
+      html: `<span class="map-cluster" style="background:${tint};min-width:${width}px">` +
+            `<span class="map-cluster-disc" style="color:${textColor}">${label}</span></span>`,
+      iconSize: [width, 40],
+      iconAnchor: [width / 2, 20],
+    }))
+  }
+  return clusterCache.get(key)
+}

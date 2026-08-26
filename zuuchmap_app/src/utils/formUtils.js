@@ -116,6 +116,17 @@ export const validateRequired = (value) => {
     return Boolean(value);
 };
 
+// A provider types "example.mn", not "https://example.mn". Normalising beats
+// rejecting: the value is only ever used as an href, and a bare domain in the
+// database is a dead link. Mirrored in zuuchmap_web/src/lib/utils.js and checked
+// by `npm run check:sync` — the web used to reject the bare domain outright
+// (input type="url") where the app quietly accepted and fixed it.
+export const normalizeWebsiteUrl = (url) => {
+    if (!url || url.trim() === '') return '';
+    const trimmed = url.trim();
+    return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+};
+
 // --- Form data API formatting ---
 export const formatFormDataForApi = (formData) => {
     const formatted = { ...formData };

@@ -154,7 +154,8 @@ describe('PostService featured ordering', () => {
       andWhere: () => qb,
       skip: () => qb,
       take: () => qb,
-      getManyAndCount: async () => [[], 0],
+      getMany: async () => [],
+      getCount: async () => 0,
     };
     return qb;
   };
@@ -168,10 +169,19 @@ describe('PostService featured ordering', () => {
   it('ranks live featured windows first on the default sort', async () => {
     const qb = makeQb();
     await makeService(qb).findAll({ approval_status: 'APPROVED' });
-    // Selected as a named rank, then ordered by that name — TypeORM parses a
-    // dotted orderBy string as `alias.column`, so the CASE cannot go there.
-    expect(JSON.stringify(qb.calls)).toContain('featured_until');
-    expect(qb.calls).toContainEqual(['orderBy', 'featured_rank', 'ASC']);
+    expect(qb.calls).toContainEqual(['orderBy', 'post.is_featured', 'DESC']);
+    expect(qb.calls).toContainEqual(['addOrderBy', 'post.date_created', 'DESC']);
+  });
+
+  // The ordering has to stay on a stored column. Ordering by the predicate
+  // `featured_until > NOW()` cannot be indexed, and turned the browse into a
+  // full scan-and-sort of every matching row to return one page.
+  it('never sorts on a NOW()-dependent expression', async () => {
+    const qb = makeQb();
+    await makeService(qb).findAll({ approval_status: 'APPROVED' });
+    const sortCalls = JSON.stringify(qb.calls.filter((c: any[]) => /order|Select/i.test(c[0])));
+    expect(sortCalls).not.toContain('NOW()');
+    expect(sortCalls).not.toContain('featured_rank');
   });
 
   // An explicit price sort is a direct user instruction. Paid placement must
@@ -179,7 +189,7 @@ describe('PostService featured ordering', () => {
   it('does not apply featured ranking to an explicit price sort', async () => {
     const qb = makeQb();
     await makeService(qb).findAll({ approval_status: 'APPROVED', sort: 'price_asc' });
-    expect(JSON.stringify(qb.calls)).not.toContain('featured_until');
+    expect(JSON.stringify(qb.calls)).not.toContain('is_featured');
   });
 });
 

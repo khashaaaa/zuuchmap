@@ -6,7 +6,7 @@ import { Upload, X, MapPin, AlertTriangle, XCircle } from 'lucide-react'
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import { postsApi, categoryApi } from '@/lib/api'
-import { getCategoryLabel, getSubcategoryLabel, getFieldLabel, getOptionLabel, getPostCategory, getCategoryColor, getImageUrl, goBack, PRICE_UNITS, PROVINCES, DISTRICTS, apiErrorMessage, hideBrokenImage } from '@/lib/utils'
+import { getCategoryLabel, getSubcategoryLabel, getFieldLabel, getOptionLabel, getPostCategory, getCategoryColor, getImageUrl, goBack, PRICE_UNITS, PROVINCES, DISTRICTS, apiErrorMessage, hideBrokenImage, normalizeWebsiteUrl } from '@/lib/utils'
 import { categoryPin } from '@/lib/mapPin'
 import AlertBanner from '@/components/AlertBanner'
 import { useThemeStore } from '@/store'
@@ -288,8 +288,16 @@ export default function ProviderPostForm() {
     }
   }, [post])
 
+  // 0-100 while the photos go up; null once there is nothing left to report.
+  const [uploadPct, setUploadPct] = useState(null)
+
   const mut = useMutation({
-    mutationFn: (fd) => isEdit ? postsApi.update(id, fd) : postsApi.create(fd),
+    mutationFn: (fd) => {
+      setUploadPct(0)
+      const onProgress = (pct) => setUploadPct(pct >= 100 ? null : pct)
+      return isEdit ? postsApi.update(id, fd, onProgress) : postsApi.create(fd, onProgress)
+    },
+    onSettled: () => setUploadPct(null),
     onSuccess: (saved) => {
       if (!isEdit) track('post.create.submitted', { post_id: saved?.id, category: form.category })
       qc.invalidateQueries({ queryKey: ['my-posts'] })
@@ -429,9 +437,7 @@ export default function ProviderPostForm() {
     // category is immutable after creation and is not part of UpdatePostDto —
     // the backend rejects unknown fields, so never send it on edit.
     if (isEdit) delete normalized.category
-    if (normalized.website && !/^https?:\/\//i.test(normalized.website)) {
-      normalized.website = `https://${normalized.website}`
-    }
+    if (normalized.website) normalized.website = normalizeWebsiteUrl(normalized.website)
     Object.entries(normalized).forEach(([k, v]) => { if (v !== '') fd.append(k, v) })
     if (Object.keys(attributes).length > 0) fd.append('attributes', JSON.stringify(attributes))
     newImages.forEach((f) => fd.append('images', f))
@@ -706,8 +712,21 @@ export default function ProviderPostForm() {
         </FormSection>
 
         <div className="sticky bottom-0 -mx-4 sm:mx-0 px-4 sm:px-0 py-3 bg-background/95 backdrop-blur border-t border-border/50">
-          <Button type="submit" size="lg" disabled={mut.isPending} className="w-full">
-            {mut.isPending ? t('posts.creating') : t(isEdit ? 'posts.update' : 'posts.create')}
+          <Button type="submit" size="lg" disabled={mut.isPending} className="w-full relative overflow-hidden">
+            {/* Photos dominate the request, so the percentage is a real answer to
+                "is this stuck?" — the label alone sat unchanged for a minute. */}
+            {mut.isPending && uploadPct !== null && (
+              <span
+                className="absolute inset-y-0 left-0 bg-white/20 transition-[width] duration-200"
+                style={{ width: `${uploadPct}%` }}
+                aria-hidden="true"
+              />
+            )}
+            <span className="relative">
+              {mut.isPending
+                ? (uploadPct !== null ? t('posts.uploadingPct', { pct: uploadPct }) : t('posts.creating'))
+                : t(isEdit ? 'posts.update' : 'posts.create')}
+            </span>
           </Button>
         </div>
       </form>

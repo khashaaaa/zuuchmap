@@ -197,6 +197,7 @@ export class BookingService {
 
     booking.status = accept ? BookingStatus.ACCEPTED : BookingStatus.DECLINED;
     booking.response_message = responseMessage ?? booking.response_message;
+    booking.responded_at = new Date();
     const saved = await this.bookingRepository.save(booking)
       .catch((err) => this.rethrowBookingConflict(err));
 
@@ -303,15 +304,19 @@ export class BookingService {
         { id: In(due.map((b) => b.id)) },
         { review_prompted_at: new Date() },
       );
-      for (const b of due) {
-        if (!b.customer?.id || !b.post?.id) continue;
-        await this.notifications.notifyUsers(
-          [b.customer.id],
-          'Үнэлгээ өгөх үү?',
-          'Таны түрээс дууслаа. Үйлчилгээ үзүүлэгчийг үнэлж бусдад туслаарай.',
-          { type: 'review_prompt', bookingId: b.id, postId: b.post.id, providerId: b.provider?.id },
-        );
-      }
+      // One batched request for the whole sweep. Each prompt still carries its
+      // own bookingId — that is why this uses notifyEach rather than looping
+      // notifyUsers, which cost one round-trip to Expo per customer.
+      await this.notifications.notifyEach(
+        due
+          .filter((b) => b.customer?.id && b.post?.id)
+          .map((b) => ({
+            userId: b.customer.id,
+            title: 'Үнэлгээ өгөх үү?',
+            body: 'Таны түрээс дууслаа. Үйлчилгээ үзүүлэгчийг үнэлж бусдад туслаарай.',
+            data: { type: 'review_prompt', bookingId: b.id, postId: b.post.id, providerId: b.provider?.id },
+          })),
+      );
       this.logger.log(`promptReviews: prompted ${due.length} customer(s)`);
     } catch (err) {
       this.logger.error(`promptReviews failed: ${err?.message}`);

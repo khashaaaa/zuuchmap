@@ -59,6 +59,7 @@ const splashStyles = StyleSheet.create({
 });
 import { getDashboardScreen } from './src/utils/navigationUtils';
 import { logger } from './src/utils/logger';
+import { resolveNotificationRoute, notificationTouches } from './src/utils/notificationRouting';
 import { AppProvider } from './src/context/AppContext';
 import { useNotificationSync } from './src/hooks/useNotificationSync';
 import { socketService } from './src/services/socketService';
@@ -236,48 +237,23 @@ const App = () => {
     let receivedSub, responseSub;
 
     const handleNotificationResponse = (response) => {
-      const data = response.notification.request.content.data;
-      if (data?.bookingId) {
-        queryClient.invalidateQueries({ queryKey: ['bookings'] });
-        if (navigationRef.isReady()) {
-          navigationRef.navigate('BookingList', {
-            role: data.notifType === 'booking_requested' ? 'provider' : 'customer',
-          });
-        }
-        return;
-      }
-      if (!data?.postId) return;
-      invalidatePostData();
-      if (!navigationRef.isReady()) return;
-      // post_type is carried by newer engine payloads; PostDetailScreen also
-      // falls back to the fetched post's category when it's absent.
-      const params = { postId: data.postId, postType: data.post_type ?? data.category };
-      // Saved-search match: a customer's alert lands on the new post. Review
-      // prompt: same screen, with the review sheet asked to open on arrival.
-      if (data.type === 'saved_search') {
-        navigationRef.navigate('PostDetailScreen', { ...params, role: 'customer' });
-        return;
-      }
-      if (data.type === 'review_prompt') {
-        navigationRef.navigate('PostDetailScreen', { ...params, role: 'customer', openReview: true, bookingId: data.bookingId, providerId: data.providerId });
-        return;
-      }
-      if (data.notifType === 'new_post') {
-        navigationRef.navigate('PostDetailScreen', { ...params, role: 'admin' });
-      } else {
-        navigationRef.navigate('PostDetailScreen', { ...params, role: 'provider' });
-      }
+      const data = response.notification.request.content.data ?? {};
+      const touches = notificationTouches(data);
+      if (touches.bookings) queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      if (touches.posts) invalidatePostData();
+
+      const route = resolveNotificationRoute(data);
+      if (!route || !navigationRef.isReady()) return;
+      navigationRef.navigate(route.screen, route.params);
     };
 
     try {
       receivedSub = Notifications.addNotificationReceivedListener((notification) => {
         // App is foregrounded when notification arrives
-        const data = notification.request.content.data;
-        if (data?.bookingId) {
-          queryClient.invalidateQueries({ queryKey: ['bookings'] });
-        } else if (data?.postId) {
-          invalidatePostData();
-        }
+        const data = notification.request.content.data ?? {};
+        const touches = notificationTouches(data);
+        if (touches.bookings) queryClient.invalidateQueries({ queryKey: ['bookings'] });
+        if (touches.posts) invalidatePostData();
       });
 
       responseSub = Notifications.addNotificationResponseReceivedListener(handleNotificationResponse);

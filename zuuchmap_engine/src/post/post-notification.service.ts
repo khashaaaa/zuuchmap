@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { User } from '../user/entities/user.entity';
 import { PushDevice } from '../user/entities/push-device.entity';
-import { sendPushNotifications } from '../utils/pushNotification';
+import { sendPushMessages, sendPushNotifications } from '../utils/pushNotification';
 import { getAdminPhones } from '../admin/admin.guard';
 
 /**
@@ -49,6 +49,54 @@ export class PostNotificationService {
       await this.dispatch(userIds, title, body, data);
     } catch (err) {
       this.logger.warn(`notifyUsers failed (non-fatal): ${err?.message}`);
+    }
+  }
+
+  /**
+   * One push per recipient, each with its own payload, in one batched request.
+   *
+   * The nightly review sweep needs a distinct bookingId per customer, so it
+   * called notifyUsers once per booking — one HTTPS round-trip to Expo per
+   * recipient, awaited in a loop, when the transport batches a hundred
+   * messages per request. Device lookup is one query for the whole set too.
+   */
+  async notifyEach(
+    items: Array<{ userId: string; title: string; body: string; data?: Record<string, any> }>,
+  ): Promise<number> {
+    if (!items.length) return 0;
+    try {
+      const devices = await this.pushDeviceRepository.find({
+        where: { user: { id: In(items.map((i) => i.userId)) } },
+        select: ['id', 'token'],
+        relations: ['user'],
+      });
+      const byUser = new Map<string, string[]>();
+      for (const d of devices) {
+        if (!d.token?.startsWith('ExponentPushToken') || !d.user?.id) continue;
+        const list = byUser.get(d.user.id) ?? [];
+        list.push(d.token);
+        byUser.set(d.user.id, list);
+      }
+
+      // Every device of every recipient, each carrying that recipient's payload.
+      const messages = items.flatMap((item) =>
+        (byUser.get(item.userId) ?? []).map((to) => ({
+          to, title: item.title, body: item.body, data: item.data,
+        })),
+      );
+      if (!messages.length) return 0;
+
+      const { delivered, deadTokens } = await sendPushMessages(messages);
+      if (deadTokens.length) {
+        this.logger.warn(`Removing ${deadTokens.length} dead push device(s)`);
+        await this.pushDeviceRepository
+          .delete({ token: In(deadTokens) })
+          .catch((err) => this.logger.warn(`Failed to remove dead devices: ${err?.message}`));
+      }
+      return delivered;
+    } catch (err) {
+      this.logger.warn(`notifyEach failed (non-fatal): ${err?.message}`);
+      return 0;
     }
   }
 
@@ -106,7 +154,7 @@ export class PostNotificationService {
     const targets = devices.filter(d => d.token?.startsWith('ExponentPushToken'));
     if (!targets.length) return 0;
 
-    const { deadTokens } = await sendPushNotifications(
+    const { delivered, deadTokens } = await sendPushNotifications(
       targets.map(d => d.token), title, body, data,
     );
 
@@ -117,6 +165,10 @@ export class PostNotificationService {
         .catch(err => this.logger.warn(`Failed to remove dead devices: ${err?.message}`));
     }
 
-    return targets.length - deadTokens.length;
+    // The transport's own count, not targets-minus-dead: a batch that fails on
+    // the HTTP call yields neither a ticket nor a dead token, and subtracting
+    // reported those devices as reached. `delivered` counts tickets Expo
+    // actually accepted.
+    return delivered;
   }
 }

@@ -1,7 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
-import * as fs from 'fs/promises';
 import * as path from 'path';
 import helmet from 'helmet';
 import { Logger, ValidationPipe } from '@nestjs/common';
@@ -12,20 +11,6 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
 import { redisEnabled } from './utils/redis';
 import { RedisIoAdapter } from './utils/redis-io.adapter';
 
-async function ensureUploadDirs() {
-  const uploadDirs = [
-    'temp',
-    'profilepicture',
-    'companylogo',
-    'posts',
-  ].map(dir => path.join(__dirname, '..', 'uploads', dir));
-
-  for (const dir of uploadDirs) {
-    await fs.mkdir(dir, { recursive: true }).catch(err => {
-      Logger.error(`Failed to create directory ${dir}: ${err.message}`, 'Bootstrap');
-    });
-  }
-}
 
 process.on('uncaughtException', (err) => {
   Logger.error(`Uncaught exception: ${err.message}`, err.stack, 'Process');
@@ -49,8 +34,6 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PROG_PORT', 8282);
-
-  await ensureUploadDirs();
 
   // Behind nginx: without this the throttler keys every request on the
   // proxy's IP, giving the whole site one shared rate-limit bucket.

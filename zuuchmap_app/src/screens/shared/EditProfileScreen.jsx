@@ -210,6 +210,7 @@ const EditProfileScreen = ({ route, navigation }) => {
 
             await userService.updateProfile(profilePayload, newProfileImageSelected ? profileImage : null);
 
+            let companyFailed = false;
             if (companyId) {
                 try {
                     const companyPayload = COMPANY_FIELDS.reduce((acc, f) => {
@@ -220,12 +221,21 @@ const EditProfileScreen = ({ route, navigation }) => {
 
                     await userService.updateCompany(companyId, companyPayload);
                 } catch (companyError) {
+                    companyFailed = true;
                     logger.error('Company update error:', companyError);
                     showWarningModal(t('common.warning'), t('profile.companyUpdateFailed'));
                 }
             }
 
+            // The profile half landed, so refresh it either way.
             queryClient.invalidateQueries({ queryKey: ['profile'] });
+
+            // ...but if the company half failed, stay put. Clearing `dirty` and
+            // popping the screen discarded the company fields the user had just
+            // typed, which made the warning's "please try again" impossible to
+            // act on — the values it referred to were already gone.
+            if (companyFailed) return;
+
             setDirty(false);
             navigation.goBack();
         } catch (error) {

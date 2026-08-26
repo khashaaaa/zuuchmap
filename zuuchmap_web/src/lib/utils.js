@@ -32,9 +32,22 @@ const PRICE_UNIT_KEYS = { HOUR: 'priceUnit.hour', MOTO_HOUR: 'priceUnit.moto_hou
 // as a Postgres decimal ("250000.00"), whose tail has no business on screen.
 const PRICE_FORMAT = { maximumFractionDigits: 0 }
 
-export const formatPrice = (amount, unit, t) => {
+/**
+ * A price is renderable only if it is a real, non-zero number. `price_amount`
+ * arrives as a Postgres decimal string, so a malformed row coerces to NaN —
+ * which used to render literally as "NaN₮" here while the app dropped the price
+ * entirely. Both now return null and the caller hides the line.
+ */
+const priceValue = (amount) => {
   if (!amount) return null
-  const formatted = Number(amount).toLocaleString('mn-MN', PRICE_FORMAT)
+  const n = Number(amount)
+  return Number.isNaN(n) ? null : n
+}
+
+export const formatPrice = (amount, unit, t) => {
+  const value = priceValue(amount)
+  if (value === null) return null
+  const formatted = value.toLocaleString('mn-MN', PRICE_FORMAT)
   // A total (sale) price is the whole amount — a "/unit" suffix would misread as recurring
   if (unit === 'TOTAL') return `${formatted}₮`
   const unitLabel = t ? t(PRICE_UNIT_KEYS[unit] ?? '', { defaultValue: unit ?? '' }) : (unit ?? '')
@@ -46,16 +59,27 @@ export const formatPrice = (amount, unit, t) => {
  * differently (big amount, quiet unit). Same rules as formatPrice.
  */
 export const formatPriceParts = (amount, unit, t) => {
-  if (!amount) return null
-  const formatted = `${Number(amount).toLocaleString('mn-MN', PRICE_FORMAT)}₮`
+  const value = priceValue(amount)
+  if (value === null) return null
+  const formatted = `${value.toLocaleString('mn-MN', PRICE_FORMAT)}₮`
   if (unit === 'TOTAL') return { amount: formatted, unit: null }
   const unitLabel = t ? t(PRICE_UNIT_KEYS[unit] ?? '', { defaultValue: unit ?? '' }) : (unit ?? '')
   return { amount: formatted, unit: unitLabel || null }
 }
 
-export const formatDate = (date, locale) => {
+/**
+ * `YYYY.MM.DD` — the Mongolian convention. Assembled by hand rather than through
+ * Intl so it is a fixed string and not a runtime's idea of `mn-MN`: the app has
+ * to build it this way (React Native's JSC ships without full ICU on Android and
+ * would silently fall back to en-US), and the two are checked against each other
+ * by `npm run check:sync`. Going through toLocaleDateString here made them agree
+ * only by coincidence — an ICU update on either side could have split them.
+ */
+export const formatDate = (date) => {
   if (!date) return '—'
-  return new Date(date).toLocaleDateString(locale || 'mn-MN', { year: 'numeric', month: '2-digit', day: '2-digit' })
+  const d = new Date(date)
+  if (Number.isNaN(d.getTime())) return i18n.t('common.invalidDate')
+  return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('.')
 }
 
 // Location codes — mirror the engine's Province/District enums. Display names
@@ -172,7 +196,39 @@ export const debounce = (fn, ms = 300) => {
 
 // User-entered URLs are stored raw; without a scheme the browser treats them
 // as relative paths and the SPA catch-all swallows them into "/".
-export const externalHref = (v) => (/^https?:\/\//i.test(v) ? v : `https://${v}`)
+export const externalHref = (v) => normalizeWebsiteUrl(v)
+
+// --- Form validation ---
+//
+// Mirrors zuuchmap_app/src/utils/formUtils.js and is checked behaviourally by
+// `npm run check:sync`. These used to live only on the app: the web leaned on
+// the browser's built-in validation, which accepts a different set — type="tel"
+// validates nothing at all, type="email" passes "a@b" (no dot), and type="url"
+// *rejects* the bare "example.mn" the app quietly normalises. The company DTOs
+// carry no server-side decorators, so these are the only gate there is.
+export const validateEmail = (email) => {
+  if (!email || typeof email !== 'string') return false
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+}
+
+export const validatePhone = (phone, minLength = 8, maxLength = 15) => {
+  if (!phone || typeof phone !== 'string') return false
+  const digitsOnly = phone.replace(/[^\d]/g, '')
+  return /^\d+$/.test(digitsOnly) && digitsOnly.length >= minLength && digitsOnly.length <= maxLength
+}
+
+export const validateRequired = (value) => {
+  if (value === null || value === undefined) return false
+  if (typeof value === 'string') return value.trim().length > 0
+  if (Array.isArray(value)) return value.length > 0
+  return Boolean(value)
+}
+
+export const normalizeWebsiteUrl = (url) => {
+  if (!url || url.trim() === '') return ''
+  const trimmed = url.trim()
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+}
 
 /**
  * Back navigation with a safety net: `navigate(-1)` on the first entry of a

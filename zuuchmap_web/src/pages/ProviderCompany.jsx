@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Building } from 'lucide-react'
 import { companyApi, usersApi } from '@/lib/api'
 import { useAuthStore as useStore } from '@/store'
-import { getCompanyLogoUrl, apiErrorMessage, hideBrokenImage } from '@/lib/utils'
+import { getCompanyLogoUrl, apiErrorMessage, hideBrokenImage, normalizeWebsiteUrl, validateEmail, validatePhone, validateRequired } from '@/lib/utils'
 import Button from '@/components/Button'
 import Input from '@/components/Input'
 import PageHeader from '@/components/PageHeader'
@@ -71,10 +71,26 @@ export default function ProviderCompany() {
     onError: (e) => toast.error(apiErrorMessage(e, t, t('common.error'))),
   })
 
+  // Same rules the app applies in ProviderCompany/EditProfileScreen — the company
+  // DTOs have no server-side validation, so whatever passes here is what lands in
+  // the database. Errors surface as a toast rather than inline: the web idiom,
+  // and the app's inline field errors are a phone-form affordance.
+  function validate() {
+    if (!validateRequired(form.name)) return t('company.nameRequired')
+    if (form.email && !validateEmail(form.email)) return t('common.invalidEmail')
+    if (form.phone_number && !validatePhone(form.phone_number)) return t('common.invalidPhone')
+    return null
+  }
+
   function handleSubmit(e) {
     e.preventDefault()
+    const error = validate()
+    if (error) return toast.error(error)
+    // Normalise before send, exactly as the app does on blur, so a bare
+    // "example.mn" is stored as a followable link rather than rejected.
+    const payload = { ...form, website: normalizeWebsiteUrl(form.website) }
     const fd = new FormData()
-    Object.entries(form).forEach(([k, v]) => { if (v) fd.append(k, v) })
+    Object.entries(payload).forEach(([k, v]) => { if (v) fd.append(k, v) })
     if (logo) fd.append('logo', logo)
     company ? updateMut.mutate(fd) : createMut.mutate(fd)
   }
@@ -115,7 +131,7 @@ export default function ProviderCompany() {
     const href = (kind, v) =>
       kind === 'phone' ? `tel:${String(v).replace(/\s/g, '')}` :
       kind === 'email' ? `mailto:${v}` :
-      kind === 'website' ? (/^https?:\/\//i.test(v) ? v : `https://${v}`) : null
+      kind === 'website' ? normalizeWebsiteUrl(v) : null
     const details = [
       [t('common.phone'), company.phone_number, 'phone'],
       [t('common.email'), company.email, 'email'],
@@ -155,7 +171,9 @@ export default function ProviderCompany() {
     [t('common.phone'), 'phone_number', false, 'tel'],
     [t('common.email'), 'email', false, 'email'],
     [t('common.address'), 'address', false, 'text'],
-    [t('common.website'), 'website', false, 'url'],
+    // 'text' + inputMode, not type="url": the browser would reject the bare
+    // "example.mn" that normalizeWebsiteUrl turns into a valid link on submit.
+    [t('common.website'), 'website', false, 'text', 'url'],
   ]
 
   return (
@@ -178,7 +196,7 @@ export default function ProviderCompany() {
           </label>
           <span className="text-xs text-muted">{t('company.logo')}</span>
         </div>
-        {formFields.map(([label, key, req, inputType]) => (
+        {formFields.map(([label, key, req, inputType, mode]) => (
           <div key={key}>
             <label className="text-xs text-muted block mb-1.5">
               {label}{req && <span className="text-danger"> *</span>}
@@ -187,7 +205,7 @@ export default function ProviderCompany() {
               <Input as="textarea" rows={3} className="resize-none" value={form[key]} required={req}
                 onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))} />
             ) : (
-              <Input type={inputType} value={form[key]} required={req}
+              <Input type={inputType} inputMode={mode} value={form[key]} required={req}
                 onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))} />
             )}
           </div>

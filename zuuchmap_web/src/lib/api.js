@@ -6,6 +6,19 @@ import i18n from '../i18n'
 
 const BASE = import.meta.env.VITE_API_URL ?? 'https://zuuchmap.com/engine'
 
+/** multipart config, plus a 0-100 progress callback when the caller wants one. */
+const uploadCfg = (onProgress) => ({
+  headers: { 'Content-Type': 'multipart/form-data' },
+  onUploadProgress: onProgress
+    ? (e) => {
+        // `total` is absent when the body length is unknown — report nothing
+        // rather than a fake number, and the caller keeps its spinner.
+        if (!e.total) return
+        onProgress(Math.min(100, Math.round((e.loaded * 100) / e.total)))
+      }
+    : undefined,
+})
+
 export const client = axios.create({ baseURL: BASE })
 
 client.interceptors.request.use((cfg) => {
@@ -52,8 +65,11 @@ export const postsApi = {
   getOne: (id) => client.get(`/posts/${id}`).then(data),
   getMine: () => client.get('/posts/mine').then(data),
   getMyStats: () => client.get('/posts/mine/stats').then(data),
-  create: (form) => client.post('/posts', form, { headers: { 'Content-Type': 'multipart/form-data' } }).then(data),
-  update: (id, form) => client.patch(`/posts/${id}`, form, { headers: { 'Content-Type': 'multipart/form-data' } }).then(data),
+  // `onProgress` receives 0-100. A post carries up to five photos, so on a slow
+  // mobile connection this is a minute of upload behind a button that otherwise
+  // says nothing but "creating".
+  create: (form, onProgress) => client.post('/posts', form, uploadCfg(onProgress)).then(data),
+  update: (id, form, onProgress) => client.patch(`/posts/${id}`, form, uploadCfg(onProgress)).then(data),
   remove: (id) => client.delete(`/posts/${id}`),
   view: (id) => client.put(`/posts/${id}/views`),
   // Same shape as /posts items: same category, nearest location and price first.

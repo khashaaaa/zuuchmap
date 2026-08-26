@@ -134,7 +134,11 @@ const userService = {
                     return { authenticated: false, roleSelected: false };
                 }
                 if (error.response?.status === 429) {
-                    // Rate limited — treat as unauthenticated but don't trigger biometric
+                    // Rate limited. A 429 says nothing about whether the token is
+                    // valid, but it is reported as unauthenticated, so the user is
+                    // sent to the login screen with a working session. `rateLimited`
+                    // exists for a caller that wants to retry instead — nothing reads
+                    // it yet.
                     logger.error('Error during profile check:', error);
                     return { authenticated: false, roleSelected: false, rateLimited: true };
                 }

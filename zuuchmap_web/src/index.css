@@ -1,5 +1,32 @@
 @import "tailwindcss";
 
+/* Commissioner, self-hosted. ONE variable face (wght 400-800) spanning
+   latin + latin-ext + cyrillic + cyrillic-ext.
+
+   Deliberately NO `unicode-range`. Google Fonts ships Commissioner as four
+   range-split subsets, and the Mongolian-specific letters land in a different
+   file from everything around them: Ө/ө (U+04E8/9) and Ү/ү (U+04AE/F) are in
+   `cyrillic-ext`, while А-Я/а-я are in `cyrillic` and ₮ (U+20AE) is in
+   `latin-ext`. Each subset is only fetched once the browser meets a character
+   in its range, so with `display: swap` those letters painted in the fallback
+   (system-ui) and swapped in late — a different face for two letters in the
+   middle of a Mongolian word. A single face makes that structurally
+   impossible. It also matches zuuchmap_app, which bundles the unsubsetted
+   TTFs, so web and app now render identical letterforms.
+
+   Regenerating: subset the upstream variable TTF (google/fonts ofl/commissioner)
+   with the stylistic axes pinned (slnt/FLAR/VOLM = 0) and wght limited to
+   400:800. Licence in public/fonts/OFL.txt. */
+@font-face {
+  font-family: "Commissioner";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("/fonts/commissioner-var.woff2") format("woff2-variations"),
+       url("/fonts/commissioner-var.woff2") format("woff2");
+}
+
+
 @theme {
   /* Direction A — neutral grounds, amber reserved for accents.
      Values mirror zuuchmap_app/src/design/theme.js palettes. */
@@ -39,9 +66,10 @@
      ground than on the light one, same as the elevation shadows. */
   --shimmer: rgba(255, 255, 255, 0.05);
 
-  /* Commissioner — chosen for complete Mongolian coverage (Ө, Ү) plus ₮,
-     and the narrowest metrics of the faces that have all three. Swapping the
-     face is a one-line change here plus the <link> in index.html. */
+  /* Commissioner — chosen for complete Mongolian coverage (Ө, Ү) plus ₮, and
+     the narrowest metrics of the faces that have all three. Self-hosted as a
+     single face; see the @font-face at the top of this file before changing it.
+     The fallbacks are last-resort only — none of them is metric-compatible. */
   --font-sans: "Commissioner", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 
   --radius-btn:   0.75rem;   /* 12px */
@@ -281,6 +309,42 @@ table { font-variant-numeric: tabular-nums; }
    colour, set inline by `categoryPin()` in lib/mapPin.js. The ring is fixed
    white (the app's onMedia idiom): pins sit on map imagery in both themes,
    not on a themed surface. */
+.map-radius {
+  /* Leaflet writes stroke/fill as SVG attributes, where var() does not resolve —
+     so the "near me" ring takes its colour from CSS instead. */
+  stroke: var(--color-primary);
+  stroke-width: 1;
+  fill: var(--color-primary);
+  fill-opacity: 0.06;
+}
+.map-cluster-wrap { background: transparent; border: 0; }
+.map-cluster {
+  /* Geometry mirrors the app's cluster badge: 40 tall, 2px ring, pill radius,
+     width stepping with the digit count so 3-digit counts do not crowd. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 4px;
+  border-radius: 9999px;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+.map-cluster-disc {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  align-self: stretch;
+  padding: 0 6px;
+  border-radius: 9999px;
+  background: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
 .map-pin-wrap { background: transparent; border: 0; }
 .map-pin,
 .map-pin::after { box-sizing: border-box; }

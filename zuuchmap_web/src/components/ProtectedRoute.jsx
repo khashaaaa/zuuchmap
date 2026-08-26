@@ -9,6 +9,17 @@ function Spinner() {
   )
 }
 
+/**
+ * Signed in, any role. For screens all three roles share — the app has one
+ * Notifications screen, not three.
+ */
+export function AuthedRoute() {
+  const { token, isLoading } = useAuthStore()
+  if (isLoading) return <Spinner />
+  if (!token) return <Navigate to="/login" replace />
+  return <Outlet />
+}
+
 export function AdminRoute() {
   const { token, isAdmin, isLoading } = useAuthStore()
   if (isLoading) return <Spinner />

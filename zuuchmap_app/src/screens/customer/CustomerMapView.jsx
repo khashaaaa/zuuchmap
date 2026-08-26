@@ -24,6 +24,7 @@ import BottomSheetModal from '../../components/BottomSheetModal';
 import PressableScale from '../../components/PressableScale';
 import OfflineBanner from '../../components/OfflineBanner';
 import MapClusterCarousel from '../../components/MapClusterCarousel';
+import EmptyState from '../../components/EmptyState';
 import { getPostTypeConfig, normalizePostType } from '../../utils/postUtils';
 import { useCategorySchemas } from '../../hooks/useCategorySchemas';
 import { showErrorModal, showWarningModal } from '../../utils/errorManager';
@@ -146,11 +147,19 @@ const CustomerMapView = ({ navigation, route }) => {
         autoFitMarkers: false
     });
 
+    // Filters arrive two ways: as route params (from a category tap on the
+    // browse screen) and from the filter sheet. Only the sheet's were clearable,
+    // so a route-param filter that matched nothing left the map permanently
+    // blank. `routeFiltersCleared` lets "clear" drop both.
+    const [routeFiltersCleared, setRouteFiltersCleared] = useState(false);
     const {
-        selectedCategories = [],
-        priceRange = null,
-        locationFilter = null
+        selectedCategories: routeCategories = [],
+        priceRange: routePriceRange = null,
+        locationFilter: routeLocationFilter = null
     } = route?.params || {};
+    const selectedCategories = routeFiltersCleared ? [] : routeCategories;
+    const priceRange = routeFiltersCleared ? null : routePriceRange;
+    const locationFilter = routeFiltersCleared ? null : routeLocationFilter;
 
     const getUserLocation = useCallback(async (showAlert = true) => {
         try {
@@ -420,6 +429,18 @@ const CustomerMapView = ({ navigation, route }) => {
         ).length;
     }, [activeFilters]);
 
+    // Route params count too — otherwise the empty state would tell a user who
+    // arrived via a category tap that the catalogue is empty.
+    const hasAnyFilter = activeFilterCount > 0
+        || selectedCategories.length > 0
+        || Boolean(priceRange)
+        || Boolean(locationFilter?.enabled);
+
+    const clearAllFilters = useCallback(() => {
+        setActiveFilters({});
+        setRouteFiltersCleared(true);
+    }, []);
+
     return (
         <CustomSafeAreaView backgroundColor={colors.background} statusBarColor={colors.surface} statusBarStyle={isDark ? 'light-content' : 'dark-content'}>
             <ScreenHeader
@@ -548,6 +569,25 @@ const CustomerMapView = ({ navigation, route }) => {
                         {filteredPosts.length} {t('map.posts')}
                     </Text>
                 </View>
+
+                {/* A map filtered down to nothing used to render as blank tiles
+                    and a "0" badge — no reason given and no way back. */}
+                {!loading && filteredPosts.length === 0 && (
+                    <View style={styles.emptyOverlay} pointerEvents="box-none">
+                        <View style={styles.emptyCard}>
+                            <EmptyState
+                                variant={hasAnyFilter ? 'search' : 'default'}
+                                icon={hasAnyFilter ? 'funnel-outline' : 'map-outline'}
+                                iconSize={40}
+                                title={t(hasAnyFilter ? 'posts.noMatches' : 'posts.browseEmpty')}
+                                subtitle={hasAnyFilter ? t('posts.noMatchesDesc') : undefined}
+                                actionButton={hasAnyFilter
+                                    ? { text: t('common.clear'), icon: 'close-circle-outline', onPress: clearAllFilters }
+                                    : undefined}
+                            />
+                        </View>
+                    </View>
+                )}
 
                 <OfflineBanner visible={fromCache} cachedAt={mapData?.cachedAt} style={styles.offlineBanner} />
             </View>
@@ -717,6 +757,25 @@ const makeStyles = themedStyles((colors) => ({
         backgroundColor: MAP_OVERLAY.surface,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    emptyOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: spacing.xl,
+    },
+    emptyCard: {
+        ...colors.elevation.lg,
+        backgroundColor: colors.surface,
+        borderRadius: radius.lg,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
+        maxWidth: 340,
+        width: '100%',
     },
     postCountBadge: {
         ...MAP_OVERLAY.shadow,

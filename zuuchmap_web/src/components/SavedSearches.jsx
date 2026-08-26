@@ -18,7 +18,13 @@ export function savedSearchToParams(s) {
   return p
 }
 
-export default function SavedSearches({ className = '' }) {
+/**
+ * `headed={false}` drops the card's own title and hint — on the dedicated
+ * saved-searches page the PageHeader already says both, and rendering them
+ * twice reads as a bug. The quota counter stays either way: it is the one part
+ * of the heading row that carries information.
+ */
+export default function SavedSearches({ className = '', headed = true }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const { data: searches = [], isLoading } = useQuery({ queryKey: ['saved-searches'], queryFn: savedSearchApi.list })
@@ -44,13 +50,16 @@ export default function SavedSearches({ className = '' }) {
   }
 
   return (
-    <section className={`bg-surface border border-border/20 shadow-card rounded-card p-4 ${className}`} aria-labelledby="saved-searches-title">
+    <section
+      className={`bg-surface border border-border/20 shadow-card rounded-card p-4 ${className}`}
+      {...(headed ? { 'aria-labelledby': 'saved-searches-title' } : { 'aria-label': t('savedSearch.title') })}
+    >
       <div className="flex items-center gap-2 mb-1">
-        <BellRing size={15} className="text-primary-text" aria-hidden="true" />
-        <h2 id="saved-searches-title" className="text-sm font-semibold text-text">{t('savedSearch.title')}</h2>
+        {headed && <BellRing size={15} className="text-primary-text" aria-hidden="true" />}
+        {headed && <h2 id="saved-searches-title" className="text-sm font-semibold text-text">{t('savedSearch.title')}</h2>}
         <span className="text-xs text-muted ml-auto tabular-nums">{searches.length}/10</span>
       </div>
-      <p className="text-xs text-muted mb-3">{t('savedSearch.hint')}</p>
+      {headed && <p className="text-xs text-muted mb-3">{t('savedSearch.hint')}</p>}
       {isLoading ? (
         <div className="space-y-2">{Array.from({ length: 2 }).map((_, i) => <div key={i} className="h-11 skeleton rounded-btn" />)}</div>
       ) : searches.length === 0 ? (

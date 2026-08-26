@@ -6,7 +6,6 @@ import { User } from '../user/entities/user.entity';
 import { Booking } from '../booking/entities/booking.entity';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { BookingService } from '../booking/booking.service';
-import { isAdmin } from '../admin/admin.guard';
 
 const safeAuthor = (u: any) => u && ({
   id: u.id,
@@ -87,16 +86,18 @@ export class ReviewService {
     };
   }
 
-  // Provider credentials shown next to the rating. Booking has no responded_at
-  // column, so response time is date_updated - date_created over bookings the
-  // provider ACCEPTED/DECLINED — status is the only field that changes on those
-  // rows, so the last update is the response.
+  // Provider credentials shown next to the rating. Response time is measured
+  // from `responded_at`, which is written once when the provider answers — not
+  // from date_updated, which any later write (the nightly review-prompt sweep,
+  // among others) bumps. Rows with no responded_at fall out of the AVG rather
+  // than counting as an instant or an eternal reply.
   async providerStats(providerId: string) {
     const [resp, completed, user] = await Promise.all([
       this.bookingRepository.createQueryBuilder('b')
-        .select('AVG(EXTRACT(EPOCH FROM (b.date_updated - b.date_created)))', 'avg_seconds')
+        .select('AVG(EXTRACT(EPOCH FROM (b.responded_at - b.date_created)))', 'avg_seconds')
         .where('b."providerId" = :providerId', { providerId })
         .andWhere('b.status IN (:...statuses)', { statuses: ['ACCEPTED', 'DECLINED'] })
+        .andWhere('b.responded_at IS NOT NULL')
         .getRawOne(),
       this.bookingRepository.createQueryBuilder('b')
         .where('b."providerId" = :providerId', { providerId })
@@ -122,14 +123,5 @@ export class ReviewService {
       where: { provider: { id: providerId }, author: { id: authorId } },
     });
     return review ?? null;
-  }
-
-  async remove(id: number, userId: string, userPhone: string) {
-    const review = await this.reviewRepository.findOne({ where: { id }, relations: ['author'] });
-    if (!review) throw new NotFoundException('Review not found');
-    if (review.author?.id !== userId && !isAdmin(userPhone)) {
-      throw new ForbiddenException({ code: 'REVIEW_NOT_YOURS', message: 'Not your review' });
-    }
-    await this.reviewRepository.delete(id);
   }
 }

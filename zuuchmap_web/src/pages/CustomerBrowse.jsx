@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import useOnline from '@/hooks/useOnline'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { X, Heart, BellPlus, WifiOff } from 'lucide-react'
 import { toast } from 'sonner'
@@ -28,18 +29,6 @@ const LIMIT = 48
 // They are read once, applied to state, and stripped — category/page are the
 // only ones the URL keeps for the page's own navigation.
 const isCarriedFilter = (k) => ['subcategory', 'province', 'district', 'q'].includes(k) || k.startsWith('attr.')
-
-function useOnline() {
-  const [online, setOnline] = useState(() => (typeof navigator === 'undefined' ? true : navigator.onLine))
-  useEffect(() => {
-    const up = () => setOnline(true)
-    const down = () => setOnline(false)
-    window.addEventListener('online', up)
-    window.addEventListener('offline', down)
-    return () => { window.removeEventListener('online', up); window.removeEventListener('offline', down) }
-  }, [])
-  return online
-}
 
 export default function CustomerBrowse() {
   const { t } = useTranslation()

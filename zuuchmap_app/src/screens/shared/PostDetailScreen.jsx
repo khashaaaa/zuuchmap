@@ -33,6 +33,7 @@ import { Button } from '../../components';
 import { TextInput } from '../../components';
 import { getPriceUnitLabel, formatDate, formatDateTime, getProvinceLabel, getDistrictLabel } from '../../utils/displayUtils';
 import { normalizePostType, getPostTypeConfig, getPostTitle, getSchemaLabel, getSubcategoryLabel } from '../../utils/postUtils';
+import { normalizeWebsiteUrl } from '../../utils/formUtils';
 import { processPostImages } from '../../utils/imageUtils';
 import { logger } from '../../utils/logger';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -762,9 +763,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                                 icon="globe-outline"
                                 label={t('common.website')}
                                 value={post.website}
-                                onPress={() => Linking.openURL(
-                                    post.website.startsWith('http') ? post.website : `https://${post.website}`
-                                )}
+                                onPress={() => Linking.openURL(normalizeWebsiteUrl(post.website))}
                                 colors={colors}
                                 styles={styles}
                             />

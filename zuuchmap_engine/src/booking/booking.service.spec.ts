@@ -194,12 +194,15 @@ describe('BookingService.promptReviews', () => {
       getMany: jest.fn(async () => due),
     };
     const bookingRepo = { createQueryBuilder: jest.fn(() => qb), update: jest.fn(async (..._a: any[]) => ({})) };
-    const notifications = { notifyUsers: jest.fn(async (..._a: any[]) => undefined) };
+    const notifications = {
+      notifyUsers: jest.fn(async (..._a: any[]) => undefined),
+      notifyEach: jest.fn(async (..._a: any[]) => 0),
+    };
     const svc = new BookingService(bookingRepo as any, {} as any, notifications as any, {} as any, undefined as any);
     return { svc, bookingRepo, notifications };
   };
 
-  it('pushes each due customer once with the deep-link payload and stamps review_prompted_at', async () => {
+  it('pushes every due customer in one batch, each with its own payload, and stamps review_prompted_at', async () => {
     const due = [
       { id: 1, customer: { id: 'c1' }, provider: { id: 'p1' }, post: { id: 11 } },
       { id: 2, customer: { id: 'c2' }, provider: { id: 'p1' }, post: { id: 12 } },
@@ -210,9 +213,21 @@ describe('BookingService.promptReviews', () => {
     expect(bookingRepo.update).toHaveBeenCalledTimes(1);
     expect((bookingRepo.update.mock.calls[0][0] as any).id._value).toEqual([1, 2]);
     expect((bookingRepo.update.mock.calls[0][1] as any).review_prompted_at).toBeInstanceOf(Date);
-    expect(notifications.notifyUsers).toHaveBeenCalledTimes(2);
-    expect(notifications.notifyUsers.mock.calls[0][0]).toEqual(['c1']);
-    expect(notifications.notifyUsers.mock.calls[0][3]).toEqual({ type: 'review_prompt', bookingId: 1, postId: 11, providerId: 'p1' });
+    // One call, not one per customer: looping notifyUsers cost a separate
+    // HTTPS round-trip to Expo for every recipient, while the transport
+    // batches a hundred messages per request.
+    expect(notifications.notifyEach).toHaveBeenCalledTimes(1);
+    expect(notifications.notifyUsers).not.toHaveBeenCalled();
+    const items = notifications.notifyEach.mock.calls[0][0] as any[];
+    expect(items).toHaveLength(2);
+    expect(items[0]).toMatchObject({
+      userId: 'c1',
+      data: { type: 'review_prompt', bookingId: 1, postId: 11, providerId: 'p1' },
+    });
+    expect(items[1]).toMatchObject({
+      userId: 'c2',
+      data: { type: 'review_prompt', bookingId: 2, postId: 12, providerId: 'p1' },
+    });
   });
 
   it('does nothing when no booking is due', async () => {
@@ -220,5 +235,6 @@ describe('BookingService.promptReviews', () => {
     await svc.promptReviews();
     expect(bookingRepo.update).not.toHaveBeenCalled();
     expect(notifications.notifyUsers).not.toHaveBeenCalled();
+    expect(notifications.notifyEach).not.toHaveBeenCalled();
   });
 });

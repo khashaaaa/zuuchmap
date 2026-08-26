@@ -4,7 +4,7 @@ import { AnimatePresence, useReducedMotion } from 'framer-motion'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore, useThemeStore } from './store'
 import AppLayout from './components/AppLayout'
-import { AdminRoute, ProviderRoute, CustomerRoute } from './components/ProtectedRoute'
+import { AdminRoute, ProviderRoute, CustomerRoute, AuthedRoute } from './components/ProtectedRoute'
 import ErrorBoundary from './components/ErrorBoundary'
 import { useRealtimeSync } from './hooks/useRealtimeSync'
 import { trackPageView } from './lib/analytics'
@@ -43,6 +43,8 @@ const CustomerBrowse = lazy(() => import('./pages/CustomerBrowse'))
 const CustomerMap = lazy(() => import('./pages/CustomerMap'))
 const CustomerSaved = lazy(() => import('./pages/CustomerSaved'))
 const CustomerProfile = lazy(() => import('./pages/CustomerProfile'))
+const NotificationsPage = lazy(() => import('./pages/NotificationsPage'))
+const SavedSearchesPage = lazy(() => import('./pages/SavedSearchesPage'))
 
 /**
  * Chunk-load placeholder. Deliberately the same `.skeleton` tile the data
@@ -130,6 +132,13 @@ export default function App() {
         <Route path="/account-deletion" element={<AccountDeletion />} />
 
         {/* Admin only */}
+        {/* Shared by every signed-in role, like the app's Notifications screen. */}
+        <Route element={<AuthedRoute />}>
+          <Route element={<AppLayout />}>
+            <Route path="/notifications" element={<ErrorBoundary queryClient={qc}><NotificationsPage /></ErrorBoundary>} />
+          </Route>
+        </Route>
+
         <Route element={<AdminRoute />}>
           <Route element={<AppLayout />}>
             <Route path="/admin" element={<ErrorBoundary queryClient={qc}><AdminDashboard /></ErrorBoundary>} />
@@ -164,6 +173,7 @@ export default function App() {
             <Route path="/customer/browse" element={<ErrorBoundary queryClient={qc}><CustomerBrowse /></ErrorBoundary>} />
             <Route path="/customer/map" element={<ErrorBoundary queryClient={qc}><CustomerMap /></ErrorBoundary>} />
             <Route path="/customer/saved" element={<ErrorBoundary queryClient={qc}><CustomerSaved /></ErrorBoundary>} />
+            <Route path="/customer/saved-searches" element={<ErrorBoundary queryClient={qc}><SavedSearchesPage /></ErrorBoundary>} />
             <Route path="/customer/profile" element={<ErrorBoundary queryClient={qc}><CustomerProfile /></ErrorBoundary>} />
             <Route path="/customer/bookings" element={<ErrorBoundary queryClient={qc}><Bookings mode="customer" /></ErrorBoundary>} />
           </Route>

@@ -70,7 +70,10 @@ describe('PostService.findAll sorting and price range', () => {
       andWhere: jest.fn().mockReturnThis(),
       take: jest.fn().mockReturnThis(),
       skip: jest.fn().mockReturnThis(),
-      getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
+      // findAll fetches the page and the total separately now: the count is
+      // cached across pages of one filter set instead of re-scanning per page.
+      getMany: jest.fn().mockResolvedValue([]),
+      getCount: jest.fn().mockResolvedValue(0),
     };
     const postRepo = { createQueryBuilder: jest.fn(() => qb) };
     service = new PostService(
@@ -82,8 +85,7 @@ describe('PostService.findAll sorting and price range', () => {
   // live featured windows above it, so the date moved to the tiebreaker slot.
   it('defaults to newest-first, under the featured lift', async () => {
     await service.findAll({});
-    expect(qb.addSelect).toHaveBeenCalledWith(expect.stringContaining('featured_until'), 'featured_rank');
-    expect(qb.orderBy).toHaveBeenCalledWith('featured_rank', 'ASC');
+    expect(qb.orderBy).toHaveBeenCalledWith('post.is_featured', 'DESC');
     expect(qb.addOrderBy).toHaveBeenCalledWith('post.date_created', 'DESC');
   });
 
@@ -108,7 +110,7 @@ describe('PostService.findAll sorting and price range', () => {
   // SQL — it must land in the `default` branch, whatever that branch orders by.
   it('falls back to newest for an unknown sort value', async () => {
     await service.findAll({ sort: 'evil; DROP TABLE post' });
-    expect(qb.orderBy).toHaveBeenCalledWith('featured_rank', 'ASC');
+    expect(qb.orderBy).toHaveBeenCalledWith('post.is_featured', 'DESC');
     expect(qb.addOrderBy).toHaveBeenCalledWith('post.date_created', 'DESC');
     expect(qb.orderBy).not.toHaveBeenCalledWith(expect.stringContaining('DROP TABLE'), expect.anything());
   });
@@ -127,7 +129,7 @@ describe('PostService.findAll sorting and price range', () => {
 
   it('survives a duplicated q param (array) without throwing', async () => {
     await expect(service.findAll({ q: ['hello', 'world'] as any })).resolves.toBeDefined();
-    expect(qb.getManyAndCount).toHaveBeenCalled();
+    expect(qb.getMany).toHaveBeenCalled();
   });
 
   it('clamps a negative page to the first page', async () => {
@@ -163,7 +165,24 @@ describe('PostService.findAll sorting and price range', () => {
     await service.findAll({ sort: 'price_asc' });
     await service.findAll({ sort: 'price_desc' });
     // If the cache key ignored sort, the second call would be served from cache
-    expect(qb.getManyAndCount).toHaveBeenCalledTimes(2);
+    expect(qb.getMany).toHaveBeenCalledTimes(2);
+  });
+
+  // The total is the same for every page and every sort of one filter set, and
+  // counting it costs a second full pass. Paying that per page is what this
+  // avoids — the count key deliberately omits page, limit and sort.
+  it('counts a filter set once across its pages and sorts', async () => {
+    await service.findAll({ category: 'toolrent', page: 1 });
+    await service.findAll({ category: 'toolrent', page: 2 });
+    await service.findAll({ category: 'toolrent', page: 1, sort: 'price_asc' });
+    expect(qb.getMany).toHaveBeenCalledTimes(3);
+    expect(qb.getCount).toHaveBeenCalledTimes(1);
+  });
+
+  it('counts separately for a different filter set', async () => {
+    await service.findAll({ category: 'toolrent' });
+    await service.findAll({ category: 'vehiclerent' });
+    expect(qb.getCount).toHaveBeenCalledTimes(2);
   });
 });
 

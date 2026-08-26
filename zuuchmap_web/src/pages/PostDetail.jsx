@@ -4,8 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
   CheckCircle, XCircle, MapPin, Eye, Phone, Mail, Globe,
-  ArrowLeft, Heart, Building2, Pencil, Trash2, Calendar, Sparkles,
-} from 'lucide-react'
+  ArrowLeft, Heart, Building2, Pencil, Trash2, Calendar, Sparkles, CalendarRange} from 'lucide-react'
 import { MapContainer, TileLayer, Marker } from 'react-leaflet'
 import { motion, useReducedMotion } from 'framer-motion'
 import 'leaflet/dist/leaflet.css'
@@ -585,6 +584,21 @@ export default function PostDetail() {
                 {isBookable
                   ? <BookingRequest postId={post.id} />
                   : <p className="text-sm text-muted">{t('errors.codes.BOOKING_POST_UNAVAILABLE')}</p>}
+              </div>
+            )}
+
+            {/* The same reasoning as the save button above: a signed-out visitor
+                on a bookable rental got no booking affordance and no reason why,
+                even though "sign in to save" sat right beside it. Arriving from
+                search and wanting to book is the likelier intent of the two. */}
+            {!token && schema?.has_rental_status && post.user && isBookable && (
+              <div className="pt-4 border-t border-border/50">
+                <Button
+                  className="w-full"
+                  onClick={() => navigate('/login', { state: { from: `/posts/${id}` } })}
+                >
+                  <CalendarRange size={14} /> {t('posts.signInToBook')}
+                </Button>
               </div>
             )}
 

@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useRef, useState } from 'react'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { Menu, Globe, Sun, Moon, Bell } from 'lucide-react'
@@ -94,6 +95,17 @@ export default function AppHeader({ onMenuClick }) {
                       </div>
                     ))}
                   </div>
+                )}
+                {/* The dropdown holds the latest few; the page holds the rest.
+                    No point offering it when there is nothing to see. */}
+                {notifications.length > 0 && (
+                  <Link
+                    to="/notifications"
+                    onClick={() => setNotifOpen(false)}
+                    className="block px-3 py-2 text-center text-xs text-primary-text hover:bg-surface2 border-t border-border/50 transition-colors"
+                  >
+                    {t('common.viewAll')}
+                  </Link>
                 )}
               </motion.div>
             )}

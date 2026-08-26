@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, Copy, Check } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { authApi } from '@/lib/api'
 import { track } from '@/lib/analytics'
@@ -18,12 +18,37 @@ export default function VerifyPage() {
   const login = useStore((s) => s.login)
 
   const [status, setStatus] = useState('PENDING')
+  const [copied, setCopied] = useState(false)
+  // `sms:` resolves on phones and does nothing on a desktop browser, so the
+  // primary action has to differ. A coarse pointer is the closest honest proxy
+  // for "this device has a messaging app"; both actions stay available either
+  // way, only their prominence swaps.
+  const canSms = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches
   // Tick a clock and derive the countdown from the real expiry, rather than
   // decrementing a counter — a backgrounded tab would otherwise drift.
   const [now, setNow] = useState(() => Date.now())
   const settled = useRef(false)
 
   const { session_id: sessionId, code, shortcode = '144773', sms_uri: smsUri } = state ?? {}
+
+  async function copyCode() {
+    try {
+      await navigator.clipboard.writeText(String(code))
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Insecure context or a browser that refuses — select the digits so the
+      // user can still copy with the keyboard rather than transcribing them.
+      const el = document.getElementById('verify-code')
+      if (el) {
+        const range = document.createRange()
+        range.selectNodeContents(el)
+        const sel = window.getSelection()
+        sel.removeAllRanges()
+        sel.addRange(range)
+      }
+    }
+  }
 
   function routeFor(user) {
     // Admins are phone-based and may never have picked a provider/customer
@@ -109,7 +134,7 @@ export default function VerifyPage() {
           <div className="flex items-stretch gap-2 mb-5">
             <div className="flex-1 rounded-card bg-surface2 border border-border/50 p-4 text-center">
               <p className="text-xs text-muted mb-1.5">{t('auth.yourCode')}</p>
-              <p className="text-2xl font-bold tracking-[0.2em] text-text tabular-nums">{code}</p>
+              <p id="verify-code" className="text-2xl font-bold tracking-[0.2em] text-text tabular-nums select-all">{code}</p>
             </div>
             <div className="flex items-center text-muted" aria-hidden="true">
               <ArrowRight size={16} />
@@ -133,10 +158,26 @@ export default function VerifyPage() {
 
           {view === 'PENDING' && (
             <>
-              <Button href={smsUri} size="lg" className="w-full mb-3">
-                {t('auth.openSms')}
-              </Button>
-              <div className="flex items-center justify-center gap-2 text-sm text-muted">
+              {canSms ? (
+                <>
+                  <Button href={smsUri} size="lg" className="w-full mb-2">
+                    {t('auth.openSms')}
+                  </Button>
+                  <Button variant="outline" size="lg" className="w-full mb-3" onClick={copyCode}>
+                    {copied ? <Check size={15} /> : <Copy size={15} />}
+                    {copied ? t('auth.copiedCode') : t('auth.copyCode')}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button size="lg" className="w-full mb-2" onClick={copyCode}>
+                    {copied ? <Check size={15} /> : <Copy size={15} />}
+                    {copied ? t('auth.copiedCode') : t('auth.copyCode')}
+                  </Button>
+                  <p className="text-xs text-muted text-center mb-3 leading-relaxed">{t('auth.desktopHint')}</p>
+                </>
+              )}
+              <div className="flex items-center justify-center gap-2 text-sm text-muted" role="status" aria-live="polite">
                 <span>{t('auth.waiting')}</span>
                 <span className="tabular-nums font-semibold text-text">{mins}:{secs}</span>
               </div>

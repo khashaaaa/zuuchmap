@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useId, useMemo, useState } from 'react'
 import {
   LayoutDashboard, FileText, Users, Map, Heart, User, Building2,
-  LogOut, ChevronRight, Search, Tag, Plus, CalendarRange, BarChart3,
+  LogOut, ChevronRight, Search, Tag, Plus, CalendarRange, BarChart3, BellRing,
 } from 'lucide-react'
 import { useAuthStore } from '../store'
 import { usersApi } from '@/lib/api'
@@ -35,6 +35,7 @@ function buildNav(t) {
       { to: '/customer/browse', label: t('nav.browse'), icon: Search },
       { to: '/customer/map', label: t('nav.map'), icon: Map },
       { to: '/customer/saved', label: t('nav.saved'), icon: Heart },
+      { to: '/customer/saved-searches', label: t('savedSearch.title'), icon: BellRing },
       { to: '/customer/bookings', label: t('booking.myBookings'), icon: CalendarRange },
       { to: '/customer/profile', label: t('nav.profile'), icon: User },
     ],

@@ -96,6 +96,10 @@ export function useRealtimeSync() {
     if (!token) {
       destroySocket()
       useNotificationStore.getState().clear()
+      return
     }
-  }, [token, isLoading])
+    // Signed in: make sure what is on disk belongs to *this* account. Clearing
+    // on sign-out alone assumed every session ends with one.
+    useNotificationStore.getState().scopeTo(user?.id)
+  }, [token, isLoading, user?.id])
 }

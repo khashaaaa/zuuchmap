@@ -70,7 +70,7 @@ export default function LoginPage() {
           <p className="text-xs text-muted mb-4">{t('auth.startHint')}</p>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="phone" className="text-xs text-muted block mb-1.5">{t('common.phone')}</label>
+              <label htmlFor="phone" className="field-label">{t('common.phone')}</label>
               <div className="flex gap-2">
                 <span className="flex items-center px-3 bg-surface2 rounded-btn text-sm text-muted">
                   {t('auth.phoneLabel')}

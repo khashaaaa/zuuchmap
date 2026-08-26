@@ -39,15 +39,36 @@ async function bootstrap() {
   // proxy's IP, giving the whole site one shared rate-limit bucket.
   app.set('trust proxy', 1);
 
+  // `origin: '*'` with `credentials: true` is a contradiction the fetch spec
+  // refuses — a browser rejects `Access-Control-Allow-Origin: *` on a
+  // credentialed request, so the flag was inert while every origin was allowed.
+  // The socket gateway has always read ALLOWED_ORIGIN; the HTTP API now agrees
+  // with it. Requests carrying no Origin at all (the React Native app, curl,
+  // server-to-server, verify.mn's callback) are unaffected — CORS is a browser
+  // mechanism and never applied to them.
+  const allowedOrigins = (configService.get<string>('ALLOWED_ORIGIN') ?? 'https://zuuchmap.com')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
   app.enableCors({
-    origin: '*',
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+      // Dev serves the web app from a Vite port that is not worth pinning.
+      if (!isProd && /^http:\/\/localhost:\d+$/.test(origin)) return callback(null, true);
+      callback(null, false);
+    },
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Accept', 'Authorization'],
     credentials: true,
   });
 
-  app.use(express.json({ limit: '50mb' }));
-  app.use(express.urlencoded({ limit: '50mb', extended: true }));
+  // Photos arrive as multipart and are bounded by multer (15MB x 10), not by
+  // this. Nothing posts a large JSON body — the biggest is a batch of analytics
+  // events, and `attributesOutOfBounds` caps a post's attributes ~30x above the
+  // largest real row. 50mb only bought an unauthenticated caller the right to
+  // make the process parse 50MB per request, 100 times a minute.
+  app.use(express.json({ limit: '1mb' }));
+  app.use(express.urlencoded({ limit: '1mb', extended: true }));
 
   const categoryService = app.get(CategoryService);
   await categoryService.seedCategories().catch((err) => {

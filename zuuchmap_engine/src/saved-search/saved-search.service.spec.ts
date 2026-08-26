@@ -7,6 +7,7 @@ const post = {
   subcategory: 'dump_truck',
   province: 'UB',
   district: 'BZD',
+  details: 'Ковштой, жолоочтой түрээслүүлнэ. Улаанбаатар доторх тээвэр.',
   attributes: { capacity: 25, brand: 'Howo', year: '2019' },
   user: { id: 'owner' },
 };
@@ -24,11 +25,34 @@ describe('matchesSavedSearch', () => {
     expect(matchesSavedSearch(post, { province: 'UB', district: 'SBD' })).toBe(false);
   });
 
-  it('q is a case-insensitive substring of the title', () => {
+  // `q` must behave the way /posts does, because that is the screen the saved
+  // search was captured from. Browse prefix-matches every term against a
+  // tsvector over title + details; this used to be a whole-phrase `includes`
+  // against the title alone, so the cases below all silently failed to notify.
+  it('q prefix-matches each term, case-insensitively', () => {
     expect(matchesSavedSearch(post, { q: 'howo' })).toBe(true);
     expect(matchesSavedSearch(post, { q: '  DUMPER ' })).toBe(true);
+    expect(matchesSavedSearch(post, { q: 'dump' })).toBe(true);
     expect(matchesSavedSearch(post, { q: 'crane' })).toBe(false);
-    expect(matchesSavedSearch({ ...post, title: null }, { q: 'x' })).toBe(false);
+    expect(matchesSavedSearch({ ...post, title: null, details: null }, { q: 'x' })).toBe(false);
+  });
+
+  it('q searches details, not only the title', () => {
+    expect(matchesSavedSearch(post, { q: 'жолооч' })).toBe(true);
+    expect(matchesSavedSearch(post, { q: 'тээвэр' })).toBe(true);
+    expect(matchesSavedSearch({ ...post, details: null }, { q: 'жолооч' })).toBe(false);
+  });
+
+  it('q ANDs its terms in any order rather than needing the phrase verbatim', () => {
+    expect(matchesSavedSearch(post, { q: 'howo dumper' })).toBe(true);
+    expect(matchesSavedSearch(post, { q: 'dumper howo' })).toBe(true);
+    // One term across the title, one across the details.
+    expect(matchesSavedSearch(post, { q: 'howo жолооч' })).toBe(true);
+    expect(matchesSavedSearch(post, { q: 'howo crane' })).toBe(false);
+  });
+
+  it('a hyphenated query still finds the hyphenated word', () => {
+    expect(matchesSavedSearch(post, { q: 'self-dumper' })).toBe(true);
   });
 
   it('attrs: equality, with or without the attr. prefix, compared as strings', () => {

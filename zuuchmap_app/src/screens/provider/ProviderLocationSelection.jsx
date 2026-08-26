@@ -3,7 +3,7 @@ import {
     View,
     Text,
     TouchableOpacity,
-    Dimensions,
+    useWindowDimensions,
     StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,13 +20,16 @@ import WizardSteps from '../../components/WizardSteps';
 import ScreenLoading from '../../components/ScreenLoading';
 import { showErrorModal } from '../../utils/errorManager';
 
-const { width, height } = Dimensions.get('window');
-const ASPECT_RATIO = width / height;
 const LATITUDE_DELTA = 0.0922;
-const LONGITUDE_DELTA = LATITUDE_DELTA * ASPECT_RATIO;
+// Longitude span has to match the window's aspect ratio or the initial region
+// comes out stretched. Derived per render rather than once at module load,
+// which was wrong in split-screen and after a fold.
+const longitudeDelta = (width, height) => LATITUDE_DELTA * (width / height);
 
 const ProviderLocationSelection = ({ route, navigation }) => {
     const { colors, isDark, styles: gStyles } = useAppTheme();
+    const { width: winW, height: winH } = useWindowDimensions();
+    const LONGITUDE_DELTA = longitudeDelta(winW, winH);
     const styles = useMemo(() => createStyles(colors), [colors]);
     const { t } = useTranslation();
     const { category, subcategory } = route.params;

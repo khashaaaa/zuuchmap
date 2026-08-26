@@ -5,7 +5,6 @@ export const API_CONFIG = {
 
   ENDPOINTS: {
     AUTH: {
-      CHECK_USER: '/user/check',
       VERIFY_START: '/auth/verify/start',
       VERIFY_STATUS: '/auth/verify/status',
     },

@@ -53,7 +53,11 @@ const CODE_TRACKING = 8;
  * is proven by that message arriving from that number.
  */
 const OtpVerification = ({ route, navigation }) => {
-    const { phoneNumber, userType, session } = route.params || {};
+    // `userType` is no longer passed in — the verification result carries the
+    // account type, and it is the only source that has proven the caller owns
+    // this number. Still read from params so an older navigation state (a warm
+    // JS reload mid-flow) does not lose it.
+    const { phoneNumber, userType: paramUserType, session } = route.params || {};
 
     const [status, setStatus] = useState('PENDING');
     const [now, setNow] = useState(() => Date.now());
@@ -73,6 +77,10 @@ const OtpVerification = ({ route, navigation }) => {
 
     const finish = useCallback(async (auth) => {
         const isAdmin = auth?.user?.is_admin === true;
+        // Authoritative: this is the account the server just verified, so a
+        // missing type here genuinely means "has not picked a role yet" rather
+        // than "the pre-flight lookup did not tell us".
+        const userType = auth?.user?.type ?? paramUserType ?? null;
         track('auth.verified', { trusted_device: false });
 
         if (userType) {
@@ -81,7 +89,7 @@ const OtpVerification = ({ route, navigation }) => {
         } else {
             navigation.navigate('UserRoleSelection', { phoneNumber });
         }
-    }, [navigation, phoneNumber, userType]);
+    }, [navigation, phoneNumber, paramUserType]);
 
     const poll = useCallback(async () => {
         if (settled.current || !session?.session_id) return;

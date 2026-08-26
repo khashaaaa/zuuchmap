@@ -4,14 +4,12 @@ import {
     View,
     TouchableOpacity,
     Animated,
-    Dimensions,
+    useWindowDimensions,
     StyleSheet,
 } from 'react-native';
 import { spacing, radius, animations } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useReducedMotion } from '../hooks/useReducedMotion';
-
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const BaseModal = ({
     visible,
@@ -27,6 +25,10 @@ const BaseModal = ({
     const { colors } = useAppTheme();
     const reduced = useReducedMotion();
     const styles = useMemo(() => createStyles(colors), [colors]);
+    // Live, not read once at module load: a sheet sized against the height the
+    // JS bundle happened to start at overshoots the window in split-screen or
+    // on a folded/unfolded device, and slides in from the wrong offset.
+    const { height: SCREEN_HEIGHT } = useWindowDimensions();
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
     const scaleAnim = useRef(new Animated.Value(0.8)).current;

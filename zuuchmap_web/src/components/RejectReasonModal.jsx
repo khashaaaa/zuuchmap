@@ -74,7 +74,7 @@ export default function RejectReasonModal({ open, onClose, onConfirm, isPending,
         className="resize-none"
       />
       <div className="mt-3">
-        <label htmlFor="reject-field" className="text-xs text-muted block mb-1">{t('admin.rejectFieldLabel')}</label>
+        <label htmlFor="reject-field" className="field-label">{t('admin.rejectFieldLabel')}</label>
         <Input as="select" id="reject-field" value={fieldKey} onChange={(e) => setFieldKey(e.target.value)}>
           <option value="">{t('admin.rejectFieldNone')}</option>
           <optgroup label={t('posts.basicInfo')}>

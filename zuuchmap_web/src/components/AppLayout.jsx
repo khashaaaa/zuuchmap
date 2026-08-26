@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import AppSidebar from './AppSidebar'
 import AppHeader from './AppHeader'
 import useOnline from '@/hooks/useOnline'
+import { APP_SCROLL_ID } from '@/lib/utils'
 import { WifiOff } from 'lucide-react'
 
 const FOCUSABLE_SELECTOR = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
@@ -17,6 +18,15 @@ export default function AppLayout() {
   const online = useOnline()
   const drawerRef = useRef(null)
   const lastFocusedRef = useRef(null)
+  const mainRef = useRef(null)
+
+  // The document never scrolls in here (the shell is `h-full overflow-hidden`),
+  // so the browser has no scroll position to restore and React Router's own
+  // restoration never applies. Without this, walking the moderation queue into
+  // a post detail opened it halfway down, at the offset the list was left at.
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0, behavior: 'auto' })
+  }, [location.pathname])
 
   // The mobile drawer is a modal surface — same Escape / focus-trap / focus-
   // return contract as Modal.jsx, otherwise keyboard users tab into the page
@@ -101,7 +111,7 @@ export default function AppLayout() {
             {t('offline.noConnection')}
           </div>
         )}
-        <main className="flex-1 overflow-y-auto">
+        <main id={APP_SCROLL_ID} ref={mainRef} className="flex-1 overflow-y-auto">
           <motion.div
             key={location.pathname}
             initial={{ opacity: 0 }}

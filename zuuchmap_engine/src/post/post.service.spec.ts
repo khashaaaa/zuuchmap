@@ -1,12 +1,28 @@
 import { PostService } from './post.service';
 import { sharedCache } from '../utils/cache';
 
+/**
+ * `create` counts and inserts inside one transaction (the quota guard), so any
+ * repository fake reaching it needs a manager. The callback runs against an
+ * EntityManager stand-in backed by the same fake.
+ */
+const withManager = (repo: any) => {
+  repo.manager = {
+    transaction: jest.fn(async (cb: any) => cb({
+      query: jest.fn(async () => [{ '?column?': 1 }]),
+      getRepository: jest.fn(() => repo),
+    })),
+  };
+  return repo;
+};
+
+
 describe('PostService.create expiry from category schema', () => {
   const makeService = (schema: Record<string, unknown>) => {
-    const postRepo = {
+    const postRepo = withManager({
       create: jest.fn((x: any) => x),
       save: jest.fn(async (x: any) => x),
-    };
+    });
     const categoryService = { getCategory: jest.fn().mockResolvedValue({ active: true, subcategories: [], ...schema }) };
     const notifications = { notifyAdmins: jest.fn().mockResolvedValue(undefined) };
     const svc = new PostService(
@@ -39,7 +55,7 @@ describe('PostService.create expiry from category schema', () => {
       const qb: any = { where: jest.fn(() => qb), andWhere: jest.fn(() => qb), getCount: jest.fn(async () => 0) };
       return qb;
     };
-    const postRepo = { create: jest.fn((x: any) => x), save: jest.fn(async (x: any) => x), createQueryBuilder: jest.fn(quotaQb) };
+    const postRepo = withManager({ create: jest.fn((x: any) => x), save: jest.fn(async (x: any) => x), createQueryBuilder: jest.fn(quotaQb) });
     const owner = { id: 'caller-uuid' };
     const userRepo = { findOne: jest.fn().mockResolvedValue(owner) };
     const categoryService = { getCategory: jest.fn().mockResolvedValue({ active: true, subcategories: [], post_expiry_days: 30 }) };

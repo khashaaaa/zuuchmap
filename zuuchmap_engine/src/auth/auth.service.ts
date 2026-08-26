@@ -14,10 +14,17 @@ import * as crypto from 'crypto';
 import { VerificationSession } from './entities/verification-session.entity';
 import { TrustedDevice } from './entities/trusted-device.entity';
 import { VerifyMnService } from './verify-mn.service';
+import { APP_TIMEZONE } from '../utils/timezone';
 
 const SESSION_TTL = Number(process.env.VERIFY_TTL_MS) || 5 * 60 * 1000;
 const RATE_TTL = Number(process.env.RATE_TTL_MS) || 60 * 60 * 1000;
-const RATE_LIMIT = Number(process.env.OTP_RATE_LIMIT) || 5;
+/**
+ * Per-phone hourly cap on verify.mn verifications. Named for the OTP flow that
+ * was retired behind a 410, which made it read like a knob on a dead path — it
+ * is in fact the only limit on a *paid* action (150₮ to the end user per SMS).
+ * The old name is still honoured so an existing .env keeps working.
+ */
+const RATE_LIMIT = Number(process.env.VERIFY_RATE_LIMIT ?? process.env.OTP_RATE_LIMIT) || 5;
 /** verify.mn 429s a session polled faster than every 2s; stay clear of it. */
 const UPSTREAM_POLL_MS = 3_000;
 
@@ -313,7 +320,7 @@ export class AuthService {
   }
 
   /** Nightly housekeeping — keeps the session table from growing forever. */
-  @Cron('30 0 * * *')
+  @Cron('30 0 * * *', { timeZone: APP_TIMEZONE })
   async pruneSessions(): Promise<void> {
     await this.sessionRepository.delete({
       expires_at: LessThan(new Date(Date.now() - 24 * 60 * 60 * 1000)),

@@ -42,6 +42,7 @@ export class CompanyController {
     }
   }
 
+  /** Unauthenticated — credentials stay out of the projection. */
   @Get(':id')
   async findOne(@Param('id') id: string) {
     return publicCompany(await this.companyService.findOne(id));
@@ -62,6 +63,8 @@ export class CompanyController {
       if (compressedLogo) updateCompanyDto.logo = compressedLogo;
     }
 
-    return publicCompany(await this.companyService.update(id, updateCompanyDto));
+    // Past assertCanManage, so this is the owner or an admin — the two callers
+    // entitled to read back the registration number and tax ID they just saved.
+    return publicCompany(await this.companyService.update(id, updateCompanyDto), { includePrivate: true });
   }
 }

@@ -4,7 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { navigationRef } from './src/utils/navigationUtils';
 import { createStackNavigator } from '@react-navigation/stack';
 import { View, ActivityIndicator, Text, StyleSheet, Platform, Animated, AppState } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
 import userService from './src/services/api/userService';
@@ -123,6 +123,9 @@ import BookingListScreen from './src/screens/shared/BookingListScreen';
 import AccountDeletionScreen from './src/screens/shared/AccountDeletionScreen';
 import ErrorModalManager from './src/components/ErrorModalManager';
 import ErrorBoundary from './src/components/ErrorBoundary';
+import { useTranslation } from 'react-i18next';
+import OfflineBanner from './src/components/OfflineBanner';
+import useOnline from './src/hooks/useOnline';
 
 import AdminDashboard from './src/screens/admin/AdminDashboard';
 import AdminPostList from './src/screens/admin/AdminPostList';
@@ -322,6 +325,9 @@ const App = () => {
 
 const ThemedApp = ({ initialRoute }) => {
   const { colors, isDark } = useAppTheme();
+  const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
+  const online = useOnline();
   useNotificationSync();
   return (
     <>
@@ -337,6 +343,17 @@ const ThemedApp = ({ initialRoute }) => {
         }} />
       )}
       <StatusBar style={isDark ? 'light' : 'dark'} backgroundColor={colors.surface} translucent={false} />
+
+      {/* One connectivity bar for the whole app, matching the web's AppLayout.
+          It sits in the flex flow above the navigator so it pushes screens down
+          rather than covering a header. Android already clears the status bar
+          via the filler above and `translucent={false}`; iOS does not, so the
+          banner carries the top inset itself when it is the topmost element. */}
+      <OfflineBanner
+        visible={!online}
+        message={t('offline.noConnection')}
+        style={Platform.OS === 'ios' ? { paddingTop: insets.top + spacing.sm } : undefined}
+      />
 
       <ErrorBoundary>
         <NavigationContainer ref={navigationRef}>

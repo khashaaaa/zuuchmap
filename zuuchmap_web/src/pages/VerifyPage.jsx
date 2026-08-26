@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useNavigate, useLocation, Link } from 'react-router-dom'
+import { useNavigate, useLocation, Link, Navigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ArrowRight, Copy, Check } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -101,7 +101,11 @@ export default function VerifyPage() {
     return () => clearInterval(timer)
   }, [status])
 
-  if (!sessionId) return null
+  // No session in router state — a typed URL, a bookmark, or history state the
+  // browser dropped. Rendering nothing left a white page on the most expensive
+  // step of the funnel; send them back to the one screen that can start a new
+  // session instead of stranding them.
+  if (!sessionId) return <Navigate to="/login" replace />
 
   const expiresAt = state?.expires_at ? Date.parse(state.expires_at) : now + 300_000
   const secondsLeft = Math.max(0, Math.round((expiresAt - now) / 1000))

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder } from 'typeorm';
+import { EntityManager, Repository, SelectQueryBuilder } from 'typeorm';
 import { Cron } from '@nestjs/schedule';
 import { Status } from '../enums/status';
 import { Plan } from '../enums/plan';
@@ -18,6 +18,8 @@ import { sharedCache, invalidatePostReadCaches } from '../utils/cache';
 import { CategoryService } from './category.service';
 import { PostNotificationService } from './post-notification.service';
 import { AnalyticsService } from '../analytics/analytics.service';
+import { searchTerms } from '../utils/search-terms';
+import { APP_TIMEZONE } from '../utils/timezone';
 
 const POST_EXPIRY_DAYS = 30;
 
@@ -127,6 +129,30 @@ export function validateRequiredAttributes(
       return false;
     })
     .map((f) => f.key);
+}
+
+/**
+ * `attributes` is free-form jsonb: the DTO JSON-parses whatever the client sent
+ * and `validateRequiredAttributes` only checks that the schema's *required*
+ * fields are non-empty. Nothing bounded the rest, so a client could store an
+ * arbitrary object of arbitrary size in the column. Both limits sit ~30x above
+ * the largest real row (10 keys, 234 bytes).
+ *
+ * Exported for unit testing, like the two functions around it.
+ */
+export const ATTR_MAX_KEYS = 60;
+export const ATTR_MAX_BYTES = 8 * 1024;
+
+export function attributesOutOfBounds(attributes: Record<string, any> | undefined | null): string | null {
+  if (!attributes || typeof attributes !== 'object') return null;
+  if (Object.keys(attributes).length > ATTR_MAX_KEYS) return 'ATTRIBUTES_TOO_MANY_KEYS';
+  let size: number;
+  try {
+    size = Buffer.byteLength(JSON.stringify(attributes));
+  } catch {
+    return 'ATTRIBUTES_UNSERIALISABLE';   // cyclic or otherwise unstorable
+  }
+  return size > ATTR_MAX_BYTES ? 'ATTRIBUTES_TOO_LARGE' : null;
 }
 
 // Builds the `attr.<key>` WHERE clauses onto a query builder.
@@ -292,8 +318,8 @@ export class PostService {
    * Shared with `providerStats` so the number the provider is shown is the same
    * one the create path measures against.
    */
-  private activePostCount(ownerId: string): Promise<number> {
-    return this.postRepository
+  private activePostCount(ownerId: string, em?: EntityManager): Promise<number> {
+    return (em ? em.getRepository(Post) : this.postRepository)
       .createQueryBuilder('post')
       .where('post.userId = :ownerId', { ownerId })
       .andWhere('post.approval_status != :rejected', { rejected: 'REJECTED' })
@@ -302,9 +328,9 @@ export class PostService {
       .getCount();
   }
 
-  private async assertQuota(ownerId: string, plan: string): Promise<void> {
+  private async assertQuota(ownerId: string, plan: string, em?: EntityManager): Promise<void> {
     const limit = (PLAN_LIMITS[plan] ?? PLAN_LIMITS[Plan.FREE]).posts;
-    const active = await this.activePostCount(ownerId);
+    const active = await this.activePostCount(ownerId, em);
     if (active >= limit) {
       throw new BadRequestException({ message: 'POST_QUOTA_EXCEEDED', limit, plan });
     }
@@ -316,6 +342,9 @@ export class PostService {
     const owner = ownerId ? await this.userRepository.findOne({ where: { id: ownerId } }) : null;
     const plan = this.effectivePlan(owner);
     if (ownerId) await this.assertQuota(ownerId, plan);
+    const oversized = attributesOutOfBounds(dto.attributes);
+    if (oversized) throw new BadRequestException({ message: oversized });
+
     const missing = validateRequiredAttributes(schema, dto.attributes ?? {});
     if (missing.length) {
       throw new BadRequestException({ message: 'MISSING_REQUIRED_ATTRIBUTES', fields: missing });
@@ -352,7 +381,22 @@ export class PostService {
       if (user) post.user = user;
     }
 
-    const saved = await this.postRepository.save(post);
+    // Count and insert in one transaction, behind a lock on the owner's row.
+    // The pre-flight check above answers the common case without a failed
+    // write; it cannot see a second create that has counted but not yet
+    // inserted, so two requests landing together each saw room for one more and
+    // the limit could be overshot. Same shape as the booking conflict handling:
+    // an advisory check in front, an authoritative one at the write.
+    //
+    // Only the row insert is inside — image processing runs afterwards, so an
+    // upload never holds the lock.
+    const saved = await this.postRepository.manager.transaction(async (em) => {
+      if (ownerId) {
+        await em.query('SELECT 1 FROM "user" WHERE id = $1 FOR UPDATE', [ownerId]);
+        await this.assertQuota(ownerId, plan, em);
+      }
+      return em.getRepository(Post).save(post);
+    });
 
     if (files?.length) {
       const processedImages = await ImageUploadHandler.processAfterSave(files);
@@ -457,13 +501,10 @@ export class PostService {
     }
 
     if (filters.q) {
-      // A duplicated ?q= param arrives as an array — take the first value
-      const raw = String(Array.isArray(filters.q) ? filters.q[0] : filters.q);
-      // Prefix-matching full-text search on the generated search_vector column
-      const terms = raw.trim().substring(0, 100).split(/\s+/)
-        .map((t) => t.replace(/[^\p{L}\p{N}]/gu, ''))
-        .filter(Boolean)
-        .slice(0, 8);
+      // Prefix-matching full-text search on the generated search_vector column.
+      // Tokenised by the shared helper so the saved-search matcher, which has to
+      // answer the same question in JS, cannot drift away from it.
+      const terms = searchTerms(filters.q);
       if (terms.length) {
         const tsq = terms.map((t) => `${t}:*`).join(' & ');
         qb.andWhere(`post.search_vector @@ to_tsquery('simple', :tsq)`, { tsq });
@@ -777,6 +818,9 @@ export class PostService {
     if (dto.attributes !== undefined) {
       const schemas = await this.categoryService.getCategories();
       const schema = schemas.find((c) => c.key === post.category);
+      const oversized = attributesOutOfBounds(dto.attributes);
+      if (oversized) throw new BadRequestException({ message: oversized });
+
       const missing = schema ? validateRequiredAttributes(schema, dto.attributes) : [];
       if (missing.length) {
         throw new BadRequestException({ message: 'MISSING_REQUIRED_ATTRIBUTES', fields: missing });
@@ -830,10 +874,14 @@ export class PostService {
       attributes: dto.attributes ?? post.attributes,
     });
 
-    if (files?.length) {
-      const removedImages = (post.images || []).filter(img => !existingImages.includes(img));
-      if (removedImages.length) await deleteMultipleImages(removedImages);
+    // Reclaim dropped objects whether or not the edit also adds photos. This
+    // used to sit inside the `files?.length` branch, so removing photos without
+    // adding any left them in R2 forever — reachable as soon as the app started
+    // sending `existingImages: []` for "delete every photo".
+    const removedImages = (post.images || []).filter(img => !existingImages.includes(img));
+    if (removedImages.length) await deleteMultipleImages(removedImages);
 
+    if (files?.length) {
       const newImages = await ImageUploadHandler.processAfterSave(files);
       post.images = [...existingImages, ...newImages];
     } else {
@@ -896,7 +944,7 @@ export class PostService {
    * refundable amount of wrong. Only lapses are swept — every deliberate
    * feature/unfeature writes the flag on the spot.
    */
-  @Cron('0 * * * *')
+  @Cron('0 * * * *', { timeZone: APP_TIMEZONE })
   async retireLapsedFeatures(): Promise<void> {
     try {
       const result = await this.postRepository
@@ -914,7 +962,7 @@ export class PostService {
     }
   }
 
-  @Cron('0 0 * * *')
+  @Cron('0 0 * * *', { timeZone: APP_TIMEZONE })
   async expireOldPosts(): Promise<void> {
     try {
       const result = await this.postRepository

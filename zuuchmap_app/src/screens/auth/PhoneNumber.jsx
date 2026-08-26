@@ -90,18 +90,22 @@ const PhoneNumber = ({ navigation }) => {
         setIsLoading(true);
         track('auth.start');
         try {
-            const userCheck = await userService.checkUserExists(phoneNumber);
-            const userType = userCheck.exists ? userCheck.userType : null;
+            // No `/user/check` pre-flight. It answered "does this number have an
+            // account, and what type" to an unauthenticated caller — an
+            // enumeration oracle over an 8-digit number space that also handed
+            // back the account UUID — and it was never needed: the account type
+            // rides along on the verification result, which is the only source
+            // that has actually proven anything about the caller.
             const session = await userService.startVerification(phoneNumber);
 
             // Device already proved this number on a previous session.
             if (session.verified) {
                 track('auth.verified', { trusted_device: true });
-                await goAfterAuth(phoneNumber, userType, session.auth?.user?.is_admin === true);
+                await goAfterAuth(phoneNumber, session.auth?.user?.type ?? null, session.auth?.user?.is_admin === true);
                 return;
             }
 
-            navigation.navigate('OtpVerification', { phoneNumber, userType, session });
+            navigation.navigate('OtpVerification', { phoneNumber, session });
         } catch (error) {
             logger.error('Phone number verification error:', error);
             showErrorModal(t('common.error'), getErrorMessage(error, t('auth.sendError')));

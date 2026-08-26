@@ -7,7 +7,7 @@ import {
     TouchableOpacity,
     ActivityIndicator,
     Animated,
-    Dimensions,
+    useWindowDimensions,
     FlatList,
     Linking,
     Platform,
@@ -48,7 +48,6 @@ import {
 import { usePostModeration } from '../../hooks/usePostModeration';
 import { showErrorModal, showInfoModal } from '../../utils/errorManager';
 
-const { width } = Dimensions.get('window');
 
 // i18n key map for known attribute keys
 const ATTR_I18N_KEYS = {
@@ -150,7 +149,11 @@ const HeroImage = ({ uri, failed, onFailed, config, isDark, colors, styles, noIm
 const PostDetailScreen = ({ route, navigation }) => {
     const insets = useSafeAreaInsets();
     const { colors, isDark, styles: gStyles } = useAppTheme();
-    const styles = useMemo(() => createStyles(colors), [colors]);
+    // The carousel pages by slide width, so a width frozen at module load pages
+    // to the wrong offset the moment the window is not the size the JS bundle
+    // started at (split-screen, a foldable).
+    const { width } = useWindowDimensions();
+    const styles = useMemo(() => createStyles(colors, width), [colors, width]);
     const { t, i18n } = useTranslation();
     const { postId, postType: rawPostType, role = 'customer', openReview = false } = route.params;
     const isProvider = role === 'provider';
@@ -215,8 +218,16 @@ const PostDetailScreen = ({ route, navigation }) => {
         staleTime: 10 * 60 * 1000,
     });
     const [showBookingModal, setShowBookingModal] = useState(false);
-    const canBook = !isProvider && !isAdmin && Boolean(schema?.has_rental_status) && Boolean(post?.user)
-        && post?.user?.id !== currentUserId;
+    // Mirrors booking.service.ts, which is the only authority here: signed in,
+    // not your own post, category supports rentals, post has an owner. It
+    // deliberately does NOT test the account type — the engine has no such rule,
+    // and contractors renting each other's machinery is ordinary here. The old
+    // `!isProvider` was the *view mode* from the route param rather than an
+    // identity, so it turned a provider browsing the marketplace into someone
+    // who could not book. Signed-out users are excluded because the request
+    // would 401; they get the sign-in prompt instead.
+    const canBook = Boolean(currentUserId) && !isAdmin && Boolean(schema?.has_rental_status)
+        && Boolean(post?.user) && post?.user?.id !== currentUserId;
     // Availability is separate from category and approval — mirrors the engine's
     // gate in booking.service.ts. RENTED is the provider's own "not right now",
     // and a lapsed post has nobody answering. `canBook` still drives the
@@ -1017,7 +1028,7 @@ const PostDetailScreen = ({ route, navigation }) => {
     );
 };
 
-const createStyles = (colors) => StyleSheet.create({
+const createStyles = (colors, width) => StyleSheet.create({
     scroll: { flex: 1 },
     scrollContent: {},
 

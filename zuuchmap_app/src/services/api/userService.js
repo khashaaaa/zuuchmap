@@ -11,6 +11,7 @@ import { navigateToDashboard } from '../../utils/navigationUtils';
 import { logger } from '../../utils/logger';
 import { isPostLogoutStraggler } from '../../utils/errorManager';
 import { getDeviceId } from '../../utils/device';
+import { clearAllDrafts } from '../../utils/draftStorage';
 
 const API_URL = API_CONFIG.BASE_URL;
 
@@ -24,45 +25,6 @@ const handleRoleNavigation = async (selectedRole, navigation) => {
 
 const userService = {
     getUserType: getUserType,
-
-    checkUserExists: async (phoneNumber) => {
-        try {
-            const response = await axios.post(`${API_URL}${API_CONFIG.ENDPOINTS.AUTH.CHECK_USER}`, {
-                phone_number: phoneNumber
-            });
-
-            if (response.data && response.data.id) {
-                return {
-                    exists: true,
-                    userType: response.data.type || null,
-                    isNewUser: false,
-                    userId: response.data.id,
-                    isVerified: response.data.is_verified || false
-                };
-            } else {
-                return {
-                    exists: false,
-                    userType: null,
-                    isNewUser: true,
-                    userId: null,
-                    isVerified: false
-                };
-            }
-        } catch (error) {
-            if (error.response?.status === 404) {
-                return {
-                    exists: false,
-                    userType: null,
-                    isNewUser: true,
-                    userId: null,
-                    isVerified: false
-                };
-            }
-
-            logger.error('Check user exists error:', error);
-            throw error;
-        }
-    },
 
     /**
      * Begins phone verification. Resolves with `verified: true` and a stored
@@ -188,6 +150,9 @@ const userService = {
                 ]);
             }
             AsyncStorage.removeItem(API_CONFIG.STORAGE_KEYS.PUSH_TOKEN).catch(() => {});
+            // Post drafts are keyed by category, not by user, so nothing else
+            // drops them — they would be offered to whoever signs in next.
+            clearAllDrafts().catch(() => {});
             emitAuthChanged();
 
             // Now that the session is gone locally, tell the server to stop

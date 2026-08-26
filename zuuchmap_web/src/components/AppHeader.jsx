@@ -46,7 +46,7 @@ export default function AppHeader({ onMenuClick }) {
       <button
         onClick={onMenuClick}
         aria-label={t('nav.menu')}
-        className="md:hidden min-w-[44px] min-h-[44px] flex items-center justify-center p-2 rounded-btn hover:bg-surface2 transition-colors mr-2"
+        className="md:hidden min-w-touch min-h-touch flex items-center justify-center p-2 rounded-btn hover:bg-surface2 transition-colors mr-2"
       >
         <Menu size={20} />
       </button>
@@ -60,7 +60,7 @@ export default function AppHeader({ onMenuClick }) {
             aria-label={t('notifications.title')}
             aria-haspopup="true"
             aria-expanded={notifOpen}
-            className="relative min-w-[44px] min-h-[44px] flex items-center justify-center p-2 rounded-btn text-muted hover:text-text hover:bg-surface2 transition-colors"
+            className="relative min-w-touch min-h-touch flex items-center justify-center p-2 rounded-btn text-muted hover:text-text hover:bg-surface2 transition-colors"
           >
             <Bell size={18} />
             {unreadCount > 0 && (
@@ -114,7 +114,7 @@ export default function AppHeader({ onMenuClick }) {
 
         <button
           onClick={toggleTheme}
-          className="min-w-[44px] min-h-[44px] flex items-center justify-center p-2 rounded-btn text-muted hover:text-text hover:bg-surface2 transition-colors"
+          className="min-w-touch min-h-touch flex items-center justify-center p-2 rounded-btn text-muted hover:text-text hover:bg-surface2 transition-colors"
           title={theme === 'dark' ? t('common.lightMode') : t('common.darkMode')}
           aria-label={theme === 'dark' ? t('common.lightMode') : t('common.darkMode')}
         >
@@ -128,7 +128,7 @@ export default function AppHeader({ onMenuClick }) {
             aria-label={t('settings.language')}
             aria-haspopup="true"
             aria-expanded={langOpen}
-            className="min-h-[44px] flex items-center gap-2 px-3 py-1.5 rounded-btn text-sm text-muted hover:text-text hover:bg-surface2 transition-colors"
+            className="min-h-touch flex items-center gap-2 px-3 py-1.5 rounded-btn text-sm text-muted hover:text-text hover:bg-surface2 transition-colors"
           >
             <Globe size={15} />
             <span className="inline-flex items-center gap-1">
@@ -144,7 +144,7 @@ export default function AppHeader({ onMenuClick }) {
                   <button
                     key={lang.code}
                     onClick={() => changeLang(lang.code)}
-                    className={`flex items-center gap-2 w-full min-h-[44px] px-3 py-2 text-sm transition-colors hover:bg-surface2 ${lang.code === i18n.language ? 'text-primary-text font-medium' : 'text-text'}`}
+                    className={`flex items-center gap-2 w-full min-h-touch px-3 py-2 text-sm transition-colors hover:bg-surface2 ${lang.code === i18n.language ? 'text-primary-text font-medium' : 'text-text'}`}
                   >
                     <span>{lang.flag}</span>
                     <span>{lang.label}</span>

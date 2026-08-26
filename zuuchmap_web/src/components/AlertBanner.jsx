@@ -8,7 +8,7 @@ const VARIANTS = {
 export default function AlertBanner({ variant = 'danger', title, icon: Icon, className = '', children }) {
   if (title) {
     return (
-      <div className={`p-3.5 min-h-[44px] flex gap-3 border rounded-card text-sm ${VARIANTS[variant]} ${className}`}>
+      <div className={`p-3.5 min-h-touch flex gap-3 border rounded-card text-sm ${VARIANTS[variant]} ${className}`}>
         {Icon && <Icon size={20} className="shrink-0 mt-0.5" />}
         <div>
           <p className="font-semibold mb-1">{title}</p>
@@ -18,7 +18,7 @@ export default function AlertBanner({ variant = 'danger', title, icon: Icon, cla
     )
   }
   return (
-    <div className={`p-3.5 min-h-[44px] flex items-center border rounded-card text-sm ${VARIANTS[variant]} ${className}`}>
+    <div className={`p-3.5 min-h-touch flex items-center border rounded-card text-sm ${VARIANTS[variant]} ${className}`}>
       {children}
     </div>
   )

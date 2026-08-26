@@ -110,13 +110,28 @@ function postErrorMessage(e, t, schema, fallback) {
   return apiErrorMessage(e, t, fallback)
 }
 
+// Post fields where an empty string is a meaningful instruction ("remove this")
+// rather than a missing value. See the note in handleSubmit for why the rest of
+// the form is excluded.
+const CLEARABLE_POST_FIELDS = new Set([
+  'details', 'address', 'contact_email', 'website', 'available_from', 'available_until',
+  // The subcategory select offers a blank option, so deselecting is an intent
+  // the UI invites; `update` assigns it with `??`, so `''` reaches the column.
+  'subcategory',
+])
+
 function DynamicField({ field, value, onChange, t, lng }) {
   const unit = field.unit ? ` (${field.unit})` : ''
-  const lbl = <>{getFieldLabel(field, t)}{unit}{field.required && <span className="text-danger"> *</span>}</>
+  // A boolean is always answered — the checkbox carries `false`, and the engine
+  // accepts it (`validateRequiredAttributes` only rejects empty strings and
+  // empty arrays). Marking one "required" promised a gate that nothing can
+  // enforce, so the asterisk goes everywhere except there.
+  const showRequired = field.required && field.type !== 'boolean'
+  const lbl = <>{getFieldLabel(field, t)}{unit}{showRequired && <span className="text-danger"> *</span>}</>
 
   if (field.type === 'select') return (
     <div>
-      <label className="text-xs text-muted block mb-1.5">{lbl}</label>
+      <label className="field-label">{lbl}</label>
       <Input as="select" value={value} onChange={(e) => onChange(e.target.value)} required={field.required}>
         <option value="">{t('common.select')}</option>
         {field.options?.map((opt) => <option key={opt} value={opt}>{getOptionLabel(opt, t)}</option>)}
@@ -126,7 +141,7 @@ function DynamicField({ field, value, onChange, t, lng }) {
 
   if (field.type === 'boolean') return (
     <div>
-      <label className="text-xs text-muted block mb-1.5">{lbl}</label>
+      <label className="field-label">{lbl}</label>
       <label className="flex items-center gap-2 cursor-pointer">
         <input type="checkbox" checked={value === true}
           onChange={(e) => onChange(e.target.checked)}
@@ -141,7 +156,7 @@ function DynamicField({ field, value, onChange, t, lng }) {
     const toggle = (opt) => onChange(selected.includes(opt) ? selected.filter((s) => s !== opt) : [...selected, opt])
     return (
       <div>
-        <label className="text-xs text-muted block mb-1.5">{lbl}</label>
+        <label className="field-label">{lbl}</label>
         <div className="flex flex-wrap gap-2">
           {field.options?.map((opt) => (
             <button key={opt} type="button" onClick={() => toggle(opt)}
@@ -161,7 +176,7 @@ function DynamicField({ field, value, onChange, t, lng }) {
 
   if (field.type === 'textarea') return (
     <div>
-      <label className="text-xs text-muted block mb-1.5">{lbl}</label>
+      <label className="field-label">{lbl}</label>
       <Input as="textarea" value={value} onChange={(e) => onChange(e.target.value)} required={field.required} rows={3}
         placeholder={fieldPlaceholder(field, lng)} className="resize-none" />
     </div>
@@ -170,7 +185,7 @@ function DynamicField({ field, value, onChange, t, lng }) {
   const inputType = field.type === 'phone' ? 'tel' : field.type === 'text' ? 'text' : field.type
   return (
     <div>
-      <label className="text-xs text-muted block mb-1.5">{lbl}</label>
+      <label className="field-label">{lbl}</label>
       <Input type={inputType} value={value} onChange={(e) => onChange(e.target.value)}
         placeholder={fieldPlaceholder(field, lng)} required={field.required} />
     </div>
@@ -431,6 +446,20 @@ export default function ProviderPostForm() {
 
   function handleSubmit(e) {
     e.preventDefault()
+    setHighlightKey(null)
+    // Chip groups are buttons, not form controls, so the browser's own required
+    // check cannot see them. The engine does reject an empty required
+    // multiselect (MISSING_REQUIRED_ATTRIBUTES) — catching it here saves the
+    // provider a round trip that also re-uploads every photo.
+    const missing = (schema?.fields ?? []).filter(
+      (f) => f.required && f.type === 'multiselect' && !(form.attributes[f.key]?.length > 0),
+    )
+    if (missing.length > 0) {
+      setHighlightKey(missing[0].key)
+      document.getElementById(`field-${missing[0].key}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      toast.error(t('posts.missingRequired', { fields: missing.map((f) => getFieldLabel(f, t)).join(', ') }))
+      return
+    }
     const fd = new FormData()
     const { attributes, ...rest } = form
     const normalized = { ...rest }
@@ -438,7 +467,17 @@ export default function ProviderPostForm() {
     // the backend rejects unknown fields, so never send it on edit.
     if (isEdit) delete normalized.category
     if (normalized.website) normalized.website = normalizeWebsiteUrl(normalized.website)
-    Object.entries(normalized).forEach(([k, v]) => { if (v !== '') fd.append(k, v) })
+    // A blank is only sent for fields where the engine reads it as "clear this".
+    // `UpdatePostDto` coerces price/lat/lng with `@Type(() => Number)`, so a
+    // blank there would store 0 rather than nothing, and province/district are
+    // `@IsIn` enums that reject one outright. Everything in CLEARABLE is a plain
+    // optional string the service assigns with `??`, so `''` genuinely empties
+    // the column — the availability dates are even documented that way. Without
+    // this, a cleared box on the web was dropped from the body entirely and the
+    // old value survived a save that reported success.
+    Object.entries(normalized).forEach(([k, v]) => {
+      if (v !== '' || CLEARABLE_POST_FIELDS.has(k)) fd.append(k, v)
+    })
     if (Object.keys(attributes).length > 0) fd.append('attributes', JSON.stringify(attributes))
     newImages.forEach((f) => fd.append('images', f))
     if (isEdit) fd.append('existingImages', JSON.stringify(existingImages))
@@ -447,7 +486,7 @@ export default function ProviderPostForm() {
 
   const field = (label, key, type = 'text', { required: req, hint, wrapKey, ...extra } = {}) => (
     <div {...(wrapKey ? fieldWrap(wrapKey) : {})}>
-      <label className="text-xs text-muted block mb-1.5">
+      <label className="field-label">
         {label}{req && <span className="text-danger"> *</span>}
       </label>
       <Input type={type} value={form[key]} onChange={(e) => set(key, e.target.value)} required={req} {...extra} />
@@ -539,7 +578,7 @@ export default function ProviderPostForm() {
         <FormSection title={t('posts.basicInfo')}>
           <div className={schema?.subcategories?.length > 0 ? 'grid grid-cols-1 sm:grid-cols-2 gap-3' : undefined}>
             <div>
-              <label className="text-xs text-muted block mb-1.5">{t('posts.category')} <span className="text-danger">*</span></label>
+              <label className="field-label">{t('posts.category')} <span className="text-danger">*</span></label>
               <Input as="select" value={form.category} onChange={(e) => handleCategoryChange(e.target.value)} required>
                 <option value="">{t('common.select')}</option>
                 {schemas.filter((s) => s.active).map((s) => (
@@ -550,7 +589,7 @@ export default function ProviderPostForm() {
 
             {schema?.subcategories?.length > 0 && (
               <div>
-                <label className="text-xs text-muted block mb-1.5">{t('posts.subcategory')}</label>
+                <label className="field-label">{t('posts.subcategory')}</label>
                 <Input as="select" value={form.subcategory} onChange={(e) => set('subcategory', e.target.value)}>
                   <option value="">{t('common.select')}</option>
                   {schema.subcategories.map((sub) => (
@@ -563,7 +602,7 @@ export default function ProviderPostForm() {
 
           {field(t('posts.title'), 'title', 'text', { required: true, wrapKey: 'title' })}
           <div {...fieldWrap('details')}>
-            <label className="text-xs text-muted block mb-1.5">{t('posts.details')}</label>
+            <label className="field-label">{t('posts.details')}</label>
             <Input as="textarea" value={form.details} onChange={(e) => set('details', e.target.value)} rows={3} maxLength={2000} className="resize-none" />
             <p className="text-xs text-muted text-right mt-1">{form.details?.length ?? 0}/2000</p>
           </div>
@@ -613,7 +652,7 @@ export default function ProviderPostForm() {
           <div {...fieldWrap('location')} className={`${fieldWrap('location').className} space-y-4`}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-muted block mb-1.5">{t('common.province')}</label>
+              <label className="field-label">{t('common.province')}</label>
               <Input as="select" value={form.province}
                 onChange={(e) => { set('province', e.target.value); set('district', '') }}>
                 <option value="">{t('common.select')}</option>
@@ -622,7 +661,7 @@ export default function ProviderPostForm() {
             </div>
             {form.province === 'ULAANBAATAR' ? (
               <div>
-                <label className="text-xs text-muted block mb-1.5">{t('common.district')}</label>
+                <label className="field-label">{t('common.district')}</label>
                 <Input as="select" value={form.district} onChange={(e) => set('district', e.target.value)}>
                   <option value="">{t('common.select')}</option>
                   {DISTRICTS.map((d) => <option key={d} value={d}>{t(`district.${d}`, { defaultValue: d })}</option>)}
@@ -655,8 +694,18 @@ export default function ProviderPostForm() {
                 </div>
               ))}
             </div>
+            {/* Open when the disclosure holds something the form will refuse to
+                submit without. A closed <details> hides its content, so a
+                `required` control inside it is not focusable and the browser
+                blocks submit with a console warning and nothing on screen —
+                the submit button just stops responding. An admin can produce
+                that with one checkbox in /admin/categories. */}
             {schema.fields.some((f) => f.group === 'details') && (
-              <CollapsibleSection title={t('posts.moreDetails')} defaultOpen={false} variant="bare">
+              <CollapsibleSection
+                title={t('posts.moreDetails')}
+                defaultOpen={schema.fields.some((f) => f.group === 'details' && f.required)}
+                variant="bare"
+              >
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {schema.fields.filter((f) => f.group === 'details').map((f) => (
                     <div key={f.key} {...fieldWrap(f.key)} className={`${fieldWrap(f.key).className} ${f.type === 'textarea' || f.type === 'multiselect' ? 'sm:col-span-2' : ''}`}>
@@ -675,7 +724,7 @@ export default function ProviderPostForm() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {field(t('posts.priceAmount'), 'price_amount', 'text', { format: 'currency', wrapKey: 'price' })}
                 <div>
-                  <label className="text-xs text-muted block mb-1.5">{t('posts.priceUnit')}</label>
+                  <label className="field-label">{t('posts.priceUnit')}</label>
                   <Input as="select" value={form.price_unit} onChange={(e) => set('price_unit', e.target.value)}>
                     {PRICE_UNITS.map((u) => <option key={u} value={u}>{t(`priceUnit.${u.toLowerCase()}`, { defaultValue: u })}</option>)}
                   </Input>
@@ -692,7 +741,7 @@ export default function ProviderPostForm() {
                 editing content — mirrors the app's StatusSection. */}
             {schema?.has_rental_status && (
               <div>
-                <label className="text-xs text-muted block mb-1.5">{t('common.status')}</label>
+                <label className="field-label">{t('common.status')}</label>
                 <Input as="select" value={form.status} onChange={(e) => set('status', e.target.value)}>
                   {['ACTIVE', 'RENTED', 'EXPIRED'].map((s) => (
                     <option key={s} value={s}>{t(`status.${s.toLowerCase()}`, { defaultValue: s })}</option>

@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { lockScroll } from '@/lib/utils'
 
 const FOCUSABLE_SELECTOR = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
 
@@ -15,6 +17,16 @@ export default function Modal({ open, onClose, title, children, footer, tabs, si
   const panelRef = useRef(null)
   const { t } = useTranslation()
   const shouldReduceMotion = useReducedMotion()
+
+  // Portalled to <body> rather than rendered in place. In the signed-in shell
+  // the dialog would otherwise be a descendant of the scrolling <main>, so a
+  // wheel over the scrim scrolled the page behind the dialog — and a fixed
+  // element nested under an animating ancestor is one `transform` away from
+  // being positioned against it instead of the viewport.
+  useEffect(() => {
+    if (!open) return
+    return lockScroll()
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -41,7 +53,7 @@ export default function Modal({ open, onClose, title, children, footer, tabs, si
     return () => window.removeEventListener('keydown', handler)
   }, [open, onClose])
 
-  return (
+  return createPortal(
     <AnimatePresence>
       {open && (
         <motion.div
@@ -66,7 +78,7 @@ export default function Modal({ open, onClose, title, children, footer, tabs, si
           >
             <div className="flex items-center justify-between px-5 py-4 border-b border-border/50 shrink-0">
               <h2 id="modal-title" className="text-base font-semibold text-text">{title}</h2>
-              <button onClick={onClose} aria-label={t('common.close')} className="min-w-[44px] min-h-[44px] -mr-2 flex items-center justify-center rounded-btn text-muted hover:text-text hover:bg-surface2 transition-colors">
+              <button onClick={onClose} aria-label={t('common.close')} className="min-w-touch min-h-touch -mr-2 flex items-center justify-center rounded-btn text-muted hover:text-text hover:bg-surface2 transition-colors">
                 <X size={18} />
               </button>
             </div>
@@ -76,6 +88,7 @@ export default function Modal({ open, onClose, title, children, footer, tabs, si
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   )
 }

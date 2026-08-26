@@ -98,7 +98,7 @@ export default function MapFilterModal({ open, onClose, onApply, posts, schemas,
                   type="button"
                   aria-pressed={selected}
                   onClick={() => toggleCategory(schema.key)}
-                  className={`flex items-center gap-2 min-h-[44px] px-3 py-2 rounded-btn border text-left transition-colors ${
+                  className={`flex items-center gap-2 min-h-touch px-3 py-2 rounded-btn border text-left transition-colors ${
                     selected ? 'border-primary' : 'border-border/20 hover:border-border'
                   }`}
                   style={selected ? { backgroundColor: withAlpha(hex, 0.14) } : undefined}
@@ -128,7 +128,7 @@ export default function MapFilterModal({ open, onClose, onApply, posts, schemas,
             <div className="space-y-3 pl-6">
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
-                  <span className="block text-xs text-muted mb-1">{t('filter.minPrice')}</span>
+                  <span className="field-label">{t('filter.minPrice')}</span>
                   <Input
                     format="currency"
                     value={priceRange.min ?? ''}
@@ -136,7 +136,7 @@ export default function MapFilterModal({ open, onClose, onApply, posts, schemas,
                   />
                 </label>
                 <label className="block">
-                  <span className="block text-xs text-muted mb-1">{t('filter.maxPrice')}</span>
+                  <span className="field-label">{t('filter.maxPrice')}</span>
                   <Input
                     format="currency"
                     value={priceRange.max ?? ''}

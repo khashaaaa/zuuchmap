@@ -376,3 +376,41 @@ export const getLocationLabel = (post, t) => [
   post?.district && t(`district.${post.district}`, { defaultValue: post.district }),
   post?.province && t(`province.${post.province}`, { defaultValue: post.province }),
 ].filter(Boolean).join(', ')
+
+/**
+ * The signed-in shell scrolls an inner <main> (AppLayout pins the page at
+ * `h-full overflow-hidden`), while public pages scroll the document. A bare
+ * `window.scrollTo` is therefore a no-op on every authed route — paging used to
+ * jump the public grid to the top and do nothing at all once you signed in.
+ * Anything that wants "back to the top" has to ask for whichever one is mounted.
+ */
+export const APP_SCROLL_ID = 'app-scroll'
+
+export const scrollToTop = (smooth = true) => {
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  const behavior = smooth && !reduce ? 'smooth' : 'auto'
+  const el = document.getElementById(APP_SCROLL_ID)
+  if (el) el.scrollTo({ top: 0, behavior })
+  else window.scrollTo({ top: 0, behavior })
+}
+
+/**
+ * Freezes whichever surface is scrolling while an overlay is up, and returns
+ * the release. Counted rather than a boolean: closing one overlay while another
+ * is still open must not hand the page back its scrollbar.
+ */
+let scrollLocks = 0
+
+export const lockScroll = () => {
+  const targets = [document.body, document.getElementById(APP_SCROLL_ID)].filter(Boolean)
+  if (scrollLocks === 0) {
+    targets.forEach((el) => { el.dataset.prevOverflow = el.style.overflow; el.style.overflow = 'hidden' })
+  }
+  scrollLocks += 1
+  return () => {
+    scrollLocks = Math.max(0, scrollLocks - 1)
+    if (scrollLocks === 0) {
+      targets.forEach((el) => { el.style.overflow = el.dataset.prevOverflow ?? ''; delete el.dataset.prevOverflow })
+    }
+  }
+}

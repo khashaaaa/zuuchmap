@@ -30,6 +30,12 @@
 @theme {
   /* Direction A — neutral grounds, amber reserved for accents.
      Values mirror zuuchmap_app/src/design/theme.js palettes. */
+  /* WCAG minimum touch target. It was written as the literal `[44px]` in 42
+     places across 11 files, which made an accessibility rule look like an
+     arbitrary number and left nowhere to change it. Drives min-h-touch /
+     min-w-touch. */
+  --spacing-touch: 44px;
+
   --color-primary: #F5A623;
   --color-on-primary: #1A1200;   /* text on primary fills */
   --color-on-color: #101113;     /* text on semantic fills */
@@ -99,6 +105,26 @@
 }
 @utility shadow-card-hover {
   box-shadow: var(--shadow-card-hover);
+}
+
+/* The form-field label, previously retyped 30 times — and in two spellings,
+   `mb-1.5` in 21 places and `mb-1` in 9, so the forms were already visibly
+   inconsistent. Unified on the majority spacing. */
+@utility field-label {
+  display: block;
+  margin-bottom: 0.375rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--color-muted);
+}
+
+/* The standard panel: a bordered, elevated, clipped surface. Seven copies. */
+@utility surface-card {
+  background-color: var(--color-surface);
+  border: 1px solid color-mix(in oklab, var(--color-border) 20%, transparent);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
 }
 
 html[data-theme="light"] {

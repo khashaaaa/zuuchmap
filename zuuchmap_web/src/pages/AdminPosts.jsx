@@ -141,11 +141,16 @@ export default function AdminPosts() {
     if (posts.length === 0) return
     setCursor((c) => {
       const cur = Math.min(c, posts.length - 1)
-      const next = cur < 0 ? (dir > 0 ? 0 : posts.length - 1) : Math.min(posts.length - 1, Math.max(0, cur + dir))
-      rowRefs.current[next]?.scrollIntoView({ block: 'nearest' })
-      return next
+      return cur < 0 ? (dir > 0 ? 0 : posts.length - 1) : Math.min(posts.length - 1, Math.max(0, cur + dir))
     })
   }
+
+  // Scrolling belongs here, not inside the setCursor updater: a state updater
+  // has to be pure, and React runs it twice under StrictMode.
+  useEffect(() => {
+    if (focusedIdx < 0) return
+    rowRefs.current[focusedIdx]?.scrollIntoView({ block: 'nearest' })
+  }, [focusedIdx])
   const hotkeysOn = tab === 'PENDING' && !showSkeleton && !isError
   useHotkeys({
     j: () => moveCursor(1),
@@ -212,7 +217,7 @@ export default function AdminPosts() {
               </Button>
             </div>
           )}
-          <div className="bg-surface border border-border/20 shadow-card rounded-card overflow-hidden">
+          <div className="surface-card">
             <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[600px]">
               <thead>
@@ -304,7 +309,7 @@ export default function AdminPosts() {
                             <button
                               onClick={() => approveMut.mutate(post.id)}
                               disabled={approveMut.isPending && approveMut.variables === post.id}
-                              className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-btn text-success hover:bg-success/10 transition-colors disabled:opacity-50"
+                              className="min-w-touch min-h-touch flex items-center justify-center rounded-btn text-success hover:bg-success/10 transition-colors disabled:opacity-50"
                               title={t('admin.approve')}
                               aria-label={`${t('admin.approve')}: ${getPostTitle(post, t)}`}
                             >
@@ -313,7 +318,7 @@ export default function AdminPosts() {
                             <button
                               onClick={() => setRejectTarget(post)}
                               disabled={rejectMut.isPending}
-                              className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-btn text-danger hover:bg-danger/10 transition-colors disabled:opacity-50"
+                              className="min-w-touch min-h-touch flex items-center justify-center rounded-btn text-danger hover:bg-danger/10 transition-colors disabled:opacity-50"
                               title={t('admin.reject')}
                               aria-label={`${t('admin.reject')}: ${getPostTitle(post, t)}`}
                             >
@@ -321,7 +326,7 @@ export default function AdminPosts() {
                             </button>
                           </>
                         )}
-                        <Link to={`/admin/posts/${post.id}`} state={{ from: 'queue' }} title={t('common.view')} aria-label={`${t('common.view')}: ${getPostTitle(post, t)}`} className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-btn text-muted hover:text-primary-text hover:bg-primary/10 transition-colors">
+                        <Link to={`/admin/posts/${post.id}`} state={{ from: 'queue' }} title={t('common.view')} aria-label={`${t('common.view')}: ${getPostTitle(post, t)}`} className="min-w-touch min-h-touch flex items-center justify-center rounded-btn text-muted hover:text-primary-text hover:bg-primary/10 transition-colors">
                           <Eye size={16} />
                         </Link>
                       </div>

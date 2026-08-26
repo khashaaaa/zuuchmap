@@ -88,7 +88,7 @@ export default function AdminUsers() {
       ) : filtered.length === 0 ? (
         <EmptyState icon={Users} title={t('admin.noUsers')} description={t('admin.noUsersDesc')} />
       ) : (
-        <div className="bg-surface border border-border/20 shadow-card rounded-card overflow-hidden">
+        <div className="surface-card">
           <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[480px]">
             <thead>
@@ -157,7 +157,7 @@ export default function AdminUsers() {
                         onClick={() => setDeleteTarget(user)}
                         title={t('common.delete')}
                         aria-label={t('common.delete')}
-                        className="min-w-[44px] min-h-[44px] flex items-center justify-center text-muted hover:text-danger hover:bg-danger/10 rounded-btn transition-colors"
+                        className="min-w-touch min-h-touch flex items-center justify-center text-muted hover:text-danger hover:bg-danger/10 rounded-btn transition-colors"
                       >
                         <Trash2 size={14} />
                       </button>

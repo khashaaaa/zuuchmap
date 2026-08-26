@@ -5,6 +5,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { SimpleCache } from 'src/utils/cache';
 import { AnalyticsEvent } from './entities/analytics-event.entity';
 import { User } from '../user/entities/user.entity';
+import { APP_TIMEZONE } from '../utils/timezone';
 
 const SUMMARY_TTL = 60_000;
 /** Drop raw events after this long — aggregates are what matter long-term. */
@@ -232,7 +233,7 @@ export class AnalyticsService {
     return out;
   }
 
-  @Cron(CronExpression.EVERY_DAY_AT_4AM)
+  @Cron(CronExpression.EVERY_DAY_AT_4AM, { timeZone: APP_TIMEZONE })
   async prune(): Promise<void> {
     try {
       const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000);

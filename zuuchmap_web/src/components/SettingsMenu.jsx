@@ -3,10 +3,10 @@ import { ChevronRight } from 'lucide-react'
 
 export default function SettingsMenu({ items, className = '' }) {
   return (
-    <div className={`bg-surface border border-border/20 shadow-card rounded-card overflow-hidden ${className}`}>
+    <div className={`surface-card ${className}`}>
       {items.map((item, i) => {
         const isLast = i === items.length - 1
-        const baseClass = `flex items-center justify-between w-full min-h-[44px] px-4 py-3 text-sm transition-colors ${isLast ? '' : 'border-b border-border/50'}`
+        const baseClass = `flex items-center justify-between w-full min-h-touch px-4 py-3 text-sm transition-colors ${isLast ? '' : 'border-b border-border/50'}`
 
         if (item.to) {
           return (

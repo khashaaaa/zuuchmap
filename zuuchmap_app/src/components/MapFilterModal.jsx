@@ -4,7 +4,7 @@ import {
     Text,
     TouchableOpacity,
     TextInput,
-    Dimensions,
+    useWindowDimensions,
     Switch,
     StyleSheet,
 } from 'react-native';
@@ -19,8 +19,6 @@ import { useActiveCategorySchemas } from '../hooks/useCategorySchemas';
 import { getSchemaLabel } from '../utils/postUtils';
 import { useTranslation } from 'react-i18next';
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
-
 const MapFilterModal = ({
     visible,
     onClose,
@@ -30,7 +28,10 @@ const MapFilterModal = ({
     posts = []
 }) => {
     const { colors, isDark } = useAppTheme();
-    const styles = useMemo(() => createStyles(colors), [colors]);
+    // Chip widths are computed from the window, so they have to follow it —
+    // a width read once at module load is wrong in split-screen and after a fold.
+    const { width: screenWidth } = useWindowDimensions();
+    const styles = useMemo(() => createStyles(colors, screenWidth), [colors, screenWidth]);
     const { t, i18n } = useTranslation();
 
     // Filter chips are whatever the admin has active, in their sort order —
@@ -343,7 +344,7 @@ const MapFilterModal = ({
     );
 };
 
-const createStyles = (colors) => StyleSheet.create({
+const createStyles = (colors, screenWidth) => StyleSheet.create({
     headerLeft: {
         flexDirection: 'row',
         alignItems: 'center',

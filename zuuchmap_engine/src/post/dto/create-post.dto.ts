@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsNumber, IsEmail, Min, Max, IsIn } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsEmail, Min, Max, IsIn, MaxLength} from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { PROVINCE_CODES, DISTRICT_CODES, normalizeLocationCode } from '../../enums/province';
 
@@ -13,10 +13,14 @@ export class CreatePostDto {
   @IsOptional() @IsString()
   secondcategory?: string;
 
-  @IsOptional() @IsString()
+  // Bounded because `details` and `title` are the largest free-text surface in
+  // the product and the columns are unbounded `varchar`/`text`. The caps are
+  // roughly 30x the longest value in the table, so they constrain abuse without
+  // reaching any real listing.
+  @IsOptional() @IsString() @MaxLength(200)
   title?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional() @IsString() @MaxLength(5000)
   details?: string;
 
   // Validated against the shared code list: an unknown value renders as a raw

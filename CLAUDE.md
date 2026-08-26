@@ -73,7 +73,13 @@ cd zuuchmap_engine && npm run dev
 ## Backend
 
 **Entry:** `src/main.ts` — port `8282`, prefix `/engine`  
-**Env:** `config/variables/development.env` — `PG_*` `JWT_SECRET` `ADMIN_PHONES` `R2_*` `VERIFY_MN_API_KEY` `PUBLIC_ENGINE_URL`  
+**Env:** `config/variables/<NODE_ENV>.env` — `PG_*` `JWT_SECRET` `ADMIN_PHONES` `R2_*` `PROG_PORT` `PUBLIC_ENGINE_URL`
+- `ALLOWED_ORIGIN` — comma-separated browser origins. Gates **both** the HTTP CORS allowlist (`main.ts`) and the Socket.io one (`events.gateway.ts`). A request with no `Origin` (the app, curl, verify.mn's callback) is never affected. Add every host the web app is served from — a bare apex here blocks `www.`.
+- `VERIFY_MN_API_KEY` `VERIFY_MN_BASE_URL` `VERIFY_MN_TIMEOUT_MS` (default 10s) — verify.mn client.
+- `VERIFY_TTL_MS` (5m) how long a verification session lives · `VERIFY_RATE_LIMIT` (5) + `RATE_TTL_MS` (1h) per-phone cap on **paid** SMS verifications, 150₮ each. `OTP_RATE_LIMIT` is the retired name, still read as a fallback.
+- `THROTTLER_TTL` (60s) / `THROTTLER_LIMIT` (100) — global per-IP default. Routes that need to be stingier set their own `@Throttle`: `auth/verify/start` and the legacy `user/check` are 3/min.
+- `ANALYTICS_RETENTION_DAYS` — pruned nightly by `AnalyticsService`.
+- `REDIS_URL` (or `REDIS_HOST`/`REDIS_PORT`/`REDIS_PASSWORD`) — optional; see the multi-instance row under Known issues.  
 **DB:** `synchronize: false` — TypeORM migrations (`src/migrations/`, `data-source.ts`).  
 **⚠ `migrationsRun: true`** — the dev server auto-runs any pending migration file on (re)start, including watch-mode restarts. Never leave a broken/experimental migration file on disk while `npm run dev` is running.  
 **Uploads:** Cloudflare R2 via S3 client (`src/utils/uploader.ts`), magic-byte validation, Sharp compression.
@@ -93,6 +99,9 @@ GET  /posts                       ?category&subcategory&province&district&approv
                                   → { items, total }   (all other list endpoints return arrays)
 GET  /posts/mine                  JWT
 GET  /posts/mine/stats            JWT   per-post views/saves/booking counts + totals
+                                  ⚠ `views` counts signed-in non-owner viewers only — PUT /posts/:id/views
+                                  is JWT-guarded and dedupes per user, so anonymous traffic on the public
+                                  landing/browse/detail pages is not in the number providers see.
 GET  /posts/:id/similar           ?limit  same category, nearest location/price (cached 5m)
                                   list/map/detail items carry busy_dates[] (next 14d) for has_rental_status categories
 POST /posts                       multipart JWT
@@ -124,7 +133,7 @@ GET  /analytics/summary           JWT+AdminGuard  ?days=7|30|90
   and localized `labels` (`{mn,en,zh,ru}`) on category/subcategory/field level.
 - Clients derive form sections, status toggles, filter lists, map markers, badges and labels from the schema — `icon` is an Ionicons name, `color` a hex, both admin-editable. Adding a vertical is an admin-UI operation: no deploy, no app release. Do not reintroduce a hardcoded category list anywhere.
 - `FieldDef.filterable` exposes an attribute as a browse filter (`attr.<key>` query param).
-- `q` is Postgres full-text (prefix-matching tsvector over title+details).
+- `q` is Postgres full-text (prefix-matching tsvector over title+details). Both the browse query and the saved-search matcher tokenize through `utils/search-terms.ts` — the matcher has to answer the same question in JS, and when it had its own rule (whole-phrase `includes` on the title) a multi-word saved search matched in browse and never notified. Change the two together, or better, only change the shared helper.
 - Post has `category` + `subcategory` only; legacy `secondcategory` still accepted as DTO input alias.
 
 **Phone verification (verify.mn, Mobile-Originated):** we never send an SMS. `verify/start` registers a code; the *user* texts it to shortcode `144773` from the number they claim, and possession is proven by the message arriving from that number — so the code is not a secret and is rendered in the UI. Costs the end user 150₮ per verification, so it runs only at signup and on a new device: `TrustedDevice` stores `sha256(device_id)` and a match short-circuits to a token. The token is then held in AsyncStorage, unencrypted and behind no device-side unlock — `expo-local-authentication` was a declared-but-never-imported dependency, dropped in the dead-code sweep, so there is no biometric gate. The server never accepts a biometric claim: `user.biometric` and the OTP endpoint that trusted it are both gone.
@@ -183,7 +192,7 @@ Customer: /customer /customer/browse /customer/map /customer/saved /customer/pro
 **Category schemas:** `hooks/useCategorySchemas.js` → `useCategorySchemas()` / `useActiveCategorySchemas()`. Use these for any per-category affordance; `getPostTypeConfig(type, colors, schemas)` resolves icon+colour from the schema.
 
 **Admin detection:** `is_admin` from `userService.isAuthenticated()` — phone-based, not `userType`.  
-**LikeButton:** hides itself for admins via `hidden` state in `initializeLikeData()`.  
+**LikeButton:** every call site gates admins itself (`!isProvider && !isAdmin`, `showLike={isCustomer}`, or a customer-only screen). The component's own `hidden` fallback lives in `initializeLikeData()`, which is skipped whenever `skip_check` and `is_authenticated` are both passed — i.e. in every list. Do not rely on it.  
 **⚠ BottomSheetModal:** `PanResponder` captures closures at mount — `onClose` is mirrored into a ref; keep that pattern when editing.
 
 **i18n:** `src/i18n/locales/` — `mn en`. (zh/ru retired; see web note.)

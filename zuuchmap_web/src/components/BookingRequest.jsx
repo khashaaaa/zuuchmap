@@ -57,13 +57,13 @@ export default function BookingRequest({ postId }) {
     <InfoSection title={t('booking.request')} className="space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="text-xs text-muted block mb-1.5">{t('booking.startDate')} <span className="text-danger">*</span></label>
+          <label className="field-label">{t('booking.startDate')} <span className="text-danger">*</span></label>
           <Input type="date" value={start} min={today} required
             className={dateError ? 'border-danger' : ''}
             onChange={(e) => { setStart(e.target.value); setDateError(false) }} />
         </div>
         <div>
-          <label className="text-xs text-muted block mb-1.5">{t('booking.endDate')} <span className="text-danger">*</span></label>
+          <label className="field-label">{t('booking.endDate')} <span className="text-danger">*</span></label>
           <Input type="date" value={end} min={start || today} required
             className={dateError ? 'border-danger' : ''}
             onChange={(e) => { setEnd(e.target.value); setDateError(false) }} />
@@ -88,7 +88,7 @@ export default function BookingRequest({ postId }) {
         <p className="text-xs text-danger" role="alert">{t('booking.datesTaken')}</p>
       )}
       <div>
-        <label className="text-xs text-muted block mb-1.5">{t('booking.message')}</label>
+        <label className="field-label">{t('booking.message')}</label>
         <Input as="textarea" rows={2} value={message} onChange={(e) => setMessage(e.target.value)}
           placeholder={t('booking.messagePlaceholder')} className="resize-none" />
       </div>

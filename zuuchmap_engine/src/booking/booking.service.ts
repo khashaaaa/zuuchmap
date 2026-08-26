@@ -10,6 +10,7 @@ import { Status } from '../enums/status';
 import { PostNotificationService } from '../post/post-notification.service';
 import { CategoryService } from '../post/category.service';
 import { EventsGateway, SOCKET_EVENTS } from '../events/events.gateway';
+import { APP_TIMEZONE } from '../utils/timezone';
 
 // Strip sensitive user fields; phone is only shared once a booking is ACCEPTED
 const safeUser = (u: any, includePhone: boolean) => u && ({
@@ -265,7 +266,7 @@ export class BookingService {
    * The trigger is the dates running out, not elapsed time: while the requested
    * window is still ahead, the request is live no matter how long it has waited.
    */
-  @Cron('15 0 * * *')
+  @Cron('15 0 * * *', { timeZone: APP_TIMEZONE })
   async expireStaleBookings(): Promise<void> {
     try {
       const result = await this.bookingRepository
@@ -286,7 +287,7 @@ export class BookingService {
    * review. Each booking is prompted once — the stamp is written before the
    * push so a flaky delivery never turns into a nag.
    */
-  @Cron('0 1 * * *')
+  @Cron('0 1 * * *', { timeZone: APP_TIMEZONE })
   async promptReviews(): Promise<void> {
     try {
       const due = await this.bookingRepository

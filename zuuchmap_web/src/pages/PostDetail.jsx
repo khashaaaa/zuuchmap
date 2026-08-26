@@ -1,15 +1,17 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
   CheckCircle, XCircle, MapPin, Eye, Phone, Mail, Globe,
-  ArrowLeft, Heart, Building2, Pencil, Trash2, Calendar, Sparkles, CalendarRange} from 'lucide-react'
+  ArrowLeft, Heart, Building2, Pencil, Trash2, Calendar, Sparkles, CalendarRange,
+  ChevronLeft, ChevronRight, X as CloseIcon } from 'lucide-react'
 import { MapContainer, TileLayer, Marker } from 'react-leaflet'
 import { motion, useReducedMotion } from 'framer-motion'
 import 'leaflet/dist/leaflet.css'
 import { postsApi, adminApi, likesApi, categoryApi } from '@/lib/api'
-import { formatDate, formatPriceParts, getImageUrl, getCompanyLogoUrl, getPostTitle, getPostCategory, getCategoryColor, getFieldLabel, getOptionLabel, getSubcategoryLabel, goBack, externalHref, withAlpha, toneForTheme, hideBrokenImage, getLocationLabel, apiErrorMessage } from '@/lib/utils'
+import { formatDate, formatPriceParts, getImageUrl, getCompanyLogoUrl, getPostTitle, getPostCategory, getCategoryColor, getFieldLabel, getOptionLabel, getSubcategoryLabel, goBack, externalHref, withAlpha, toneForTheme, hideBrokenImage, getLocationLabel, apiErrorMessage, lockScroll } from '@/lib/utils'
 import { categoryPin } from '@/lib/mapPin'
 import UserAvatar from '@/components/UserAvatar'
 import AlertBanner from '@/components/AlertBanner'
@@ -60,6 +62,7 @@ export default function PostDetail() {
   const shouldReduceMotion = useReducedMotion()
 
   const [activeImg, setActiveImg] = useState(0)
+  const [zoomed, setZoomed] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [approveOpen, setApproveOpen] = useState(false)
   const [rejectOpen, setRejectOpen] = useState(false)
@@ -191,6 +194,55 @@ export default function PostDetail() {
     Escape: () => goBack(navigate, '/admin/posts'),
   }, { enabled: canModerate })
 
+  // The photo is the product, and the only way through it used to be tapping a
+  // 64px thumbnail — no arrows, no swipe, no keys. Wraps around: at the last
+  // frame "next" returns to the first rather than dead-ending.
+  const imageCount = post?.images?.length ?? 0
+  const stepImage = useCallback((delta) => {
+    setActiveImg((i) => (i + delta + imageCount) % imageCount)
+  }, [imageCount])
+  useHotkeys({
+    ArrowLeft: () => stepImage(-1),
+    ArrowRight: () => stepImage(1),
+    // The location map is keyboard-pannable and its container is focusable, so
+    // it must keep its own arrow keys while it has focus.
+  }, { enabled: imageCount > 1 && !zoomed, ignoreWithin: '.leaflet-container' })
+
+  // The zoom overlay carries role="dialog", which useHotkeys deliberately
+  // treats as "the dialog owns the keyboard" — so it binds its own keys, and
+  // locks the page behind it the same way Modal does.
+  useEffect(() => {
+    if (!zoomed) return
+    const onKey = (e) => {
+      if (e.key === 'Escape') setZoomed(false)
+      else if (e.key === 'ArrowLeft') stepImage(-1)
+      else if (e.key === 'ArrowRight') stepImage(1)
+      else return
+      e.preventDefault()
+    }
+    window.addEventListener('keydown', onKey)
+    const unlock = lockScroll()
+    return () => { window.removeEventListener('keydown', onKey); unlock() }
+  }, [zoomed, stepImage])
+
+  // Swipe. A tracked axis, not just distance — a vertical scroll that drifts
+  // sideways must not count as a page turn.
+  const touchRef = useRef(null)
+  const onTouchStart = (e) => {
+    const p = e.touches[0]
+    touchRef.current = { x: p.clientX, y: p.clientY }
+  }
+  const onTouchEnd = (e) => {
+    const start = touchRef.current
+    touchRef.current = null
+    if (!start || imageCount < 2) return
+    const p = e.changedTouches[0]
+    const dx = p.clientX - start.x
+    const dy = p.clientY - start.y
+    if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return
+    stepImage(dx < 0 ? 1 : -1)
+  }
+
   if (isLoading) return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-3">
       <div className="h-56 skeleton rounded-card" />
@@ -224,6 +276,7 @@ export default function PostDetail() {
     : null
   const priceParts = formatPriceParts(post.price_amount, post.price_unit, t)
   const location = getLocationLabel(post, t)
+  const title = getPostTitle(post, t)
   const isDark = theme !== 'light'
   const catColor = getCategoryColor(getPostCategory(post), schemas)
 
@@ -288,18 +341,50 @@ export default function PostDetail() {
 
       <motion.div initial="hidden" animate="show" variants={sequence} className="flex flex-col lg:flex-row gap-6 items-start">
         {/* Main content */}
-        <div className="flex-1 min-w-0 w-full bg-surface border border-border/20 shadow-card rounded-card overflow-hidden">
+        <div className="flex-1 min-w-0 w-full surface-card">
           {/* Images — the photo is the product; give it a real canvas, count the
               frames, and let a photo-less listing wear its category instead of grey. */}
           <motion.div variants={item}>
-            <div className="relative aspect-[4/3] md:aspect-[16/10] bg-surface2 overflow-hidden">
+            <div
+              className="relative aspect-[4/3] md:aspect-[16/10] bg-surface2 overflow-hidden"
+              onTouchStart={onTouchStart}
+              onTouchEnd={onTouchEnd}
+            >
               {post.images?.length > 0 ? (
                 <>
-                  <img src={getImageUrl(post.images[activeImg])} alt="" className="w-full h-full object-cover" onError={hideBrokenImage} />
+                  <button
+                    type="button"
+                    onClick={() => setZoomed(true)}
+                    aria-label={t('posts.viewImage', { index: activeImg + 1 })}
+                    className="block w-full h-full cursor-zoom-in"
+                  >
+                    <img src={getImageUrl(post.images[activeImg])} alt={title} className="w-full h-full object-cover" onError={hideBrokenImage} />
+                  </button>
                   {post.images.length > 1 && (
-                    <span className="absolute bottom-2 right-2 rounded-btn bg-scrim px-2 py-0.5 text-xs font-medium text-white tabular-nums">
-                      {activeImg + 1} / {post.images.length}
-                    </span>
+                    <>
+                      {/* Arrows, swipe and ←/→ all drive the same step. The
+                          thumbnail strip was the only way through the photos,
+                          which on a phone is a 64px target per frame. */}
+                      <button
+                        type="button"
+                        onClick={() => stepImage(-1)}
+                        aria-label={t('posts.viewImage', { index: ((activeImg - 1 + post.images.length) % post.images.length) + 1 })}
+                        className="absolute left-2 top-1/2 -translate-y-1/2 min-w-touch min-h-touch flex items-center justify-center rounded-full bg-scrim text-white hover:bg-black/70 transition-colors"
+                      >
+                        <ChevronLeft size={20} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => stepImage(1)}
+                        aria-label={t('posts.viewImage', { index: ((activeImg + 1) % post.images.length) + 1 })}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 min-w-touch min-h-touch flex items-center justify-center rounded-full bg-scrim text-white hover:bg-black/70 transition-colors"
+                      >
+                        <ChevronRight size={20} />
+                      </button>
+                      <span className="absolute bottom-2 right-2 rounded-btn bg-scrim px-2 py-0.5 text-xs font-medium text-white tabular-nums">
+                        {activeImg + 1} / {post.images.length}
+                      </span>
+                    </>
                   )}
                 </>
               ) : (
@@ -326,6 +411,61 @@ export default function PostDetail() {
                   </button>
                 ))}
               </div>
+            )}
+            {/* Full-bleed view. The card crops to 16:10, so a wide machine or a
+                tall crane was only ever shown in part; here the whole frame
+                fits. Portalled to <body> for the same reason Modal is. */}
+            {zoomed && post.images?.length > 0 && createPortal(
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-label={title}
+                className="fixed inset-0 z-[1300] bg-black/95 flex items-center justify-center"
+                onClick={() => setZoomed(false)}
+                onTouchStart={onTouchStart}
+                onTouchEnd={onTouchEnd}
+              >
+                <img
+                  src={getImageUrl(post.images[activeImg])}
+                  alt={title}
+                  className="max-w-full max-h-full object-contain"
+                  onClick={(e) => e.stopPropagation()}
+                  onError={hideBrokenImage}
+                />
+                <button
+                  type="button"
+                  onClick={() => setZoomed(false)}
+                  aria-label={t('common.close')}
+                  autoFocus
+                  className="absolute top-3 right-3 min-w-touch min-h-touch flex items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25 transition-colors"
+                >
+                  <CloseIcon size={20} />
+                </button>
+                {post.images.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); stepImage(-1) }}
+                      aria-label={t('posts.viewImage', { index: ((activeImg - 1 + post.images.length) % post.images.length) + 1 })}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 min-w-touch min-h-touch flex items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25 transition-colors"
+                    >
+                      <ChevronLeft size={22} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); stepImage(1) }}
+                      aria-label={t('posts.viewImage', { index: ((activeImg + 1) % post.images.length) + 1 })}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 min-w-touch min-h-touch flex items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25 transition-colors"
+                    >
+                      <ChevronRight size={22} />
+                    </button>
+                    <span className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-btn bg-white/15 px-2.5 py-1 text-xs font-medium text-white tabular-nums">
+                      {activeImg + 1} / {post.images.length}
+                    </span>
+                  </>
+                )}
+              </div>,
+              document.body,
             )}
           </motion.div>
 
@@ -579,7 +719,10 @@ export default function PostDetail() {
                 is separate from approval: RENTED is the provider's own "not right
                 now", and a lapsed post has nobody answering. Offering the form
                 anyway just walks the customer into the engine's rejection. */}
-            {token && !isOwner && !isAdmin && currentUser?.type === 'CUSTOMER' && schema?.has_rental_status && post.user && (
+            {/* Same predicate as the app and as booking.service.ts. No account-type
+                test: the engine has none, so requiring CUSTOMER here blocked a
+                provider from renting another provider's machinery. */}
+            {token && !isOwner && !isAdmin && schema?.has_rental_status && post.user && (
               <div className="pt-4 border-t border-border/50">
                 {isBookable
                   ? <BookingRequest postId={post.id} />

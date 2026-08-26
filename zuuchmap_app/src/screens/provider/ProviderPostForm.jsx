@@ -101,6 +101,12 @@ const ProviderPostForm = ({ route, navigation }) => {
     const insets = useSafeAreaInsets();
     const [imagesLoading, setImagesLoading] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    // 0-100 while the photos upload; null when there is nothing to report.
+    const [uploadPct, setUploadPct] = useState(null);
+    // The upload is not cancellable, so leaving the screen mid-post keeps the
+    // request (and its progress events) alive after this component is gone.
+    const mountedRef = useRef(true);
+    useEffect(() => () => { mountedRef.current = false; }, []);
     const scrollViewRef = useRef(null);
     const inputRefs = useRef({});
 
@@ -309,11 +315,15 @@ const ProviderPostForm = ({ route, navigation }) => {
         }
 
         setIsLoading(true);
+        const onProgress = (pct) => {
+            if (!mountedRef.current) return;
+            setUploadPct(pct >= 100 ? null : pct);
+        };
 
         try {
             if (isEdit) {
                 const formattedData = formatFormDataForApi(formData);
-                const updated = await postService.update(postId, formattedData);
+                const updated = await postService.update(postId, formattedData, onProgress);
                 invalidatePostData();
                 setDirty(false);
                 // A content edit sends an approved post back to moderation, so it
@@ -326,7 +336,7 @@ const ProviderPostForm = ({ route, navigation }) => {
                 setSuccessState({ visible: true, isEdit: true, backToReview });
             } else {
                 const formattedData = formatFormDataForApi(formData);
-                const created = await postService.create(resolvedPostType, formattedData);
+                const created = await postService.create(resolvedPostType, formattedData, onProgress);
                 track('post.create.submitted', { post_id: created?.data?.id, category: resolvedPostType });
                 invalidatePostData();
                 setDirty(false);
@@ -346,6 +356,7 @@ const ProviderPostForm = ({ route, navigation }) => {
             }
         } finally {
             setIsLoading(false);
+            setUploadPct(null);
         }
     }, [formData, validateForm, focusField, navigation, isEdit, postId, resolvedPostType, schema, t]);
 
@@ -613,7 +624,9 @@ const ProviderPostForm = ({ route, navigation }) => {
                         onPress={handleSubmit}
                         disabled={isLoading || imagesLoading}
                         loading={isLoading || imagesLoading}
-                        loadingText={t(isEdit ? 'provider.updating' : 'provider.creating')}
+                        loadingText={uploadPct !== null
+                            ? t('posts.uploadingPct', { pct: uploadPct })
+                            : t(isEdit ? 'provider.updating' : 'provider.creating')}
                         fullWidth
                     />
                 </View>

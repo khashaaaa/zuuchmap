@@ -28,6 +28,27 @@ export function clearDraft(category) {
   try { localStorage.removeItem(key(category)) } catch { /* ignore */ }
 }
 
+/**
+ * Drops every draft, whatever category it belongs to.
+ *
+ * Called on sign-in and sign-out. A draft carries a title, details, price,
+ * contact phone and location, and the key is `zm:postDraft:<category>` with no
+ * user in it — so on a shared browser the next person to sign in was offered
+ * the previous provider's unfinished listing. The React Query cache and the
+ * notification store are already cleared on both transitions; drafts were the
+ * one thing that survived them.
+ */
+export function clearAllDrafts() {
+  try {
+    const keys = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (k?.startsWith(PREFIX)) keys.push(k)
+    }
+    keys.forEach((k) => localStorage.removeItem(k))
+  } catch { /* private mode — nothing to clear */ }
+}
+
 /** Every stored draft, newest first — so a returning provider is offered the one they left. */
 export function listDrafts() {
   try {

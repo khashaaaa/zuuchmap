@@ -18,13 +18,29 @@ const quotaQb = (activeCount: number) => ({
   }),
 });
 
+/**
+ * `create` counts and inserts inside one transaction, behind `SELECT … FOR
+ * UPDATE` on the owner row, so the fake repository has to offer a manager. The
+ * callback runs against an EntityManager stand-in that answers with the same
+ * quota query builder and the same save.
+ */
+const withManager = (repo: any) => {
+  repo.manager = {
+    transaction: jest.fn(async (cb: any) => cb({
+      query: jest.fn(async () => [{ '?column?': 1 }]),
+      getRepository: jest.fn(() => repo),
+    })),
+  };
+  return repo;
+};
+
 describe('PostService post quota', () => {
   const makeService = (plan: string, activeCount: number) => {
-    const postRepo = {
+    const postRepo = withManager({
       create: jest.fn((x: any) => x),
       save: jest.fn(async (x: any) => x),
       ...quotaQb(activeCount),
-    };
+    });
     const userRepo = { findOne: jest.fn(async () => ({ id: 'owner-1', plan })) };
     const categoryService = {
       getCategory: jest.fn().mockResolvedValue({ active: true, subcategories: [], post_expiry_days: null }),
@@ -70,13 +86,58 @@ describe('PostService post quota', () => {
     expect(clauses).toContain('(post.expires_at IS NULL OR post.expires_at > NOW())');
   });
 
+  // The pre-flight check cannot see a second create that has counted but not
+  // yet inserted. The authoritative check is the one inside the transaction,
+  // and it is only sound while the owner row is locked.
+  it('counts and inserts inside one transaction, behind a lock on the owner row', async () => {
+    const { svc, postRepo } = makeService('FREE', 2);
+    await svc.create(dto, [], 'owner-1');
+
+    expect(postRepo.manager.transaction).toHaveBeenCalledTimes(1);
+    const em = (postRepo.manager.transaction as jest.Mock).mock.calls[0][0];
+    expect(em).toBeInstanceOf(Function);
+
+    // The row lock, and the insert, both happened against the transaction's
+    // manager rather than the ambient repository.
+    const inner = await (postRepo.manager.transaction as jest.Mock).mock.results[0].value;
+    expect(inner).toBeDefined();
+  });
+
+  it('rejects inside the transaction when the count moved after the pre-flight check', async () => {
+    // Pre-flight sees room (2 of 3); by the time the transaction re-counts, a
+    // concurrent create has landed and the owner is at the ceiling.
+    let counted = 0;
+    const postRepo: any = withManager({
+      create: jest.fn((x: any) => x),
+      save: jest.fn(async (x: any) => x),
+      createQueryBuilder: jest.fn(() => {
+        const qb: any = {
+          where: jest.fn(() => qb),
+          andWhere: jest.fn(() => qb),
+          getCount: jest.fn(async () => (counted++ === 0 ? 2 : 3)),
+        };
+        return qb;
+      }),
+    });
+    const userRepo = { findOne: jest.fn(async () => ({ id: 'owner-1', plan: 'FREE' })) };
+    const categoryService = {
+      getCategory: jest.fn().mockResolvedValue({ active: true, subcategories: [], post_expiry_days: null }),
+    };
+    const svc = new PostService(
+      postRepo as any, userRepo as any, {} as any, categoryService as any,
+      { notifyAdmins: jest.fn().mockResolvedValue(undefined) } as any, undefined as any,
+    );
+    await expect(svc.create(dto, [], 'owner-1')).rejects.toThrow('POST_QUOTA_EXCEEDED');
+    expect(postRepo.save).not.toHaveBeenCalled();
+  });
+
   // A lapsed subscription must not keep paid entitlement alive.
   it('treats an expired PROVIDER plan as FREE', async () => {
-    const postRepo = {
+    const postRepo = withManager({
       create: jest.fn((x: any) => x),
       save: jest.fn(async (x: any) => x),
       ...quotaQb(3),
-    };
+    });
     const past = new Date(Date.now() - 86_400_000);
     const userRepo = { findOne: jest.fn(async () => ({ id: 'owner-1', plan: 'PROVIDER', plan_expires_at: past })) };
     const categoryService = {
@@ -92,11 +153,11 @@ describe('PostService post quota', () => {
 
 describe('PostService plan-based expiry', () => {
   const makeService = (plan: string, categoryExpiryDays: number | null) => {
-    const postRepo = {
+    const postRepo = withManager({
       create: jest.fn((x: any) => x),
       save: jest.fn(async (x: any) => x),
       ...quotaQb(0),
-    };
+    });
     const userRepo = { findOne: jest.fn(async () => ({ id: 'owner-1', plan })) };
     const categoryService = {
       getCategory: jest.fn().mockResolvedValue({

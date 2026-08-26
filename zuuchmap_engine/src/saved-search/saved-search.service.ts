@@ -4,6 +4,7 @@ import { In, Repository } from 'typeorm';
 import { SavedSearch } from './entities/saved-search.entity';
 import { CreateSavedSearchDto } from './dto/create-saved-search.dto';
 import { PostNotificationService } from '../post/post-notification.service';
+import { matchesSearchTerms, searchTerms } from '../utils/search-terms';
 
 export const SAVED_SEARCH_LIMIT = 10;
 /** A search fires at most once per window, however many posts land in it. */
@@ -12,6 +13,9 @@ export const NOTIFY_COOLDOWN_MS = 10 * 60_000;
 /** The slice of a Post the matcher reads — kept narrow so tests need no entity. */
 export interface MatchablePost {
   title?: string | null;
+  // Read by the `q` check: browse searches title AND details, so a matcher
+  // that only saw the title under-fired on every search made from a details hit.
+  details?: string | null;
   category?: string | null;
   subcategory?: string | null;
   province?: string | null;
@@ -33,9 +37,11 @@ export function matchesSavedSearch(post: MatchablePost, search: Partial<SavedSea
     if (!isBlank(want) && post[key] !== want) return false;
   }
 
+  // Mirrors browse exactly — prefix-match every term against title + details,
+  // via the shared tokeniser. It used to be a whole-phrase `includes` on the
+  // title alone, so `кран түрээс` matched in browse and never notified.
   if (!isBlank(search.q)) {
-    const needle = String(search.q).trim().toLowerCase();
-    if (needle && !String(post.title ?? '').toLowerCase().includes(needle)) return false;
+    if (!matchesSearchTerms(searchTerms(search.q), post.title, post.details)) return false;
   }
 
   const attrs = search.attrs ?? {};

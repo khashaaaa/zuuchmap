@@ -134,14 +134,14 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
             <div className="space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-muted block mb-1">
+                  <label className="field-label">
                     {t('admin.categoryKeyHint')}{isNew && <span className="text-danger"> *</span>}
                   </label>
                   <Input value={form.key} onChange={(e) => setF('key', e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''))}
                     placeholder="vehiclerent" disabled={!isNew} className={`${errClass(!form.key)}`} />
                 </div>
                 <div>
-                  <label className="text-xs text-muted block mb-1">
+                  <label className="field-label">
                     {t('admin.categoryLabel')} <span className="text-danger">*</span>
                   </label>
                   <Input value={form.label} onChange={(e) => setF('label', e.target.value)} placeholder="Vehicle Rental" className={`${errClass(!form.label)}`} />
@@ -149,12 +149,12 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="text-xs text-muted block mb-1">{t('admin.categoryIcon')}</label>
+                  <label className="field-label">{t('admin.categoryIcon')}</label>
                   <Input value={form.icon ?? ''} onChange={(e) => setF('icon', e.target.value)} placeholder="car-outline"  />
                   <p className="text-xs text-muted mt-1">{t('admin.categoryIconHint')}</p>
                 </div>
                 <div>
-                  <label className="text-xs text-muted block mb-1">{t('admin.categoryColor')}</label>
+                  <label className="field-label">{t('admin.categoryColor')}</label>
                   <div className="flex gap-2 items-center">
                     <input type="color" value={form.color ?? DEFAULT_COLOR} onChange={(e) => setF('color', e.target.value)}
                       className="w-10 h-10 rounded border border-border/50 cursor-pointer bg-surface2" />
@@ -162,12 +162,12 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs text-muted block mb-1">{t('admin.categorySortOrder')}</label>
+                  <label className="field-label">{t('admin.categorySortOrder')}</label>
                   <Input type="number" value={form.sort_order ?? 0} onChange={(e) => setF('sort_order', Number(e.target.value))}  />
                 </div>
               </div>
               <div>
-                <label className="text-xs text-muted block mb-1">{t('admin.categoryTranslations')}</label>
+                <label className="field-label">{t('admin.categoryTranslations')}</label>
                 <LabelsEditor value={form.labels} onChange={(v) => setF('labels', v)} />
               </div>
               <label className="flex items-center gap-2 text-sm text-text cursor-pointer">
@@ -190,7 +190,7 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
                 </label>
                 {form.has_price && (
                   <div>
-                    <label className="text-xs text-muted block mb-1">{t('admin.defaultPriceUnit')}</label>
+                    <label className="field-label">{t('admin.defaultPriceUnit')}</label>
                     <Input as="select" value={form.default_price_unit ?? ''} onChange={(e) => setF('default_price_unit', e.target.value)} className="w-auto">
                       <option value="">—</option>
                       {PRICE_UNITS.map((u) => <option key={u} value={u}>{t(`priceUnit.${u.toLowerCase()}`, { defaultValue: u })}</option>)}
@@ -202,7 +202,7 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
                   {t('admin.emphasized')}
                 </label>
                 <div>
-                  <label className="text-xs text-muted block mb-1">{t('admin.postExpiryDays')}</label>
+                  <label className="field-label">{t('admin.postExpiryDays')}</label>
                   <Input type="number" min="1" max="365" value={form.post_expiry_days ?? ''} placeholder="30"
                     onChange={(e) => setF('post_expiry_days', e.target.value === '' ? null : Number(e.target.value))}
                     className="w-28" />
@@ -224,7 +224,7 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
                       placeholder="key_value" className={`flex-1 ${errClass(!sub.value.trim())}`} />
                     <Input value={sub.display} onChange={(e) => updateSubcat(i, 'display', e.target.value)}
                       placeholder={t('admin.subcatDisplayPlaceholder')} className={`flex-1 ${errClass(!sub.display.trim())}`} />
-                    <button onClick={() => removeSubcat(i)} aria-label={t('common.delete')} className="min-w-[44px] min-h-[44px] flex items-center justify-center text-muted hover:text-danger shrink-0 rounded-btn hover:bg-danger/10 transition-colors"><X size={14} /></button>
+                    <button onClick={() => removeSubcat(i)} aria-label={t('common.delete')} className="min-w-touch min-h-touch flex items-center justify-center text-muted hover:text-danger shrink-0 rounded-btn hover:bg-danger/10 transition-colors"><X size={14} /></button>
                   </div>
                   <LabelsEditor value={sub.labels} onChange={(v) => updateSubcat(i, 'labels', v)} />
                 </div>
@@ -241,9 +241,9 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
               {form.fields.map((fld, i) => (
                 <div key={i} className="p-3 bg-surface2 rounded-lg space-y-2 relative">
                   <div className="absolute top-1 right-1 flex items-center">
-                    <button onClick={() => moveField(i, -1)} disabled={i === 0} aria-label={t('common.moveUp')} className="min-w-[36px] min-h-[44px] flex items-center justify-center text-muted hover:text-text disabled:opacity-30 rounded-btn transition-colors"><ChevronUp size={14} /></button>
-                    <button onClick={() => moveField(i, 1)} disabled={i === form.fields.length - 1} aria-label={t('common.moveDown')} className="min-w-[36px] min-h-[44px] flex items-center justify-center text-muted hover:text-text disabled:opacity-30 rounded-btn transition-colors"><ChevronDown size={14} /></button>
-                    <button onClick={() => removeField(i)} aria-label={t('common.delete')} className="min-w-[36px] min-h-[44px] flex items-center justify-center text-muted hover:text-danger rounded-btn hover:bg-danger/10 transition-colors"><X size={14} /></button>
+                    <button onClick={() => moveField(i, -1)} disabled={i === 0} aria-label={t('common.moveUp')} className="min-w-[36px] min-h-touch flex items-center justify-center text-muted hover:text-text disabled:opacity-30 rounded-btn transition-colors"><ChevronUp size={14} /></button>
+                    <button onClick={() => moveField(i, 1)} disabled={i === form.fields.length - 1} aria-label={t('common.moveDown')} className="min-w-[36px] min-h-touch flex items-center justify-center text-muted hover:text-text disabled:opacity-30 rounded-btn transition-colors"><ChevronDown size={14} /></button>
+                    <button onClick={() => removeField(i)} aria-label={t('common.delete')} className="min-w-[36px] min-h-touch flex items-center justify-center text-muted hover:text-danger rounded-btn hover:bg-danger/10 transition-colors"><X size={14} /></button>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pr-28">
                     <Input value={fld.key} onChange={(e) => updateField(i, 'key', e.target.value)}
@@ -381,7 +381,7 @@ export default function AdminCategories() {
       ) : schemas.length === 0 ? (
         <EmptyState icon={Tag} title={t('common.noData')} />
       ) : (
-        <div className="bg-surface border border-border/20 shadow-card rounded-card overflow-hidden">
+        <div className="surface-card">
           <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[480px]">
             <thead>
@@ -421,7 +421,7 @@ export default function AdminCategories() {
                           ? setConfirmDeactivate(schema)
                           : toggleMut.mutate({ key: schema.key, active: true })}
                         disabled={toggleMut.isPending && toggleMut.variables?.key === schema.key}
-                        className={`min-w-[44px] min-h-[44px] flex items-center justify-center rounded-btn transition-colors disabled:opacity-50 ${schema.active ? 'text-success hover:text-danger hover:bg-danger/10' : 'text-muted hover:text-success hover:bg-success/10'}`}
+                        className={`min-w-touch min-h-touch flex items-center justify-center rounded-btn transition-colors disabled:opacity-50 ${schema.active ? 'text-success hover:text-danger hover:bg-danger/10' : 'text-muted hover:text-success hover:bg-success/10'}`}
                         title={schema.active ? t('common.deactivate') : t('common.activate')}
                         aria-label={schema.active ? t('common.deactivate') : t('common.activate')}
                       >
@@ -431,7 +431,7 @@ export default function AdminCategories() {
                         onClick={() => setEditing(schema)}
                         title={t('common.edit')}
                         aria-label={t('common.edit')}
-                        className="min-w-[44px] min-h-[44px] flex items-center justify-center text-muted hover:text-primary-text hover:bg-primary/10 rounded-btn transition-colors"
+                        className="min-w-touch min-h-touch flex items-center justify-center text-muted hover:text-primary-text hover:bg-primary/10 rounded-btn transition-colors"
                       >
                         <Pencil size={14} />
                       </button>

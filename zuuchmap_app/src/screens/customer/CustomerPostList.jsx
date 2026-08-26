@@ -103,6 +103,13 @@ const PostItem = React.memo(({
                         <Ionicons name="image-outline" size={28} color={colors.iconAccent} />
                     </View>
                 )}
+                {/* The thumbnail is 96pt wide and holds exactly one overlay.
+                    Status stays here — it belongs on the photo — while emphasis
+                    and featured moved into the content column below. All three
+                    were absolutely positioned in here with `maxWidth: '92%'`
+                    apiece, so ~88pt of badge sat in a 96pt box from both
+                    corners at once and they printed straight through each
+                    other, the status pill (zIndex 2) winning. */}
                 {item.status && (
                     <StatusBadge
                         status={item.status}
@@ -110,17 +117,6 @@ const PostItem = React.memo(({
                         position="absolute"
                         showIndicator={false}
                     />
-                )}
-                {emphasized && (
-                    <View style={styles.emphasizedBadge}>
-                        <Text style={styles.emphasizedBadgeText} numberOfLines={1}>{emphasisLabel}</Text>
-                    </View>
-                )}
-                {featured && (
-                    <View style={styles.featuredBadge}>
-                        <Ionicons name="star" size={10} color={colors.onPrimary} />
-                        <Text style={styles.featuredBadgeText} numberOfLines={1}>{featuredLabel}</Text>
-                    </View>
                 )}
             </View>
 
@@ -141,10 +137,31 @@ const PostItem = React.memo(({
                     )}
                 </View>
 
-                <CategoryBadge
-                    postType={item.post_type || 'construction'}
-                    showIcon={true}
-                />
+                {/* One wrapping row, at the content column's width, so the
+                    labels stay readable instead of truncating to a few glyphs.
+                    The emphasis badge REPLACES the category badge rather than
+                    joining it: `emphasisLabel` is that category's own label, so
+                    rendering both would print the same words twice — it is the
+                    category chip set loud. The card also carries the tinted
+                    `emphasizedCard` ground, so the signal survives either way. */}
+                <View style={styles.badgeRow}>
+                    {emphasized && !!emphasisLabel ? (
+                        <View style={styles.emphasizedBadge}>
+                            <Text style={styles.emphasizedBadgeText} numberOfLines={1}>{emphasisLabel}</Text>
+                        </View>
+                    ) : (
+                        <CategoryBadge
+                            postType={item.post_type || 'construction'}
+                            showIcon={true}
+                        />
+                    )}
+                    {featured && (
+                        <View style={styles.featuredBadge}>
+                            <Ionicons name="star" size={10} color={colors.onPrimary} />
+                            <Text style={styles.featuredBadgeText} numberOfLines={1}>{featuredLabel}</Text>
+                        </View>
+                    )}
+                </View>
 
                 {price && (
                     <Text style={styles.postPrice}>{price}</Text>
@@ -1062,23 +1079,27 @@ const createStyles = (colors) => StyleSheet.create({
         alignSelf: 'stretch',
         backgroundColor: colors.border.light,
     },
+    // Category, emphasis and paid placement share one wrapping row in the
+    // content column. They flow rather than stack in corners, so two of them
+    // pushes the third onto a second line instead of over the top of it.
+    badgeRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        // flex-start, not center: CategoryBadge sets its own `alignSelf:
+        // 'flex-start'`, so centering the row would leave it alone out of line.
+        alignItems: 'flex-start',
+        gap: spacing.xs,
+    },
     emphasizedBadge: {
-        position: 'absolute',
-        top: spacing.xxs,
-        left: spacing.xxs,
-        maxWidth: '92%',
+        flexShrink: 1,
         backgroundColor: colors.primary,
         paddingVertical: spacing.xxs,
         paddingHorizontal: spacing.xs,
         borderRadius: radius.sm,
     },
-    // Paid placement. Bottom-left, because top-left is the emphasis badge and
-    // top-right is the StatusBadge overlay — the two can co-occur on one card.
+    // Paid placement.
     featuredBadge: {
-        position: 'absolute',
-        bottom: spacing.xxs,
-        left: spacing.xxs,
-        maxWidth: '92%',
+        flexShrink: 1,
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.xxs,
@@ -1098,6 +1119,7 @@ const createStyles = (colors) => StyleSheet.create({
         // The badge label is set in caps, which is exactly what `overline` is tuned for.
         ...typography.styles.overline,
         color: colors.onPrimary,
+        flexShrink: 1,
     },
     postImage: {
         position: 'absolute',

@@ -66,7 +66,7 @@ export default function ProfileBase({ stats = null, extraMenuItems = [] }) {
           [t('profile.address'), 'address', false, 'text'],
         ].map(([label, key, req, inputType]) => (
           <div key={key}>
-            <label className="text-xs text-muted block mb-1.5">
+            <label className="field-label">
               {label}{req && <span className="text-danger"> *</span>}
             </label>
             <Input
@@ -78,7 +78,7 @@ export default function ProfileBase({ stats = null, extraMenuItems = [] }) {
           </div>
         ))}
         <div>
-          <label className="text-xs text-muted block mb-1.5">{t('profile.phone')}</label>
+          <label className="field-label">{t('profile.phone')}</label>
           <Input value={user?.phone_number ?? ''} disabled className="text-muted" />
         </div>
         <Button type="submit" size="lg" disabled={mut.isPending} className="w-full">

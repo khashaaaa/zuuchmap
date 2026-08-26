@@ -54,3 +54,21 @@ export const readDraft = async (category) => {
 };
 
 export const clearDraft = (category) => AsyncStorage.removeItem(keyFor(category)).catch(() => {});
+
+/**
+ * Drops every draft, whatever category it belongs to.
+ *
+ * Called on sign-out. The key carries a category but no user, and a draft holds
+ * a title, details, price, contact phone, location and picked photo URIs — so
+ * on a shared handset the next person to sign in was offered the previous
+ * provider's unfinished listing, for up to the seven days MAX_AGE_MS allows.
+ */
+export const clearAllDrafts = async () => {
+    try {
+        const keys = await AsyncStorage.getAllKeys();
+        const mine = keys.filter((k) => k.startsWith(`${DRAFT_KEY}:`));
+        if (mine.length) await AsyncStorage.multiRemove(mine);
+    } catch {
+        // Storage unavailable — nothing to clear, and sign-out must not fail on it.
+    }
+};

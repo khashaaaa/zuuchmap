@@ -110,6 +110,7 @@ export default {
     rejectedFieldImages: 'Photos',
     rejectedFieldLocation: 'Location',
     featured: 'Featured',
+    uploadingPct: 'Uploading… {{pct}}%',
     successCta: 'View my posts',
     notFound: 'No posts found',
     status: 'Status',
@@ -310,6 +311,7 @@ export default {
   },
   offline: {
     banner: 'Showing saved results from {{ago}}',
+    noConnection: 'You are offline. Results will load when the connection returns.',
     justNow: 'just now', minutesAgo: '{{count}} min ago', hoursAgo: '{{count}}h ago', daysAgo: '{{count}}d ago',
   },
   map: { title: 'Map', filter: 'Filter',

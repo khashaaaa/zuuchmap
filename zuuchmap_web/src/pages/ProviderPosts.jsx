@@ -136,7 +136,10 @@ export default function ProviderPosts() {
             value={tab}
             onChange={setTab}
           />
-          <DensityToggle density={density} onToggle={toggleDensity} />
+          {/* Row density is a table concern; the phone layout has no rows. */}
+          <div className="hidden md:block">
+            <DensityToggle density={density} onToggle={toggleDensity} />
+          </div>
         </div>
       )}
 
@@ -159,7 +162,69 @@ export default function ProviderPosts() {
       ) : filtered.length === 0 ? (
         <EmptyState icon={FileText} title={t('common.noData')} />
       ) : (
-        <div className="bg-surface border border-border/20 shadow-card rounded-card overflow-hidden">
+        <>
+        {/* Phones get cards, not a 640px-wide table in a horizontal scroller —
+            that pushed Edit and Delete, the only two actions on the screen,
+            entirely off the right edge with nothing to say they were there. */}
+        <div className="md:hidden space-y-3">
+          {filtered.map((post) => {
+            const expiry = expiryLabel(post)
+            const stat = statsById.get(post.id)
+            return (
+              <div key={post.id} className="surface-card p-3">
+                <Link to={`/provider/posts/${post.id}`} className="flex items-start gap-3 group">
+                  {post.images?.[0] ? (
+                    <img src={getImageUrl(post.images[0])} alt="" className="w-14 h-14 rounded-lg object-cover shrink-0" onError={hideBrokenImage} />
+                  ) : (
+                    <div className="w-14 h-14 rounded-lg bg-surface2 shrink-0" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-text group-hover:text-primary-text transition-colors font-medium line-clamp-2 leading-tight">
+                      {getPostTitle(post, t)}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                      <CategoryBadge category={getPostCategory(post)} />
+                      <StatusBadge status={post.approval_status} />
+                    </div>
+                    {post.approval_status === 'REJECTED' && post.rejection_reason && (
+                      <p className="text-xs text-danger mt-1.5 line-clamp-2">{post.rejection_reason}</p>
+                    )}
+                  </div>
+                </Link>
+                <div className="flex flex-wrap items-center justify-between gap-2 mt-3 pt-3 border-t border-border/50">
+                  <div className="flex items-center gap-3 text-xs text-muted tabular-nums">
+                    {stat && (
+                      <>
+                        <span className="flex items-center gap-1" title={t('posts.stats.views')}><Eye size={12} aria-hidden="true" /> {stat.views}</span>
+                        <span className="flex items-center gap-1" title={t('posts.stats.saves')}><Heart size={12} aria-hidden="true" /> {stat.likes}</span>
+                        <span className="flex items-center gap-1" title={t('posts.stats.requests')}><CalendarRange size={12} aria-hidden="true" /> {stat.bookings_pending + stat.bookings_accepted}</span>
+                      </>
+                    )}
+                    {expiry && <span className={`flex items-center gap-1 ${expiry.cls}`}><Timer size={12} /> {expiry.text}</span>}
+                  </div>
+                  <div className="flex items-center gap-1.5 ml-auto">
+                    <Link
+                      to={`/provider/posts/${post.id}/edit`}
+                      aria-label={t('posts.edit')}
+                      className="min-w-touch min-h-touch flex items-center justify-center rounded-btn border border-border/50 text-muted hover:text-primary-text hover:bg-primary/10 transition-colors"
+                    >
+                      <Pencil size={15} />
+                    </Link>
+                    <button
+                      onClick={() => setDeleteTarget(post)}
+                      aria-label={t('common.delete')}
+                      className="min-w-touch min-h-touch flex items-center justify-center rounded-btn border border-border/50 text-muted hover:text-danger hover:bg-danger/10 transition-colors"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        <div className="surface-card hidden md:block">
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[640px]">
               <thead>
@@ -218,7 +283,7 @@ export default function ProviderPosts() {
                           <Link
                             to={`/provider/posts/${post.id}/edit`}
                             title={t('posts.edit')}
-                            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-btn text-muted hover:text-primary-text hover:bg-primary/10 transition-colors"
+                            className="min-w-touch min-h-touch flex items-center justify-center rounded-btn text-muted hover:text-primary-text hover:bg-primary/10 transition-colors"
                           >
                             <Pencil size={14} />
                           </Link>
@@ -226,7 +291,7 @@ export default function ProviderPosts() {
                             onClick={() => setDeleteTarget(post)}
                             title={t('common.delete')}
                             aria-label={t('common.delete')}
-                            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-btn text-muted hover:text-danger hover:bg-danger/10 transition-colors"
+                            className="min-w-touch min-h-touch flex items-center justify-center rounded-btn text-muted hover:text-danger hover:bg-danger/10 transition-colors"
                           >
                             <Trash2 size={14} />
                           </button>
@@ -239,6 +304,7 @@ export default function ProviderPosts() {
             </table>
           </div>
         </div>
+        </>
       )}
 
       <ConfirmModal

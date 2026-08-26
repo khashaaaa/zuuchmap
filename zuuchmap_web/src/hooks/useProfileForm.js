@@ -67,7 +67,13 @@ export function useProfileForm() {
   function handleSubmit(e) {
     e.preventDefault()
     const fd = new FormData()
-    Object.entries(form).forEach(([k, v]) => { if (v) fd.append(k, v) })
+    // Empty values are sent, not skipped. `UpdateUserDto` treats `''` as "clear
+    // this field" (its `@ValidateIf` on email exists for exactly that) and the
+    // app has always sent it — dropping it here meant clearing an email or
+    // address on the web reported success and changed nothing, with the old
+    // value back on the next reload. Every field on this form is a bounded,
+    // nullable string, so a blank is always a legal value for it.
+    Object.entries(form).forEach(([k, v]) => fd.append(k, v ?? ''))
     if (avatar) fd.append('profile_picture', avatar)
     mut.mutate(fd)
   }

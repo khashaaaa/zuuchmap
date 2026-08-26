@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { useTranslation } from 'react-i18next'
 import useOnline from '@/hooks/useOnline'
 import { useSearchParams, useNavigate } from 'react-router-dom'
-import { X, Heart, BellPlus, WifiOff } from 'lucide-react'
+import { X, Heart, BellPlus, WifiOff, SlidersHorizontal, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { postsApi, categoryApi, likesApi, savedSearchApi } from '@/lib/api'
 import { debounce, PROVINCES, DISTRICTS, getPostCategory, getCategoryLabel, getSubcategoryLabel, getFieldLabel, getOptionLabel, getCategoryColor, apiErrorMessage } from '@/lib/utils'
@@ -25,10 +25,7 @@ import { track } from '@/lib/analytics'
 // server caps `limit` at 100 (post.service.ts).
 const LIMIT = 48
 
-// Filter keys a saved search (or a shared link) can carry in the query string.
-// They are read once, applied to state, and stripped — category/page are the
-// only ones the URL keeps for the page's own navigation.
-const isCarriedFilter = (k) => ['subcategory', 'province', 'district', 'q'].includes(k) || k.startsWith('attr.')
+const ATTR_PREFIX = 'attr.'
 
 export default function CustomerBrowse() {
   const { t } = useTranslation()
@@ -38,87 +35,112 @@ export default function CustomerBrowse() {
   // Reachable signed-out from /browse — saving is the only gated affordance.
   const isAuthed = useAuthStore((s) => Boolean(s.token))
 
-  // Category and page live in the URL — shareable, survives reload, and the
-  // browser back button walks through them. Everything else stays in state.
+  // Every filter lives in the query string, not in component state. Opening a
+  // listing unmounts this page, so anything held in state was gone by the time
+  // Back returned — the grid came back unfiltered and a filtered view could not
+  // be shared, bookmarked or reloaded at all.
   const category = searchParams.get('category') ?? ''
   const page = Math.max(1, Number(searchParams.get('page')) || 1)
+  const subcat = searchParams.get('subcategory') ?? ''
+  const province = searchParams.get('province') ?? ''
+  const district = searchParams.get('district') ?? ''
+  const search = searchParams.get('q') ?? ''
+  const sort = searchParams.get('sort') ?? ''
+  const priceMin = searchParams.get('price_min') ?? ''
+  const priceMax = searchParams.get('price_max') ?? ''
+  const priceFilters = useMemo(() => ({ min: priceMin, max: priceMax }), [priceMin, priceMax])
+  const attrKey = JSON.stringify(Object.fromEntries(
+    [...searchParams.entries()].filter(([k]) => k.startsWith(ATTR_PREFIX)).map(([k, v]) => [k.slice(ATTR_PREFIX.length), v]),
+  ))
+  const attrFilters = useMemo(() => JSON.parse(attrKey), [attrKey])
 
-  // Inbound filters from a saved search / shared link seed the state once;
-  // the effect below then takes them off the URL so the page's own
-  // category/page handling owns it again.
-  const carried = useMemo(() => Object.fromEntries([...searchParams.entries()].filter(([k]) => isCarriedFilter(k))), []) // eslint-disable-line
-  const carriedAttrs = () => Object.fromEntries(Object.entries(carried).filter(([k]) => k.startsWith('attr.')).map(([k, v]) => [k.slice(5), v]))
-  const [subcat, setSubcat] = useState(carried.subcategory ?? '')
-  const [province, setProvince] = useState(carried.province ?? '')
-  const [district, setDistrict] = useState(carried.district ?? '')
-  const [searchInput, setSearchInput] = useState(carried.q ?? '')
-  const [search, setSearch] = useState(carried.q ?? '')
-  const [attrInputs, setAttrInputs] = useState(carriedAttrs)
-  const [attrFilters, setAttrFilters] = useState(carriedAttrs)
-  const [sort, setSort] = useState('')
-  const [priceInputs, setPriceInputs] = useState({})
-  const [priceFilters, setPriceFilters] = useState({})
+  // Typed values keep a local mirror so the box stays responsive while the URL
+  // is only written on the debounce. Below, an effect pulls the URL back into
+  // the mirror whenever it moves on its own — Back/Forward, Clear, a saved
+  // search — so an input never disagrees with the results it produced.
+  const [searchInput, setSearchInput] = useState(search)
+  const [priceInputs, setPriceInputs] = useState(priceFilters)
+  const [attrInputs, setAttrInputs] = useState(attrFilters)
   const [saveOpen, setSaveOpen] = useState(false)
   const [saveName, setSaveName] = useState('')
+  // The rail is a sidebar from lg up and a disclosure below it, where it used
+  // to push every listing a full screen down the page.
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const online = useOnline()
 
-  useEffect(() => {
-    if (![...searchParams.keys()].some(isCarriedFilter)) return
+  // Each mirror resets when the URL behind it moves on its own — Back/Forward,
+  // Clear, a saved search. Done during render (React's documented alternative
+  // to a sync-in-effect) so the box never paints a stale frame first, and
+  // tracked per source: a price landing must not rewind a half-typed query.
+  const [lastQ, setLastQ] = useState(search)
+  if (lastQ !== search) { setLastQ(search); setSearchInput(search) }
+
+  const priceKey = `${priceMin}|${priceMax}`
+  const [lastPrice, setLastPrice] = useState(priceKey)
+  if (lastPrice !== priceKey) { setLastPrice(priceKey); setPriceInputs({ min: priceMin, max: priceMax }) }
+
+  const [lastAttr, setLastAttr] = useState(attrKey)
+  if (lastAttr !== attrKey) { setLastAttr(attrKey); setAttrInputs(JSON.parse(attrKey)) }
+
+  /**
+   * The one writer. An empty value drops its key rather than writing a blank,
+   * and any filter change resets the page cursor — asking for page 9 of a
+   * result set that just became 2 pages long is how a filter change lands on an
+   * empty grid. Filter edits replace the history entry (Back should not undo
+   * one typed character at a time); paging and category push a new one.
+   */
+  const setParams = useCallback((patch, { push = false } = {}) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev)
-      for (const k of [...next.keys()]) if (isCarriedFilter(k)) next.delete(k)
+      for (const [k, v] of Object.entries(patch)) {
+        if (v === undefined || v === null || v === '') next.delete(k)
+        else next.set(k, String(v))
+      }
+      if (!('page' in patch)) next.delete('page')
       return next
-    }, { replace: true })
-  }, [searchParams, setSearchParams])
+    }, { replace: !push })
+  }, [setSearchParams])
 
   const setPage = useCallback((p) => {
+    setParams({ page: p > 1 ? p : '' }, { push: true })
+  }, [setParams])
+
+  const debouncedSearch = useCallback(
+    debounce((val) => {
+      setParams({ q: val })
+      if (val) track('browse.search', { query_length: val.length })
+    }, 400),
+    [setParams] // eslint-disable-line
+  )
+
+  const handleCategory = useCallback((val) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev)
-      if (p > 1) next.set('page', String(p))
-      else next.delete('page')
+      // Subcategory and attribute filters belong to the category being left;
+      // location, text and price are category-agnostic and survive the switch.
+      next.delete('subcategory')
+      next.delete('page')
+      for (const k of [...next.keys()]) if (k.startsWith(ATTR_PREFIX)) next.delete(k)
+      if (val) next.set('category', val)
+      else next.delete('category')
       return next
     })
   }, [setSearchParams])
 
-  // Filter changes reset pagination without stacking history entries.
-  const resetPage = useCallback(() => {
-    setSearchParams((prev) => {
-      if (!prev.has('page')) return prev
-      const next = new URLSearchParams(prev)
-      next.delete('page')
-      return next
-    }, { replace: true })
-  }, [setSearchParams])
-
-  const debouncedSearch = useCallback(
-    debounce((val) => {
-      setSearch(val); resetPage()
-      if (val) track('browse.search', { query_length: val.length })
-    }, 400),
-    [resetPage] // eslint-disable-line
-  )
-
-  const handleCategory = useCallback((val) => {
-    setSubcat('')
-    setAttrInputs({})
-    setAttrFilters({})
-    setSearchParams(val ? { category: val } : {})
-  }, [setSearchParams])
-
   const applyAttr = useCallback(
-    debounce((key, val) => { setAttrFilters((p) => ({ ...p, [key]: val })); resetPage() }, 400),
-    [resetPage] // eslint-disable-line
+    debounce((key, val) => setParams({ [`${ATTR_PREFIX}${key}`]: val }), 400),
+    [setParams] // eslint-disable-line
   )
 
   const handleAttrChange = useCallback((key, val, immediate) => {
     setAttrInputs((p) => ({ ...p, [key]: val }))
-    if (immediate) { setAttrFilters((p) => ({ ...p, [key]: val })); resetPage() }
+    if (immediate) setParams({ [`${ATTR_PREFIX}${key}`]: val })
     else applyAttr(key, val)
-  }, [applyAttr, resetPage])
+  }, [applyAttr, setParams])
 
   const applyPrice = useMemo(
-    () => debounce((key, val) => { setPriceFilters((p) => ({ ...p, [key]: val })); resetPage() }, 400),
-    [resetPage] // eslint-disable-line
+    () => debounce((key, val) => setParams({ [`price_${key}`]: val }), 400),
+    [setParams] // eslint-disable-line
   )
   const handlePriceChange = useCallback((key, val) => {
     setPriceInputs((p) => ({ ...p, [key]: val }))
@@ -126,7 +148,7 @@ export default function CustomerBrowse() {
   }, [applyPrice])
 
   // Drop pending debounced calls on unmount (or identity change) — they would
-  // otherwise fire setState/setSearchParams into a dead component.
+  // otherwise fire setSearchParams into a dead component.
   useEffect(() => () => {
     debouncedSearch.cancel()
     applyAttr.cancel()
@@ -134,10 +156,8 @@ export default function CustomerBrowse() {
   }, [debouncedSearch, applyAttr, applyPrice])
 
   const handleProvince = useCallback((val) => {
-    setProvince(val)
-    setDistrict('')
-    resetPage()
-  }, [resetPage])
+    setParams({ province: val, district: '' })
+  }, [setParams])
 
   const queryParams = { approval_status: 'APPROVED', page, limit: LIMIT }
   if (category) queryParams.category = category
@@ -231,25 +251,47 @@ export default function CustomerBrowse() {
     // moments before Clear lands 400ms later and re-applies the filter it just
     // cleared — the input reads empty while the results stay filtered.
     debouncedSearch.cancel(); applyAttr.cancel(); applyPrice.cancel()
-    setSubcat(''); setProvince(''); setDistrict('')
-    setSearchInput(''); setSearch('')
-    setAttrInputs({}); setAttrFilters({})
-    setSort(''); setPriceInputs({}); setPriceFilters({})
-    setSearchParams({}) // drops category + page together
+    setSearchInput(''); setAttrInputs({}); setPriceInputs({ min: '', max: '' })
+    setSearchParams({}) // one empty query string drops every filter at once
   }, [setSearchParams, debouncedSearch, applyAttr, applyPrice])
 
   const schema = useMemo(() => schemas.find((s) => s.key === category), [schemas, category])
   const filterFields = useMemo(() => schema?.fields?.filter((f) => f.filterable) ?? [], [schema])
 
-  const hasFilters = category || subcat || province || district || search || sort
-    || Object.values(priceFilters).some(Boolean) || Object.values(attrFilters).some(Boolean)
+  const activeFilters = [category, subcat, province, district, search, sort, priceMin, priceMax]
+    .filter(Boolean).length + Object.values(attrFilters).filter(Boolean).length
+  const hasFilters = activeFilters > 0
 
   const activeColor = category ? getCategoryColor(category, schemas) : null
   const overline = 'text-[11px] font-semibold uppercase tracking-wider text-muted'
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 items-start">
-      <aside className="w-full lg:w-64 shrink-0 lg:sticky lg:top-(--sticky-offset) lg:max-h-[calc(100vh-var(--sticky-offset)-1.5rem)] lg:overflow-y-auto">
+      {/* Below lg the rail is a disclosure. Expanded, it is search + price + all
+          thirteen category pills + subcategory + every filterable attribute +
+          province + district — a full screen of form standing between the top of
+          the page and the first listing. */}
+      <button
+        type="button"
+        onClick={() => setFiltersOpen((o) => !o)}
+        aria-expanded={filtersOpen}
+        aria-controls="browse-filters"
+        className="lg:hidden w-full min-h-touch flex items-center gap-2 px-4 py-2.5 text-sm font-medium bg-surface border border-border/20 shadow-card rounded-card text-text hover:border-primary/40 transition-colors"
+      >
+        <SlidersHorizontal size={15} className="text-muted" aria-hidden="true" />
+        {t('common.filter')}
+        {activeFilters > 0 && (
+          <span className="min-w-[20px] h-5 px-1.5 grid place-items-center rounded-full bg-primary text-on-primary text-[11px] font-semibold tabular-nums">
+            {activeFilters}
+          </span>
+        )}
+        <ChevronDown size={16} aria-hidden="true" className={`ml-auto text-muted transition-transform ${filtersOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      <aside
+        id="browse-filters"
+        className={`w-full lg:w-64 shrink-0 lg:sticky lg:top-(--sticky-offset) lg:max-h-[calc(100vh-var(--sticky-offset)-1.5rem)] lg:overflow-y-auto ${filtersOpen ? '' : 'hidden lg:block'}`}
+      >
         {/* One contained rail: groups separated by hairlines, each named by an
             overline, so the form reads as rhythm instead of eight equal rows. */}
         <div className="bg-surface border border-border/20 shadow-card rounded-card p-4 divide-y divide-border/20">
@@ -293,7 +335,7 @@ export default function CustomerBrowse() {
             <div className="py-4 space-y-3">
               <p className={overline}>{t('filter.specs')}</p>
               {schema.subcategories?.length > 0 && (
-                <Input as="select" value={subcat} onChange={(e) => { setSubcat(e.target.value); resetPage() }}>
+                <Input as="select" value={subcat} onChange={(e) => setParams({ subcategory: e.target.value })}>
                   <option value="">{t('posts.subcategory')}</option>
                   {schema.subcategories.map((sub) => (
                     <option key={sub.value} value={sub.value}>{getSubcategoryLabel(sub.value, t, schema)}</option>
@@ -326,7 +368,7 @@ export default function CustomerBrowse() {
               {PROVINCES.map((p) => <option key={p} value={p}>{t(`province.${p}`, { defaultValue: p })}</option>)}
             </Input>
             {province === 'ULAANBAATAR' && (
-              <Input as="select" value={district} onChange={(e) => { setDistrict(e.target.value); resetPage() }}>
+              <Input as="select" value={district} onChange={(e) => setParams({ district: e.target.value })}>
                 <option value="">{t('common.district')}</option>
                 {DISTRICTS.map((d) => <option key={d} value={d}>{t(`district.${d}`, { defaultValue: d })}</option>)}
               </Input>
@@ -382,7 +424,7 @@ export default function CustomerBrowse() {
           <Input
             as="select"
             value={sort}
-            onChange={(e) => { setSort(e.target.value); resetPage() }}
+            onChange={(e) => setParams({ sort: e.target.value })}
             aria-label={t('filter.sort')}
             className="w-auto"
           >
@@ -480,7 +522,7 @@ export default function CustomerBrowse() {
         <form onSubmit={(e) => { e.preventDefault(); if (saveName.trim()) saveMut.mutate(saveName.trim()) }} className="space-y-3">
           <p className="text-sm text-muted">{t('savedSearch.hint')}</p>
           <div>
-            <label htmlFor="saved-search-name" className="text-xs text-muted block mb-1.5">{t('savedSearch.name')}</label>
+            <label htmlFor="saved-search-name" className="field-label">{t('savedSearch.name')}</label>
             <Input id="saved-search-name" value={saveName} onChange={(e) => setSaveName(e.target.value)} maxLength={60} autoFocus placeholder={t('savedSearch.namePlaceholder')} />
           </div>
         </form>

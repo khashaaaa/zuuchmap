@@ -146,6 +146,7 @@ export default {
     rejectedFieldImages: 'Зураг',
     rejectedFieldLocation: 'Байршил',
     featured: 'Онцлох',
+    uploadingPct: 'Илгээж байна… {{pct}}%',
     successCta: 'Миний зар харах',
     notFound: 'Зар олдсонгүй',
     status: 'Төлөв',
@@ -458,6 +459,7 @@ export default {
   },
   offline: {
     banner: 'Хадгалсан үр дүнг харуулж байна ({{ago}})',
+    noConnection: 'Та офлайн байна. Холболт сэргэхэд үр дүн ачаална.',
     justNow: 'дөнгөж сая', minutesAgo: '{{count}} минутын өмнө', hoursAgo: '{{count}} цагийн өмнө', daysAgo: '{{count}} хоногийн өмнө',
   },
   map: {

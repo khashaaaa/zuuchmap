@@ -16,7 +16,7 @@ const EDITABLE = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
  * Handlers are read through a ref so callers can pass fresh closures every
  * render without re-binding the listener.
  */
-export function useHotkeys(bindings, { enabled = true } = {}) {
+export function useHotkeys(bindings, { enabled = true, ignoreWithin } = {}) {
   const ref = useRef(bindings)
   useEffect(() => { ref.current = bindings })
 
@@ -26,6 +26,10 @@ export function useHotkeys(bindings, { enabled = true } = {}) {
       if (e.metaKey || e.ctrlKey || e.altKey || e.isComposing) return
       const el = e.target
       if (el && (EDITABLE.has(el.tagName) || el.isContentEditable)) return
+      // Widgets that own the arrow keys themselves — a focused Leaflet map is
+      // not an EDITABLE element, so without this a page-level arrow binding
+      // silently took its panning away.
+      if (ignoreWithin && el?.closest?.(ignoreWithin)) return
       if (document.querySelector('[role="dialog"]')) return
       const map = ref.current
       const key = e.key.length === 1 ? e.key.toLowerCase() : e.key
@@ -36,5 +40,5 @@ export function useHotkeys(bindings, { enabled = true } = {}) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [enabled])
+  }, [enabled, ignoreWithin])
 }

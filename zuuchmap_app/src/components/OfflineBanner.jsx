@@ -21,7 +21,13 @@ export const humanizeAgo = (t, cachedAt) => {
  * fallback. Warning-tinted rather than red: nothing failed for the reader,
  * they are just looking at yesterday's marketplace.
  */
-const OfflineBanner = ({ visible, cachedAt, style }) => {
+/**
+ * Two jobs, one bar. Given `cachedAt` it says how stale the results on screen
+ * are; given `message` it says whatever it is told — the app-wide connectivity
+ * banner uses the latter, because "showing saved results" is wrong when the
+ * screen is showing nothing at all.
+ */
+const OfflineBanner = ({ visible, cachedAt, message, style }) => {
     const { colors } = useAppTheme();
     const { t } = useTranslation();
     const styles = useMemo(() => createStyles(colors), [colors]);
@@ -30,7 +36,7 @@ const OfflineBanner = ({ visible, cachedAt, style }) => {
         <View style={[styles.wrap, style]} accessibilityRole="alert" accessibilityLiveRegion="polite">
             <Ionicons name="cloud-offline-outline" size={14} color={colors.warning} />
             <Text style={styles.text} numberOfLines={1}>
-                {t('offline.banner', { ago: humanizeAgo(t, cachedAt) })}
+                {message ?? t('offline.banner', { ago: humanizeAgo(t, cachedAt) })}
             </Text>
         </View>
     );

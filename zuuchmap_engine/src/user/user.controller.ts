@@ -20,6 +20,8 @@ import {
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { CheckUserDto } from './dto/check-user.dto';
+import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import {
   createProfilePictureInterceptor,
@@ -35,13 +37,24 @@ import { profileSummary } from '../utils/public-user';
 export class UserController {
   constructor(private readonly userService: UserService) { }
 
+  /**
+   * LEGACY — kept only for app builds already installed.
+   *
+   * It answers "does this number have an account, and what type" to an
+   * unauthenticated caller. Mongolian mobile numbers are 8 digits over a
+   * handful of prefixes, so under the global 100/min default this was a
+   * walkable enumeration oracle that also returned the account UUID. The
+   * current app no longer calls it: `auth/verify/start` carries the account
+   * type on a result that has actually proven possession of the number.
+   *
+   * Until old builds age out it stays, at the same 3/min per IP that
+   * `verify/start` gets — enough for a human signing in, useless for a sweep.
+   * Delete the route (and `checkUserExists` in the app) once those builds are gone.
+   */
   @Post('check')
-  async findByPhoneNumber(@Body() body: { phone_number: string }) {
+  @Throttle({ default: { ttl: 60000, limit: 3 } })
+  async findByPhoneNumber(@Body() body: CheckUserDto) {
     const { phone_number } = body;
-
-    if (!phone_number) {
-      throw new HttpException('Phone number is required', HttpStatus.BAD_REQUEST);
-    }
 
     const user = await this.userService.findByPhoneNumber(phone_number);
 

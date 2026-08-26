@@ -1,4 +1,5 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { scrollToTop } from '@/lib/utils'
 
 /**
  * Page numbers around the current page, with the first and last always
@@ -30,14 +31,15 @@ export default function Pagination({ page, total, limit, onChange, labels = {} }
   if (totalPages <= 1) return null
 
   // Paging without this left the viewport at the bottom of the old page, so the
-  // next one appeared to open halfway down.
+  // next one appeared to open halfway down. `scrollToTop` — not `window.scrollTo`
+  // — because the signed-in shell scrolls an inner <main>, not the document.
   const go = (next) => {
     if (next === page || next < 1 || next > totalPages) return
     onChange(next)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    scrollToTop()
   }
 
-  const arrow = 'p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-btn border border-border/50 text-muted hover:text-text hover:border-primary/40 disabled:opacity-30 disabled:cursor-not-allowed transition-colors'
+  const arrow = 'p-2.5 min-w-touch min-h-touch flex items-center justify-center rounded-btn border border-border/50 text-muted hover:text-text hover:border-primary/40 disabled:opacity-30 disabled:cursor-not-allowed transition-colors'
 
   return (
     <nav className="flex flex-wrap items-center justify-center gap-1.5 mt-6" aria-label={labels.nav ?? 'Pagination'}>
@@ -54,7 +56,7 @@ export default function Pagination({ page, total, limit, onChange, labels = {} }
             onClick={() => go(item.page)}
             aria-current={item.page === page ? 'page' : undefined}
             aria-label={`${labels.page ?? 'Page'} ${item.page}`}
-            className={`min-w-[44px] min-h-[44px] px-2 rounded-btn border text-sm tabular-nums transition-colors ${
+            className={`min-w-touch min-h-touch px-2 rounded-btn border text-sm tabular-nums transition-colors ${
               item.page === page
                 ? 'border-primary bg-primary text-on-primary font-semibold'
                 : 'border-border/50 text-muted hover:text-text hover:border-primary/40'

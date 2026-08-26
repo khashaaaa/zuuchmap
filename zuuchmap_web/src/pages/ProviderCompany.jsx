@@ -90,7 +90,12 @@ export default function ProviderCompany() {
     // "example.mn" is stored as a followable link rather than rejected.
     const payload = { ...form, website: normalizeWebsiteUrl(form.website) }
     const fd = new FormData()
-    Object.entries(payload).forEach(([k, v]) => { if (v) fd.append(k, v) })
+    // Blanks are sent so a field can actually be emptied. Every key on this
+    // form is a bounded optional string on both company DTOs (`email` carries
+    // a `@ValidateIf` precisely so `''` stays legal), and `normalizeWebsiteUrl`
+    // returns `''` untouched — so a cleared box reaches the column as cleared
+    // instead of silently keeping its old value behind a success toast.
+    Object.entries(payload).forEach(([k, v]) => fd.append(k, v ?? ''))
     if (logo) fd.append('logo', logo)
     company ? updateMut.mutate(fd) : createMut.mutate(fd)
   }
@@ -198,7 +203,7 @@ export default function ProviderCompany() {
         </div>
         {formFields.map(([label, key, req, inputType, mode]) => (
           <div key={key}>
-            <label className="text-xs text-muted block mb-1.5">
+            <label className="field-label">
               {label}{req && <span className="text-danger"> *</span>}
             </label>
             {inputType === 'textarea' ? (

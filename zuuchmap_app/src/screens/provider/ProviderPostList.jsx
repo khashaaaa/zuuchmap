@@ -615,10 +615,6 @@ const createStyles = (colors) => StyleSheet.create({
         flex: 1,
         color: colors.text.primary,
     },
-    healthRing: {
-        marginTop: spacing.xxs,
-        flexShrink: 0,
-    },
     menuButton: {
         width: 32,
         height: 32,
@@ -683,12 +679,6 @@ const createStyles = (colors) => StyleSheet.create({
     planTrack: { height: 3, borderRadius: radius.pill, overflow: 'hidden' },
     planFill: { height: '100%', borderRadius: radius.pill },
     planMeta: { ...typography.styles.caption, color: colors.text.secondary },
-    statsRow: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        marginBottom: spacing.lg,
-        gap: spacing.sm,
-    },
     // flexBasis 47% + grow: two tiles per row on phones, and a lone pair
     // still fills the width while the server tiles are loading.
     statCard: {

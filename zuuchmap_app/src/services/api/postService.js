@@ -24,7 +24,18 @@ const compressImage = async (imageUri) => {
   }
 };
 
-const buildFormData = async (postData) => {
+/**
+ * `isEdit` decides whether `existingImages` is sent at all.
+ *
+ * On update it must ALWAYS be sent, including as `[]`. The engine reads
+ * `dto.existingImages || post.images || []`, so an omitted key means "keep
+ * every photo currently on the post" — which made deleting the last photo a
+ * no-op, and turned "replace all my photos" into "append to the old ones".
+ *
+ * On create it must NEVER be sent: `CreatePostDto` has no such property and the
+ * global ValidationPipe runs `forbidNonWhitelisted`, so an extra key is a 400.
+ */
+const buildFormData = async (postData, { isEdit = false } = {}) => {
   const formData = new FormData();
   const { images, ...rawData } = postData;
 
@@ -47,47 +58,89 @@ const buildFormData = async (postData) => {
     }
   }
 
-  if (images?.length) {
-    const existingImages = images.filter(img => img?.startsWith('http'));
-    const newImages = images.filter(img => img && !img.startsWith('http'));
+  const allImages = Array.isArray(images) ? images.filter(Boolean) : [];
+  const existingImages = allImages.filter(img => img.startsWith('http'));
+  const newImages = allImages.filter(img => !img.startsWith('http'));
 
-    if (existingImages.length) {
-      const filenames = existingImages.map(url => url.split('/').pop());
-      formData.append('existingImages', JSON.stringify(filenames));
-    }
+  // Unconditional on edit — `[]` is the instruction to drop every photo, and
+  // omitting the key is the instruction to keep them all.
+  if (isEdit) {
+    const filenames = existingImages.map(url => url.split('/').pop());
+    formData.append('existingImages', JSON.stringify(filenames));
+  }
 
-    for (let i = 0; i < newImages.length; i++) {
-      try {
-        const uri = await compressImage(newImages[i]);
-        const ext = uri.split('.').pop()?.toLowerCase() || 'jpeg';
-        const type = ['jpg', 'jpeg', 'png', 'webp'].includes(ext) ? ext : 'jpeg';
-        formData.append('images', { uri, name: `${i}.${type}`, type: `image/${type}` });
-      } catch (err) {
-        logger.error('Error processing image:', err);
-      }
+  for (let i = 0; i < newImages.length; i++) {
+    try {
+      const uri = await compressImage(newImages[i]);
+      const ext = uri.split('.').pop()?.toLowerCase() || 'jpeg';
+      const type = ['jpg', 'jpeg', 'png', 'webp'].includes(ext) ? ext : 'jpeg';
+      formData.append('images', { uri, name: `${i}.${type}`, type: `image/${type}` });
+    } catch (err) {
+      logger.error('Error processing image:', err);
     }
   }
 
   return formData;
 };
 
-const uploadWithFetch = async (method, endpoint, formData) => {
+/** Ceiling for a whole multipart upload, images included. */
+const UPLOAD_TIMEOUT_MS = 3 * 60 * 1000;
+
+/**
+ * Multipart upload with progress.
+ *
+ * XMLHttpRequest rather than fetch: React Native's fetch reports no upload
+ * progress at all, so a post carrying five photos sat behind a button that said
+ * "creating" and nothing else for the length of the upload. RN implements fetch
+ * on top of XHR anyway, so this is the same transport with the one event fetch
+ * hides. `onProgress` receives 0-100; it is optional and everything else about
+ * the contract — auth header, JSON body, the `error.response = { status, data }`
+ * shape callers unwrap, the `{ data }` return — is unchanged.
+ */
+const uploadWithProgress = async (method, endpoint, formData, onProgress) => {
   const token = await getAuthToken();
-  const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
-  const response = await fetch(`${API_CONFIG.BASE_URL}${endpoint}`, {
-    method,
-    headers,
-    body: formData,
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, `${API_CONFIG.BASE_URL}${endpoint}`);
+    // `ontimeout` below can only fire if this is set — XHR defaults to 0, which
+    // means "wait forever", so a stalled upload sat behind "uploading N%" with
+    // no way out. Generous: five compressed photos on a weak mobile connection
+    // is genuinely slow, and a false timeout costs the provider the whole form.
+    xhr.timeout = UPLOAD_TIMEOUT_MS;
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    // Content-Type is deliberately unset: the runtime adds it with the
+    // multipart boundary, and setting it by hand drops the boundary.
+
+    if (onProgress && xhr.upload) {
+      xhr.upload.onprogress = (e) => {
+        // `total` is 0 until the body length is known — report nothing rather
+        // than a fake number, and the caller keeps its indeterminate spinner.
+        if (!e.lengthComputable || !e.total) return;
+        onProgress(Math.min(100, Math.round((e.loaded * 100) / e.total)));
+      };
+    }
+
+    const fail = (message, status = 0, data = {}) => {
+      const error = new Error(message);
+      error.response = { status, data };
+      reject(error);
+    };
+
+    xhr.onload = () => {
+      let data = {};
+      try { data = JSON.parse(xhr.responseText || '{}'); } catch { data = {}; }
+      if (xhr.status >= 200 && xhr.status < 300) return resolve({ data });
+      fail(data?.message || `HTTP ${xhr.status}`, xhr.status, data);
+    };
+    // A dropped connection has no HTTP status; errorManager already maps a
+    // status-less failure to the offline message.
+    xhr.onerror = () => fail('Network request failed');
+    xhr.ontimeout = () => fail('Network request timed out');
+    xhr.onabort = () => fail('Upload cancelled');
+
+    xhr.send(formData);
   });
-
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const error = new Error(data?.message || `HTTP ${response.status}`);
-    error.response = { status: response.status, data };
-    throw error;
-  }
-  return { data };
 };
 
 const normalizeImages = (post) => {
@@ -100,14 +153,14 @@ const normalizeImages = (post) => {
 const postService = {
   getApiUrl: () => API_CONFIG.BASE_URL,
 
-  create: async (category, postData) => {
+  create: async (category, postData, onProgress) => {
     const formData = await buildFormData({ ...postData, category });
-    return uploadWithFetch('POST', API_CONFIG.ENDPOINTS.POSTS.CREATE, formData);
+    return uploadWithProgress('POST', API_CONFIG.ENDPOINTS.POSTS.CREATE, formData, onProgress);
   },
 
-  update: async (postId, postData) => {
-    const formData = await buildFormData(postData);
-    return uploadWithFetch('PATCH', API_CONFIG.ENDPOINTS.POSTS.UPDATE(postId), formData);
+  update: async (postId, postData, onProgress) => {
+    const formData = await buildFormData(postData, { isEdit: true });
+    return uploadWithProgress('PATCH', API_CONFIG.ENDPOINTS.POSTS.UPDATE(postId), formData, onProgress);
   },
 
   getList: async ({

@@ -44,9 +44,30 @@ export function profileSummary(user: any): {
   };
 }
 
-/** Company is business-public; only its `users` relation needs projecting. */
-export function publicCompany(company: any): any {
+/**
+ * Fields an admin checks against the state register before granting
+ * `Company.is_verified`. `UpdateCompanyDto` calls the registration number "a
+ * short opaque token, not free text" — they identify the business to the
+ * registry, and nothing renders them outside the owner's own company form and
+ * the admin user detail page.
+ */
+const COMPANY_PRIVATE_FIELDS = ['registration_number', 'tax_id'] as const;
+
+/**
+ * Most of a company is business-public — name, logo, website, address, contact.
+ * Its credentials are not, and this used to strip only the `users` relation, so
+ * `publicUser` carried a provider's tax ID and registration number out through
+ * every public listing response (`GET /posts`, `/posts/:id`, `/posts/map`) and
+ * through the unauthenticated `GET /company/:id`.
+ *
+ * `includePrivate` is opt-in, for the two callers entitled to them: the owner
+ * managing their own company, and an admin.
+ */
+export function publicCompany(company: any, { includePrivate = false } = {}): any {
   if (!company) return company ?? null;
   const { users, ...rest } = company;
+  if (!includePrivate) {
+    for (const field of COMPANY_PRIVATE_FIELDS) delete rest[field];
+  }
   return users === undefined ? rest : { ...rest, users: users.map(publicUser) };
 }

@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { usersApi } from '@/lib/api'
 import { useAuthStore } from '@/store'
+import { useProfile, PROFILE_KEY } from '@/hooks/useProfile'
+import { useApiMutation } from '@/hooks/useApiMutation'
 import { toast } from 'sonner'
-import { apiErrorMessage } from '@/lib/utils'
 
 export function useProfileForm() {
   const { t } = useTranslation()
-  const { user, logout, setUser } = useAuthStore()
+  const { user, logout } = useAuthStore()
   const navigate = useNavigate()
   const qc = useQueryClient()
 
@@ -25,43 +26,40 @@ export function useProfileForm() {
     return () => URL.revokeObjectURL(url)
   }, [avatar])
 
-  const { data: profile, isLoading: profileLoading, isError: profileError, refetch: refetchProfile } = useQuery({
-    queryKey: ['profile'],
-    queryFn: usersApi.getProfile,
-  })
+  const { data: profile, isLoading: profileLoading, isError: profileError, refetch: refetchProfile } = useProfile()
 
   useEffect(() => {
-    const src = profile ?? user
-    if (src) setForm({
-      given_name: src.given_name ?? '',
-      parent_name: src.parent_name ?? '',
-      email: src.email ?? '',
-      address: src.address ?? '',
+    if (profile) setForm({
+      given_name: profile.given_name ?? '',
+      parent_name: profile.parent_name ?? '',
+      email: profile.email ?? '',
+      address: profile.address ?? '',
     })
-  }, [profile, user])
+  }, [profile])
 
-  const mut = useMutation({
+  const mut = useApiMutation({
+    fallback: t('profile.saveError'),
     mutationFn: (fd) => usersApi.update(user.id, fd),
     onSuccess: (updated) => {
-      setUser({ ...user, ...updated })
-      qc.setQueryData(['profile'], (old) => ({ ...old, ...updated }))
+      // The cache is the profile: patch it in place rather than refetch, and
+      // let useProfile's effect carry any role change into the store.
+      qc.setQueryData(PROFILE_KEY, (old) => ({ ...old, ...updated }))
       // Drop the staged file. Without this every later save re-uploads the same
       // image — new R2 object each time, old one deleted — and the local blob
       // preview keeps masking whatever the server actually stored.
       setAvatar(null)
       toast.success(t('profile.saveSuccess'))
     },
-    onError: (e) => toast.error(apiErrorMessage(e, t, t('profile.saveError'))),
   })
 
-  const deleteMut = useMutation({
+  const deleteMut = useApiMutation({
+    fallback: t('accountDeletion.error'),
     mutationFn: usersApi.deleteAccount,
     onSuccess: () => {
       toast.success(t('accountDeletion.deleted'))
       logout()
       navigate('/login', { replace: true })
     },
-    onError: (e) => toast.error(apiErrorMessage(e, t, t('accountDeletion.error'))),
   })
 
   function handleSubmit(e) {
@@ -82,7 +80,7 @@ export function useProfileForm() {
     form, setForm,
     avatar, setAvatar, avatarUrl,
     profile, profileLoading, profileError, refetchProfile,
-    src: profile ?? user,
+    src: profile,
     mut, deleteMut,
     handleSubmit,
     confirmDelete, setConfirmDelete,

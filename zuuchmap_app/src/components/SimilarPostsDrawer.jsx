@@ -9,7 +9,6 @@ import { useCategorySchemas } from '../hooks/useCategorySchemas';
 import postService from '../services/api/postService';
 import { getPostTypeConfig, normalizePostType, getPostTitle, getPostPrice, getSchemaLabel } from '../utils/postUtils';
 import PressableScale from './PressableScale';
-import FadeSlideIn from './FadeSlideIn';
 import AvailabilityStrip from './AvailabilityStrip';
 
 export const H_CARD_WIDTH = isTablet ? 260 : 208;
@@ -92,9 +91,7 @@ const SimilarPostsDrawer = ({ postId, onPressPost, style }) => {
     });
 
     const renderItem = useCallback(({ item, index }) => (
-        <FadeSlideIn index={index}>
             <HorizontalPostCard post={item} onPress={onPressPost} />
-        </FadeSlideIn>
     ), [onPressPost]);
 
     if (!posts.length) return null;

@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { analyticsApi, categoryApi } from '@/lib/api'
+import { analyticsApi } from '@/lib/api'
 import { getCategoryLabel, getCategoryColor } from '@/lib/utils'
 import PageHeader from '@/components/PageHeader'
 import ErrorState from '@/components/ErrorState'
 import StatCard from '@/components/StatCard'
 import { LineChart, ColumnChart, BarList, Funnel, DataTable } from '@/components/Charts'
 import { useMinDisplayTime } from '@/hooks/useMinDisplayTime'
+import { useCategories } from '@/hooks/useCategories'
 
 const RANGES = [7, 30, 90]
 
@@ -38,11 +39,7 @@ export default function AdminAnalytics() {
   })
   const showSkeleton = useMinDisplayTime(isLoading)
 
-  const { data: schemas = [] } = useQuery({
-    queryKey: ['categories'],
-    queryFn: categoryApi.getAll,
-    staleTime: 5 * 60_000,
-  })
+  const { data: schemas = [] } = useCategories()
 
   const totals = data?.totals ?? {}
   const series = data?.series ?? {}

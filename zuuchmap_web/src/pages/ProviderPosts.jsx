@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Plus, Pencil, Trash2, FileText, Timer, Eye, Heart, CalendarRange } from 'lucide-react'
 import { postsApi } from '@/lib/api'
-import { getPostCategory, getPostTitle, getImageUrl, apiErrorMessage, hideBrokenImage, formatDate } from '@/lib/utils'
+import { getPostCategory, getPostTitle, getImageUrl, hideBrokenImage, formatDate } from '@/lib/utils'
 import PageHeader from '@/components/PageHeader'
 import CategoryBadge from '@/components/CategoryBadge'
 import StatusBadge from '@/components/StatusBadge'
@@ -17,6 +17,8 @@ import DensityToggle from '@/components/DensityToggle'
 import { useTableDensity } from '@/hooks/useTableDensity'
 import { toast } from 'sonner'
 import { useMinDisplayTime } from '@/hooks/useMinDisplayTime'
+import { useApiMutation } from '@/hooks/useApiMutation'
+import { invalidatePostQueries } from '@/lib/queryClient'
 
 const TAB_STATUSES = {
   ALL: null,
@@ -64,10 +66,9 @@ export default function ProviderPosts() {
   const quotaUsed = plan ? Math.min(plan.posts_active / Math.max(plan.post_limit, 1), 1) : 0
   const atQuota = plan && plan.posts_active >= plan.post_limit
 
-  const deleteMut = useMutation({
+  const deleteMut = useApiMutation({
     mutationFn: postsApi.remove,
-    onSuccess: () => { ['my-posts', 'posts', 'posts-map', 'admin-stats'].forEach((k) => qc.invalidateQueries({ queryKey: [k] })); toast.success(t('posts.deleted')) },
-    onError: (e) => toast.error(apiErrorMessage(e, t, t('common.error'))),
+    onSuccess: () => { invalidatePostQueries(qc); toast.success(t('posts.deleted')) },
   })
 
   const counts = {

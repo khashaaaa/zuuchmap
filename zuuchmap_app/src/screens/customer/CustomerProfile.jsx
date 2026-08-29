@@ -14,9 +14,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet, dimensions } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
-import { useCountUp } from '../../hooks/useCountUp';
 import { useTranslation } from 'react-i18next';
-import userService from '../../services/api/userService';
+import { useProfile } from '../../hooks/useProfile';
 import likeService from '../../services/api/likeService';
 import { ScreenLayout, SettingsSection, PressableScale, FadeSlideIn } from '../../components';
 import { ProfileSection, ProfileActionRow } from '../../components';
@@ -32,11 +31,7 @@ const CustomerProfile = ({ navigation }) => {
     const { t } = useTranslation();
     const [imageError, setImageError] = useState(false);
 
-    const { data: user = null, isLoading: loading, isRefetching: refreshingProfile, refetch: refetchProfile, error: profileError } = useQuery({
-        queryKey: ['profile', 'me'],
-        queryFn: () => userService.getUserProfile(),
-        staleTime: 60 * 1000,
-    });
+    const { data: user = null, isLoading: loading, isRefetching: refreshingProfile, refetch: refetchProfile, error: profileError } = useProfile();
 
     const { data: liked_posts_count = 0, isLoading: loading_liked_count, refetch: refetchLikedCount } = useQuery({
         queryKey: ['liked', 'count'],
@@ -44,7 +39,7 @@ const CustomerProfile = ({ navigation }) => {
         staleTime: 30 * 1000,
     });
 
-    const likedCountDisplay = useCountUp(liked_posts_count, !loading_liked_count);
+    const likedCountDisplay = Number(liked_posts_count) || 0;
 
     useEffect(() => {
         // Logging out leaves this query observed for a beat, so it refetches
@@ -56,14 +51,8 @@ const CustomerProfile = ({ navigation }) => {
         }
     }, [profileError]);
 
-    useEffect(() => {
-        const unsubscribe = navigation.addListener('focus', () => {
-            setImageError(false);
-            refetchProfile();
-            refetchLikedCount();
-        });
-        return unsubscribe;
-    }, [navigation, refetchProfile, refetchLikedCount]);
+    // A fresh avatar URL deserves a fresh load attempt.
+    useEffect(() => { setImageError(false); }, [user?.profilePicture]);
 
     const handleImageError = () => {
         setImageError(true);

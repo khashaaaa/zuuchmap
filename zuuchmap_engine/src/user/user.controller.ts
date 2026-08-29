@@ -25,7 +25,7 @@ import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import {
   createProfilePictureInterceptor,
-  ImageUploadHandler,
+  handleSingleUpload,
 } from '../utils/uploader';
 import { isAdmin } from '../admin/admin.guard';
 import { profileSummary } from '../utils/public-user';
@@ -207,7 +207,7 @@ export class UserController {
 
     let profilePicture: string | undefined = undefined;
     if (file) {
-      const processedImage = await ImageUploadHandler.handleSingleUpload(
+      const processedImage = await handleSingleUpload(
         file,
         'PROFILE',
       );

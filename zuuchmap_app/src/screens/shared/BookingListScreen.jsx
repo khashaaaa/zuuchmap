@@ -7,12 +7,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { spacing, typography, radius, isTablet, withAlpha, interactions } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
-import { useMinDisplayTime } from '../../hooks/useMinDisplayTime';
-import CustomSafeAreaView from '../../components/CustomSafeAreaView';
-import ScreenHeader from '../../components/ScreenHeader';
 import Button from '../../components/Button';
-import { EmptyState, SkeletonItem, SkeletonCrossfade, FadeSlideIn, PressableScale, BookingTimeline } from '../../components';
+import { ScreenLayout, EmptyState, SkeletonItem, SkeletonCrossfade, PressableScale, BookingTimeline } from '../../components';
 import ScreenError from '../../components/ScreenError';
+import { successHaptic } from '../../utils/haptics';
 import bookingService from '../../services/api/bookingService';
 import { showErrorModal, showWarningModal, getErrorMessage } from '../../utils/errorManager';
 import { formatDate } from '../../utils/displayUtils';
@@ -58,7 +56,10 @@ const BookingListScreen = ({ route, navigation }) => {
         },
         onMutate: ({ id, action }) => setBusy(`${id}:${action}`),
         onSettled: () => setBusy(null),
-        onSuccess: () => qc.invalidateQueries({ queryKey: ['bookings'] }),
+        onSuccess: (_data, { action }) => {
+            if (action === 'accept') successHaptic();
+            qc.invalidateQueries({ queryKey: ['bookings'] });
+        },
         onError: (e) => showErrorModal(t('common.error'), getErrorMessage(e) || t('common.error')),
     });
 
@@ -87,7 +88,6 @@ const BookingListScreen = ({ route, navigation }) => {
         const anyBusy = Boolean(busyAction);
 
         return (
-            <FadeSlideIn index={index}>
             <PressableScale
                 style={[
                     styles.card,
@@ -127,12 +127,8 @@ const BookingListScreen = ({ route, navigation }) => {
                     <Text style={styles.metaText} numberOfLines={1}>{other?.given_name || '—'}</Text>
                 </View>
                 {/* The engine shares the phone only once ACCEPTED, so this row
-                    mounts exactly at the moment the contact unlocks — FadeSlideIn
-                    (reduce-motion aware) makes that a small arrival, not a pop.
-                    Keyed on status so a refetch that flips PENDING → ACCEPTED
-                    replays the entrance. */}
+                    mounts exactly at the moment the contact unlocks. */}
                 {other?.phone_number ? (
-                    <FadeSlideIn key={`${item.id}-${item.status}`} index={0} delay={120}>
                         <TouchableOpacity
                             style={[styles.phoneRow, { backgroundColor: withAlpha(colors.success, 0.1), borderColor: withAlpha(colors.success, 0.33) }]}
                             onPress={() => Linking.openURL(`tel:${String(other.phone_number).replace(/[\s-]/g, '')}`)}
@@ -147,7 +143,6 @@ const BookingListScreen = ({ route, navigation }) => {
                             </Text>
                             <Text style={[styles.metaText, styles.phoneLink]}>{other.phone_number}</Text>
                         </TouchableOpacity>
-                    </FadeSlideIn>
                 ) : null}
 
                 {item.message ? <Text style={styles.message} numberOfLines={2}>{item.message}</Text> : null}
@@ -193,18 +188,16 @@ const BookingListScreen = ({ route, navigation }) => {
                     </View>
                 )}
             </PressableScale>
-            </FadeSlideIn>
         );
     };
 
-    const showSkeleton = useMinDisplayTime(isLoading);
+    const showSkeleton = isLoading;
 
     return (
-        <CustomSafeAreaView backgroundColor={colors.background} statusBarColor={colors.surface} statusBarStyle={isDark ? 'light-content' : 'dark-content'}>
-            <ScreenHeader
-                title={t(isProviderView ? 'booking.receivedBookings' : 'booking.myBookings')}
-                onBack={() => navigation.goBack()}
-            />
+        <ScreenLayout
+            title={t(isProviderView ? 'booking.receivedBookings' : 'booking.myBookings')}
+            onBack={() => navigation.goBack()}
+        >
             <SkeletonCrossfade
                 loading={showSkeleton}
                 skeleton={(
@@ -244,7 +237,7 @@ const BookingListScreen = ({ route, navigation }) => {
                 />
             )}
             </SkeletonCrossfade>
-        </CustomSafeAreaView>
+        </ScreenLayout>
     );
 };
 

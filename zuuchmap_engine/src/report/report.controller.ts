@@ -51,12 +51,18 @@ export class ReportController {
     @Query('status') status?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('post_id') postId?: string,
   ) {
     const wanted =
       status && Object.values(ReportStatus).includes(status as ReportStatus)
         ? (status as ReportStatus)
         : ReportStatus.OPEN;
-    return this.reports.list(wanted, Number(page) || 1, Number(limit) || 50);
+    return this.reports.list(
+      wanted,
+      Number(page) || 1,
+      Number(limit) || 50,
+      Number(postId) || undefined,
+    );
   }
 
   /** Drives the badge on the admin nav — cheap enough to poll. */

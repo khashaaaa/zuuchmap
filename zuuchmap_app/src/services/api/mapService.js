@@ -1,6 +1,5 @@
 import postService from './postService';
 import { API_CONFIG } from '../../config/api.config';
-import { getFixedImageUrl, getPostTitle as getPostTitleUtil, getPostPrice as getPostPriceUtil } from '../../utils/postUtils';
 import { logger } from '../../utils/logger';
 import cacheManager from '../../utils/cacheManager';
 
@@ -74,13 +73,6 @@ const mapService = {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   },
 
-  getFixedImageUrl,
-
-  getPostTitle: (post) => getPostTitleUtil(post, post.post_type || post.category),
-
-  // Single implementation lives in postUtils (locale-aware units, coercion).
-  getPostPrice: (post) => getPostPriceUtil(post),
-
   calculateBounds: (coordinates) => {
     if (!coordinates?.length) return null;
     let minLat = coordinates[0].latitude, maxLat = coordinates[0].latitude;
@@ -95,31 +87,6 @@ const mapService = {
       latitudeDelta: (maxLat - minLat) * 1.1 || 0.05,
       longitudeDelta: (maxLng - minLng) * 1.1 || 0.05,
     };
-  },
-
-  groupPostsByLocation: (posts, clusterRadius = 0.01) => {
-    const clusters = [];
-    const processed = new Set();
-    posts.forEach((post, i) => {
-      if (processed.has(i)) return;
-      const cluster = [post];
-      processed.add(i);
-      posts.forEach((other, j) => {
-        if (processed.has(j) || i === j) return;
-        const dist = Math.abs(post.coordinates.latitude - other.coordinates.latitude) +
-          Math.abs(post.coordinates.longitude - other.coordinates.longitude);
-        if (dist <= clusterRadius) { cluster.push(other); processed.add(j); }
-      });
-      clusters.push({
-        posts: cluster,
-        coordinate: cluster.length === 1 ? cluster[0].coordinates : {
-          latitude: cluster.reduce((s, p) => s + p.coordinates.latitude, 0) / cluster.length,
-          longitude: cluster.reduce((s, p) => s + p.coordinates.longitude, 0) / cluster.length,
-        },
-        count: cluster.length,
-      });
-    });
-    return clusters;
   },
 
   saveMapPreferences: async (prefs) => {

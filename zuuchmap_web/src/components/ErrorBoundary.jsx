@@ -1,5 +1,4 @@
 import { Component, Fragment } from 'react'
-import { reportError } from '../lib/analytics'
 import { captureError } from '../lib/observability'
 import i18n from '../i18n'
 import Button from './Button'
@@ -16,7 +15,6 @@ export default class ErrorBoundary extends Component {
 
   componentDidCatch(error, info) {
     const where = info?.componentStack?.trim().split('\n')[0]?.trim() ?? 'unknown'
-    reportError(error, `boundary:${where}`)
     // The user gets a fallback either way; this is so someone finds out it
     // happened, which until now nothing did.
     captureError(error, { boundary: where })

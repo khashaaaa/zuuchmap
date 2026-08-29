@@ -5,11 +5,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { spacing, typography, radius, isTablet, interactions } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
-import CustomSafeAreaView from '../../components/CustomSafeAreaView';
-import ScreenHeader from '../../components/ScreenHeader';
-import { PressableScale } from '../../components';
+import { ScreenLayout, PressableScale } from '../../components';
 import paymentService, { CATALOGUE_KEY, PAYMENTS_KEY } from '../../services/api/paymentService';
-import userService from '../../services/api/userService';
+import { useProfile, PROFILE_KEY } from '../../hooks/useProfile';
 import { formatPrice, formatDate } from '../../utils/displayUtils';
 import { showErrorModal } from '../../utils/errorManager';
 
@@ -29,7 +27,7 @@ const POLL_TIMEOUT_MS = 120000;
  * has already verified with QPay server-to-server.
  */
 const BillingScreen = ({ navigation }) => {
-    const { colors, isDark } = useAppTheme();
+    const { colors } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
     const { t } = useTranslation();
     const qc = useQueryClient();
@@ -39,7 +37,7 @@ const BillingScreen = ({ navigation }) => {
 
     const { data: catalogue } = useQuery({ queryKey: CATALOGUE_KEY, queryFn: paymentService.catalogue });
     const { data: history = [] } = useQuery({ queryKey: PAYMENTS_KEY, queryFn: paymentService.mine });
-    const { data: profile } = useQuery({ queryKey: ['profile'], queryFn: userService.getProfile });
+    const { data: profile } = useProfile();
 
     const paidPlan = catalogue?.plans?.find((p) => p.plan === 'PROVIDER');
     const freePlan = catalogue?.plans?.find((p) => p.plan === 'FREE');
@@ -77,7 +75,7 @@ const BillingScreen = ({ navigation }) => {
                 if (result?.status === 'PAID') {
                     clearInterval(timer);
                     setPaid(true);
-                    qc.invalidateQueries({ queryKey: ['profile'] });
+                    qc.invalidateQueries({ queryKey: PROFILE_KEY });
                     qc.invalidateQueries({ queryKey: PAYMENTS_KEY });
                 }
             } catch {
@@ -93,12 +91,7 @@ const BillingScreen = ({ navigation }) => {
         : null;
 
     return (
-        <CustomSafeAreaView
-            backgroundColor={colors.background}
-            statusBarColor={colors.surface}
-            statusBarStyle={isDark ? 'light-content' : 'dark-content'}
-        >
-            <ScreenHeader title={t('billing.title')} onBack={() => navigation.goBack()} />
+        <ScreenLayout title={t('billing.title')} onBack={() => navigation.goBack()}>
 
             <ScrollView contentContainerStyle={styles.content}>
                 <View style={styles.card}>
@@ -239,7 +232,7 @@ const BillingScreen = ({ navigation }) => {
                     ))
                 )}
             </ScrollView>
-        </CustomSafeAreaView>
+        </ScreenLayout>
     );
 };
 

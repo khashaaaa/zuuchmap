@@ -4,8 +4,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { lockScroll } from '@/lib/utils'
-
-const FOCUSABLE_SELECTOR = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 const SIZES = {
   md: 'max-w-md',
@@ -28,30 +27,7 @@ export default function Modal({ open, onClose, title, children, footer, tabs, si
     return lockScroll()
   }, [open])
 
-  useEffect(() => {
-    if (!open) return
-    const handler = (e) => {
-      if (e.key === 'Escape') { onClose(); return }
-      if (e.key === 'Tab') {
-        const panel = panelRef.current
-        if (!panel) return
-        const focusable = Array.from(panel.querySelectorAll(FOCUSABLE_SELECTOR))
-        if (focusable.length === 0) return
-        const first = focusable[0]
-        const last = focusable[focusable.length - 1]
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault()
-          last.focus()
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault()
-          first.focus()
-        }
-      }
-    }
-    window.addEventListener('keydown', handler)
-    panelRef.current?.focus()
-    return () => window.removeEventListener('keydown', handler)
-  }, [open, onClose])
+  useFocusTrap(panelRef, open, { onEscape: onClose })
 
   return createPortal(
     <AnimatePresence>

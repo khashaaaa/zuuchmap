@@ -11,11 +11,10 @@ import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spacing, typography, safeAreaHelpers, radius, interactions } from '../../design/theme';
+import { ScreenLayout } from '../../components';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
-import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import Button from '../../components/Button';
-import ScreenHeader from '../../components/ScreenHeader';
 import WizardSteps from '../../components/WizardSteps';
 import ScreenLoading from '../../components/ScreenLoading';
 import { showErrorModal } from '../../utils/errorManager';
@@ -27,7 +26,7 @@ const LATITUDE_DELTA = 0.0922;
 const longitudeDelta = (width, height) => LATITUDE_DELTA * (width / height);
 
 const ProviderLocationSelection = ({ route, navigation }) => {
-    const { colors, isDark, styles: gStyles } = useAppTheme();
+    const { colors, styles: gStyles } = useAppTheme();
     const { width: winW, height: winH } = useWindowDimensions();
     const LONGITUDE_DELTA = longitudeDelta(winW, winH);
     const styles = useMemo(() => createStyles(colors), [colors]);
@@ -156,8 +155,7 @@ const ProviderLocationSelection = ({ route, navigation }) => {
     };
 
     return (
-        <CustomSafeAreaView backgroundColor={colors.background} statusBarColor={colors.surface} statusBarStyle={isDark ? 'light-content' : 'dark-content'}>
-            <ScreenHeader title={t('provider.locationTitle')} onBack={() => navigation.goBack()} />
+        <ScreenLayout title={t('provider.locationTitle')} onBack={() => navigation.goBack()}>
             <WizardSteps current={3} labels={[t('provider.stepCategory'), t('provider.stepSubcategory'), t('provider.stepLocation'), t('provider.stepDetails')]} />
 
             {isLoading ? (
@@ -249,7 +247,7 @@ const ProviderLocationSelection = ({ route, navigation }) => {
                     </View>
                 </>
             )}
-        </CustomSafeAreaView>
+        </ScreenLayout>
     );
 };
 

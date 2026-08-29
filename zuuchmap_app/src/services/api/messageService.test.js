@@ -49,9 +49,11 @@ describe('messageService', () => {
     await messageService.history('c1');
     expect(apiClient.get).toHaveBeenCalledWith('/conversations/c1/messages', { params: undefined });
 
-    await messageService.history('c1', '2026-08-27T00:00:00.000Z');
+    // The cursor is (date_created, id): two messages can share a timestamp,
+    // and on the timestamp alone one of them falls between pages.
+    await messageService.history('c1', { before: '2026-08-27T00:00:00.000Z', before_id: 'm9' });
     expect(apiClient.get).toHaveBeenLastCalledWith('/conversations/c1/messages', {
-      params: { before: '2026-08-27T00:00:00.000Z' },
+      params: { before: '2026-08-27T00:00:00.000Z', before_id: 'm9' },
     });
   });
 });

@@ -1,10 +1,12 @@
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useQuery } from '@tanstack/react-query'
+import { useMemo } from 'react'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import { MessageSquare } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
 import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
+import Button from '@/components/Button'
 import { messagesApi } from '@/lib/api'
 import { goBack } from '@/lib/utils'
 
@@ -21,10 +23,17 @@ export default function MessagesPage() {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
 
-  const { data: threads = [], isLoading, isError, refetch } = useQuery({
+  // Cursor on the last thread's activity timestamp; 50 per page.
+  const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
     queryKey: ['conversations'],
-    queryFn: messagesApi.list,
+    queryFn: ({ pageParam }) => messagesApi.list(pageParam),
+    initialPageParam: undefined,
+    getNextPageParam: (page) =>
+      page.length < 50
+        ? undefined
+        : { before: page[page.length - 1].last_message_at || page[page.length - 1].date_created, before_id: page[page.length - 1].id },
   })
+  const threads = useMemo(() => (data?.pages ?? []).flat(), [data])
 
   const stamp = (value) => {
     if (!value) return ''
@@ -108,6 +117,13 @@ export default function MessagesPage() {
               </button>
             </li>
           ))}
+          {hasNextPage && (
+            <li className="flex justify-center pt-2">
+              <Button variant="secondary" size="sm" onClick={() => fetchNextPage()} disabled={isFetchingNextPage}>
+                {t('messages.loadMore')}
+              </Button>
+            </li>
+          )}
         </ul>
       )}
     </div>

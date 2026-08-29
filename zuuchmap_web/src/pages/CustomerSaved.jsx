@@ -50,13 +50,12 @@ export default function CustomerSaved() {
         cols={3}
         skeletonCount={6}
       >
-        {posts.map((post, i) => {
+        {posts.map((post) => {
           const isPendingThis = unlikeMut.isPending && unlikeMut.variables?.postId === post.id
           return (
             <PostCard
               key={post.id}
               post={post}
-              index={i}
               actions={
                 <Button
                   variant="danger-outline"

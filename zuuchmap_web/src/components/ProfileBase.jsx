@@ -12,8 +12,8 @@ import ErrorState from '@/components/ErrorState'
 import WebPushToggle from './WebPushToggle'
 
 /**
- * The whole profile page minus the role-specific parts. CustomerProfile and
- * ProviderProfile were byte-identical apart from the stats row and one
+ * The whole profile page minus the role-specific parts. The old per-role
+ * profile pages were byte-identical apart from the stats row and one
  * settings item — they pass those in instead of copying the page.
  */
 export default function ProfileBase({ stats = null, extraMenuItems = [] }) {

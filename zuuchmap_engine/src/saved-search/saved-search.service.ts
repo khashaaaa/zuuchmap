@@ -161,7 +161,12 @@ export class SavedSearchService {
         userIds,
         'Таны хайлтад шинэ зар',
         `"${post.title ?? ''}" таны хадгалсан хайлтад тохирч байна.`,
-        { type: 'saved_search', postId: post.id, category: post.category },
+        {
+          type: 'saved_search',
+          postId: post.id,
+          category: post.category,
+          url: `/posts/${post.id}`,
+        },
       );
       await this.repo.update(
         { id: In(hits.map((s) => s.id)) },

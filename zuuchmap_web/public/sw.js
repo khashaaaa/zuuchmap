@@ -42,22 +42,33 @@ self.addEventListener('notificationclick', (event) => {
   const data = event.notification.data || {}
 
   // Land on the thing the notification was about, not the home page.
+  // The engine sets `url` on every payload; the mapping below only covers
+  // pushes minted before it did.
   let path = '/'
-  if (data.conversationId) path = `/messages/${data.conversationId}`
-  else if (data.type === 'booking' && data.bookingId) path = '/provider/bookings'
+  if (typeof data.url === 'string' && data.url.startsWith('/')) path = data.url
+  else if (data.conversationId) path = `/messages/${data.conversationId}`
+  // A booking lands on the recipient's list, and which side that is (provider
+  // or customer) is not known here — the notifications page can route it.
+  else if (data.bookingId || String(data.notifType || '').startsWith('booking.')) path = '/notifications'
   else if (data.postId) path = `/posts/${data.postId}`
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
       // Reuse an open tab where possible — opening a second copy of the app
       // loses whatever the user was in the middle of in the first.
-      for (const client of clients) {
-        if (client.url.includes(self.location.origin) && 'focus' in client) {
-          client.navigate(path)
-          return client.focus()
+      const target = new URL(path, self.location.origin).href
+      const client = clients.find((c) => c.url.startsWith(self.location.origin) && 'focus' in c)
+      if (client) {
+        const focused = client.focus()
+        // `navigate` only works on a controlled client; an uncontrolled one
+        // (first load before this worker claimed it) falls through to a new
+        // window rather than doing nothing.
+        if ('navigate' in client) {
+          return client.navigate(target).catch(() => self.clients.openWindow(target))
         }
+        return focused
       }
-      return self.clients.openWindow(path)
+      return self.clients.openWindow(target)
     })
   )
 })

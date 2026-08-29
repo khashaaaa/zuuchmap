@@ -1,6 +1,5 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { envconfig } from 'config/envconfig';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
@@ -53,7 +52,6 @@ import { SeoModule } from './seo/seo.module';
     ConfigModule.forRoot({
       envFilePath: `${process.cwd()}/config/variables/${process.env.NODE_ENV}.env`,
       isGlobal: true,
-      load: [envconfig],
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],

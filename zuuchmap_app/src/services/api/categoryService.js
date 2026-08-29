@@ -5,33 +5,24 @@ import { logger } from '../../utils/logger';
 
 const STORAGE_KEY = API_CONFIG.STORAGE_KEYS.CATEGORY_SCHEMAS;
 const CACHE_DURATION = API_CONFIG.CACHE.CATEGORY_SCHEMAS_DURATION;
-const MEM_KEY = 'category_schemas';
 
 const categoryService = {
   getCategories: async (forceRefresh = false) => {
+    // React Query is the in-memory tier; AsyncStorage is only the offline fallback.
     if (!forceRefresh) {
-      const mem = cacheManager.getMemory(MEM_KEY);
-      if (mem) return mem;
-
       const stored = await cacheManager.getStorage(STORAGE_KEY).catch(() => null);
-      if (stored?.length) {
-        cacheManager.setMemory(MEM_KEY, stored, CACHE_DURATION);
-        return stored;
-      }
+      if (stored?.length) return stored;
     }
 
     try {
       const response = await apiClient.get(API_CONFIG.ENDPOINTS.POSTS.CATEGORIES);
       const schemas = Array.isArray(response.data) ? response.data : [];
-      cacheManager.setMemory(MEM_KEY, schemas, CACHE_DURATION);
       await cacheManager.setStorage(STORAGE_KEY, schemas, CACHE_DURATION).catch(() => {});
       return schemas;
     } catch (error) {
       logger.error('Failed to fetch categories:', error);
-      // Offline: fall back through memory then disk, so a forced refresh never
-      // leaves the UI with no categories at all.
-      const mem = cacheManager.getMemory(MEM_KEY);
-      if (mem?.length) return mem;
+      // Offline: fall back to disk, so a forced refresh never leaves the UI
+      // with no categories at all.
       const stored = await cacheManager.getStorage(STORAGE_KEY).catch(() => null);
       return stored?.length ? stored : [];
     }

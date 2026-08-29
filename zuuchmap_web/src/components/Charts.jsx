@@ -212,8 +212,6 @@ export function ColumnChart({ data = [], label, unit }) {
               rx={Math.min(4, barW / 2)}
               fill="var(--color-chart)"
               fillOpacity={hover === null || hover === i ? 1 : 0.45}
-              className="chart-grow-y"
-              style={{ animationDelay: `${Math.min(i * 12, 240)}ms` }}
             />
           </g>
         )
@@ -244,18 +242,18 @@ export function BarList({ data = [], label, emptyLabel }) {
 
   return (
     <ul className="space-y-2.5" aria-label={label}>
-      {data.map((d, i) => (
+      {data.map((d) => (
         <li key={d.key} title={`${d.label} — ${d.value}${d.secondary != null ? ` · ${d.secondary}` : ''}`} className="grid grid-cols-[minmax(6rem,9rem)_1fr_auto] items-center gap-3">
           <span className="text-xs text-muted truncate">{d.label}</span>
           <span className="relative h-2.5 rounded-full bg-surface2 overflow-hidden">
             <span
-              className={`block h-full rounded-full chart-grow-x ${d.color ? '' : 'bg-chart'}`}
-              style={{ width: `${Math.max((d.value / max) * 100, d.value > 0 ? 2 : 0)}%`, animationDelay: `${Math.min(i * 30, 300)}ms`, ...(d.color ? { backgroundColor: d.color } : {}) }}
+              className={`block h-full rounded-full ${d.color ? '' : 'bg-chart'}`}
+              style={{ width: `${Math.max((d.value / max) * 100, d.value > 0 ? 2 : 0)}%`, ...(d.color ? { backgroundColor: d.color } : {}) }}
             />
             {d.secondary != null && (
               <span
-                className="absolute inset-y-0 left-0 rounded-full bg-muted chart-grow-x"
-                style={{ width: `${Math.max((d.secondary / max) * 100, d.secondary > 0 ? 2 : 0)}%`, animationDelay: `${Math.min(i * 30, 300)}ms` }}
+                className="absolute inset-y-0 left-0 rounded-full bg-muted"
+                style={{ width: `${Math.max((d.secondary / max) * 100, d.secondary > 0 ? 2 : 0)}%` }}
               />
             )}
           </span>
@@ -290,8 +288,8 @@ export function Funnel({ stages = [] }) {
             <span className="text-xs text-muted truncate">{stage.label}</span>
             <span className="h-2.5 rounded-full bg-surface2 overflow-hidden">
               <span
-                className="block h-full rounded-full bg-chart chart-grow-x"
-                style={{ width: `${Math.max((stage.value / top) * 100, stage.value > 0 ? 2 : 0)}%`, animationDelay: `${Math.min(i * 30, 300)}ms` }}
+                className="block h-full rounded-full bg-chart"
+                style={{ width: `${Math.max((stage.value / top) * 100, stage.value > 0 ? 2 : 0)}%` }}
               />
             </span>
             <span className="text-xs tabular-nums text-right w-20">

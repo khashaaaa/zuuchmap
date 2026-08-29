@@ -182,6 +182,7 @@ describe('SavedSearchService.notifyForApprovedPost', () => {
       type: 'saved_search',
       postId: 7,
       category: 'vehiclerent',
+      url: '/posts/7',
     });
     expect(repo.update).toHaveBeenCalledTimes(1);
     expect(repo.update.mock.calls[0][0].id._value).toEqual(['a', 'b']);

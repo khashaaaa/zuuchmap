@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useMutation } from '@tanstack/react-query';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -14,7 +15,27 @@ import { logger } from '../../utils/logger';
 const AccountDeletionScreen = ({ navigation }) => {
   const { t } = useTranslation();
   const { colors } = useAppTheme();
-  const [deleting, setDeleting] = useState(false);
+  const deletion = useMutation({
+    mutationKey: ['account', 'delete'],
+    mutationFn: async () => {
+      await userService.deleteAccount();
+      // PhoneNumber reads USER_INFO at mount — wipe the display keys before it
+      // mounts so the deleted account's welcome block can't appear. Then
+      // navigate BEFORE logout, so its deferred cache clear runs with the old
+      // screens unmounted.
+      await AsyncStorage.multiRemove([
+        API_CONFIG.STORAGE_KEYS.USER_INFO,
+        API_CONFIG.STORAGE_KEYS.PHONE_NUMBER,
+        API_CONFIG.STORAGE_KEYS.USER_TYPE,
+      ]);
+      navigation.reset({ index: 0, routes: [{ name: 'PhoneNumber' }] });
+      await userService.logout(false);
+    },
+    onError: (error) => {
+      logger.error('Delete account error:', error);
+      showErrorModal(t('common.error'), t('accountDeletion.error'));
+    },
+  });
 
   const handleDelete = () => {
     showWarningModal(
@@ -35,27 +56,9 @@ const AccountDeletionScreen = ({ navigation }) => {
                 {
                   text: t('common.yes'),
                   style: 'destructive',
-                  onPress: async () => {
-                    try {
-                      hideErrorModal();
-                      setDeleting(true);
-                      await userService.deleteAccount();
-                      // PhoneNumber reads USER_INFO at mount — wipe the display
-                      // keys before it mounts so the deleted account's welcome
-                      // block can't appear. Then navigate BEFORE logout, so its
-                      // deferred cache clear runs with the old screens unmounted.
-                      await AsyncStorage.multiRemove([
-                        API_CONFIG.STORAGE_KEYS.USER_INFO,
-                        API_CONFIG.STORAGE_KEYS.PHONE_NUMBER,
-                        API_CONFIG.STORAGE_KEYS.USER_TYPE,
-                      ]);
-                      navigation.reset({ index: 0, routes: [{ name: 'PhoneNumber' }] });
-                      await userService.logout(false);
-                    } catch (error) {
-                      logger.error('Delete account error:', error);
-                      setDeleting(false);
-                      showErrorModal(t('common.error'), t('accountDeletion.error'));
-                    }
+                  onPress: () => {
+                    hideErrorModal();
+                    deletion.mutate();
                   },
                 },
               ],
@@ -93,7 +96,7 @@ const AccountDeletionScreen = ({ navigation }) => {
           onPress={handleDelete}
           variant="danger"
           icon="trash-outline"
-          loading={deleting}
+          loading={deletion.isPending}
           fullWidth
           style={styles.deleteBtn}
         />

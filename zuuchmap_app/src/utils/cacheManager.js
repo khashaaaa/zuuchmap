@@ -4,33 +4,7 @@ import { logger } from './logger';
 
 class CacheManager {
     constructor() {
-        this.memoryCache = new Map();
         this.storagePrefix = 'app_cache_';
-    }
-
-    getMemory(key) {
-        const entry = this.memoryCache.get(key);
-        if (!entry) return null;
-        if (entry.expiresAt && entry.expiresAt < Date.now()) {
-            this.memoryCache.delete(key);
-            return null;
-        }
-        return entry.value;
-    }
-
-    setMemory(key, value, ttl = null) {
-        this.memoryCache.set(key, {
-            value,
-            expiresAt: ttl ? Date.now() + ttl : null,
-        });
-    }
-
-    deleteMemory(key) {
-        this.memoryCache.delete(key);
-    }
-
-    clearMemory() {
-        this.memoryCache.clear();
     }
 
     async getStorage(key) {
@@ -76,11 +50,10 @@ class CacheManager {
 const cacheManager = new CacheManager();
 export default cacheManager;
 
-// Clears the AsyncStorage-backed offline fallbacks (map posts). React Query owns all
-// screen-level caching — invalidate through services/queryClient.invalidatePostData().
+// Clears the AsyncStorage-backed offline fallback for map posts. React Query owns all
+// screen-level (and in-memory) caching — invalidate through services/queryClient.invalidatePostData().
 export const invalidatePostCaches = async () => {
     try {
-        cacheManager.clearMemory();
         await cacheManager.deleteStorage(API_CONFIG.STORAGE_KEYS.CACHED_MAP_POSTS);
     } catch (error) {
         logger.error('Error invalidating post caches:', error);

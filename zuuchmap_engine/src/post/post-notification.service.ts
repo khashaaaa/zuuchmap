@@ -3,10 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { User } from '../user/entities/user.entity';
 import { PushDevice } from '../user/entities/push-device.entity';
-import {
-  sendPushMessages,
-  sendPushNotifications,
-} from '../utils/pushNotification';
+import { sendPushMessages } from '../utils/pushNotification';
 import {
   sendWebPush,
   WebPushTarget,
@@ -14,6 +11,20 @@ import {
 } from '../utils/webPush';
 import { sendMail, mailerConfigured } from '../utils/mailer';
 import { getAdminPhones } from '../admin/admin.guard';
+
+/**
+ * Admin pushes are Mongolian; the closed reason list is English constants.
+ * Mirrors `report.reasons` in the app/web mn locales — a new reason needs a
+ * row here too, or the raw key shows.
+ */
+const REPORT_REASON_LABELS_MN: Record<string, string> = {
+  SPAM: 'Спам / давхардсан зар',
+  SCAM: 'Залилан / урьдчилгаа мөнгө нэхэж байна',
+  WRONG_INFO: 'Мэдээлэл буруу (үнэ, байршил, боломж)',
+  UNAVAILABLE: 'Байхгүй болсон',
+  OFFENSIVE: 'Зохисгүй агуулга',
+  OTHER: 'Бусад',
+};
 
 /**
  * Notification fan-out for post, booking and message events.
@@ -31,6 +42,13 @@ import { getAdminPhones } from '../admin/admin.guard';
  *    and simply get nothing here — which the in-app inbox still covers.
  * Each is env-gated and independently absent without affecting the others.
  */
+interface NotificationItem {
+  userId: string;
+  title: string;
+  body: string;
+  data?: Record<string, any>;
+}
+
 @Injectable()
 export class PostNotificationService {
   private readonly logger = new Logger(PostNotificationService.name);
@@ -58,10 +76,39 @@ export class PostNotificationService {
         admins.map((u) => u.id),
         'Шинэ зар бүртгэгдлээ',
         `"${title}" – шинэ зар шалгана уу.`,
-        { postId, post_type: category, notifType: 'new_post' },
+        {
+          postId,
+          post_type: category,
+          notifType: 'new_post',
+          url: `/admin/posts/${postId}`,
+        },
       );
     } catch (err) {
       this.logger.warn(`notifyAdmins failed (non-fatal): ${err?.message}`);
+    }
+  }
+
+  /** A user flagged a live listing — same audience and urgency as a pending post. */
+  async notifyAdminsOfReport(
+    postId: number,
+    title: string,
+    reason: string,
+  ): Promise<void> {
+    try {
+      const adminPhones = getAdminPhones();
+      if (!adminPhones.length) return;
+      const admins = await this.userRepository.find({
+        where: { phone_number: In(adminPhones) },
+        select: ['id'],
+      });
+      await this.dispatch(
+        admins.map((u) => u.id),
+        'Зарын гомдол ирлээ',
+        `"${title}" – ${REPORT_REASON_LABELS_MN[reason] ?? reason}. Гомдлыг шалгана уу.`,
+        { postId, notifType: 'report', url: '/admin/reports' },
+      );
+    } catch (err) {
+      this.logger.warn(`notifyAdminsOfReport failed (non-fatal): ${err?.message}`);
     }
   }
 
@@ -87,74 +134,86 @@ export class PostNotificationService {
    * recipient, awaited in a loop, when the transport batches a hundred
    * messages per request. Device lookup is one query for the whole set too.
    */
-  async notifyEach(
-    items: Array<{
-      userId: string;
-      title: string;
-      body: string;
-      data?: Record<string, any>;
-    }>,
-  ): Promise<number> {
+  async notifyEach(items: NotificationItem[]): Promise<number> {
     if (!items.length) return 0;
     try {
-      const devices = await this.pushDeviceRepository.find({
-        where: { user: { id: In(items.map((i) => i.userId)) } },
-        select: ['id', 'token', 'provider', 'web_subscription'],
-        relations: ['user'],
-      });
-
-      const byUser = new Map<string, typeof devices>();
-      for (const d of devices) {
-        if (!d.user?.id) continue;
-        const list = byUser.get(d.user.id) ?? [];
-        list.push(d);
-        byUser.set(d.user.id, list);
-      }
-
-      // Every device of every recipient, each carrying that recipient's payload.
-      const messages: Array<{
-        to: string;
-        title: string;
-        body: string;
-        data?: Record<string, any>;
-      }> = [];
-      const webSends: Array<
-        Promise<{ delivered: number; deadTokens: string[] }>
-      > = [];
-      for (const item of items) {
-        const { expo, web } = splitTargets(byUser.get(item.userId) ?? []);
-        messages.push(
-          ...expo.map((to) => ({
-            to,
-            title: item.title,
-            body: item.body,
-            data: item.data,
-          })),
-        );
-        // Web push carries one payload per request, so a per-recipient payload
-        // cannot batch the way Expo's heterogeneous array does. Issued in
-        // parallel rather than awaited in a loop, which is the part that mattered.
-        if (web.length)
-          webSends.push(sendWebPush(web, item.title, item.body, item.data));
-      }
-
-      let delivered = 0;
-      const dead: string[] = [];
-      if (messages.length) {
-        const res = await sendPushMessages(messages);
-        delivered += res.delivered;
-        dead.push(...res.deadTokens);
-      }
-      for (const res of await Promise.all(webSends)) {
-        delivered += res.delivered;
-        dead.push(...res.deadTokens);
-      }
-      await this.pruneDeadTokens(dead);
-      return delivered;
+      return (await this.deliver(items)).delivered;
     } catch (err) {
       this.logger.warn(`notifyEach failed (non-fatal): ${err?.message}`);
       return 0;
     }
+  }
+
+  /**
+   * Pushes to every device the given recipients have registered. One device
+   * query for the whole set; one batched Expo request per 100 devices (Expo's
+   * limit); web push issued in parallel; dead tokens deleted in one statement.
+   *
+   * `reached` is the set of recipients who had at least one device row — the
+   * email fallback needs it, and only the caller that wants the fallback
+   * looks at it.
+   */
+  private async deliver(
+    items: NotificationItem[],
+  ): Promise<{ delivered: number; reached: Set<string> }> {
+    const devices = await this.pushDeviceRepository.find({
+      where: { user: { id: In(items.map((i) => i.userId)) } },
+      select: ['id', 'token', 'provider', 'web_subscription'],
+      relations: ['user'],
+    });
+
+    const byUser = new Map<string, typeof devices>();
+    for (const d of devices) {
+      if (!d.user?.id) continue;
+      const list = byUser.get(d.user.id) ?? [];
+      list.push(d);
+      byUser.set(d.user.id, list);
+    }
+
+    // Every device of every recipient, each carrying that recipient's payload.
+    const messages: Array<{
+      to: string;
+      title: string;
+      body: string;
+      data?: Record<string, any>;
+    }> = [];
+    const webSends: Array<
+      Promise<{ delivered: number; deadTokens: string[] }>
+    > = [];
+    for (const item of items) {
+      const { expo, web } = splitTargets(byUser.get(item.userId) ?? []);
+      messages.push(
+        ...expo.map((to) => ({
+          to,
+          title: item.title,
+          body: item.body,
+          data: item.data,
+        })),
+      );
+      // Web push carries one payload per request, so a per-recipient payload
+      // cannot batch the way Expo's heterogeneous array does. Issued in
+      // parallel rather than awaited in a loop, which is the part that mattered.
+      if (web.length)
+        webSends.push(sendWebPush(web, item.title, item.body, item.data));
+    }
+
+    let delivered = 0;
+    const dead: string[] = [];
+    if (messages.length) {
+      const res = await sendPushMessages(messages);
+      delivered += res.delivered;
+      dead.push(...res.deadTokens);
+    }
+    for (const res of await Promise.all(webSends)) {
+      delivered += res.delivered;
+      dead.push(...res.deadTokens);
+    }
+    await this.pruneDeadTokens(dead);
+
+    // The transports' own counts, not targets-minus-dead: a batch that fails on
+    // the HTTP call yields neither a ticket nor a dead token, and subtracting
+    // reported those devices as reached.
+    return { delivered, reached: new Set(byUser.keys()) };
   }
 
   /**
@@ -187,18 +246,15 @@ export class PostNotificationService {
       users.map((u) => u.id),
       title,
       body,
-      { notifType: 'broadcast' },
+      { notifType: 'broadcast', url: '/notifications' },
     );
     return { sent };
   }
 
   /**
-   * Sends to every device the given accounts have registered.
-   *
-   * Takes user ids rather than user rows because the tokens no longer live on
-   * the user: one account can hold several devices, and all of them are
-   * addressed. One batched request per 100 devices (Expo's limit), and dead
-   * tokens are deleted in a single statement rather than one each.
+   * One payload to every device the given accounts have registered, then an
+   * email to anyone who had nowhere to push at all — an email beside a
+   * delivered push is a duplicate, not a fallback.
    *
    * Returns the number of devices the push actually reached.
    */
@@ -209,42 +265,14 @@ export class PostNotificationService {
     data?: Record<string, any>,
   ): Promise<number> {
     if (!userIds.length) return 0;
-
-    const devices = await this.pushDeviceRepository.find({
-      where: { user: { id: In(userIds) } },
-      select: ['id', 'token', 'provider', 'web_subscription'],
-      relations: ['user'],
-    });
-
-    const { expo, web } = splitTargets(devices);
-    let delivered = 0;
-    const dead: string[] = [];
-
-    if (expo.length) {
-      const res = await sendPushNotifications(expo, title, body, data);
-      delivered += res.delivered;
-      dead.push(...res.deadTokens);
-    }
-    if (web.length) {
-      const res = await sendWebPush(web, title, body, data);
-      delivered += res.delivered;
-      dead.push(...res.deadTokens);
-    }
-
-    await this.pruneDeadTokens(dead);
-
-    // Only for accounts that had nowhere to push at all — an email beside a
-    // delivered push is a duplicate, not a fallback.
-    const reached = new Set(devices.map((d) => d.user?.id).filter(Boolean));
+    const { delivered, reached } = await this.deliver(
+      userIds.map((userId) => ({ userId, title, body, data })),
+    );
     await this.emailFallback(
       userIds.filter((id) => !reached.has(id)),
       title,
       body,
     );
-
-    // The transports' own counts, not targets-minus-dead: a batch that fails on
-    // the HTTP call yields neither a ticket nor a dead token, and subtracting
-    // reported those devices as reached.
     return delivered;
   }
 

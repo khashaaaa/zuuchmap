@@ -77,7 +77,7 @@
         {
           "icon": "./assets/icon.png",
           "color": "#FFA726",
-          "sounds": []
+          "sounds": ["./assets/notify.wav"]
         }
       ],
       [

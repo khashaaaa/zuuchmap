@@ -1,3 +1,5 @@
+import { stableId } from './device'
+
 /**
  * A random id this browser keeps, sent as `X-Visitor-Id` so the server can
  * dedupe anonymous views.
@@ -10,25 +12,14 @@
  *
  * The id identifies a browser and nothing else: it is generated locally, never
  * derived from anything about the person, and the server stores only a salted
- * hash of it.
+ * hash of it. Cached in the module so a storage-less browser still presents one
+ * id for the whole session — the reload-happy visitor is the case that matters.
  */
 const KEY = 'zm_visitor_id'
 
 let cached = null
 
 export function getVisitorId() {
-  if (cached) return cached
-  try {
-    let id = localStorage.getItem(KEY)
-    if (!id) {
-      id = (crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`).replace(/-/g, '')
-      localStorage.setItem(KEY, id)
-    }
-    cached = id
-  } catch {
-    // Private mode, or storage disabled. A per-session id still dedupes a
-    // reload-happy visitor within the session, which is the case that matters.
-    cached = `${Date.now()}-${Math.random().toString(36).slice(2)}`.replace(/-/g, '')
-  }
+  cached ??= stableId(KEY)
   return cached
 }

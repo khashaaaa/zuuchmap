@@ -15,6 +15,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from './admin.guard';
 import { AdminService } from './admin.service';
 import { PostNotificationService } from '../post/post-notification.service';
+import { PlanService } from '../user/plan.service';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, AdminGuard)
@@ -22,6 +23,7 @@ export class AdminController {
   constructor(
     private readonly adminService: AdminService,
     private readonly notifications: PostNotificationService,
+    private readonly plans: PlanService,
   ) {}
 
   /** Push campaign to all users, or narrowed by role / post category. */
@@ -105,12 +107,17 @@ export class AdminController {
     return this.adminService.getStats();
   }
 
+  /**
+   * Grants or revokes a provider plan — the manual path, used after a bank
+   * transfer has been reconciled by hand. PlanService is the same path a
+   * settled QPay invoice takes, so the two cannot drift.
+   */
   @Put('users/:id/plan')
   setUserPlan(
     @Param('id') id: string,
     @Body() body: { plan: string; months?: number },
   ) {
-    return this.adminService.setUserPlan(id, body.plan, body.months);
+    return this.plans.setPlan(id, body.plan, body.months ?? 1);
   }
 
   @Put('companies/:id/verify')

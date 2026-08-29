@@ -19,7 +19,7 @@ import { UpdateCompanyDto } from './dto/update-company.dto';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import {
   createCompanyLogoInterceptor,
-  ImageUploadHandler,
+  handleSingleUpload,
 } from '../utils/uploader';
 
 // No per-route try/catch: the global AllExceptionsFilter normalizes errors
@@ -39,7 +39,7 @@ export class CompanyController {
     createCompanyDto.userId = req.user.id;
 
     if (file) {
-      const compressedLogo = await ImageUploadHandler.handleSingleUpload(
+      const compressedLogo = await handleSingleUpload(
         file,
         'COMPANY_LOGO',
       );
@@ -77,7 +77,7 @@ export class CompanyController {
   ) {
     this.assertCanManage(req, id);
     if (file) {
-      const compressedLogo = await ImageUploadHandler.handleSingleUpload(
+      const compressedLogo = await handleSingleUpload(
         file,
         'COMPANY_LOGO',
       );

@@ -73,10 +73,10 @@ export const AppProvider = ({ children }) => {
 
     // postType/role/bookingRole are the navigation hints NotificationsScreen
     // uses to make rows tappable.
-    const addNotification = useCallback(({ title, message, type = 'info', postId, postType, role, bookingRole }) => {
+    const addNotification = useCallback(({ title, message, type = 'info', postId, postType, role, bookingRole, conversationId, reportId }) => {
         const id = ++notifIdRef.current;
         setNotifications((prev) => [
-            { id, title, message, type, postId, postType, role, bookingRole, ts: new Date().toISOString(), read: false },
+            { id, title, message, type, postId, postType, role, bookingRole, conversationId, reportId, ts: new Date().toISOString(), read: false },
             ...prev,
         ].slice(0, NOTIFICATION_LIMIT));
     }, []);

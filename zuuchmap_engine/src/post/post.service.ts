@@ -17,7 +17,7 @@ import { isPriceUnit } from '../enums/priceunit';
 import { User } from '../user/entities/user.entity';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
-import { ImageUploadHandler, deleteMultipleImages } from '../utils/uploader';
+import { processAfterSave, deleteMultipleImages } from '../utils/uploader';
 import { publicUser } from '../utils/public-user';
 import { ViewedpostService, Viewer } from './viewedpost.service';
 import { EventsGateway } from '../events/events.gateway';
@@ -114,21 +114,69 @@ export function expandBusyDates(
 }
 
 /**
+ * The scalar content fields of a post — the ones an edit merges in with
+ * "omitted means unchanged", and the ones whose change sends an approved post
+ * back to moderation. `str` fields compare as strings, `num` as numbers.
+ * Operational fields (status, availability dates) are deliberately absent:
+ * toggling them must not pull an approved post from browse. `attributes` and
+ * images are content too, but need their own comparison (deep / list).
+ */
+export const CONTENT_FIELDS = {
+  str: [
+    'subcategory',
+    'title',
+    'details',
+    'province',
+    'district',
+    'address',
+    'location',
+    'price_unit',
+    'contact_phone',
+    'contact_email',
+    'website',
+  ],
+  num: ['latitude', 'longitude', 'price_amount'],
+} as const;
+type ContentStrField = (typeof CONTENT_FIELDS.str)[number];
+
+/** The subset of CONTENT_FIELDS.str an admin diffs on re-approval. */
+const SNAPSHOT_STR_FIELDS = [
+  'title',
+  'details',
+  'price_unit',
+  'subcategory',
+  'province',
+  'district',
+] as const satisfies readonly ContentStrField[];
+
+/**
  * The content fields an admin diffs when a post comes back for re-approval.
  * `price` is `price_amount` under the name the clients use.
  */
 export function snapshotOf(post: Post): PostSnapshot {
-  return {
-    title: post.title ?? null,
-    details: post.details ?? null,
+  const snap = {
     price: post.price_amount == null ? null : Number(post.price_amount),
-    price_unit: post.price_unit ?? null,
     attributes: post.attributes ?? null,
     images: [...(post.images ?? [])],
-    subcategory: post.subcategory ?? null,
-    province: post.province ?? null,
-    district: post.district ?? null,
-  };
+  } as PostSnapshot;
+  for (const f of SNAPSHOT_STR_FIELDS) snap[f] = post[f] ?? null;
+  return snap;
+}
+
+export interface PostFilters {
+  category?: string;
+  subcategory?: string;
+  province?: string;
+  district?: string;
+  approval_status?: string;
+  status?: string;
+  page?: number;
+  limit?: number;
+  q?: string;
+  attrs?: Record<string, string>;
+  sort?: string;
+  price_min?: string;
+  price_max?: string;
 }
 
 /**
@@ -458,12 +506,7 @@ export class PostService {
     };
     const post = this.postRepository.create(postData as Post);
 
-    if (ownerId) {
-      const user = await this.userRepository.findOne({
-        where: { id: ownerId },
-      });
-      if (user) post.user = user;
-    }
+    if (owner) post.user = owner;
 
     // Count and insert in one transaction, behind a lock on the owner's row.
     // The pre-flight check above answers the common case without a failed
@@ -485,7 +528,7 @@ export class PostService {
     });
 
     if (files?.length) {
-      const processedImages = await ImageUploadHandler.processAfterSave(files);
+      const processedImages = await processAfterSave(files);
       saved.images = processedImages;
       await this.postRepository.save(saved);
     }
@@ -508,21 +551,7 @@ export class PostService {
   }
 
   async findAll(
-    filters: {
-      category?: string;
-      subcategory?: string;
-      province?: string;
-      district?: string;
-      approval_status?: string;
-      status?: string;
-      page?: number;
-      limit?: number;
-      q?: string;
-      attrs?: Record<string, string>;
-      sort?: string;
-      price_min?: string;
-      price_max?: string;
-    } = {},
+    filters: PostFilters = {},
   ): Promise<{ items: Post[]; total: number }> {
     const hasAttrs = filters.attrs && Object.keys(filters.attrs).length > 0;
     const useCache = !filters.q && !hasAttrs;
@@ -534,10 +563,22 @@ export class PostService {
       100,
     );
     const page = Math.max(Math.floor(filters.page || 1) || 1, 1);
-    // encodeURIComponent each part so a ':' inside a query param can't
-    // collide with the key separator.
-    const k = (v: unknown) => encodeURIComponent(String(v ?? ''));
-    const cacheKey = `posts:list:${k(filters.category)}:${k(filters.subcategory)}:${k(filters.province)}:${k(filters.district)}:${k(filters.approval_status)}:${k(filters.status)}:${page}:${limit}:${k(filters.sort)}:${k(filters.price_min)}:${k(filters.price_max)}`;
+    // JSON-encoded so a ':' inside a query param cannot collide with the key
+    // separator. The count key deliberately omits page, limit and sort, so
+    // paging and re-sorting reuse one count — and so a search, which the item
+    // cache skips, still only counts once per window.
+    const baseKey = JSON.stringify({
+      category: filters.category ?? '',
+      subcategory: filters.subcategory ?? '',
+      province: filters.province ?? '',
+      district: filters.district ?? '',
+      approval_status: filters.approval_status ?? '',
+      status: filters.status ?? '',
+      price_min: filters.price_min ?? '',
+      price_max: filters.price_max ?? '',
+    });
+    const cacheKey = `posts:list:${baseKey}:${JSON.stringify({ page, limit, sort: filters.sort ?? '' })}`;
+    const countKey = `posts:count:${baseKey}:${JSON.stringify({ q: filters.q ?? '', attrs: hasAttrs ? filters.attrs : '' })}`;
     if (useCache) {
       const cached = this.cache.get<{ items: Post[]; total: number }>(cacheKey);
       if (cached) return cached;
@@ -583,6 +624,67 @@ export class PostService {
         );
     }
 
+    await this.applyFilters(qb, filters);
+
+    qb.take(limit).skip((page - 1) * limit);
+
+    // The count is the same for every page of a filter set, and it costs a
+    // second full pass (20 ms / 12k buffers at 62k posts) that getManyAndCount
+    // paid on every request — see countKey above.
+    const cachedTotal = this.cache.get<number>(countKey);
+    // getCount() ignores take/skip, so it counts the filter set, not the page.
+    const [items, total] = await Promise.all([
+      qb.getMany(),
+      cachedTotal !== undefined && cachedTotal !== null
+        ? Promise.resolve(cachedTotal)
+        : qb.getCount().then((n) => {
+            this.cache.set(countKey, n, TTL.count);
+            return n;
+          }),
+    ]);
+
+    // Demand-gap signal: record public searches (text/attribute queries) and any
+    // filtered browse that came back empty. Cached repeats within the TTL are not
+    // re-recorded — aggregates need the shape of demand, not every request.
+    const isSearch = !!(filters.q || hasAttrs);
+    const isFilteredBrowse = !!(
+      filters.category ||
+      filters.subcategory ||
+      filters.province ||
+      filters.district
+    );
+    if (
+      filters.approval_status === 'APPROVED' &&
+      page === 1 &&
+      (isSearch || (isFilteredBrowse && total === 0))
+    ) {
+      this.analytics?.record('search.performed', {
+        q: filters.q ? String(filters.q).slice(0, 100) : undefined,
+        category: filters.category,
+        subcategory: filters.subcategory,
+        province: filters.province,
+        district: filters.district,
+        attrs: hasAttrs ? Object.keys(filters.attrs ?? {}) : undefined,
+        total,
+      });
+    }
+
+    // Never let raw User entities (push_token, device fields, …) reach clients.
+    const result = {
+      items: await this.attachBusyDates(
+        items.map((p) => ({ ...p, user: publicUser(p.user) })),
+      ),
+      total,
+    };
+    if (useCache) this.cache.set(cacheKey, result, TTL.posts);
+    return result;
+  }
+
+  /** Every WHERE clause of a browse query — shared by the page and its count. */
+  private async applyFilters(
+    qb: SelectQueryBuilder<Post>,
+    filters: PostFilters,
+  ): Promise<void> {
     const priceMin = Number(filters.price_min);
     if (
       filters.price_min !== undefined &&
@@ -641,66 +743,10 @@ export class PostService {
       }
     }
 
-    if (hasAttrs) {
+    if (filters.attrs && Object.keys(filters.attrs).length > 0) {
       const fieldTypes = await this.attributeFieldTypes(filters.category);
       buildAttrFilter(qb, filters.attrs ?? {}, fieldTypes);
     }
-
-    qb.take(limit).skip((page - 1) * limit);
-
-    // The count is the same for every page of a filter set, and it costs a
-    // second full pass (20 ms / 12k buffers at 62k posts) that getManyAndCount
-    // paid on every request. Cache it under a key that deliberately omits page,
-    // limit and sort, so paging and re-sorting reuse one count — and so a
-    // search, which the item cache skips, still only counts once per window.
-    const countKey = `posts:count:${k(filters.category)}:${k(filters.subcategory)}:${k(filters.province)}:${k(filters.district)}:${k(filters.approval_status)}:${k(filters.status)}:${k(filters.price_min)}:${k(filters.price_max)}:${k(filters.q)}:${hasAttrs ? JSON.stringify(filters.attrs) : ''}`;
-    const cachedTotal = this.cache.get<number>(countKey);
-    // getCount() ignores take/skip, so it counts the filter set, not the page.
-    const [items, total] = await Promise.all([
-      qb.getMany(),
-      cachedTotal !== undefined && cachedTotal !== null
-        ? Promise.resolve(cachedTotal)
-        : qb.getCount().then((n) => {
-            this.cache.set(countKey, n, TTL.count);
-            return n;
-          }),
-    ]);
-
-    // Demand-gap signal: record public searches (text/attribute queries) and any
-    // filtered browse that came back empty. Cached repeats within the TTL are not
-    // re-recorded — aggregates need the shape of demand, not every request.
-    const isSearch = !!(filters.q || hasAttrs);
-    const isFilteredBrowse = !!(
-      filters.category ||
-      filters.subcategory ||
-      filters.province ||
-      filters.district
-    );
-    if (
-      filters.approval_status === 'APPROVED' &&
-      page === 1 &&
-      (isSearch || (isFilteredBrowse && total === 0))
-    ) {
-      this.analytics?.record('search.performed', {
-        q: filters.q ? String(filters.q).slice(0, 100) : undefined,
-        category: filters.category,
-        subcategory: filters.subcategory,
-        province: filters.province,
-        district: filters.district,
-        attrs: hasAttrs ? Object.keys(filters.attrs ?? {}) : undefined,
-        total,
-      });
-    }
-
-    // Never let raw User entities (push_token, device fields, …) reach clients.
-    const result = {
-      items: await this.attachBusyDates(
-        items.map((p) => ({ ...p, user: publicUser(p.user) })),
-      ),
-      total,
-    };
-    if (useCache) this.cache.set(cacheKey, result, TTL.posts);
-    return result;
   }
 
   /**
@@ -1050,24 +1096,12 @@ export class PostService {
     const numEq = (a: any, b: any) =>
       (a == null && b == null) || Number(a) === Number(b);
     const contentChanged =
-      (
-        [
-          'subcategory',
-          'title',
-          'details',
-          'province',
-          'district',
-          'address',
-          'location',
-          'price_unit',
-          'contact_phone',
-          'contact_email',
-          'website',
-        ] as const
-      ).some((f) => dto[f] !== undefined && !strEq(dto[f], post[f])) ||
+      CONTENT_FIELDS.str.some(
+        (f) => dto[f] !== undefined && !strEq(dto[f], post[f]),
+      ) ||
       (dto.secondcategory !== undefined &&
         !strEq(dto.secondcategory, post.subcategory)) ||
-      (['latitude', 'longitude', 'price_amount'] as const).some(
+      CONTENT_FIELDS.num.some(
         (f) => dto[f] !== undefined && !numEq(dto[f], post[f]),
       ) ||
       (dto.attributes !== undefined &&
@@ -1078,20 +1112,14 @@ export class PostService {
         JSON.stringify(dto.existingImages) !==
           JSON.stringify(post.images ?? []));
 
-    Object.assign(post, {
-      subcategory: dto.subcategory ?? dto.secondcategory ?? post.subcategory,
-      title: dto.title ?? post.title,
-      details: dto.details ?? post.details,
-      province: dto.province ?? post.province,
-      district: dto.district ?? post.district,
-      address: dto.address ?? post.address,
-      latitude: dto.latitude ?? post.latitude,
-      longitude: dto.longitude ?? post.longitude,
-      location: dto.location ?? post.location,
-      price_amount: dto.price_amount ?? post.price_amount,
-      price_unit: dto.price_unit ?? post.price_unit,
-      contact_phone: dto.contact_phone ?? post.contact_phone,
-      contact_email: dto.contact_email ?? post.contact_email,
+    // Omitted content fields stay as they are. `secondcategory` is the legacy
+    // alias older mobile builds still send for `subcategory`.
+    const merged: Partial<Post> = {};
+    for (const f of [...CONTENT_FIELDS.str, ...CONTENT_FIELDS.num])
+      (merged as any)[f] = dto[f] ?? post[f];
+    merged.subcategory =
+      dto.subcategory ?? dto.secondcategory ?? post.subcategory;
+    Object.assign(post, merged, {
       // An omitted key means "unchanged"; an empty one means "clear it". Without
       // that distinction an availability window, once set, could never be removed.
       available_from:
@@ -1106,26 +1134,11 @@ export class PostService {
           : dto.available_until
             ? new Date(dto.available_until)
             : null,
-      website: dto.website ?? post.website,
       status: dto.status ?? post.status,
       attributes: dto.attributes ?? post.attributes,
     });
 
-    // Reclaim dropped objects whether or not the edit also adds photos. This
-    // used to sit inside the `files?.length` branch, so removing photos without
-    // adding any left them in R2 forever — reachable as soon as the app started
-    // sending `existingImages: []` for "delete every photo".
-    const removedImages = (post.images || []).filter(
-      (img) => !existingImages.includes(img),
-    );
-    if (removedImages.length) await deleteMultipleImages(removedImages);
-
-    if (files?.length) {
-      const newImages = await ImageUploadHandler.processAfterSave(files);
-      post.images = [...existingImages, ...newImages];
-    } else {
-      post.images = existingImages;
-    }
+    await this.replaceImages(post, existingImages, files);
 
     if (contentChanged) {
       // Keep the version the admin already approved so they can review a diff.
@@ -1140,6 +1153,26 @@ export class PostService {
     const updated = await this.postRepository.save(post);
     invalidatePostReadCaches();
     return updated;
+  }
+
+  /**
+   * Sets the post's photos to `keep` plus whatever `files` upload to, and
+   * reclaims every dropped object from R2. Reclaims whether or not the edit
+   * also adds photos: this used to sit inside the `files?.length` branch, so
+   * removing photos without adding any left them in R2 forever — reachable as
+   * soon as the app started sending `existingImages: []` for "delete every
+   * photo".
+   */
+  private async replaceImages(
+    post: Post,
+    keep: string[],
+    files: Express.Multer.File[],
+  ): Promise<void> {
+    const removed = (post.images || []).filter((img) => !keep.includes(img));
+    if (removed.length) await deleteMultipleImages(removed);
+    post.images = files?.length
+      ? [...keep, ...(await processAfterSave(files))]
+      : keep;
   }
 
   async remove(id: number, userId: string): Promise<void> {

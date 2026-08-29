@@ -7,8 +7,9 @@ import { CreditCard, CheckCircle2 } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
 import Button from '@/components/Button'
 import Modal from '@/components/Modal'
-import { paymentsApi, usersApi } from '@/lib/api'
+import { paymentsApi } from '@/lib/api'
 import { formatPrice, goBack } from '@/lib/utils'
+import { useProfile } from '@/hooks/useProfile'
 
 const MONTH_CHOICES = [1, 3, 6, 12]
 /** QPay settles in seconds, but a bank app can sit on it — poll for two minutes. */
@@ -37,7 +38,7 @@ export default function ProviderBilling() {
     queryKey: ['payments', 'catalogue'],
     queryFn: paymentsApi.catalogue,
   })
-  const { data: profile } = useQuery({ queryKey: ['profile'], queryFn: usersApi.getProfile })
+  const { data: profile } = useProfile()
   const { data: history = [] } = useQuery({ queryKey: ['payments', 'mine'], queryFn: paymentsApi.mine })
 
   const paidPlan = catalogue?.plans?.find((p) => p.plan === 'PROVIDER')

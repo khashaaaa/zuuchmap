@@ -5,9 +5,7 @@ import {
     TouchableOpacity,
     FlatList,
     ScrollView,
-    Image,
     RefreshControl,
-    TextInput,
     Platform,
     ActivityIndicator,
     StyleSheet,
@@ -20,19 +18,15 @@ import { useTranslation } from 'react-i18next';
 import postService from '../../services/api/postService';
 import categoryService from '../../services/api/categoryService';
 import { getPostImageUrl } from '../../config/api.config';
-import CustomSafeAreaView from '../../components/CustomSafeAreaView';
-import ScreenHeader from '../../components/ScreenHeader';
 import LikeButton from '../../components/LikeButton';
-import { CategoryBadge, StatusBadge, SkeletonItem, EmptyState, LocationRow, FadeSlideIn, Button, SelectionPop, AvailabilityStrip, OfflineBanner, SavedSearchSheet } from '../../components';
+import PostCard from '../../components/PostCard';
+import { ScreenLayout, CategoryBadge, SkeletonItem, EmptyState, LocationRow, SelectionPop, AvailabilityStrip, OfflineBanner, SavedSearchSheet, BrowseFilterSheet } from '../../components';
 import ScreenError from '../../components/ScreenError';
 import SearchInput from '../../components/SearchInput';
-import BottomSheetModal from '../../components/BottomSheetModal';
-import PressableScale from '../../components/PressableScale';
 import { getFixedImageUrl, getPostPrice, getPostImage, getPostTitle as getPostTitleUtil, categoryToPostType, getSchemaLabel } from '../../utils/postUtils';
-import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
-import { provinces as PROVINCE_CODES, districts as DISTRICT_CODES } from '../../config/app.config';
+import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useToggleLike, toggleLikedIdInCache, LIKED_IDS_KEY } from '../../hooks/useToggleLike';
 import { useDebounce } from '../../hooks/useDebounce';
-import { useMinDisplayTime } from '../../hooks/useMinDisplayTime';
 import { getErrorMessage } from '../../utils/errorManager';
 import { logger } from '../../utils/logger';
 import likeService from '../../services/api/likeService';
@@ -43,167 +37,8 @@ import NotificationBell from '../../components/NotificationBell';
 // so the list must page — a single fetch silently truncated the marketplace.
 const PAGE_SIZE = 20;
 
-const SORT_OPTIONS = [
-    { value: '' },
-    { value: 'price_asc' },
-    { value: 'price_desc' },
-    { value: 'views' },
-];
-
-// Mirrors the engine's Status enum (ACTIVE/RENTED; EXPIRED is filtered out server-side)
-const STATUS_OPTIONS = [
-    { value: '' },
-    { value: 'active' },
-    { value: 'rented' },
-];
-
-const PostItem = React.memo(({
-    item,
-    onPress,
-    getPostTitle,
-    getPostPrice,
-    getPostImage,
-    getFixedImageUrl,
-    is_liked = false,
-    is_authenticated = false,
-    onLikeChange,
-    colors,
-    showLike = true,
-    emphasized = false,
-    emphasisLabel = '',
-    featured = false,
-    featuredLabel = '',
-    rentalStrip = false,
-}) => {
-    const styles = useMemo(() => createStyles(colors), [colors]);
-    const [imageError, setImageError] = useState(false);
-
-    const title = getPostTitle(item);
-    const price = getPostPrice(item);
-    const imageUri = getPostImage(item);
-    const handleImageError = useCallback(() => setImageError(true), []);
-    const handlePress = useCallback(() => onPress(item), [item, onPress]);
-
-    return (
-        <PressableScale
-            style={[styles.postCard, { backgroundColor: colors.surface }, emphasized && styles.emphasizedCard]}
-            onPress={handlePress}
-            accessibilityRole="button"
-        >
-            <View style={[styles.imageContainer, { backgroundColor: colors.border.light }]}>
-                {imageUri && !imageError ? (
-                    <Image
-                        source={{ uri: getFixedImageUrl(imageUri) }}
-                        style={styles.postImage}
-                        onError={handleImageError}
-                        fadeDuration={200}
-                    />
-                ) : (
-                    <View style={styles.noImageContainer}>
-                        <Ionicons name="image-outline" size={28} color={colors.iconAccent} />
-                    </View>
-                )}
-                {/* The thumbnail is 96pt wide and holds exactly one overlay.
-                    Status stays here — it belongs on the photo — while emphasis
-                    and featured moved into the content column below. All three
-                    were absolutely positioned in here with `maxWidth: '92%'`
-                    apiece, so ~88pt of badge sat in a 96pt box from both
-                    corners at once and they printed straight through each
-                    other, the status pill (zIndex 2) winning. */}
-                {item.status && (
-                    <StatusBadge
-                        status={item.status}
-                        variant="overlay"
-                        position="absolute"
-                        showIndicator={false}
-                    />
-                )}
-            </View>
-
-            <View style={styles.postContent}>
-                <View style={styles.postHeader}>
-                    <Text style={styles.postTitle} numberOfLines={2}>{title}</Text>
-                    {showLike && (
-                        <LikeButton
-                            post_type={item.post_type || 'construction'}
-                            post_id={item.id}
-                            initial_liked={is_liked}
-                            skip_check={true}
-                            is_authenticated={is_authenticated}
-                            show_count={false}
-                            size="small"
-                            onLikeChange={onLikeChange}
-                        />
-                    )}
-                </View>
-
-                {/* One wrapping row, at the content column's width, so the
-                    labels stay readable instead of truncating to a few glyphs.
-                    The emphasis badge REPLACES the category badge rather than
-                    joining it: `emphasisLabel` is that category's own label, so
-                    rendering both would print the same words twice — it is the
-                    category chip set loud. The card also carries the tinted
-                    `emphasizedCard` ground, so the signal survives either way. */}
-                <View style={styles.badgeRow}>
-                    {emphasized && !!emphasisLabel ? (
-                        <View style={styles.emphasizedBadge}>
-                            <Text style={styles.emphasizedBadgeText} numberOfLines={1}>{emphasisLabel}</Text>
-                        </View>
-                    ) : (
-                        <CategoryBadge
-                            postType={item.post_type || 'construction'}
-                            showIcon={true}
-                        />
-                    )}
-                    {featured && (
-                        <View style={styles.featuredBadge}>
-                            <Ionicons name="star" size={10} color={colors.onPrimary} />
-                            <Text style={styles.featuredBadgeText} numberOfLines={1}>{featuredLabel}</Text>
-                        </View>
-                    )}
-                </View>
-
-                {price && (
-                    <Text style={styles.postPrice}>{price}</Text>
-                )}
-
-                {rentalStrip && (
-                    <AvailabilityStrip busyDates={item.busy_dates} size="sm" />
-                )}
-
-                <View style={styles.postFooter}>
-                    <LocationRow
-                        location={item.location}
-                        address={item.address}
-                        province={item.province}
-                        district={item.district}
-                        containerStyle={styles.locationRow}
-                    />
-                    {item.date_created && (
-                        <Text style={styles.postDate}>
-                            {new Date(item.date_created).toLocaleDateString('mn-MN')}
-                        </Text>
-                    )}
-                </View>
-            </View>
-        </PressableScale>
-    );
-}, (prevProps, nextProps) => {
-    return (
-        prevProps.item.id === nextProps.item.id &&
-        prevProps.item.status === nextProps.item.status &&
-        prevProps.item.date_created === nextProps.item.date_created &&
-        prevProps.item.busy_dates === nextProps.item.busy_dates &&
-        prevProps.rentalStrip === nextProps.rentalStrip &&
-        prevProps.is_liked === nextProps.is_liked &&
-        prevProps.is_authenticated === nextProps.is_authenticated &&
-        prevProps.showLike === nextProps.showLike &&
-        prevProps.colors === nextProps.colors
-    );
-});
-
 const CustomerPostList = ({ route, navigation }) => {
-    const { colors, isDark, styles: gStyles } = useAppTheme();
+    const { colors, styles: gStyles, isDark } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
     const { t, i18n } = useTranslation();
     const insets = useSafeAreaInsets();
@@ -228,7 +63,6 @@ const CustomerPostList = ({ route, navigation }) => {
     const [refreshing, setRefreshing] = useState(false);
     const [searchQuery, setSearchQuery] = useState(routeQuery || '');
     const debouncedSearchQuery = useDebounce(searchQuery, 300);
-    const [likedPostsStatus, setLikedPostsStatus] = useState({});
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [isCustomer, setIsCustomer] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
@@ -323,7 +157,7 @@ const CustomerPostList = ({ route, navigation }) => {
     const posts = useMemo(() => (data?.pages ?? []).flatMap((pg) => pg.items), [data]);
     const totalCount = data?.pages?.[0]?.total ?? 0;
     const firstPage = data?.pages?.[0];
-    const loading = useMinDisplayTime(loadingRaw);
+    const loading = loadingRaw;
 
     // Browse mode: fetch live category list for the pill row
     const { data: categorySchemas = [] } = useQuery({
@@ -358,15 +192,19 @@ const CustomerPostList = ({ route, navigation }) => {
     // scrolled into view, so this is one cached request instead of one per
     // category per appended page.
     const { data: likedByType } = useQuery({
-        queryKey: ['liked', 'ids'],
+        queryKey: LIKED_IDS_KEY,
         queryFn: () => likeService.likedIdsByType(),
         enabled: isAuthenticated,
         staleTime: 60_000,
     });
+    const likedPostsStatus = useMemo(() => likeService.likedStatusMap(likedByType), [likedByType]);
 
-    useEffect(() => {
-        setLikedPostsStatus(likeService.likedStatusMap(likedByType));
-    }, [likedByType]);
+    // Optimistic: flip the id in the cache the list reads from; put it back on failure.
+    const qc = useQueryClient();
+    const toggleLike = useToggleLike({
+        onMutate: (vars) => toggleLikedIdInCache(qc, vars),
+        onRollback: (_vars, previous) => qc.setQueryData(LIKED_IDS_KEY, previous),
+    });
 
     // --- Callbacks ---
 
@@ -391,12 +229,6 @@ const CustomerPostList = ({ route, navigation }) => {
             shouldIncrementViews: true,
         });
     }, [navigation, getPostType]);
-
-    const getPostTitleMemo = useCallback((post) => getPostTitleUtil(post, post.post_type), []);
-
-    const getPostPriceMemo = useCallback((post) => getPostPrice(post), []);
-
-    const getPostImageMemo = useCallback((post) => getPostImage(post), []);
 
     const clearFilters = useCallback(() => {
         setFilters({
@@ -424,9 +256,9 @@ const CustomerPostList = ({ route, navigation }) => {
 
     // --- Render helpers ---
 
-    const handleLikeChange = useCallback((post_key, liked) => {
-        setLikedPostsStatus(prev => ({ ...prev, [post_key]: liked }));
-    }, []);
+    const handleToggleLike = useCallback((item, liked) => {
+        toggleLike.mutate({ post_type: item.post_type || 'construction', post_id: item.id, liked });
+    }, [toggleLike.mutate]);
 
     // Emphasis is an admin-set schema flag (CategorySchema.emphasized) — no hardcoded category keys
     const emphasisByKey = useMemo(() => {
@@ -447,29 +279,65 @@ const CustomerPostList = ({ route, navigation }) => {
 
     const renderPostItem = useCallback(({ item, index }) => {
         const post_key = `${item.post_type || 'construction'}-${item.id}`;
+        const liked = likedPostsStatus[post_key] || false;
+        const emphasisLabel = emphasisByKey[item.post_type] || '';
+        const featured = !!item.featured_until && new Date(item.featured_until) > new Date();
+        const imageUri = getPostImage(item);
+        // Only the heart whose request is in flight is held; the rest stay tappable.
+        const pending = toggleLike.isPending && toggleLike.variables?.post_id === item.id;
         return (
-            <FadeSlideIn index={index} style={isTablet && { flex: 1 }}>
-                <PostItem
+            <View style={isTablet && { flex: 1 }}>
+                <PostCard
                     item={item}
                     onPress={handlePostPress}
-                    getPostTitle={getPostTitleMemo}
-                    getPostPrice={getPostPriceMemo}
-                    getPostImage={getPostImageMemo}
-                    getFixedImageUrl={getFixedImageUrl}
-                    is_liked={likedPostsStatus[post_key] || false}
-                    is_authenticated={isCustomer}
-                    onLikeChange={(liked) => handleLikeChange(post_key, liked)}
-                    showLike={isCustomer}
-                    colors={colors}
-                    emphasized={!!emphasisByKey[item.post_type]}
-                    featured={!!item.featured_until && new Date(item.featured_until) > new Date()}
-                    featuredLabel={t('posts.featured')}
-                    emphasisLabel={emphasisByKey[item.post_type] || ''}
-                    rentalStrip={!!rentalByKey[item.post_type]}
-                />
-            </FadeSlideIn>
+                    imageUri={imageUri ? getFixedImageUrl(imageUri) : null}
+                    title={getPostTitleUtil(item, item.post_type)}
+                    price={getPostPrice(item)}
+                    emphasized={!!emphasisLabel}
+                    statusOverlay
+                    memoKey={`${liked}-${pending}-${isCustomer}-${item.status}-${item.busy_dates}-${emphasisLabel}-${i18n.language}-${isDark}`}
+                    actions={isCustomer ? (
+                        <LikeButton liked={liked} size="small" disabled={pending} onToggle={() => handleToggleLike(item, liked)} />
+                    ) : null}
+                    badges={
+                        <View style={styles.badgeRow}>
+                            {emphasisLabel ? (
+                                <View style={styles.emphasizedBadge}>
+                                    <Text style={styles.badgeText} numberOfLines={1}>{emphasisLabel}</Text>
+                                </View>
+                            ) : (
+                                <CategoryBadge postType={item.post_type || 'construction'} showIcon={true} />
+                            )}
+                            {featured && (
+                                <View style={styles.featuredBadge}>
+                                    <Ionicons name="star" size={10} color={colors.onPrimary} />
+                                    <Text style={styles.badgeText} numberOfLines={1}>{t('posts.featured')}</Text>
+                                </View>
+                            )}
+                        </View>
+                    }
+                    footer={(
+                        <>
+                            <LocationRow
+                                location={item.location}
+                                address={item.address}
+                                province={item.province}
+                                district={item.district}
+                                containerStyle={styles.locationRow}
+                            />
+                            {item.date_created && (
+                                <Text style={styles.postDate}>
+                                    {new Date(item.date_created).toLocaleDateString('mn-MN')}
+                                </Text>
+                            )}
+                        </>
+                    )}
+                >
+                    {!!rentalByKey[item.post_type] && <AvailabilityStrip busyDates={item.busy_dates} size="sm" />}
+                </PostCard>
+            </View>
         );
-    }, [handlePostPress, getPostTitleMemo, getPostPriceMemo, getPostImageMemo, likedPostsStatus, isAuthenticated, handleLikeChange, colors, emphasisByKey, rentalByKey]);
+    }, [handlePostPress, likedPostsStatus, isCustomer, handleToggleLike, toggleLike.isPending, toggleLike.variables, colors, styles, emphasisByKey, rentalByKey, t, i18n.language]);
 
     const keyExtractor = useCallback((item) => item.id.toString(), []);
 
@@ -539,6 +407,7 @@ const CustomerPostList = ({ route, navigation }) => {
                     ? t('filter.searchNoResultsDesc')
                     : t('posts.browseEmpty')}
                 variant={searchQuery || activeFiltersCount > 0 ? 'search' : 'default'}
+                accent={activeFiltersCount > 0 ? categorySchemas.find((c) => c.key === filters.category)?.color : undefined}
                 actionButton={(searchQuery || activeFiltersCount > 0) ? {
                     text: t('filter.clearAll'),
                     icon: 'close-circle',
@@ -580,189 +449,14 @@ const CustomerPostList = ({ route, navigation }) => {
     const renderFilterModal = () => {
         if (isFilterMode) return null;
         return (
-            <BottomSheetModal
+            <BrowseFilterSheet
                 visible={showFilters}
                 onClose={() => setShowFilters(false)}
-                title={t('filter.title')}
-                footer={
-                    <View style={styles.modalFooterButtons}>
-                        <Button
-                            title={t('common.clear')}
-                            onPress={clearFilters}
-                            variant="outline"
-                            size="medium"
-                            style={styles.modalFooterButton}
-                        />
-                        <Button
-                            title={t('common.done')}
-                            onPress={() => setShowFilters(false)}
-                            variant="primary"
-                            size="medium"
-                            style={styles.modalFooterButton}
-                        />
-                    </View>
-                }
-            >
-                <View style={styles.filterSection}>
-                    <Text style={[styles.filterLabel, { color: colors.text.secondary }]}>{t('filter.category')}</Text>
-                    <View style={styles.filterOptionsContainer}>
-                        {categoryOptions.map((cat) => (
-                            <SelectionPop key={cat.value} selected={filters.category === cat.value}>
-                                <TouchableOpacity
-                                    style={[
-                                        styles.filterOption,
-                                        filters.category === cat.value && styles.filterOptionActive,
-                                    ]}
-                                    onPress={() => setFilters(prev => ({ ...prev, category: cat.value }))}
-                                    activeOpacity={interactions.activeOpacity}
-                                >
-                                    <Text style={[
-                                        styles.filterOptionText,
-                                        filters.category === cat.value && styles.filterOptionTextActive,
-                                    ]}>
-                                        {cat.label}
-                                    </Text>
-                                </TouchableOpacity>
-                            </SelectionPop>
-                        ))}
-                    </View>
-                </View>
-
-                <View style={styles.filterSection}>
-                    <Text style={[styles.filterLabel, { color: colors.text.secondary }]}>{t('filter.sortBy')}</Text>
-                    <View style={styles.filterOptionsContainer}>
-                        {SORT_OPTIONS.map((opt) => (
-                            <SelectionPop key={opt.value} selected={filters.sort === opt.value}>
-                                <TouchableOpacity
-                                    style={[
-                                        styles.filterOption,
-                                        filters.sort === opt.value && styles.filterOptionActive,
-                                    ]}
-                                    onPress={() => setFilters(prev => ({ ...prev, sort: opt.value }))}
-                                    activeOpacity={interactions.activeOpacity}
-                                >
-                                    <Text style={[
-                                        styles.filterOptionText,
-                                        filters.sort === opt.value && styles.filterOptionTextActive,
-                                    ]}>
-                                        {t(`sort.${opt.value || 'newest'}`)}
-                                    </Text>
-                                </TouchableOpacity>
-                            </SelectionPop>
-                        ))}
-                    </View>
-                </View>
-
-                <View style={styles.filterSection}>
-                    <Text style={[styles.filterLabel, { color: colors.text.secondary }]}>{t('filter.priceRange')}</Text>
-                    <View style={styles.priceRangeRow}>
-                        <TextInput
-                            style={[styles.locationInput, styles.priceRangeInput, {
-                                backgroundColor: colors.background,
-                                borderColor: colors.border.light,
-                                color: colors.text.primary,
-                            }]}
-                            value={filters.priceMin}
-                            onChangeText={(text) => setFilters(prev => ({ ...prev, priceMin: text.replace(/[^0-9]/g, '') }))}
-                            placeholder={t('filter.minPrice')}
-                            placeholderTextColor={colors.text.placeholder}
-                            keyboardType="number-pad"
-                        />
-                        <TextInput
-                            style={[styles.locationInput, styles.priceRangeInput, {
-                                backgroundColor: colors.background,
-                                borderColor: colors.border.light,
-                                color: colors.text.primary,
-                            }]}
-                            value={filters.priceMax}
-                            onChangeText={(text) => setFilters(prev => ({ ...prev, priceMax: text.replace(/[^0-9]/g, '') }))}
-                            placeholder={t('filter.maxPrice')}
-                            placeholderTextColor={colors.text.placeholder}
-                            keyboardType="number-pad"
-                        />
-                    </View>
-                </View>
-
-                <View style={styles.filterSection}>
-                    <Text style={[styles.filterLabel, { color: colors.text.secondary }]}>{t('filter.status')}</Text>
-                    <View style={styles.filterOptionsContainer}>
-                        {STATUS_OPTIONS.map((status) => (
-                            <SelectionPop key={status.value} selected={filters.status === status.value}>
-                                <TouchableOpacity
-                                    style={[
-                                        styles.filterOption,
-                                        filters.status === status.value && styles.filterOptionActive,
-                                    ]}
-                                    onPress={() => setFilters(prev => ({ ...prev, status: status.value }))}
-                                    activeOpacity={interactions.activeOpacity}
-                                >
-                                    <Text style={[
-                                        styles.filterOptionText,
-                                        filters.status === status.value && styles.filterOptionTextActive,
-                                    ]}>
-                                        {status.value ? t(`status.${status.value}`, { defaultValue: status.value }) : t('filter.allStatuses')}
-                                    </Text>
-                                </TouchableOpacity>
-                            </SelectionPop>
-                        ))}
-                    </View>
-                </View>
-
-                {/* Province/district are enum codes server-side; the old free-text
-                    box compared what the user typed ("Баянзүрх") against the raw
-                    code ("BAYANZURKH") and matched nothing. */}
-                <View style={styles.filterSection}>
-                    <Text style={[styles.filterLabel, { color: colors.text.secondary }]}>{t('common.province')}</Text>
-                    <View style={styles.filterOptionsContainer}>
-                        {[''].concat(PROVINCE_CODES).map((code) => {
-                            const isActive = filters.province === code;
-                            return (
-                                <SelectionPop key={code || 'all'} selected={isActive}>
-                                    <TouchableOpacity
-                                        style={[styles.filterOption, isActive && styles.filterOptionActive]}
-                                        onPress={() => setFilters(prev => ({
-                                            ...prev,
-                                            province: code,
-                                            // District only exists inside Ulaanbaatar — never leave a
-                                            // stale district narrowing a different province to zero.
-                                            district: code === 'ULAANBAATAR' ? prev.district : '',
-                                        }))}
-                                        activeOpacity={interactions.activeOpacity}
-                                    >
-                                        <Text style={[styles.filterOptionText, isActive && styles.filterOptionTextActive]}>
-                                            {code ? t(`province.${code}`, { defaultValue: code }) : t('filter.all')}
-                                        </Text>
-                                    </TouchableOpacity>
-                                </SelectionPop>
-                            );
-                        })}
-                    </View>
-                </View>
-
-                {filters.province === 'ULAANBAATAR' && (
-                    <View style={styles.filterSection}>
-                        <Text style={[styles.filterLabel, { color: colors.text.secondary }]}>{t('common.district')}</Text>
-                        <View style={styles.filterOptionsContainer}>
-                            {[''].concat(DISTRICT_CODES).map((code) => {
-                                const isActive = filters.district === code;
-                                return (
-                                    <SelectionPop key={code || 'all'} selected={isActive}>
-                                        <TouchableOpacity
-                                            style={[styles.filterOption, isActive && styles.filterOptionActive]}
-                                            onPress={() => setFilters(prev => ({ ...prev, district: code }))}
-                                            activeOpacity={interactions.activeOpacity}
-                                        >
-                                            <Text style={[styles.filterOptionText, isActive && styles.filterOptionTextActive]}>
-                                                {code ? t(`district.${code}`, { defaultValue: code }) : t('filter.all')}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    </SelectionPop>
-                                );
-                            })}
-                        </View>
-                    </View>
-                )}
-            </BottomSheetModal>
+                onClear={clearFilters}
+                filters={filters}
+                setFilters={setFilters}
+                categoryOptions={categoryOptions}
+            />
         );
     };
 
@@ -828,81 +522,11 @@ const CustomerPostList = ({ route, navigation }) => {
         );
     }, [isFilterMode, categorySchemas, filters.category, colors, t]);
 
-    // --- Header config ---
+    // --- Header + search row (shared by the skeleton and the list) ---
 
     const headerRight = <NotificationBell />;
 
-    // --- Loading skeleton ---
-
-    if (loading && posts.length === 0) {
-        return (
-            <CustomSafeAreaView backgroundColor={colors.background} statusBarColor={colors.surface} statusBarStyle={isDark ? 'light-content' : 'dark-content'}>
-                <ScreenHeader
-                    title={t('posts.browseTitle')}
-                    showBack={isFilterMode}
-                    onBack={isFilterMode ? () => navigation.goBack() : undefined}
-                    rightComponent={headerRight}
-                />
-                <View style={styles.searchRow}>
-                    <View style={styles.searchFlex}>
-                        <SearchInput
-                            value={searchQuery}
-                            onChangeText={setSearchQuery}
-                            placeholder={t('filter.searchPlaceholder')}
-                            containerStyle={{ padding: 0 }}
-                        />
-                    </View>
-                    {!isFilterMode && (
-                        <TouchableOpacity
-                            onPress={() => setShowFilters(true)}
-                            style={[
-                                styles.filterRowBtn,
-                                {
-                                    backgroundColor: activeFiltersCount > 0 ? colors.opacity.background.primary : colors.surface,
-                                    borderColor: activeFiltersCount > 0 ? colors.primary : colors.border.light,
-                                },
-                            ]}
-                            activeOpacity={interactions.activeOpacity}
-                        >
-                            <Ionicons name="options-outline" size={20} color={activeFiltersCount > 0 ? colors.primary : colors.text.secondary} />
-                            {activeFiltersCount > 0 && (
-                                <View style={styles.filterBadge}>
-                                    <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
-                                </View>
-                            )}
-                        </TouchableOpacity>
-                    )}
-                    {!isFilterMode && renderSaveSearchButton()}
-                </View>
-                {renderCategoryPills()}
-                <FlatList
-                    data={Array(12).fill({})}
-                    keyboardShouldPersistTaps="handled"
-                    renderItem={() => <SkeletonItem />}
-                    keyExtractor={(_, index) => `skeleton-${index}`}
-                    contentContainerStyle={[
-                        styles.listContainer,
-                        isFilterMode
-                            ? gStyles.scrollViewContentWithBottomInset(safeAreaHelpers.getBottomSafeArea(insets))
-                            : { paddingBottom: bottomPadding, paddingTop: spacing.md },
-                    ]}
-                    showsVerticalScrollIndicator={false}
-                />
-            </CustomSafeAreaView>
-        );
-    }
-
-    // --- Main render ---
-
-    return (
-        <CustomSafeAreaView backgroundColor={colors.background} statusBarColor={colors.surface} statusBarStyle={isDark ? 'light-content' : 'dark-content'}>
-            <ScreenHeader
-                title={t('posts.browseTitle')}
-                showBack={isFilterMode}
-                onBack={isFilterMode ? () => navigation.goBack() : undefined}
-                rightComponent={headerRight}
-            />
-
+    const renderSearchRow = () => (
             <View style={styles.searchRow}>
                 <View style={styles.searchFlex}>
                     <SearchInput
@@ -928,13 +552,50 @@ const CustomerPostList = ({ route, navigation }) => {
                         {activeFiltersCount > 0 && (
                             <View style={styles.filterBadge}>
                                 <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
-                                {!isFilterMode && renderSaveSearchButton()}
-            </View>
+                            </View>
                         )}
                     </TouchableOpacity>
                 )}
                 {!isFilterMode && renderSaveSearchButton()}
             </View>
+    );
+
+    const shellProps = {
+        title: t('posts.browseTitle'),
+        showBack: isFilterMode,
+        onBack: isFilterMode ? () => navigation.goBack() : undefined,
+        rightComponent: headerRight,
+    };
+
+    // --- Loading skeleton ---
+
+    if (loading && posts.length === 0) {
+        return (
+            <ScreenLayout {...shellProps}>
+                {renderSearchRow()}
+                {renderCategoryPills()}
+                <FlatList
+                    data={Array(6).fill({})}
+                    keyboardShouldPersistTaps="handled"
+                    renderItem={() => <SkeletonItem />}
+                    keyExtractor={(_, index) => `skeleton-${index}`}
+                    contentContainerStyle={[
+                        styles.listContainer,
+                        isFilterMode
+                            ? gStyles.scrollViewContentWithBottomInset(safeAreaHelpers.getBottomSafeArea(insets))
+                            : { paddingBottom: bottomPadding, paddingTop: spacing.md },
+                    ]}
+                    showsVerticalScrollIndicator={false}
+                />
+            </ScreenLayout>
+        );
+    }
+
+    // --- Main render ---
+
+    return (
+        <ScreenLayout {...shellProps}>
+            {renderSearchRow()}
 
             {renderCategoryPills()}
 
@@ -979,11 +640,57 @@ const CustomerPostList = ({ route, navigation }) => {
             />
 
             {renderFilterModal()}
-        </CustomSafeAreaView>
+        </ScreenLayout>
     );
 };
 
 const createStyles = (colors) => StyleSheet.create({
+    // Category, emphasis and paid placement share one wrapping row in the
+    // content column. They flow rather than stack in corners, so two of them
+    // pushes the third onto a second line instead of over the top of it.
+    badgeRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        // flex-start, not center: CategoryBadge sets its own `alignSelf:
+        // 'flex-start'`, so centering the row would leave it alone out of line.
+        alignItems: 'flex-start',
+        gap: spacing.xs,
+    },
+    // The emphasis badge REPLACES the category badge: `emphasisLabel` is that
+    // category's own label, so rendering both would print the same words twice.
+    emphasizedBadge: {
+        flexShrink: 1,
+        backgroundColor: colors.primary,
+        paddingVertical: spacing.xxs,
+        paddingHorizontal: spacing.xs,
+        borderRadius: radius.sm,
+    },
+    // Paid placement.
+    featuredBadge: {
+        flexShrink: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.xxs,
+        backgroundColor: colors.primary,
+        paddingVertical: spacing.xxs,
+        paddingHorizontal: spacing.xs,
+        borderRadius: radius.sm,
+    },
+    // Set in caps, which is exactly what `overline` is tuned for. Yoga defaults
+    // flexShrink to 0: without it a long translation pushes the star out of
+    // the badge instead of truncating.
+    badgeText: {
+        ...typography.styles.overline,
+        color: colors.onPrimary,
+        flexShrink: 1,
+    },
+    locationRow: {
+        flexShrink: 1,
+    },
+    postDate: {
+        ...typography.styles.small,
+        color: colors.text.tertiary,
+    },
     listContainer: {
         padding: spacing.lg,
     },
@@ -1059,117 +766,6 @@ const createStyles = (colors) => StyleSheet.create({
         color: colors.text.onColor,
         ...typography.styles.badge,
     },
-    postCard: {
-        ...colors.elevation.sm,
-        backgroundColor: colors.surface,
-        borderRadius: radius.card,
-        marginBottom: spacing.md,
-        overflow: 'hidden',
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        borderWidth: 1,
-        borderColor: colors.border.light,
-    },
-    emphasizedCard: {
-        ...colors.elevation.selected,
-        backgroundColor: colors.opacity.background.primaryLight,
-    },
-    imageContainer: {
-        width: 96,
-        alignSelf: 'stretch',
-        backgroundColor: colors.border.light,
-    },
-    // Category, emphasis and paid placement share one wrapping row in the
-    // content column. They flow rather than stack in corners, so two of them
-    // pushes the third onto a second line instead of over the top of it.
-    badgeRow: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        // flex-start, not center: CategoryBadge sets its own `alignSelf:
-        // 'flex-start'`, so centering the row would leave it alone out of line.
-        alignItems: 'flex-start',
-        gap: spacing.xs,
-    },
-    emphasizedBadge: {
-        flexShrink: 1,
-        backgroundColor: colors.primary,
-        paddingVertical: spacing.xxs,
-        paddingHorizontal: spacing.xs,
-        borderRadius: radius.sm,
-    },
-    // Paid placement.
-    featuredBadge: {
-        flexShrink: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.xxs,
-        backgroundColor: colors.primary,
-        paddingVertical: spacing.xxs,
-        paddingHorizontal: spacing.xs,
-        borderRadius: radius.sm,
-    },
-    featuredBadgeText: {
-        ...typography.styles.overline,
-        color: colors.onPrimary,
-        // Yoga defaults flexShrink to 0: without this a long translation pushes
-        // the star out of the badge instead of truncating.
-        flexShrink: 1,
-    },
-    emphasizedBadgeText: {
-        // The badge label is set in caps, which is exactly what `overline` is tuned for.
-        ...typography.styles.overline,
-        color: colors.onPrimary,
-        flexShrink: 1,
-    },
-    postImage: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-    },
-    noImageContainer: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    postContent: {
-        flex: 1,
-        padding: spacing.md,
-        gap: spacing.xs,
-    },
-    postHeader: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: spacing.xs,
-    },
-    postTitle: {
-        ...typography.styles.title,
-        flex: 1,
-        color: colors.text.primary,
-    },
-    postPrice: {
-        ...typography.styles.price,
-        color: colors.text.link,
-    },
-    postFooter: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flexWrap: 'wrap',
-        gap: spacing.xs,
-        marginTop: spacing.xxs,
-    },
-    locationRow: {
-        flexShrink: 1,
-    },
-    postDate: {
-        ...typography.styles.small,
-        color: colors.text.tertiary,
-    },
     pillsWrapper: {
         borderBottomWidth: 1,
         paddingVertical: spacing.xs,
@@ -1190,65 +786,6 @@ const createStyles = (colors) => StyleSheet.create({
     },
     pillText: {
         ...typography.styles.caption,
-    },
-    filterSection: {
-        marginBottom: spacing.xl,
-    },
-    filterLabel: {
-        ...typography.styles.bodyBold,
-        color: colors.text.primary,
-        marginBottom: spacing.md,
-    },
-    filterOptionsContainer: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: spacing.sm,
-    },
-    filterOption: {
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.sm,
-        borderRadius: radius.xxl,
-        borderWidth: 1,
-        borderColor: colors.border.medium,
-        backgroundColor: colors.background,
-    },
-    filterOptionActive: {
-        backgroundColor: colors.primary,
-        borderColor: colors.primary,
-    },
-    filterOptionText: {
-        ...typography.styles.caption,
-        color: colors.text.primary,
-    },
-    filterOptionTextActive: {
-        ...typography.styles.labelStrong,
-        color: colors.onPrimary,
-    },
-    locationInput: {
-        borderWidth: 1,
-        borderColor: colors.border.medium,
-        borderRadius: radius.input,
-        padding: spacing.md,
-        ...typography.styles.body,
-        lineHeight: undefined,
-        color: colors.text.primary,
-        backgroundColor: colors.background,
-    },
-    priceRangeRow: {
-        flexDirection: 'row',
-        gap: spacing.sm,
-    },
-    priceRangeInput: {
-        flex: 1,
-    },
-    modalFooterButtons: {
-        flexDirection: 'row',
-        gap: spacing.md,
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.md,
-    },
-    modalFooterButton: {
-        flex: 1,
     },
 });
 

@@ -392,7 +392,10 @@ export const typography = {
         small:    { fontSize: Math.round(12 * s), fontFamily: fonts.regular,   lineHeight: Math.round(17 * s) },
         // Price is the one number a customer scans a whole list for, so it gets
         // its own rung rather than borrowing `title`.
-        price:    { fontSize: Math.round(18 * s), fontFamily: fonts.bold,      lineHeight: Math.round(23 * s), letterSpacing: -0.2 },
+        // Tabular figures: a price or count that changes value must not shift
+        // width, and numbers in a column must align. Web sets the same on
+        // `.tabular-nums` / table cells.
+        price:    { fontSize: Math.round(18 * s), fontFamily: fonts.bold,      lineHeight: Math.round(23 * s), letterSpacing: -0.2, fontVariant: ['tabular-nums'] },
         // Eyebrows and badges: small, wide-tracked, always uppercase at the call site.
         overline: { fontSize: Math.round(11 * s), fontFamily: fonts.bold,      lineHeight: Math.round(14 * s), letterSpacing: 0.8 },
         // Standfirst / intro paragraph — body size up one rung, still light.
@@ -401,7 +404,7 @@ export const typography = {
         labelStrong: { fontSize: Math.round(14 * s), fontFamily: fonts.semibold, lineHeight: Math.round(20 * s), letterSpacing: 0.1 },
         // 12px utility rungs: `micro` for tab bars and meta, `badge` for pills.
         micro:       { fontSize: Math.round(12 * s), fontFamily: fonts.medium,   lineHeight: Math.round(16 * s), letterSpacing: 0.1 },
-        badge:       { fontSize: Math.round(12 * s), fontFamily: fonts.bold,     lineHeight: Math.round(16 * s), letterSpacing: 0.3 },
+        badge:       { fontSize: Math.round(12 * s), fontFamily: fonts.bold,     lineHeight: Math.round(16 * s), letterSpacing: 0.3, fontVariant: ['tabular-nums'] },
     },
 };
 
@@ -558,22 +561,6 @@ export const dimensions = {
     headerHeight: 64,
     bottomTabHeight: Platform.OS === 'android' ? 65 : 88,
     navigationBarHeight: Platform.OS === 'android' ? 24 : 0,
-};
-
-// Wraps a per-file style factory with palette-keyed memoization:
-//   const makeStyles = themedStyles((colors) => ({ ...styles }));
-//   ...inside the component: const styles = makeStyles(colors);
-// Only ever creates one sheet per palette, so calling it every render is free.
-export const themedStyles = (factory) => {
-    const cache = new Map();
-    return (colors) => {
-        let sheet = cache.get(colors);
-        if (!sheet) {
-            sheet = StyleSheet.create(factory(colors));
-            cache.set(colors, sheet);
-        }
-        return sheet;
-    };
 };
 
 // Theme-aware replacement for the old static `globalStyles`.

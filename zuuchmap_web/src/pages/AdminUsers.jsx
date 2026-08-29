@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Trash2, Users, ChevronRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { usersApi } from '@/lib/api'
-import { formatDate, apiErrorMessage } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
 import UserAvatar from '@/components/UserAvatar'
 import Input from '@/components/Input'
 import { useAuthStore } from '@/store'
@@ -18,6 +18,7 @@ import DensityToggle from '@/components/DensityToggle'
 import { useTableDensity } from '@/hooks/useTableDensity'
 import { useMinDisplayTime } from '@/hooks/useMinDisplayTime'
 import { toast } from 'sonner'
+import { useApiMutation } from '@/hooks/useApiMutation'
 
 export default function AdminUsers() {
   const { t } = useTranslation()
@@ -49,16 +50,14 @@ export default function AdminUsers() {
   // The duration is a choice rather than a hardcoded single month: the endpoint
   // has always taken 1–24, and renewing early extends from the existing expiry
   // instead of burning the remaining time.
-  const planMut = useMutation({
+  const planMut = useApiMutation({
     mutationFn: ({ id, plan, months }) => usersApi.setPlan(id, plan, months),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-users'] }); toast.success(t('admin.planUpdated')) },
-    onError: (e) => toast.error(apiErrorMessage(e, t, t('common.error'))),
   })
 
-  const deleteMut = useMutation({
+  const deleteMut = useApiMutation({
     mutationFn: usersApi.deleteUser,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-users'] }); qc.invalidateQueries({ queryKey: ['admin-stats'] }); toast.success(t('admin.userDeleted')) },
-    onError: (e) => toast.error(apiErrorMessage(e, t, t('common.error'))),
   })
 
   return (

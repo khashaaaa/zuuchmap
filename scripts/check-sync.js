@@ -40,6 +40,9 @@ function objectLiteral(src, name) {
   try { return eval('(' + body + ')'); } catch { return null; }
 }
 
+/** Every locale both clients ship. `mn` is the fallback and the source of truth. */
+const LOCALES = ['mn', 'en', 'zh', 'ru'];
+
 /** Load an i18n locale module (ESM default export) and flatten it to dotted keys. */
 const Module = require('module');
 const loadLocale = (p) => {
@@ -244,12 +247,25 @@ function agree(contract, sets) {
   ]);
 }
 
+// ── 5b. Report reasons ───────────────────────────────────────────────────────
+// The engine's closed list is the authority (`GET /reports/reasons`), but both
+// clients keep a copy so the sheet can paint before the network answers. A
+// reason added only on the engine would be accepted but never offered.
+{
+  const list = (src, re) => { const m = src.match(re); return m ? [...m[1].matchAll(/'([A-Z_]+)'/g)].map((x) => x[1]) : null; };
+  agree('report reasons', [
+    { name: 'engine', value: list(read('zuuchmap_engine/src/enums/report.ts'), /REPORT_REASONS\s*=\s*\[([\s\S]*?)\]/) },
+    { name: 'web',    value: list(read('zuuchmap_web/src/lib/api.js'), /REPORT_REASONS\s*=\s*\[([\s\S]*?)\]/) },
+    { name: 'app',    value: list(read('zuuchmap_app/src/services/api/reportService.js'), /REPORT_REASONS\s*=\s*\[([\s\S]*?)\]/) },
+  ]);
+}
+
 // ── 6. Shared translations ───────────────────────────────────────────────────
 // App and web keep separate trees on purpose — each has ~280 keys the other has
 // no screen for. What must not drift is the overlap: a key present in BOTH has
 // to say the same thing, or the same product speaks with two voices.
 {
-  for (const locale of ['mn', 'en']) {
+  for (const locale of LOCALES) {
     checks.push(`i18n:${locale}`);
     const a = loadLocale(`zuuchmap_app/src/i18n/locales/${locale}.js`);
     const b = loadLocale(`zuuchmap_web/src/i18n/${locale}.js`);
@@ -257,6 +273,29 @@ function agree(contract, sets) {
     if (drifted.length) {
       fail(`i18n:${locale}`, `${drifted.length} shared key(s) differ between app and web:` +
         drifted.map((k) => `\n       ${k}\n         app: ${JSON.stringify(a[k])}\n         web: ${JSON.stringify(b[k])}`).join(''));
+    }
+  }
+}
+
+// ── 6b. Locale completeness ──────────────────────────────────────────────────
+// Every locale must carry exactly the key set of `en` on its own side. i18next
+// falls back to mn for a missing key, so a string added only to mn/en would not
+// crash — it would render one Mongolian line in the middle of a Chinese screen,
+// and nothing else would notice. Plural suffixes are stripped before comparing:
+// Russian legitimately has `_few`/`_many` forms that English does not.
+{
+  const C = 'i18n completeness';
+  checks.push(C);
+  const base = (k) => k.replace(/_(zero|one|two|few|many|other)$/, '');
+  for (const [client, dir] of [['web', 'zuuchmap_web/src/i18n'], ['app', 'zuuchmap_app/src/i18n/locales']]) {
+    const en = new Set(Object.keys(loadLocale(`${dir}/en.js`)).map(base));
+    for (const locale of LOCALES) {
+      if (locale === 'en') continue;
+      const keys = new Set(Object.keys(loadLocale(`${dir}/${locale}.js`)).map(base));
+      const missing = [...en].filter((k) => !keys.has(k));
+      const extra = [...keys].filter((k) => !en.has(k));
+      if (missing.length) fail(C, `${client}/${locale}: ${missing.length} key(s) in en but not ${locale}: ${missing.slice(0, 10).join(', ')}${missing.length > 10 ? ', …' : ''}`);
+      if (extra.length) fail(C, `${client}/${locale}: ${extra.length} key(s) in ${locale} but not en: ${extra.slice(0, 10).join(', ')}${extra.length > 10 ? ', …' : ''}`);
     }
   }
 }
@@ -643,7 +682,7 @@ function agree(contract, sets) {
       .filter(([k]) => k.startsWith('priceUnit.'))
       .map(([k, v]) => [k.slice('priceUnit.'.length).toUpperCase(), v]));
 
-  for (const locale of ['mn', 'en']) {
+  for (const locale of LOCALES) {
     const a = units(loadLocale(`zuuchmap_app/src/i18n/locales/${locale}.js`));
     const w = units(loadLocale(`zuuchmap_web/src/i18n/${locale}.js`));
     const codes = [...new Set([...Object.keys(a), ...Object.keys(w)])].sort();

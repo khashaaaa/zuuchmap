@@ -26,7 +26,6 @@ const RATE_TTL = Number(process.env.RATE_TTL_MS) || 60 * 60 * 1000;
  * Per-phone hourly cap on verify.mn verifications. Named for the OTP flow that
  * was retired behind a 410, which made it read like a knob on a dead path — it
  * is in fact the only limit on a *paid* action (150₮ to the end user per SMS).
- * The old name is still honoured so an existing .env keeps working.
  */
 const RATE_LIMIT =
   Number(process.env.VERIFY_RATE_LIMIT ?? process.env.OTP_RATE_LIMIT) || 5;

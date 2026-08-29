@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/react'
+import { reportError } from './analytics'
 
 /**
  * Client-side error reporting, env-gated on `VITE_SENTRY_DSN`.
@@ -39,9 +40,19 @@ export function initObservability() {
 
 /** Report a caught error that the user was shown a fallback for. */
 export function captureError(error, context) {
-  if (!import.meta.env.VITE_SENTRY_DSN) return
+  if (!import.meta.env.VITE_SENTRY_DSN) {
+    if (import.meta.env.DEV) console.error(error, context)
+    reportError(error, typeof context === 'string' ? context : JSON.stringify(context ?? ''))
+    return
+  }
   Sentry.withScope((scope) => {
     if (context) scope.setContext('zuuchmap', context)
     Sentry.captureException(error)
   })
+}
+
+// Uncaught errors reach neither an ErrorBoundary nor a query hook.
+if (typeof window !== 'undefined') {
+  window.addEventListener('error', (e) => captureError(e.error ?? e.message, 'window.error'))
+  window.addEventListener('unhandledrejection', (e) => captureError(e.reason, 'unhandledrejection'))
 }

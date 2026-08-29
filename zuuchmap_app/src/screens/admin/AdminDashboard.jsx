@@ -7,9 +7,12 @@ import { StatusBar } from 'expo-status-bar';
 import { useTranslation } from 'react-i18next';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { spacing, typography } from '../../design/theme';
+import { useQuery } from '@tanstack/react-query';
+import reportService, { REPORTS_KEY } from '../../services/api/reportService';
 
 import AdminApproval from './AdminApproval';
 import AdminProfile from './AdminProfile';
+import AdminReports from './AdminReports';
 import CustomerPostList from '../customer/CustomerPostList';
 
 const Tab = createBottomTabNavigator();
@@ -18,6 +21,13 @@ const AdminDashboard = () => {
     const insets = useSafeAreaInsets();
     const { colors, isDark } = useAppTheme();
     const { t } = useTranslation();
+    // Open-report badge. useNotificationSync invalidates REPORTS_KEY on the
+    // socket event; the interval is the fallback for a missed one.
+    const { data: openReports = 0 } = useQuery({
+        queryKey: [...REPORTS_KEY, 'count'],
+        queryFn: reportService.countOpen,
+        refetchInterval: 60 * 1000,
+    });
 
     return (
         <SafeAreaProvider>
@@ -29,6 +39,7 @@ const AdminDashboard = () => {
                         const icons = {
                             Browse: focused ? 'list' : 'list-outline',
                             Approval: focused ? 'shield-checkmark' : 'shield-checkmark-outline',
+                            Reports: focused ? 'flag' : 'flag-outline',
                             Profile: focused ? 'person' : 'person-outline',
                         };
                         return <Ionicons name={icons[route.name]} size={size} color={color} />;
@@ -64,6 +75,11 @@ const AdminDashboard = () => {
                     name="Approval"
                     component={AdminApproval}
                     options={{ tabBarLabel: t('admin.pendingPosts') }}
+                />
+                <Tab.Screen
+                    name="Reports"
+                    component={AdminReports}
+                    options={{ tabBarLabel: t('report.queue'), tabBarBadge: openReports > 0 ? openReports : undefined }}
                 />
                 <Tab.Screen
                     name="Profile"

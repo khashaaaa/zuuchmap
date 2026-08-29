@@ -23,9 +23,9 @@ export default function SimilarPosts({ postId }) {
       {/* Negative margin lets the first card sit flush with the page edge
           while the rail still bleeds past it on scroll. */}
       <div className="-mx-4 px-4 flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory scroll-smooth">
-        {data.map((p, i) => (
+        {data.map((p) => (
           <div key={p.id} className="w-64 shrink-0 snap-start">
-            <PostCard post={p} index={i} />
+            <PostCard post={p} />
           </div>
         ))}
       </div>

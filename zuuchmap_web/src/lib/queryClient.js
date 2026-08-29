@@ -1,16 +1,9 @@
 import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import i18n from '../i18n'
+import { captureError } from './observability'
 
-/**
- * Lazy so we don't close the loop store -> queryClient -> analytics -> api -> store.
- * Reporting is fire-and-forget anyway; nothing waits on it.
- */
-const report = (error, context) => {
-  import('./analytics')
-    .then((m) => m.reportError(error, context))
-    .catch(() => {})
-}
+const report = (error, context) => captureError(error, { context })
 
 /**
  * Every read failure passes through here — this is the safety net under the
@@ -58,3 +51,15 @@ export const queryClient = new QueryClient({
     },
   },
 })
+
+const POST_KEYS = ['admin-pending', 'admin-stats', 'my-posts', 'posts', 'posts-map', 'public-stats']
+
+/**
+ * Every list a post can appear in, after anything that changes one: create,
+ * edit, delete, approve, reject, feature. Only mounted queries refetch, so the
+ * over-approximation costs nothing on screens that do not show the key.
+ */
+export function invalidatePostQueries(qc, { postId } = {}) {
+  POST_KEYS.forEach((k) => qc.invalidateQueries({ queryKey: [k] }))
+  if (postId != null) qc.invalidateQueries({ queryKey: ['post', String(postId)] })
+}

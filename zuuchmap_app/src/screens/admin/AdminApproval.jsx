@@ -12,14 +12,11 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spacing, typography, radius, isTablet, withAlpha } from '../../design/theme';
+import { ScreenLayout } from '../../components';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 import { useCategorySchemas } from '../../hooks/useCategorySchemas';
 import { getSchemaLabel } from '../../utils/postUtils';
-import CustomSafeAreaView from '../../components/CustomSafeAreaView';
-import ScreenHeader from '../../components/ScreenHeader';
-import ScreenError from '../../components/ScreenError';
-import ScreenLoading from '../../components/ScreenLoading';
 import Button from '../../components/Button';
 import PressableScale from '../../components/PressableScale';
 import postService from '../../services/api/postService';
@@ -35,7 +32,7 @@ const StatCard = ({ label, value, color, colors }) => (
 
 const AdminApproval = ({ navigation }) => {
     const insets = useSafeAreaInsets();
-    const { colors, isDark } = useAppTheme();
+    const { colors } = useAppTheme();
     const { t } = useTranslation();
     // Labels come from the schema (covers admin-added categories with no app
     // release); client i18n is only the missing-schema fallback.
@@ -55,14 +52,7 @@ const AdminApproval = ({ navigation }) => {
     const totalPending = stats?.totals?.pending ?? 0;
 
     return (
-        <CustomSafeAreaView backgroundColor={colors.background} statusBarColor={colors.surface} statusBarStyle={isDark ? 'light-content' : 'dark-content'}>
-            <ScreenHeader title={t('admin.dashboard')} showBack={false} />
-
-            {loading ? (
-                <ScreenLoading />
-            ) : isError ? (
-                <ScreenError onRetry={refetch} />
-            ) : (
+        <ScreenLayout title={t('admin.dashboard')} showBack={false} loading={loading} error={isError} onRetry={refetch}>
                 <ScrollView
                     contentContainerStyle={[styles.content, { paddingBottom: (Platform.OS === 'ios' ? 88 : 65) + insets.bottom + spacing.md }]}
                     refreshControl={
@@ -116,8 +106,7 @@ const AdminApproval = ({ navigation }) => {
                     ))}
                     </View>{/* end tabletCentering */}
                 </ScrollView>
-            )}
-        </CustomSafeAreaView>
+        </ScreenLayout>
     );
 };
 

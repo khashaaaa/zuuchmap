@@ -7,7 +7,9 @@ import { CategoryService } from '../post/category.service';
 /** Sitemaps are capped at 50k URLs / 50MB by the protocol; 5k keeps each one small. */
 const PAGE_SIZE = 5000;
 
-const escapeXml = (s: string) =>
+// One escaper for both the sitemap XML and the OG HTML: the five entities
+// are valid in either, and text never lands anywhere an unescaped `'` is safe.
+const escape = (s: string) =>
   s.replace(
     /[<>&'"]/g,
     (c) =>
@@ -15,16 +17,9 @@ const escapeXml = (s: string) =>
         '<': '&lt;',
         '>': '&gt;',
         '&': '&amp;',
-        "'": '&apos;',
+        "'": '&#39;',
         '"': '&quot;',
       })[c] as string,
-  );
-
-const escapeHtml = (s: string) =>
-  s.replace(
-    /[<>&"]/g,
-    (c) =>
-      ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[c] as string,
   );
 
 @Injectable()
@@ -95,7 +90,7 @@ export class SeoService {
     return this.urlset(
       urls.map(
         (u) =>
-          `<url><loc>${escapeXml(u.loc)}</loc><changefreq>${u.freq}</changefreq><priority>${u.priority}</priority></url>`,
+          `<url><loc>${escape(u.loc)}</loc><changefreq>${u.freq}</changefreq><priority>${u.priority}</priority></url>`,
       ),
     );
   }
@@ -159,20 +154,20 @@ export class SeoService {
 <html lang="mn">
 <head>
 <meta charset="utf-8" />
-<title>${escapeHtml(title)} — ZuuchMap</title>
-<meta name="description" content="${escapeHtml(description)}" />
-<link rel="canonical" href="${escapeHtml(url)}" />
+<title>${escape(title)} — ZuuchMap</title>
+<meta name="description" content="${escape(description)}" />
+<link rel="canonical" href="${escape(url)}" />
 <meta property="og:type" content="article" />
 <meta property="og:site_name" content="ZuuchMap" />
 <meta property="og:locale" content="mn_MN" />
-<meta property="og:url" content="${escapeHtml(url)}" />
-<meta property="og:title" content="${escapeHtml(title)}" />
-<meta property="og:description" content="${escapeHtml(description)}" />
-<meta property="og:image" content="${escapeHtml(image)}" />
+<meta property="og:url" content="${escape(url)}" />
+<meta property="og:title" content="${escape(title)}" />
+<meta property="og:description" content="${escape(description)}" />
+<meta property="og:image" content="${escape(image)}" />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="${escapeHtml(title)}" />
-<meta name="twitter:description" content="${escapeHtml(description)}" />
-<meta name="twitter:image" content="${escapeHtml(image)}" />
+<meta name="twitter:title" content="${escape(title)}" />
+<meta name="twitter:description" content="${escape(description)}" />
+<meta name="twitter:image" content="${escape(image)}" />
 <script type="application/ld+json">${JSON.stringify({
       '@context': 'https://schema.org',
       '@type': 'Product',
@@ -191,9 +186,9 @@ export class SeoService {
           }
         : {}),
     })}</script>
-<meta http-equiv="refresh" content="0; url=${escapeHtml(url)}" />
+<meta http-equiv="refresh" content="0; url=${escape(url)}" />
 </head>
-<body><a href="${escapeHtml(url)}">${escapeHtml(title)}</a></body>
+<body><a href="${escape(url)}">${escape(title)}</a></body>
 </html>`;
   }
 

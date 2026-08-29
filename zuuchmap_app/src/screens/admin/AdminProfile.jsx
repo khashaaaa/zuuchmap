@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet, dimensions } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
-import userService from '../../services/api/userService';
+import { useProfile } from '../../hooks/useProfile';
 import { ScreenLayout, SettingsSection } from '../../components';
 import { ProfileSection, ProfileActionRow, ProfileBadge } from '../../components';
 import { DEFAULT_AVATAR_URL } from '../../config/app.config';
@@ -25,38 +25,21 @@ const AdminProfile = ({ navigation }) => {
     const insets = useSafeAreaInsets();
     const { colors, styles: gStyles } = useAppTheme();
     const { t } = useTranslation();
-    const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
     const [imageError, setImageError] = useState(false);
 
-    const loadUserProfile = useCallback(async (showLoader = true) => {
-        try {
-            if (showLoader) setLoading(true);
-            setImageError(false);
-            const profile = await userService.getUserProfile();
-            setUser(profile);
-        } catch (error) {
-            // See CustomerProfile: a tokenless 401 here is the logout, not a fault.
-            if (!isPostLogoutStraggler(error)) {
-                logger.error('AdminProfile load error:', error);
-                showErrorModal(t('common.error'), t('profile.loadError'));
-            }
-        } finally {
-            setLoading(false);
-        }
-    }, [t]);
-
-    const handleRefresh = useCallback(async () => {
-        setRefreshing(true);
-        try { await loadUserProfile(false); } finally { setRefreshing(false); }
-    }, [loadUserProfile]);
+    const { data: user = null, isLoading: loading, isRefetching: refreshing, refetch: loadUserProfile, error: profileError } = useProfile();
 
     useEffect(() => {
-        loadUserProfile();
-        const unsubscribe = navigation.addListener('focus', () => loadUserProfile());
-        return unsubscribe;
-    }, [navigation, loadUserProfile]);
+        // See CustomerProfile: a tokenless 401 here is the logout, not a fault.
+        if (profileError && !isPostLogoutStraggler(profileError)) {
+            logger.error('AdminProfile load error:', profileError);
+            showErrorModal(t('common.error'), t('profile.loadError'));
+        }
+    }, [profileError]);
+
+    useEffect(() => { setImageError(false); }, [user?.profilePicture]);
+
+    const handleRefresh = loadUserProfile;
 
     const handleLogout = () => confirmLogout({
         t, navigation,

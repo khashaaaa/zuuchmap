@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-  InternalServerErrorException,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
@@ -26,59 +21,35 @@ export class UserService {
   ) {}
 
   async findByPhoneNumber(phone_number: string): Promise<User | null> {
-    try {
-      const user = await this.userRepository.findOne({
-        where: { phone_number },
-        relations: ['company'],
-      });
-
-      return user;
-    } catch (error) {
-      this.logger.error(
-        `Failed to find user by phone number ${phone_number}: ${error.message}`,
-      );
-      throw new InternalServerErrorException(
-        'Failed to retrieve user by phone number: ' + error.message,
-      );
-    }
+    return this.userRepository.findOne({
+      where: { phone_number },
+      relations: ['company'],
+    });
   }
 
   async setUserType(
     phone_number: string,
     type: string,
   ): Promise<{ success: boolean; message: string; user?: User }> {
-    try {
-      const user = await this.userRepository.findOne({
-        where: { phone_number },
-        relations: ['company'],
-      });
+    const user = await this.userRepository.findOne({
+      where: { phone_number },
+      relations: ['company'],
+    });
 
-      if (!user) {
-        throw new NotFoundException(
-          `User with phone number ${phone_number} not found`,
-        );
-      }
-
-      user.type = type;
-      const savedUser = await this.userRepository.save(user);
-
-      return {
-        success: true,
-        message: `Successfully set user type to ${type}`,
-        user: savedUser,
-      };
-    } catch (error) {
-      this.logger.error(
-        `Failed to set user type for ${phone_number}: ${error.message}`,
-      );
-
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
-      throw new InternalServerErrorException(
-        'Failed to set user type: ' + error.message,
+    if (!user) {
+      throw new NotFoundException(
+        `User with phone number ${phone_number} not found`,
       );
     }
+
+    user.type = type;
+    const savedUser = await this.userRepository.save(user);
+
+    return {
+      success: true,
+      message: `Successfully set user type to ${type}`,
+      user: savedUser,
+    };
   }
 
   async getUserPosts(userId: string) {
@@ -103,41 +74,24 @@ export class UserService {
   }
 
   async findAll(): Promise<User[]> {
-    try {
-      // Admin list view; capped until the UI paginates.
-      return await this.userRepository.find({
-        relations: ['company'],
-        order: { date_created: 'DESC' },
-        take: 500,
-      });
-    } catch (error) {
-      this.logger.error(`Failed to retrieve all users: ${error.message}`);
-      throw new InternalServerErrorException(
-        'Failed to retrieve users: ' + error.message,
-      );
-    }
+    // Admin list view; capped until the UI paginates.
+    return this.userRepository.find({
+      relations: ['company'],
+      order: { date_created: 'DESC' },
+      take: 500,
+    });
   }
 
   async findOne(id: string): Promise<User> {
-    try {
-      const user = await this.userRepository.findOne({
-        where: { id },
-        relations: ['company'],
-      });
+    const user = await this.userRepository.findOne({
+      where: { id },
+      relations: ['company'],
+    });
 
-      if (!user) {
-        throw new NotFoundException(`User with ID ${id} not found`);
-      }
-      return user;
-    } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
-      this.logger.error(`Failed to retrieve user ${id}: ${error.message}`);
-      throw new InternalServerErrorException(
-        'Failed to retrieve user: ' + error.message,
-      );
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
     }
+    return user;
   }
 
   async update(
@@ -145,35 +99,25 @@ export class UserService {
     updateUserDto: UpdateUserDto,
     profilePicture?: string | null,
   ): Promise<User> {
-    try {
-      const user = await this.userRepository.findOne({
-        where: { id },
-        relations: ['company'],
-      });
+    const user = await this.userRepository.findOne({
+      where: { id },
+      relations: ['company'],
+    });
 
-      if (!user) {
-        throw new NotFoundException(`User with ID ${id} not found`);
-      }
-
-      Object.assign(user, updateUserDto);
-
-      if (profilePicture) {
-        if (user.profile_picture) {
-          await deleteSingleImage(user.profile_picture);
-        }
-        user.profile_picture = profilePicture;
-      }
-
-      return this.userRepository.save(user);
-    } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
-      this.logger.error(`Failed to update user ${id}: ${error.message}`);
-      throw new InternalServerErrorException(
-        'Failed to update user: ' + error.message,
-      );
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
     }
+
+    Object.assign(user, updateUserDto);
+
+    if (profilePicture) {
+      if (user.profile_picture) {
+        await deleteSingleImage(user.profile_picture);
+      }
+      user.profile_picture = profilePicture;
+    }
+
+    return this.userRepository.save(user);
   }
 
   /**
@@ -261,41 +205,31 @@ export class UserService {
   }
 
   async remove(id: string): Promise<void> {
-    try {
-      const user = await this.userRepository.findOne({ where: { id } });
-      if (!user) {
-        throw new NotFoundException(`User with ID ${id} not found`);
-      }
-
-      if (user.profile_picture) {
-        await deleteSingleImage(user.profile_picture);
-      }
-
-      // Give active posts a 14-day grace period before they expire
-      const gracedAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
-      await this.postRepository
-        .createQueryBuilder()
-        .update()
-        .set({ expires_at: gracedAt })
-        .where(
-          'user_id = :id AND status != :expired AND (expires_at IS NULL OR expires_at > :gracedAt)',
-          {
-            id,
-            expired: 'EXPIRED',
-            gracedAt,
-          },
-        )
-        .execute();
-
-      await this.userRepository.delete(id);
-    } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
-      this.logger.error(`Failed to delete user ${id}: ${error.message}`);
-      throw new InternalServerErrorException(
-        'Failed to delete user: ' + error.message,
-      );
+    const user = await this.userRepository.findOne({ where: { id } });
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
     }
+
+    if (user.profile_picture) {
+      await deleteSingleImage(user.profile_picture);
+    }
+
+    // Give active posts a 14-day grace period before they expire
+    const gracedAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+    await this.postRepository
+      .createQueryBuilder()
+      .update()
+      .set({ expires_at: gracedAt })
+      .where(
+        'user_id = :id AND status != :expired AND (expires_at IS NULL OR expires_at > :gracedAt)',
+        {
+          id,
+          expired: 'EXPIRED',
+          gracedAt,
+        },
+      )
+      .execute();
+
+    await this.userRepository.delete(id);
   }
 }

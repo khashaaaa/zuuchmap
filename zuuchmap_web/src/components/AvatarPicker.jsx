@@ -1,12 +1,14 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { Camera } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import UserAvatar from './UserAvatar'
 import { hideBrokenImage } from '@/lib/utils'
+import ImageCropModal from './ImageCropModal'
 
 export default function AvatarPicker({ previewUrl, profilePicture, name, onChange }) {
   const { t } = useTranslation()
   const inputRef = useRef(null)
+  const [pending, setPending] = useState(null)
 
   return (
     <div className="flex flex-col items-center gap-2 mb-2">
@@ -30,12 +32,18 @@ export default function AvatarPicker({ previewUrl, profilePicture, name, onChang
         accept="image/*"
         className="hidden"
         onChange={(e) => {
-          onChange?.(e.target.files[0])
+          setPending(e.target.files[0] ?? null)
           // Reset the value, or picking the SAME file again is not a change and
           // fires no event at all — the picker silently does nothing the second
           // time. Must run after onChange, which already holds the File object.
           e.target.value = ''
         }}
+      />
+      <ImageCropModal
+        file={pending}
+        shape="round"
+        onDone={(f) => { setPending(null); onChange?.(f) }}
+        onCancel={() => setPending(null)}
       />
     </div>
   )

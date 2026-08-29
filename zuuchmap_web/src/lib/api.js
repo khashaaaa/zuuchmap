@@ -121,7 +121,9 @@ export const usersApi = {
 // Likes
 export const likesApi = {
   getLiked: () => client.get('/like').then(r => r.data?.posts ?? []),
-  getIds: () => client.get('/like/ids').then(r => r.data?.liked_post_ids ?? []),
+  // Without ?post_type= the engine answers { liked_by_type: { [type]: ids[] } };
+  // post ids are unique across types, so flatten to one set for the grid.
+  getIds: () => client.get('/like/ids').then(r => Object.values(r.data?.liked_by_type ?? {}).flat()),
   toggle: (post_id, post_type) => client.post('/like', { post_id, post_type }),
   unlike: (post_type, post_id) => client.delete(`/like/${post_type}/${post_id}`),
   check: (post_type, post_id) => client.get(`/like/check/${post_type}/${post_id}`).then(data),
@@ -173,18 +175,30 @@ export const paymentsApi = {
 
 // Messaging — one thread per (listing, customer).
 export const messagesApi = {
-  list: () => client.get('/conversations').then(data),
+  // `before` is a cursor on the thread's last activity; 50 per page.
+  list: (cursor) =>
+    client.get('/conversations', {
+      params: cursor ? { before: cursor.before, before_id: cursor.before_id } : {},
+    }).then(data),
   unreadCount: () => client.get('/conversations/unread-count').then(data),
   open: (post_id, body) => client.post('/conversations', { post_id, ...(body ? { body } : {}) }).then(data),
   detail: (id) => client.get(`/conversations/${id}`).then(data),
-  // `before` is a cursor on date_created — an offset would drift under the
-  // thread every time the other side sends something.
-  history: (id, before) => client.get(`/conversations/${id}/messages`, { params: before ? { before } : {} }).then(data),
+  // `before` + `before_id` form a cursor on (date_created, id) — an offset
+  // would drift under the thread every time the other side sends something.
+  history: (id, cursor) =>
+    client
+      .get(`/conversations/${id}/messages`, {
+        params: cursor ? { before: cursor.before, before_id: cursor.before_id } : {},
+      })
+      .then(data),
   send: (id, body) => client.post(`/conversations/${id}/messages`, { body }).then(data),
   markRead: (id) => client.put(`/conversations/${id}/read`).then(data),
 }
 
 // Reports — user-filed moderation flags on listings that are already live.
+// The closed reason list, mirrored from the engine's `REPORT_REASONS` so the
+// sheet can paint before `reasons()` answers; check:sync holds the two equal.
+export const REPORT_REASONS = ['SPAM', 'SCAM', 'WRONG_INFO', 'UNAVAILABLE', 'OFFENSIVE', 'OTHER']
 export const reportsApi = {
   reasons: () => client.get('/reports/reasons').then(data),
   create: (post_id, reason, detail) => client.post('/reports', { post_id, reason, ...(detail ? { detail } : {}) }).then(data),

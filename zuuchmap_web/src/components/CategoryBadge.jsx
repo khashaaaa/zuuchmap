@@ -1,17 +1,12 @@
 import { useTranslation } from 'react-i18next'
-import { useQuery } from '@tanstack/react-query'
 import { getCategoryLabel, getCategoryColor, toneForTheme, withAlpha } from '../lib/utils'
-import { categoryApi } from '../lib/api'
 import { useThemeStore } from '../store'
+import { useCategories } from '@/hooks/useCategories'
 
 export default function CategoryBadge({ category }) {
   const { t } = useTranslation()
   const theme = useThemeStore((s) => s.theme)
-  const { data: schemas = [] } = useQuery({
-    queryKey: ['categories'],
-    queryFn: categoryApi.getAll,
-    staleTime: 300_000,
-  })
+  const { data: schemas = [] } = useCategories()
 
   const label = getCategoryLabel(category, t, schemas)
 

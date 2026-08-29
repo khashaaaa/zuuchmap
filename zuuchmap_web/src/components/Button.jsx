@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { twMerge } from 'tailwind-merge'
 
 const VARIANTS = {
     primary:   'bg-primary text-on-primary hover:bg-primary/90',
@@ -14,7 +15,7 @@ const SIZES = {
 }
 
 export default function Button({ variant = 'primary', size = 'md', className = '', disabled, children, to, href, ...props }) {
-    const classes = `inline-flex items-center justify-center gap-1.5 rounded-btn font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${VARIANTS[variant]} ${SIZES[size]} ${className}`
+    const classes = twMerge('inline-flex items-center justify-center gap-1.5 rounded-btn font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary', VARIANTS[variant], SIZES[size], className)
 
     if (to) {
         return (

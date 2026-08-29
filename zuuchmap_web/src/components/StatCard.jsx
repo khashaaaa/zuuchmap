@@ -1,30 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { motion, animate, useReducedMotion } from 'framer-motion'
-
-export function CountUp({ value }) {
-  const shouldReduceMotion = useReducedMotion()
-  const played = useRef(false)
-  const [display, setDisplay] = useState(() => (shouldReduceMotion ? value : 0))
-
-  useEffect(() => {
-    if (played.current || shouldReduceMotion) {
-      setDisplay(value)
-      return
-    }
-    played.current = true
-    const controls = animate(0, value, {
-      duration: 0.6,
-      ease: 'easeOut',
-      onUpdate: (v) => setDisplay(Math.round(v)),
-    })
-    return () => controls.stop()
-  }, [value, shouldReduceMotion])
-
-  return display.toLocaleString()
-}
-
 function StatValue({ value }) {
-  if (typeof value === 'number') return <CountUp value={value} />
+  if (typeof value === 'number') return value.toLocaleString()
   return value ?? '—'
 }
 
@@ -38,14 +13,10 @@ const TONES = {
  * `lead` marks the single most important metric on a dashboard: overline label
  * over a display-size number, spanning wider in the caller's grid — so the eye
  * has somewhere to land instead of N interchangeable boxes.
- * `index` staggers entrance in reading order (the landing-hero idiom).
  */
-export default function StatCard({ icon: Icon, label, value, color = 'text-primary-text', align = 'center', tone = 'surface', lead = false, index = 0, className = '' }) {
-  const shouldReduceMotion = useReducedMotion()
+export default function StatCard({ icon: Icon, label, value, color = 'text-primary-text', align = 'center', tone = 'surface', lead = false, className = '' }) {
   return (
-    <motion.div
-      initial={shouldReduceMotion ? false : { opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0, transition: { delay: shouldReduceMotion ? 0 : Math.min(index, 8) * 0.05 } }}
+    <div
       className={`${TONES[tone] ?? TONES.surface} border shadow-card rounded-card p-4 ${className}`}
     >
       {lead ? (
@@ -69,6 +40,6 @@ export default function StatCard({ icon: Icon, label, value, color = 'text-prima
           <p className={`text-xl font-bold tabular-nums ${color}`}><StatValue value={value} /></p>
         </div>
       )}
-    </motion.div>
+    </div>
   )
 }

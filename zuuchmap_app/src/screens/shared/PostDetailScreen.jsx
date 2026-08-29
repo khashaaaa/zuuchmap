@@ -27,7 +27,7 @@ import postService from '../../services/api/postService';
 import likeService from '../../services/api/likeService';
 import { getUserId } from '../../services/api/authHelpers';
 import { ScreenLayout } from '../../components';
-import { StatusBadge, StatTile, FadeSlideIn, PressableScale, SkeletonItem, AvailabilityStrip, ProviderCredentials, SimilarPostsDrawer } from '../../components';
+import { StatusBadge, StatTile, PressableScale, SkeletonItem, AvailabilityStrip, ProviderCredentials, SimilarPostsDrawer } from '../../components';
 import LikeButton from '../../components/LikeButton';
 import { Button } from '../../components';
 import { TextInput } from '../../components';
@@ -36,7 +36,7 @@ import { normalizePostType, getPostTypeConfig, getPostTitle, getSchemaLabel, get
 import { normalizeWebsiteUrl } from '../../utils/formUtils';
 import { processPostImages } from '../../utils/imageUtils';
 import { logger } from '../../utils/logger';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { invalidatePostData } from '../../services/queryClient';
 import { track } from '../../services/analytics';
 import categoryService from '../../services/api/categoryService';
@@ -46,9 +46,11 @@ import {
     DetailItem, ContactRow, MetaRow, SectionCard, CollapsibleSectionCard, TagList,
 } from '../../components/PostDetailSections';
 import { usePostModeration } from '../../hooks/usePostModeration';
-import { showErrorModal, showInfoModal, showWarningModal, getErrorMessage } from '../../utils/errorManager';
+import { useToggleLike } from '../../hooks/useToggleLike';
+import { showErrorModal, showInfoModal, getErrorMessage } from '../../utils/errorManager';
 import messageService from '../../services/api/messageService';
-import reportService, { REPORT_REASONS } from '../../services/api/reportService';
+import reportService, { REPORTS_KEY } from '../../services/api/reportService';
+import ReportSheet from '../../components/ReportSheet';
 
 
 // i18n key map for known attribute keys
@@ -168,8 +170,6 @@ const PostDetailScreen = ({ route, navigation }) => {
     const [heroImageErrors, setHeroImageErrors] = useState({});
     const [currentUserId, setCurrentUserId] = useState(null);
 
-    const [deleting, setDeleting] = useState(false);
-
     useEffect(() => { getUserId().then(setCurrentUserId); }, []);
 
     const { data: post = null, isLoading, isError, error: postError, refetch: loadPost } = useQuery({
@@ -180,7 +180,6 @@ const PostDetailScreen = ({ route, navigation }) => {
         },
         staleTime: 30 * 1000,
     });
-    const loading = isLoading || deleting;
 
     // Deep links (push taps, notification rows) may arrive without postType —
     // fall back to the fetched post's category so like stats and the category
@@ -197,12 +196,61 @@ const PostDetailScreen = ({ route, navigation }) => {
         handleApprove, handleRejectConfirm,
     } = usePostModeration({ post, enabled: isAdmin, onDone: () => navigation.goBack() });
 
+    // Like count (providers see it in the stats tiles, customers on the heart)
+    // and this user's own saved state. Both are owned here; LikeButton only draws.
+    const likeStatsKey = ['post', postId, 'likeStats'];
+    const likedKey = ['liked', 'status', postType, postId];
+    const canLike = !isProvider && !isAdmin;
     const { data: likeStats = { total_likes: 0, recent_likes: 0 }, isLoading: loadingLikes } = useQuery({
-        queryKey: ['post', postId, 'likeStats'],
-        enabled: isProvider && Boolean(postType),
+        queryKey: likeStatsKey,
+        // /like/stats sits behind the JWT guard: never fire it signed out.
+        enabled: Boolean(currentUserId) && !isAdmin && Boolean(postType),
         queryFn: () => likeService.getLikeStats(postType, postId),
         staleTime: 60 * 1000,
     });
+    const { data: liked = false } = useQuery({
+        queryKey: likedKey,
+        enabled: canLike && Boolean(currentUserId) && Boolean(postType),
+        queryFn: () => likeService.checkIfLiked(postType, postId),
+        staleTime: 60 * 1000,
+    });
+    const toggleLike = useToggleLike({
+        onMutate: ({ liked: wasLiked }) => {
+            const previous = { liked: qc.getQueryData(likedKey), stats: qc.getQueryData(likeStatsKey) };
+            qc.setQueryData(likedKey, !wasLiked);
+            qc.setQueryData(likeStatsKey, (old = { total_likes: 0, recent_likes: 0 }) => ({
+                ...old,
+                total_likes: Math.max(0, (old.total_likes || 0) + (wasLiked ? -1 : 1)),
+            }));
+            return previous;
+        },
+        onRollback: (_vars, previous) => {
+            qc.setQueryData(likedKey, previous?.liked);
+            qc.setQueryData(likeStatsKey, previous?.stats);
+        },
+        onSettled: () => qc.invalidateQueries({ queryKey: likeStatsKey }),
+    });
+    const handleToggleLike = () => {
+        if (!currentUserId) {
+            showErrorModal(t('auth.title'), t('posts.loginToSave'), [{ text: t('common.close') }], 'warning');
+            return;
+        }
+        toggleLike.mutate({ post_type: postType, post_id: postId, liked });
+    };
+
+    const deletion = useMutation({
+        mutationKey: ['post', 'delete'],
+        mutationFn: () => postService.deletePost(postId),
+        onSuccess: () => {
+            invalidatePostData();
+            navigation.goBack();
+        },
+        onError: (error) => {
+            logger.error('Delete post error:', error);
+            showErrorModal(t('common.error'), t('posts.deleteError'));
+        },
+    });
+    const loading = isLoading || deletion.isPending;
 
     // Category behavior flags — bookable categories show the request button.
     // The failure is surfaced rather than swallowed: `.catch(() => null)` made a
@@ -220,6 +268,7 @@ const PostDetailScreen = ({ route, navigation }) => {
         staleTime: 10 * 60 * 1000,
     });
     const [showBookingModal, setShowBookingModal] = useState(false);
+    const [showReportSheet, setShowReportSheet] = useState(false);
     // Mirrors booking.service.ts, which is the only authority here: signed in,
     // not your own post, category supports rentals, post has an owner. It
     // deliberately does NOT test the account type — the engine has no such rule,
@@ -242,6 +291,12 @@ const PostDetailScreen = ({ route, navigation }) => {
     // used to be answerable only by phone — leaving no record of what was agreed.
     const canContact = Boolean(currentUserId) && !isAdmin
         && Boolean(post?.user) && post?.user?.id !== currentUserId;
+
+    const { data: openReports = [] } = useQuery({
+        queryKey: [...REPORTS_KEY, 'OPEN', { post_id: post?.id }],
+        queryFn: async () => (await reportService.list({ status: 'OPEN', post_id: post.id }))?.items ?? [],
+        enabled: isAdmin && Boolean(post?.id),
+    });
 
     const viewIncrementRef = useRef(false);
 
@@ -275,22 +330,7 @@ const PostDetailScreen = ({ route, navigation }) => {
             t('common.irreversible'),
             [
                 { text: t('common.cancel') },
-                {
-                    text: t('common.delete'),
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            setDeleting(true);
-                            await postService.deletePost(postId);
-                            invalidatePostData();
-                            navigation.goBack();
-                        } catch (error) {
-                            logger.error('Delete post error:', error);
-                            showErrorModal(t('common.error'), t('posts.deleteError'));
-                            setDeleting(false);
-                        }
-                    },
-                },
+                { text: t('common.delete'), style: 'destructive', onPress: () => deletion.mutate() },
             ],
             'warning'
         );
@@ -308,31 +348,7 @@ const PostDetailScreen = ({ route, navigation }) => {
         }
     };
 
-    const handleReport = () => {
-        // A closed reason list, translated client-side. Free text alone cannot
-        // be triaged, and the admin queue is filtered by kind.
-        showWarningModal(
-            t('report.title'),
-            t('report.lead'),
-            [
-                ...REPORT_REASONS.map((reason) => ({
-                    text: t(`report.reasons.${reason}`),
-                    onPress: async () => {
-                        try {
-                            const result = await reportService.create(post.id, reason);
-                            showInfoModal(
-                                t('report.title'),
-                                result?.duplicate ? t('report.duplicate') : t('report.submitted')
-                            );
-                        } catch (error) {
-                            showErrorModal(t('common.error'), getErrorMessage(error) || t('report.failed'));
-                        }
-                    },
-                })),
-                { text: t('common.cancel'), style: 'cancel' },
-            ]
-        );
-    };
+    const handleReport = () => setShowReportSheet(true);
 
     const handleCall = () => {
         if (post?.contact_phone) {
@@ -512,7 +528,6 @@ const PostDetailScreen = ({ route, navigation }) => {
                 <View style={styles.contentWrapper}>
 
                 {/* ── Title card ─────────────────────────────────────────── */}
-                <FadeSlideIn index={0}>
                 <SectionCard style={styles.titleCard} colors={colors} styles={styles}>
                     {isAdmin && editMode ? (
                         <View style={[styles.editBlock, { backgroundColor: colors.surface, borderColor: colors.border.amber }]}>
@@ -556,12 +571,13 @@ const PostDetailScreen = ({ route, navigation }) => {
                                     ) : null}
                                 </View>
                                 <View style={styles.titleActions}>
-                                    {!isProvider && !isAdmin && (
+                                    {canLike && (
                                         <LikeButton
-                                            post_type={postType}
-                                            post_id={postId}
-                                            show_count={true}
+                                            liked={liked}
+                                            count={likeStats.total_likes}
                                             size="large"
+                                            disabled={toggleLike.isPending}
+                                            onToggle={handleToggleLike}
                                         />
                                     )}
                                 </View>
@@ -588,11 +604,31 @@ const PostDetailScreen = ({ route, navigation }) => {
                         </>
                     )}
                 </SectionCard>
-                </FadeSlideIn>
+
+                {/* ── Open reports on this listing (admin only) ─────────── */}
+                {isAdmin && openReports.length > 0 && (
+                    <SectionCard colors={colors} styles={styles}>
+                        <Text style={[styles.adminSectionTitle, { color: colors.warning }]}>
+                            {t('report.openOnPost', { count: openReports.length })}
+                        </Text>
+                        {openReports.slice(0, 5).map((r) => (
+                            <View key={r.id} style={styles.adminInfoRow}>
+                                <Text style={[styles.adminInfoLabel, { color: colors.text.secondary }]}>{t(`report.reasons.${r.reason}`)}</Text>
+                                <Text style={[styles.adminInfoValue, { color: colors.text.primary }]} numberOfLines={2}>{r.detail || '—'}</Text>
+                            </View>
+                        ))}
+                        <TouchableOpacity
+                            onPress={() => navigation.navigate('AdminDashboard', { screen: 'Reports' })}
+                            hitSlop={{ top: 8, bottom: 8 }}
+                            style={{ paddingTop: spacing.sm }}
+                        >
+                            <Text style={[typography.styles.label, { color: colors.text.link }]}>{t('report.queue')}</Text>
+                        </TouchableOpacity>
+                    </SectionCard>
+                )}
 
                 {/* ── Poster info (admin only) ────────────────────────────── */}
                 {isAdmin && post.user && (
-                    <FadeSlideIn index={1}>
                     <SectionCard colors={colors} styles={styles}>
                         <Text style={[styles.adminSectionTitle, { color: colors.text.tertiary }]}>{t('admin.poster')}</Text>
                         {(post.user.parent_name || post.user.given_name) && (
@@ -614,12 +650,10 @@ const PostDetailScreen = ({ route, navigation }) => {
                             </View>
                         )}
                     </SectionCard>
-                    </FadeSlideIn>
                 )}
 
                 {/* ── Stats card (provider only) ─────────────────────────── */}
                 {isProvider && (
-                    <FadeSlideIn index={1}>
                     <View style={[styles.statsCard, { backgroundColor: colors.surface }]}>
                         <StatTile
                             label={t('posts.viewCount')}
@@ -645,11 +679,9 @@ const PostDetailScreen = ({ route, navigation }) => {
                             style={styles.statItem}
                         />
                     </View>
-                    </FadeSlideIn>
                 )}
 
                 {/* ── Location & map ─────────────────────────────────────── */}
-                <FadeSlideIn index={2}>
                 <SectionCard label={t('posts.sectionLocation')} colors={colors} styles={styles}>
                     <Text style={[styles.locationText, { color: colors.text.primary }]}>
                         {post.location || post.address ||
@@ -691,11 +723,9 @@ const PostDetailScreen = ({ route, navigation }) => {
                         </View>
                     )}
                 </SectionCard>
-                </FadeSlideIn>
 
                 {/* ── Category-specific attributes (dynamic) ─────────────── */}
                 {post.attributes && Object.keys(post.attributes).length > 0 && (
-                    <FadeSlideIn index={3}>
                     <CollapsibleSectionCard title={t('form.categoryDetails')} colors={colors} styles={styles}>
                         <View style={styles.detailsGrid}>
                             {Object.entries(post.attributes).map(([key, value]) => {
@@ -729,21 +759,17 @@ const PostDetailScreen = ({ route, navigation }) => {
                             })}
                         </View>
                     </CollapsibleSectionCard>
-                    </FadeSlideIn>
                 )}
 
                 {/* ── Next 14 days (bookable categories) ─────────────────── */}
                 {Boolean(schema?.has_rental_status) && Array.isArray(post.busy_dates) && (
-                    <FadeSlideIn index={4}>
                     <SectionCard label={t('posts.availabilityNext')} colors={colors} styles={styles}>
                         <AvailabilityStrip busyDates={post.busy_dates} size="md" />
                     </SectionCard>
-                    </FadeSlideIn>
                 )}
 
                 {/* ── Availability ───────────────────────────────────────── */}
                 {(post.available_from || post.available_until) && (
-                    <FadeSlideIn index={4}>
                     <SectionCard label={t('posts.sectionAvailability')} colors={colors} styles={styles}>
                         {post.available_from && (
                             <View style={styles.availRow}>
@@ -768,28 +794,22 @@ const PostDetailScreen = ({ route, navigation }) => {
                             </View>
                         )}
                     </SectionCard>
-                    </FadeSlideIn>
                 )}
 
                 {/* ── Description / details ─────────────────────────────── */}
                 {(post.description || post.details) && (
-                    <FadeSlideIn index={5}>
                     <SectionCard label={t('posts.sectionDescription')} colors={colors} styles={styles}>
                         <Text style={[styles.descriptionText, { color: colors.text.primary }]}>{post.description || post.details}</Text>
                     </SectionCard>
-                    </FadeSlideIn>
                 )}
 
                 {/* ── Provider track record ──────────────────────────────── */}
                 {post.user && (
-                    <FadeSlideIn index={6}>
                     <ProviderCredentials providerId={post.user.id} />
-                    </FadeSlideIn>
                 )}
 
                 {/* ── Contact info ───────────────────────────────────────── */}
                 {(post.contact_phone || post.contact_email || post.website) && (
-                    <FadeSlideIn index={6}>
                     <SectionCard label={t('posts.sectionContact')} colors={colors} styles={styles}>
                         {post.contact_phone && (
                             <ContactRow
@@ -825,11 +845,9 @@ const PostDetailScreen = ({ route, navigation }) => {
                             />
                         )}
                     </SectionCard>
-                    </FadeSlideIn>
                 )}
 
                 {/* ── Meta info ─────────────────────────────────────────── */}
-                <FadeSlideIn index={7}>
                 <CollapsibleSectionCard title={t('posts.moreInfo')} colors={colors} styles={styles} defaultOpen={false}>
                     <MetaRow icon="calendar-outline" label={t('posts.publishedOn')} value={formatDateTime(post.created_at || post.date_created)} colors={colors} styles={styles} />
                     {post.updated_at && post.updated_at !== post.created_at && (
@@ -841,22 +859,18 @@ const PostDetailScreen = ({ route, navigation }) => {
                         <MetaRow icon="eye-outline" label={t('posts.viewCount')} value={String(post.views)} colors={colors} styles={styles} />
                     )}
                 </CollapsibleSectionCard>
-                </FadeSlideIn>
 
                 {/* ── Provider reviews ───────────────────────────────────── */}
                 {post.user && (
-                    <FadeSlideIn index={8}>
                     <ReviewSection
                         providerId={post.user.id}
                         canReview={!isProvider && !isAdmin && post.user.id !== currentUserId}
                         autoOpen={openReview}
                     />
-                    </FadeSlideIn>
                 )}
 
                 {/* ── Similar posts ──────────────────────────────────────── */}
                 {!isAdmin && (
-                    <FadeSlideIn index={9}>
                     <SimilarPostsDrawer
                         postId={postId}
                         onPressPost={(p) => navigation.push('PostDetailScreen', {
@@ -867,7 +881,6 @@ const PostDetailScreen = ({ route, navigation }) => {
                             shouldIncrementViews: true,
                         })}
                     />
-                    </FadeSlideIn>
                 )}
 
                 </View>{/* end contentWrapper */}
@@ -1017,6 +1030,13 @@ const PostDetailScreen = ({ route, navigation }) => {
             </View>
 
             {/* ── Booking request modal (customer) ───────────────────────── */}
+            {canContact && (
+                <ReportSheet
+                    visible={showReportSheet}
+                    onClose={() => setShowReportSheet(false)}
+                    postId={post.id}
+                />
+            )}
             {bookingOpen && (
                 <BookingRequestModal
                     visible={showBookingModal}

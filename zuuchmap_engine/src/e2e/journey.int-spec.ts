@@ -343,6 +343,16 @@ describe('messaging', () => {
     expect(res.body.role).toBe('CUSTOMER');
   });
 
+  it('lists the thread in both inboxes', async () => {
+    for (const token of [customerToken, providerToken]) {
+      const res = await request(http)
+        .get('/engine/conversations')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      expect(res.body.map((c: { id: string }) => c.id)).toContain(conversationId);
+    }
+  });
+
   it('shows the provider an unread message', async () => {
     const res = await request(http)
       .get('/engine/conversations/unread-count')

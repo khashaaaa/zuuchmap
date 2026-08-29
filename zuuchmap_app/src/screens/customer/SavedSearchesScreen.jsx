@@ -6,11 +6,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { spacing, typography, radius, isTablet, interactions } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
-import { useMinDisplayTime } from '../../hooks/useMinDisplayTime';
-import CustomSafeAreaView from '../../components/CustomSafeAreaView';
-import ScreenHeader from '../../components/ScreenHeader';
 import ScreenError from '../../components/ScreenError';
-import { EmptyState, SkeletonItem, FadeSlideIn, PressableScale } from '../../components';
+import { ScreenLayout, EmptyState, SkeletonItem, PressableScale } from '../../components';
 import { SkeletonCrossfade } from '../../components/SkeletonItem';
 import { useSavedSearchSummary } from '../../components/SavedSearchSheet';
 import savedSearchService, { SAVED_SEARCHES_KEY } from '../../services/api/savedSearchService';
@@ -20,7 +17,6 @@ import { formatDate } from '../../utils/displayUtils';
 const SavedSearchRow = ({ item, index, onOpen, onDelete, deleting, styles, colors, t }) => {
     const chips = useSavedSearchSummary(item);
     return (
-        <FadeSlideIn index={index}>
             <PressableScale style={styles.card} onPress={() => onOpen(item)} accessibilityRole="button">
                 <View style={styles.cardHead}>
                     <View style={[styles.iconWrap, { backgroundColor: colors.opacity.background.primary }]}>
@@ -50,13 +46,12 @@ const SavedSearchRow = ({ item, index, onOpen, onDelete, deleting, styles, color
                     </TouchableOpacity>
                 </View>
             </PressableScale>
-        </FadeSlideIn>
     );
 };
 
 const SavedSearchesScreen = ({ navigation }) => {
     const insets = useSafeAreaInsets();
-    const { colors, isDark } = useAppTheme();
+    const { colors } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
     const { t } = useTranslation();
     const qc = useQueryClient();
@@ -90,11 +85,10 @@ const SavedSearchesScreen = ({ navigation }) => {
         navigation.navigate('CustomerPostList', savedSearchService.toRouteParams(item));
     }, [navigation]);
 
-    const showSkeleton = useMinDisplayTime(isLoading);
+    const showSkeleton = isLoading;
 
     return (
-        <CustomSafeAreaView backgroundColor={colors.background} statusBarColor={colors.surface} statusBarStyle={isDark ? 'light-content' : 'dark-content'}>
-            <ScreenHeader title={t('savedSearch.title')} onBack={() => navigation.goBack()} />
+        <ScreenLayout title={t('savedSearch.title')} onBack={() => navigation.goBack()}>
             <SkeletonCrossfade
                 loading={showSkeleton}
                 skeleton={(
@@ -146,7 +140,7 @@ const SavedSearchesScreen = ({ navigation }) => {
                     />
                 )}
             </SkeletonCrossfade>
-        </CustomSafeAreaView>
+        </ScreenLayout>
     );
 };
 

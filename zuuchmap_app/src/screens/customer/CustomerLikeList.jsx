@@ -5,37 +5,37 @@ import {
     View,
     Text,
     FlatList,
-    Image,
     RefreshControl,
     ActivityIndicator,
     StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing, typography, safeAreaHelpers, radius } from '../../design/theme';
+import { spacing, typography, safeAreaHelpers } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
-import { useMinDisplayTime } from '../../hooks/useMinDisplayTime';
 import { useTranslation } from 'react-i18next';
 import likeService from '../../services/api/likeService';
 import userService from '../../services/api/userService';
 import { getPostImageUrl } from '../../config/api.config';
-import CustomSafeAreaView from '../../components/CustomSafeAreaView';
-import ScreenHeader from '../../components/ScreenHeader';
 import LikeButton from '../../components/LikeButton';
+import PostCard from '../../components/PostCard';
 import EmptyState from '../../components/EmptyState';
 import ScreenError from '../../components/ScreenError';
-import { SkeletonItem, SkeletonCrossfade, FadeSlideIn, PressableScale } from '../../components';
+import { ScreenLayout, SkeletonItem, SkeletonCrossfade } from '../../components';
+import { useToggleLike } from '../../hooks/useToggleLike';
 import { showErrorModal, isPostLogoutStraggler } from '../../utils/errorManager';
 import { logger } from '../../utils/logger';
 import { getPostTitle, normalizePostType, getPostPrice, getSchemaLabel } from '../../utils/postUtils';
 import { useCategorySchemas } from '../../hooks/useCategorySchemas';
 
+const LIKED_POSTS_KEY = ['liked', 'posts'];
+
 const CustomerLikeList = ({ navigation }) => {
     const insets = useSafeAreaInsets();
-    const { colors, isDark, styles: gStyles } = useAppTheme();
+    const { colors, styles: gStyles, isDark } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
 
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
 
     // Labels come from the schema (admin-editable, covers new verticals with no
     // app release); the i18n key is only the fallback for a missing schema.
@@ -65,7 +65,7 @@ const CustomerLikeList = ({ navigation }) => {
         data, isLoading: loading, isRefetching, refetch,
         fetchNextPage, hasNextPage, isFetchingNextPage: loadingMore, error, isError,
     } = useInfiniteQuery({
-        queryKey: ['liked', 'posts'],
+        queryKey: LIKED_POSTS_KEY,
         enabled: isAuthenticated === true,
         queryFn: async ({ pageParam }) => {
             const response = await likeService.getUserLikedPosts(pageParam, 20);
@@ -130,16 +130,24 @@ const CustomerLikeList = ({ navigation }) => {
         });
     }, [navigation]);
 
-    const handleUnlike = useCallback((post_id, post_type) => {
-        qc.setQueryData(['liked', 'posts'], (old) => old && ({
-            ...old,
-            pages: old.pages.map((pg) => ({
-                ...pg,
-                posts: (pg.posts || []).filter((post) => !(post.id === post_id && post.post_type === post_type)),
-            })),
-        }));
-        qc.invalidateQueries({ queryKey: ['liked', 'count'] });
-    }, [qc]);
+    // Unsaving drops the row at once; a failure puts the page back as it was.
+    const unlike = useToggleLike({
+        onMutate: ({ post_id, post_type }) => {
+            const previous = qc.getQueryData(LIKED_POSTS_KEY);
+            qc.setQueryData(LIKED_POSTS_KEY, (old) => old && ({
+                ...old,
+                pages: old.pages.map((pg) => ({
+                    ...pg,
+                    posts: (pg.posts || []).filter((post) => !(post.id === post_id && post.post_type === post_type)),
+                })),
+            }));
+            return previous;
+        },
+        onRollback: (_vars, previous) => qc.setQueryData(LIKED_POSTS_KEY, previous),
+    });
+    const handleUnlike = useCallback((item) => {
+        unlike.mutate({ post_type: item.post_type, post_id: item.id, liked: true });
+    }, [unlike.mutate]);
 
     const handleBrowsePosts = () => {
         // Nested target — this screen is also registered at the root, where a
@@ -157,75 +165,37 @@ const CustomerLikeList = ({ navigation }) => {
         return getPostImageUrl(raw);
     };
 
-    const renderPostItem = useCallback(({ item, index }) => {
-        const imageUri = getImageUrl(item);
-        return (
-        <FadeSlideIn index={index}>
-        <PressableScale
-            style={[styles.postCard, { backgroundColor: colors.surface }]}
-            onPress={() => handlePostPress(item)}
-        >
-            <View style={styles.imageContainer}>
-                {imageUri ? (
-                    <Image
-                        source={{ uri: imageUri }}
-                        style={styles.postImage}
-                        resizeMode="cover"
-                    />
-                ) : (
-                    <View style={styles.noImageContainer}>
-                        <Ionicons name="image-outline" size={32} color={colors.iconAccent} />
-                    </View>
-                )}
-            </View>
-
-            <View style={styles.postContent}>
-                <View style={styles.postHeader}>
-                    <Text style={styles.postTitle} numberOfLines={2}>
-                        {getPostTitle(item, item.post_type || item.category)}
+    const renderPostItem = useCallback(({ item, index }) => (
+            <PostCard
+                item={item}
+                onPress={handlePostPress}
+                imageUri={getImageUrl(item)}
+                title={getPostTitle(item, item.post_type || item.category)}
+                price={getPostPrice(item)}
+                memoKey={`${i18n.language}-${isDark}-${categoryLabel(item.post_type || item.category)}`}
+                actions={<LikeButton liked size="small" onToggle={() => handleUnlike(item)} />}
+                badges={
+                    <Text style={[styles.categoryText, { color: colors.text.secondary }]}>
+                        {categoryLabel(item.post_type || item.category)}
                     </Text>
-                    <LikeButton
-                        post_type={item.post_type}
-                        post_id={item.id}
-                        initial_liked={true}
-                        skip_check={true}
-                        is_authenticated={isAuthenticated}
-                        show_count={false}
-                        size="small"
-                        onLikeChange={(liked) => {
-                            if (!liked) {
-                                handleUnlike(item.id, item.post_type);
-                            }
-                        }}
-                    />
-                </View>
-
-                <Text style={[styles.categoryText, { color: colors.text.secondary }]}>
-                    {categoryLabel(item.post_type || item.category)}
-                </Text>
-
-                {getPostPrice(item) && (
-                    <Text style={[styles.priceText, { color: colors.text.link }]}>{getPostPrice(item)}</Text>
-                )}
-
-                <View style={styles.postFooter}>
-                    <View style={styles.locationContainer}>
-                        <Ionicons name="location-outline" size={12} color={colors.iconAccent} />
-                        <Text style={[styles.locationText, { color: colors.text.secondary }]} numberOfLines={1}>
-                            {item.location || t('common.noData')}
+                }
+                footer={(
+                    <>
+                        <View style={styles.locationContainer}>
+                            <Ionicons name="location-outline" size={12} color={colors.iconAccent} />
+                            <Text style={[styles.locationText, { color: colors.text.secondary }]} numberOfLines={1}>
+                                {item.location || t('common.noData')}
+                            </Text>
+                        </View>
+                        <Text style={[styles.likedAtText, { color: colors.text.tertiary }]}>
+                            {new Date(item.date_liked).toLocaleDateString()}
                         </Text>
-                    </View>
-                    <Text style={[styles.likedAtText, { color: colors.text.tertiary }]}>
-                        {new Date(item.date_liked).toLocaleDateString()}
-                    </Text>
-                </View>
-            </View>
-        </PressableScale>
-        </FadeSlideIn>
-    );
+                    </>
+                )}
+            />
     // styles/colors/t must be deps — a stale closure here kept rendering the
     // old palette after a theme switch (and old strings after a locale switch).
-    }, [handlePostPress, handleUnlike, styles, colors, t, isAuthenticated, categoryLabel]);
+    ), [handlePostPress, handleUnlike, styles, colors, t, isAuthenticated, categoryLabel]);
 
     const renderEmptyState = () => {
         if (!authChecked) {
@@ -268,17 +238,16 @@ const CustomerLikeList = ({ navigation }) => {
     };
 
     const canGoBack = navigation.canGoBack();
-    const showSkeleton = useMinDisplayTime(loading);
+    const showSkeleton = loading;
 
     const pending = showSkeleton || !authChecked;
 
     return (
-        <CustomSafeAreaView backgroundColor={colors.background} statusBarColor={colors.surface} statusBarStyle={isDark ? 'light-content' : 'dark-content'}>
-            <ScreenHeader
-                title={`${t('posts.savedTitle')}${!pending && posts.length > 0 ? ` (${posts.length})` : ''}`}
-                showBack={canGoBack}
-                onBack={() => navigation.goBack()}
-            />
+        <ScreenLayout
+            title={`${t('posts.savedTitle')}${!pending && posts.length > 0 ? ` (${posts.length})` : ''}`}
+            showBack={canGoBack}
+            onBack={() => navigation.goBack()}
+        >
 
             <SkeletonCrossfade
                 loading={pending}
@@ -324,7 +293,7 @@ const CustomerLikeList = ({ navigation }) => {
                 updateCellsBatchingPeriod={100}
             />
             </SkeletonCrossfade>
-        </CustomSafeAreaView>
+        </ScreenLayout>
     );
 };
 
@@ -332,82 +301,16 @@ const createStyles = (colors) => StyleSheet.create({
     listContainer: {
         padding: spacing.lg,
     },
-    postCard: {
-        ...colors.elevation.md,
-        backgroundColor: colors.surface,
-        borderRadius: radius.lg,
-        marginBottom: spacing.md,
-        overflow: 'hidden',
-        flexDirection: 'row',
-        // Content-driven height: a 2-line title plus price/footer at the
-        // current type scale outgrows any fixed height and gets clipped.
-        minHeight: 120,
-        borderWidth: 1,
-        borderColor: colors.border.light,
-    },
-    imageContainer: {
-        // 96 and border.light, matching CustomerPostList and ProviderPostList —
-        // the same post was 4px wider here, on a different placeholder ground.
-        width: 96,
-        alignSelf: 'stretch',
-        overflow: 'hidden',
-        backgroundColor: colors.border.light,
-    },
-    // Absolutely positioned so the image can never dictate the card's height:
-    // a percentage height inside a stretch-sized box falls back to the image's
-    // intrinsic size (800px seed photos → screen-tall cards).
-    postImage: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-    },
-    noImageContainer: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    postContent: {
-        flex: 1,
-        padding: spacing.md,
-        justifyContent: 'space-between',
-    },
-    postHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        marginBottom: spacing.xs,
-    },
-    postTitle: {
-        ...typography.styles.title,
-        color: colors.text.primary,
-        flex: 1,
-        marginRight: spacing.sm,
-    },
     categoryText: {
         ...typography.styles.small,
         color: colors.text.secondary,
         marginBottom: spacing.xs,
     },
-    priceText: {
-        ...typography.styles.price,
-        color: colors.text.link,
-        marginBottom: spacing.xs,
-    },
-    postFooter: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
     locationContainer: {
         flexDirection: 'row',
         alignItems: 'center',
         flex: 1,
+        minWidth: 0,
         marginRight: spacing.xs,
     },
     locationText: {

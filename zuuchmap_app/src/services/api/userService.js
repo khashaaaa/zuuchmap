@@ -217,6 +217,8 @@ const userService = {
                 companyTaxId: response.data.company ? response.data.company.tax_id : null,
                 companyIsVerified: response.data.company ? response.data.company.is_verified : null,
                 address: response.data.address,
+                plan: response.data.plan,
+                plan_expires_at: response.data.plan_expires_at,
 
                 totalPosts: response.data.totalPosts || 0,
                 activePosts: response.data.activePosts || 0,

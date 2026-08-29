@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import { getToken, getUser, setAuth as persistAuth, clearAuth as persistClear, isTokenExpired } from './lib/auth'
-import { usersApi } from './lib/api'
 import { queryClient } from './lib/queryClient'
 import { clearAllDrafts } from './lib/draftStorage'
 
@@ -59,6 +58,12 @@ export const useNotificationStore = create((set) => ({
     // dropped and the bell showed a number the dropdown could not account for.
     return { notifications, unreadCount: unreadOf(notifications) }
   }),
+  markRead: (id) => set((s) => {
+    if (!s.notifications.some((n) => n.id === id && !n.read)) return {}
+    const notifications = s.notifications.map((n) => (n.id === id ? { ...n, read: true } : n))
+    writeStoredNotifications(notifications)
+    return { notifications, unreadCount: unreadOf(notifications) }
+  }),
   markAllRead: () => set((s) => {
     const notifications = s.notifications.map((n) => ({ ...n, read: true }))
     writeStoredNotifications(notifications)
@@ -87,44 +92,48 @@ export const useNotificationStore = create((set) => ({
   },
 }))
 
-export const useAuthStore = create((set) => ({
+/** The fields the login response hands back — enough to route before the profile loads. */
+const identityOf = (user) => user ? {
+  id: user.id,
+  phone_number: user.phone_number,
+  type: user.type ?? null,
+  is_admin: user.is_admin === true,
+} : null
+
+export const useAuthStore = create((set, get) => ({
   token: null,
+  // Identity only (id / phone / type / is_admin). The full profile lives in
+  // React Query under ['profile'] — see hooks/useProfile.js.
   user: null,
   isAdmin: false,
   isLoading: true,
-
-  // The login/JWT user carries only id/phone/type/is_admin. Merge the full
-  // profile so given_name, email, etc. are available (greetings, sidebar) —
-  // both on cold hydrate and immediately after login, without a refresh.
-  refreshProfile: async (token, user) => {
-    try {
-      const profile = await usersApi.getProfile()
-      const merged = { ...user, ...profile, is_admin: profile.is_admin === true }
-      persistAuth(token, merged)
-      set({ user: merged, isAdmin: profile.is_admin === true })
-    } catch {} // silent — server unreachable or token expired (401 handler redirects)
-  },
 
   // Committing an expired token painted the whole signed-in shell, which the
   // 401 handler then tore away — the user watched their dashboard flash past on
   // the way to the login screen. `exp` is readable from the token itself, so a
   // dead session is recognised before anything renders, and a live one still
   // paints immediately without waiting on the network.
-  hydrate: async () => {
+  hydrate: () => {
     const token = getToken()
-    const user = getUser()
+    const user = identityOf(getUser())
     if (!token || !user) { set({ isLoading: false }); return }
     if (isTokenExpired(token)) { persistClear(); set({ isLoading: false }); return }
-    set({ token, user, isAdmin: user.is_admin === true, isLoading: false })
-    await useAuthStore.getState().refreshProfile(token, user)
+    set({ token, user, isAdmin: user.is_admin, isLoading: false })
   },
 
-  // Profile edits update the session user without queryClient.clear() —
-  // wiping every cached query on a name change caused a full refetch cascade.
-  setUser: (user) => {
-    const token = useAuthStore.getState().token
-    persistAuth(token, user)
-    set({ user, isAdmin: user.is_admin === true })
+  /**
+   * Called by useProfile whenever the server profile lands: role and admin
+   * status are the server's to decide, so the stored identity follows it.
+   * A no-op when nothing changed, so the effect that calls it does not loop.
+   */
+  syncIdentity: (profile) => {
+    const { token, user } = get()
+    if (!token || !profile) return
+    const next = identityOf({ ...user, ...profile })
+    const same = user && ['id', 'phone_number', 'type', 'is_admin'].every((k) => user[k] === next[k])
+    if (same) return
+    persistAuth(token, next)
+    set({ user: next, isAdmin: next.is_admin })
   },
 
   login: (token, user) => {
@@ -134,9 +143,9 @@ export const useAuthStore = create((set) => ({
     // session that ended without a sign-out must not hand its unfinished
     // listing to whoever signs in next.
     clearAllDrafts()
-    persistAuth(token, user)
-    set({ token, user, isAdmin: user.is_admin === true, isLoading: false })
-    useAuthStore.getState().refreshProfile(token, user)
+    const identity = identityOf(user)
+    persistAuth(token, identity)
+    set({ token, user: identity, isAdmin: identity.is_admin, isLoading: false })
   },
 
   logout: () => {

@@ -19,17 +19,15 @@ export const showInfoModal = (title, message, buttons) =>
 export const showWarningModal = (title, message, buttons) =>
     showErrorModal(title, message, buttons || [{ text: i18n.t('common.ok') }], 'warning');
 
-export const showSuccessModal = (title, message, buttons) =>
-    showErrorModal(title, message, buttons || [{ text: i18n.t('common.ok') }], 'success');
-
 // --- Error message extraction ---
-const getDefaultMessages = () => ({
-    400: i18n.t('errors.badRequest'),
-    401: i18n.t('errors.unauthorized'),
-    404: i18n.t('errors.notFound'),
-    429: i18n.t('errors.tooManyRequests'),
-    500: i18n.t('errors.serverError'),
-});
+const STATUS_MESSAGE_KEYS = {
+    400: 'errors.badRequest',
+    401: 'errors.unauthorized',
+    404: 'errors.notFound',
+    413: 'errors.payloadTooLarge',
+    429: 'errors.tooManyRequests',
+    500: 'errors.serverError',
+};
 
 /**
  * True for a 401 that arrived on a request carrying no token — a query that was
@@ -58,6 +56,9 @@ export const getErrorMessage = (error) => {
     }
     // Throttler 429s carry no code and an English-only message — localize them.
     if (error?.response?.status === 429) return i18n.t('errors.tooManyRequests');
+    // 413 may come from nginx (HTML body, no JSON at all) or from multer — either
+    // way the only useful thing to say is "smaller photos".
+    if (error?.response?.status === 413) return i18n.t('errors.payloadTooLarge');
     if (error?.response?.data?.message) return error.response.data.message;
     if (!error?.response && error?.code === 'ECONNABORTED') return i18n.t('errors.timeout');
     if (!error?.response && (error?.code === 'ERR_NETWORK' || error?.message === 'Network Error')) return i18n.t('errors.network');
@@ -66,7 +67,8 @@ export const getErrorMessage = (error) => {
     if (error?.code === 'AUTH_TOKEN_MISSING') return i18n.t('errors.authTokenMissing');
     if (error?.code === 'USER_ID_MISSING') return i18n.t('errors.unauthorized');
     if (error?.message) return error.message;
-    if (error?.response?.status) return getDefaultMessages()[error.response.status] ?? fallback;
+    const statusKey = STATUS_MESSAGE_KEYS[error?.response?.status];
+    if (statusKey) return i18n.t(statusKey);
     return fallback;
 };
 

@@ -1,14 +1,14 @@
 import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { CalendarCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { bookingsApi } from '@/lib/api'
 import { track } from '@/lib/analytics'
-import { apiErrorMessage } from '@/lib/utils'
 import InfoSection from '@/components/InfoSection'
 import Input from '@/components/Input'
 import Button from '@/components/Button'
+import { useApiMutation } from '@/hooks/useApiMutation'
 
 // Request-to-book card shown on rental posts to signed-in customers
 export default function BookingRequest({ postId }) {
@@ -34,7 +34,8 @@ export default function BookingRequest({ postId }) {
   const overlapsBusy = start && end && busy.some((r) => start <= r.end_date && end >= r.start_date)
 
   const qc = useQueryClient()
-  const mut = useMutation({
+  const mut = useApiMutation({
+    fallback: t('booking.requestError'),
     mutationFn: () => bookingsApi.create({ post_id: postId, start_date: start, end_date: end, message: message || undefined }),
     onSuccess: () => {
       track('booking.requested', { post_id: postId })
@@ -42,7 +43,6 @@ export default function BookingRequest({ postId }) {
       qc.invalidateQueries({ queryKey: ['bookings'] })
       toast.success(t('booking.submitted'))
     },
-    onError: (e) => toast.error(apiErrorMessage(e, t, t('booking.requestError'))),
   })
 
   if (sent) {

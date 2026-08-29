@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, LessThan, Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { Conversation } from './entities/conversation.entity';
 import { Message } from './entities/message.entity';
 import { Post } from '../post/entities/post.entity';
@@ -16,6 +16,32 @@ import { PostNotificationService } from '../post/post-notification.service';
 
 const PREVIEW_LENGTH = 200;
 const PAGE_SIZE = 30;
+const INBOX_PAGE_SIZE = 50;
+
+const parseCursor = (value?: string): Date | null => {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+/**
+ * Cursor comparison that survives the precision gap. Clients echo an ISO
+ * string, which is millisecond precision; the columns are microsecond. A
+ * plain `col = :cutoff` therefore never matches a real row, so the id
+ * tiebreak could never fire and same-millisecond rows fell through the gap.
+ * Instead: strictly older than the millisecond, or inside that millisecond
+ * with a smaller id. Both branches are plain column comparisons, so the
+ * (…, date) indexes still serve them.
+ */
+const cursorWhere = (col: string, idCol: string, beforeId?: string) =>
+  beforeId
+    ? `(${col} < :cutoff OR (${col} < :cutoffNext AND ${idCol} < :beforeId))`
+    : `${col} < :cutoffNext`;
+const cursorParams = (cutoff: Date, beforeId?: string) => ({
+  cutoff,
+  cutoffNext: new Date(cutoff.getTime() + 1),
+  beforeId,
+});
 
 @Injectable()
 export class MessagingService {
@@ -67,7 +93,13 @@ export class MessagingService {
       const customer = await this.users.findOne({ where: { id: customerId } });
       if (!customer) throw new NotFoundException('User not found');
       conversation = await this.conversations.save(
-        this.conversations.create({ post, customer, provider: post.user }),
+        this.conversations.create({
+          post,
+          customer,
+          provider: post.user,
+          // Activity starts at creation so the inbox can sort on one column.
+          last_message_at: new Date(),
+        }),
       );
     }
 
@@ -76,14 +108,35 @@ export class MessagingService {
     return this.detail(conversation.id, customerId);
   }
 
-  /** The inbox. One row per thread, newest activity first. */
-  async list(userId: string) {
-    const rows = await this.conversations.find({
-      where: [{ customer: { id: userId } }, { provider: { id: userId } }],
-      relations: ['post', 'customer', 'provider'],
-      order: { last_message_at: 'DESC', date_created: 'DESC' },
-      take: 100,
-    });
+  /**
+   * The inbox. One row per thread, newest activity first.
+   *
+   * Cursor-paginated on the activity timestamp (`last_message_at`, falling
+   * back to `date_created` for a thread nobody has written in), so a busy
+   * provider's older threads are reachable rather than cut off at a fixed cap.
+   */
+  async list(userId: string, before?: string, beforeId?: string) {
+    const cutoff = parseCursor(before);
+    const qb = this.conversations
+      .createQueryBuilder('c')
+      .leftJoinAndSelect('c.post', 'post')
+      .leftJoinAndSelect('c.customer', 'customer')
+      .leftJoinAndSelect('c.provider', 'provider')
+      .where('(customer.id = :userId OR provider.id = :userId)', { userId })
+      // `last_message_at` is set at creation (= date_created) and on every
+      // send, so the plain column is the activity time and the
+      // (participant, last_message_at) indexes serve both the sort and the
+      // cursor — a COALESCE here would force a heap sort per page.
+      .orderBy('c.last_message_at', 'DESC')
+      .addOrderBy('c.id', 'DESC')
+      .take(INBOX_PAGE_SIZE);
+    if (cutoff) {
+      qb.andWhere(
+        cursorWhere('c.last_message_at', 'c.id', beforeId),
+        cursorParams(cutoff, beforeId),
+      );
+    }
+    const rows = await qb.getMany();
     return rows.map((c) => this.shape(c, userId));
   }
 
@@ -108,26 +161,35 @@ export class MessagingService {
   }
 
   /**
-   * Messages, newest-first and cursor-paginated on `date_created`.
+   * Messages, newest-first and cursor-paginated on `(date_created, id)`.
    *
    * An offset would drift under the thread: every new message shifts the whole
    * page boundary, so scrolling back while the other side is typing skips or
-   * repeats rows.
+   * repeats rows. The id is part of the cursor because two messages can share
+   * a timestamp — on the timestamp alone one of them falls between pages.
    */
-  async history(conversationId: string, userId: string, before?: string) {
+  async history(
+    conversationId: string,
+    userId: string,
+    before?: string,
+    beforeId?: string,
+  ) {
     await this.mustParticipate(conversationId, userId);
-    const cutoff = before ? new Date(before) : null;
-    const rows = await this.messages.find({
-      where: {
-        conversation: { id: conversationId },
-        ...(cutoff && !Number.isNaN(cutoff.getTime())
-          ? { date_created: LessThan(cutoff) }
-          : {}),
-      },
-      relations: ['sender'],
-      order: { date_created: 'DESC' },
-      take: PAGE_SIZE,
-    });
+    const cutoff = parseCursor(before);
+    const qb = this.messages
+      .createQueryBuilder('m')
+      .leftJoinAndSelect('m.sender', 'sender')
+      .where('m."conversationId" = :conversationId', { conversationId })
+      .orderBy('m.date_created', 'DESC')
+      .addOrderBy('m.id', 'DESC')
+      .take(PAGE_SIZE);
+    if (cutoff) {
+      qb.andWhere(
+        cursorWhere('m.date_created', 'm.id', beforeId),
+        cursorParams(cutoff, beforeId),
+      );
+    }
+    const rows = await qb.getMany();
     return rows
       .map((m) => ({
         id: m.id,
@@ -200,6 +262,7 @@ export class MessagingService {
           type: 'message',
           conversationId,
           postId: conversation.post?.id ?? null,
+          url: `/messages/${conversationId}`,
         },
       )
       .catch((err) => this.logger.warn(`Message push failed: ${err?.message}`));

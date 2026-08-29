@@ -1,17 +1,14 @@
 import React, { useMemo, useCallback } from 'react';
 import { View, Text, FlatList, Image, StyleSheet, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { spacing, typography, radius, isTablet } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
-import { useMinDisplayTime } from '../../hooks/useMinDisplayTime';
-import CustomSafeAreaView from '../../components/CustomSafeAreaView';
-import ScreenHeader from '../../components/ScreenHeader';
 import ScreenError from '../../components/ScreenError';
-import { EmptyState, SkeletonItem, FadeSlideIn, PressableScale } from '../../components';
+import { ScreenLayout, EmptyState, SkeletonItem, PressableScale } from '../../components';
 import { SkeletonCrossfade } from '../../components/SkeletonItem';
-import messageService, { CONVERSATIONS_KEY } from '../../services/api/messageService';
+import messageService, { inboxCursor, CONVERSATIONS_KEY } from '../../services/api/messageService';
 import { getPostImageUrl } from '../../config/api.config';
 
 /**
@@ -24,7 +21,6 @@ import { getPostImageUrl } from '../../config/api.config';
 const ThreadRow = ({ item, index, onPress, styles, colors, t }) => {
     const image = item.post?.images?.[0] ? getPostImageUrl(item.post.images[0]) : null;
     return (
-        <FadeSlideIn index={index}>
             <PressableScale style={styles.row} onPress={() => onPress(item)} accessibilityRole="button">
                 <View style={styles.thumb}>
                     {image ? (
@@ -57,7 +53,6 @@ const ThreadRow = ({ item, index, onPress, styles, colors, t }) => {
                     </View>
                 )}
             </PressableScale>
-        </FadeSlideIn>
     );
 };
 
@@ -79,30 +74,30 @@ function stamp(value) {
 }
 
 const MessagesScreen = ({ navigation }) => {
-    const { colors, isDark } = useAppTheme();
+    const { colors } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
     const { t } = useTranslation();
 
-    const { data: threads = [], isLoading, isRefetching, isError, refetch } = useQuery({
+    const {
+        data, isLoading, isRefetching, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage,
+    } = useInfiniteQuery({
         queryKey: CONVERSATIONS_KEY,
-        queryFn: messageService.list,
+        queryFn: ({ pageParam }) => messageService.list(pageParam),
+        initialPageParam: undefined,
+        getNextPageParam: inboxCursor,
         staleTime: 30 * 1000,
     });
+    const threads = useMemo(() => (data?.pages ?? []).flat(), [data]);
 
     const open = useCallback(
         (thread) => navigation.navigate('MessageThread', { id: thread.id, title: thread.other_party?.given_name }),
         [navigation]
     );
 
-    const showSkeleton = useMinDisplayTime(isLoading);
+    const showSkeleton = isLoading;
 
     return (
-        <CustomSafeAreaView
-            backgroundColor={colors.background}
-            statusBarColor={colors.surface}
-            statusBarStyle={isDark ? 'light-content' : 'dark-content'}
-        >
-            <ScreenHeader title={t('messages.title')} onBack={() => navigation.goBack()} />
+        <ScreenLayout title={t('messages.title')} onBack={() => navigation.goBack()}>
             <SkeletonCrossfade
                 loading={showSkeleton}
                 skeleton={(
@@ -140,13 +135,15 @@ const MessagesScreen = ({ navigation }) => {
                         )}
                         keyExtractor={(item) => String(item.id)}
                         contentContainerStyle={styles.list}
+                        onEndReached={() => { if (hasNextPage && !isFetchingNextPage) fetchNextPage(); }}
+                        onEndReachedThreshold={0.5}
                         refreshControl={
                             <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.iconAccent} />
                         }
                     />
                 )}
             </SkeletonCrossfade>
-        </CustomSafeAreaView>
+        </ScreenLayout>
     );
 };
 

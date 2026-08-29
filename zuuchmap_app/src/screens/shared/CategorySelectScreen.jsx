@@ -4,18 +4,16 @@ import { View, Text, FlatList, RefreshControl, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spacing, typography, safeAreaHelpers, radius, isTablet, withAlpha, toneForTheme, categoryColors } from '../../design/theme';
+import { ScreenLayout } from '../../components';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
-import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import SearchInput from '../../components/SearchInput';
-import ScreenHeader from '../../components/ScreenHeader';
 import WizardSteps from '../../components/WizardSteps';
 import ScreenError from '../../components/ScreenError';
 import ScreenLoading from '../../components/ScreenLoading';
 import EmptyState from '../../components/EmptyState';
 import { getSchemaLabel } from '../../utils/postUtils';
 import PressableScale from '../../components/PressableScale';
-import FadeSlideIn from '../../components/FadeSlideIn';
 import categoryService from '../../services/api/categoryService';
 
 const CategoryCard = ({ item, isSelected, onSelect, colors, isDark, styles, t }) => {
@@ -96,8 +94,7 @@ const CategorySelectScreen = ({ route, navigation }) => {
     };
 
     return (
-        <CustomSafeAreaView backgroundColor={colors.background} statusBarColor={colors.surface} statusBarStyle={isDark ? 'light-content' : 'dark-content'}>
-            <ScreenHeader title={t('category.selectTitle')} onBack={() => navigation.goBack()} />
+        <ScreenLayout title={t('category.selectTitle')} onBack={() => navigation.goBack()}>
             {role === 'provider' && (
                 <WizardSteps current={1} labels={[t('provider.stepCategory'), t('provider.stepSubcategory'), t('provider.stepLocation'), t('provider.stepDetails')]} />
             )}
@@ -129,7 +126,6 @@ const CategorySelectScreen = ({ route, navigation }) => {
                         keyboardShouldPersistTaps="handled"
                         keyExtractor={item => item.id}
                         renderItem={({ item, index }) => (
-                            <FadeSlideIn index={index}>
                                 <CategoryCard
                                     item={item}
                                     isSelected={selected?.id === item.id}
@@ -139,7 +135,6 @@ const CategorySelectScreen = ({ route, navigation }) => {
                                     styles={styles}
                                     t={t}
                                 />
-                            </FadeSlideIn>
                         )}
                         contentContainerStyle={[
                             styles.list,
@@ -156,7 +151,7 @@ const CategorySelectScreen = ({ route, navigation }) => {
                 )}
                 </>)}
             </View>
-        </CustomSafeAreaView>
+        </ScreenLayout>
     );
 };
 

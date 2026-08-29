@@ -1,14 +1,15 @@
 import { Search } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { postsApi, categoryApi } from '@/lib/api'
+import { postsApi } from '@/lib/api'
 import { getCategoryLabel } from '@/lib/utils'
 import PostCard from '@/components/PostCard'
 import PageHeader from '@/components/PageHeader'
 import EmptyState from '@/components/EmptyState'
-import CategoryPills from '@/components/CategoryPills'
+import CategoryLinkPills from '@/components/CategoryLinkPills'
 import PostGrid from '@/components/PostGrid'
 import Button from '@/components/Button'
+import { useCategories } from '@/hooks/useCategories'
 
 export default function CustomerDashboard() {
   const { t } = useTranslation()
@@ -20,11 +21,7 @@ export default function CustomerDashboard() {
     staleTime: 30_000,
   })
 
-  const { data: schemas = [] } = useQuery({
-    queryKey: ['categories'],
-    queryFn: categoryApi.getAll,
-    staleTime: 300_000,
-  })
+  const { data: schemas = [] } = useCategories()
 
   return (
     <div>
@@ -36,9 +33,8 @@ export default function CustomerDashboard() {
           </Button>
         }
       />
-      <CategoryPills
+      <CategoryLinkPills
         categories={schemas.filter((s) => s.active).map((s) => ({ key: s.key, label: getCategoryLabel(s.key, t, schemas) }))}
-        as="link"
         shape="lg"
         basePath="/customer/browse"
         className="mb-6"
@@ -59,7 +55,7 @@ export default function CustomerDashboard() {
         cols={4}
         skeletonCount={8}
       >
-        {(data ?? []).map((post, i) => <PostCard key={post.id} post={post} index={i} />)}
+        {(data ?? []).map((post) => <PostCard key={post.id} post={post} />)}
       </PostGrid>
     </div>
   )

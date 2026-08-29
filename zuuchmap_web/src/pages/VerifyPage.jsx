@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useLocation, Link, Navigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
 import { ArrowRight, Copy, Check } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { authApi } from '@/lib/api'
@@ -12,6 +12,7 @@ import Button from '@/components/Button'
 const POLL_MS = 2000
 
 export default function VerifyPage() {
+  const shouldReduceMotion = useReducedMotion()
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { state } = useLocation()
@@ -124,7 +125,7 @@ export default function VerifyPage() {
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.2 }}
+        transition={{ duration: shouldReduceMotion ? 0 : 0.2 }}
         className="w-full max-w-sm"
       >
         <div className="relative overflow-hidden bg-surface border border-border/20 shadow-card rounded-card p-6 md:p-8">

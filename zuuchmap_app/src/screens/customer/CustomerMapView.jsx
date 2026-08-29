@@ -6,12 +6,13 @@ import {
     ActivityIndicator,
     Switch,
     Platform,
+    StyleSheet,
 } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing, typography, radius, interactions, themedStyles, toneForTheme, animations, isTablet } from '../../design/theme';
+import { spacing, typography, radius, interactions, toneForTheme, animations, isTablet } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
@@ -113,7 +114,7 @@ const gridCluster = (posts, region) => {
 const CustomerMapView = ({ navigation, route }) => {
     const insets = useSafeAreaInsets();
     const { colors, isDark } = useAppTheme();
-    const styles = makeStyles(colors);
+    const styles = useMemo(() => createStyles(colors), [colors]);
     const { t } = useTranslation();
 
     const schemas = useCategorySchemas();
@@ -128,6 +129,9 @@ const CustomerMapView = ({ navigation, route }) => {
         schemas.find((s) => s.key === normalizePostType(postType))?.icon || 'location'
     ), [schemas]);
     const mapRef = useRef(null);
+    // The camera follows the user's position exactly once (first fix); after
+    // that only explicit actions (locate button, marker/cluster select) move it.
+    const firstFixDoneRef = useRef(false);
     const navigatingRef = useRef(false);
     const [hasInitialized, setHasInitialized] = useState(false);
 
@@ -182,6 +186,13 @@ const CustomerMapView = ({ navigation, route }) => {
             };
 
             setUserLocation(userCoords);
+            if (!firstFixDoneRef.current && mapRef.current) {
+                firstFixDoneRef.current = true;
+                mapRef.current.animateToRegion(
+                    { ...userCoords, latitudeDelta: 0.02, longitudeDelta: 0.02 },
+                    animations.duration.camera,
+                );
+            }
             return userCoords;
         } catch (error) {
             logger.error('Error getting location:', error);
@@ -661,7 +672,7 @@ const MAP_OVERLAY = {
     },
 };
 
-const makeStyles = themedStyles((colors) => ({
+const createStyles = (colors) => StyleSheet.create({
     mapHeaderActions: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -804,6 +815,6 @@ const makeStyles = themedStyles((colors) => ({
         color: colors.text.primary,
         flex: 1,
     },
-}));
+});
 
 export default CustomerMapView;

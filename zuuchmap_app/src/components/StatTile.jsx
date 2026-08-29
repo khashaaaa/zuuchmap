@@ -3,12 +3,11 @@ import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { spacing, typography } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
-import { useCountUp } from '../hooks/useCountUp';
 
 /**
  * The one way a stat is rendered: overline eyebrow above a tabular number.
- * Numeric values count up on first load (useCountUp handles reduced motion);
- * string values (dates, ranges) render as-is. `emphasis` paints the number
+ * Numeric values are grouped with toLocaleString; string values (dates,
+ * ranges) render as-is. `emphasis` paints the number
  * amber — reserve it for the single most important metric on a surface so
  * amber keeps its meaning.
  */
@@ -17,8 +16,7 @@ const StatTile = ({ label, value, icon, emphasis = false, ready = true, loading 
     const styles = useMemo(() => createStyles(colors), [colors]);
 
     const isNumeric = typeof value === 'number' || (typeof value === 'string' && value !== '' && !Number.isNaN(Number(value)));
-    const counted = useCountUp(isNumeric ? Number(value) : 0, ready && isNumeric);
-    const display = isNumeric ? counted.toLocaleString() : (value ?? '—');
+    const display = isNumeric ? Number(value).toLocaleString() : (value ?? '—');
 
     return (
         <View style={[styles.tile, style]}>

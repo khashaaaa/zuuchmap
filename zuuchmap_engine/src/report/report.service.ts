@@ -11,6 +11,7 @@ import { Post } from '../post/entities/post.entity';
 import { User } from '../user/entities/user.entity';
 import { ReportStatus } from '../enums/report';
 import { EventsGateway } from '../events/events.gateway';
+import { PostNotificationService } from '../post/post-notification.service';
 
 /**
  * One reporter may not file the same complaint about the same post twice —
@@ -30,6 +31,7 @@ export class ReportService {
     @InjectRepository(User)
     private readonly users: Repository<User>,
     private readonly events: EventsGateway,
+    private readonly notifications: PostNotificationService,
   ) {}
 
   async create(
@@ -77,17 +79,30 @@ export class ReportService {
       postId: post.id,
       reason,
     });
+    // The socket only reaches an admin who is connected right now. A report is
+    // a complaint about something already live, so it must also reach the one
+    // who is not — pending posts already get a push; reports get the same.
+    void this.notifications.notifyAdminsOfReport(
+      post.id,
+      (post as any).title ?? '',
+      reason,
+    );
 
     this.logger.log(`Report ${saved.id} filed on post ${postId} (${reason})`);
     return { id: saved.id, status: saved.status, duplicate: false };
   }
 
   /** The admin queue. Oldest first — the same drain-the-tail rule as pending posts. */
-  async list(status = ReportStatus.OPEN, page = 1, limit = 50) {
+  async list(
+    status = ReportStatus.OPEN,
+    page = 1,
+    limit = 50,
+    postId?: number,
+  ) {
     const take = Math.min(Math.max(Math.floor(limit) || 50, 1), 100);
     const skip = (Math.max(Math.floor(page) || 1, 1) - 1) * take;
     const [items, total] = await this.reports.findAndCount({
-      where: { status },
+      where: postId ? { status, post: { id: postId } } : { status },
       relations: ['post', 'reporter'],
       order: { date_created: 'ASC' },
       take,
@@ -122,6 +137,10 @@ export class ReportService {
   async resolve(id: string, status: string, resolution?: string) {
     const report = await this.reports.findOne({ where: { id } });
     if (!report) throw new NotFoundException('Report not found');
+    // A verdict is written once. Re-resolving would silently overwrite what
+    // the first admin decided, and the note they left for the next one.
+    if (report.status !== ReportStatus.OPEN)
+      throw new BadRequestException('REPORT_ALREADY_RESOLVED');
     report.status = status;
     report.resolution = resolution ?? null;
     report.resolved_at = new Date();

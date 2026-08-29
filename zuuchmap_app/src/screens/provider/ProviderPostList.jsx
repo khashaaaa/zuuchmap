@@ -5,26 +5,22 @@ import {
     Text,
     FlatList,
     TouchableOpacity,
-    Image,
     RefreshControl,
     ActivityIndicator,
     StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet, animations, withAlpha } from '../../design/theme';
+import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet, withAlpha } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
-import { useMinDisplayTime } from '../../hooks/useMinDisplayTime';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import postService from '../../services/api/postService';
 import userService from '../../services/api/userService';
-import CustomSafeAreaView from '../../components/CustomSafeAreaView';
-import ScreenHeader from '../../components/ScreenHeader';
-import PressableScale from '../../components/PressableScale';
 import NotificationBell from '../../components/NotificationBell';
-import { CategoryBadge, SkeletonItem, EmptyState, FadeSlideIn, StatusBadge } from '../../components';
-import ScreenError from '../../components/ScreenError';
+import PostCard from '../../components/PostCard';
+import CategoryBadge from '../../components/CategoryBadge';
+import { ScreenLayout, SkeletonItem, EmptyState, StatusBadge } from '../../components';
 import { formatPrice, formatDate } from '../../utils/displayUtils';
 import { getPostTitle, getFixedImageUrl, getPostImage } from '../../utils/postUtils';
 import { showErrorModal, showInfoModal } from '../../utils/errorManager';
@@ -36,22 +32,19 @@ const PostItem = React.memo(({
     onPress,
     onEdit,
     onDelete,
-    imageErrors,
     isLoading,
     getPostTitle,
-    setImageErrors,
     colors,
     t,
     stat,
 }) => {
     const styles = useMemo(() => createStyles(colors), [colors]);
-    const itemId = `${item.postType}-${item.id}`;
-    const hasImageError = imageErrors[itemId];
-    const imageUri = getFixedImageUrl(getPostImage(item));
+    const imageUri = getPostImage(item);
+    const title = getPostTitle(item, item.postType);
 
     const handleMenuPress = useCallback(() => {
         showInfoModal(
-            getPostTitle(item, item.postType),
+            title,
             null,
             [
                 { text: t('common.edit'), onPress: () => onEdit(item) },
@@ -59,52 +52,27 @@ const PostItem = React.memo(({
                 { text: t('common.cancel'), style: 'cancel' },
             ],
         );
-    }, [item, onEdit, onDelete, getPostTitle, t]);
+    }, [item, title, onEdit, onDelete, t]);
+
+    const expiry = item.expires_at ? (() => {
+        const days = Math.ceil((new Date(item.expires_at) - Date.now()) / 86400000);
+        const label = days < 0
+            ? t('posts.expired')
+            : days === 0 ? t('posts.expiresToday')
+            : t('posts.expiresIn', { days });
+        return { label, color: days <= 5 ? (days < 0 ? colors.danger : colors.warning) : undefined };
+    })() : null;
 
     return (
-        <PressableScale
-            style={[styles.postCard, { backgroundColor: colors.surface }]}
-            onPress={() => onPress(item)}
-            accessibilityRole="button"
-        >
-            <View style={[styles.imageContainer, { backgroundColor: colors.border.light }]}>
-                {!imageUri || hasImageError ? (
-                    <View style={styles.noImageContainer}>
-                        <Ionicons name="image-outline" size={28} color={colors.iconAccent} />
-                    </View>
-                ) : (
-                    <Image
-                        source={{ uri: imageUri }}
-                        style={styles.postImage}
-                        resizeMode="cover"
-                        onError={() => setImageErrors(prev => ({ ...prev, [itemId]: true }))}
-                        fadeDuration={animations.duration.fast}
-                    />
-                )}
-            </View>
-
-            <View style={styles.postContent}>
-                <View style={styles.postHeader}>
-                    <Text style={styles.postTitle} numberOfLines={2}>
-                        {getPostTitle(item, item.postType)}
-                    </Text>
-                    <TouchableOpacity
-                        style={styles.menuButton}
-                        onPress={handleMenuPress}
-                        disabled={isLoading}
-                        accessibilityRole="button"
-                        accessibilityLabel={t('common.more')}
-                        hitSlop={interactions.hitSlop}
-                    >
-                        {isLoading
-                            ? <ActivityIndicator size="small" color={colors.iconAccent} />
-                            : <Ionicons name="ellipsis-vertical" size={18} color={colors.text.tertiary} />
-                        }
-                    </TouchableOpacity>
-                </View>
-
-                <CategoryBadge postType={item.postType} showIcon={true} />
-
+        <PostCard
+            item={item}
+            onPress={onPress}
+            imageUri={imageUri ? getFixedImageUrl(imageUri) : null}
+            title={title}
+            price={item.price_amount ? formatPrice(item.price_amount, item.price_unit) : (item.price || null)}
+            memoKey={`${i18n.language}-${isDark}-${isLoading}-${item.approval_status}-${item.rejection_reason}-${item.expires_at}-${stat?.views}-${stat?.likes}-${stat?.bookings_pending}-${stat?.bookings_accepted}`}
+            badges={<>
+                <CategoryBadge postType={item.post_type || item.category || 'construction'} showIcon={true} />
                 {!!item.featured_until && new Date(item.featured_until) > new Date() && (
                     <View style={styles.featuredChip}>
                         <Ionicons name="star" size={11} color={colors.onPrimary} />
@@ -129,48 +97,47 @@ const PostItem = React.memo(({
                         )}
                     </View>
                 )}
-
-                {(item.price_amount || item.price) && (
-                    <Text style={styles.postPrice}>
-                        {item.price_amount ? formatPrice(item.price_amount, item.price_unit) : item.price}
-                    </Text>
-                )}
-
-                {stat && (
-                    <View style={styles.attentionRow}>
-                        <View style={styles.attentionItem}>
-                            <Ionicons name="eye-outline" size={13} color={colors.text.tertiary} />
-                            <Text style={styles.attentionText}>{stat.views}</Text>
-                        </View>
-                        <View style={styles.attentionItem}>
-                            <Ionicons name="heart-outline" size={13} color={colors.text.tertiary} />
-                            <Text style={styles.attentionText}>{stat.likes}</Text>
-                        </View>
-                        <View style={styles.attentionItem}>
-                            <Ionicons name="calendar-outline" size={13} color={colors.text.tertiary} />
-                            <Text style={styles.attentionText}>{stat.bookings_pending + stat.bookings_accepted}</Text>
-                        </View>
+            </>}
+            actions={
+                <TouchableOpacity
+                    style={styles.menuButton}
+                    onPress={handleMenuPress}
+                    disabled={isLoading}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('common.more')}
+                    hitSlop={interactions.hitSlop}
+                >
+                    {isLoading
+                        ? <ActivityIndicator size="small" color={colors.iconAccent} />
+                        : <Ionicons name="ellipsis-vertical" size={18} color={colors.text.tertiary} />
+                    }
+                </TouchableOpacity>
+            }
+        >
+            {stat && (
+                <View style={styles.attentionRow}>
+                    <View style={styles.attentionItem}>
+                        <Ionicons name="eye-outline" size={13} color={colors.text.tertiary} />
+                        <Text style={styles.attentionText}>{stat.views}</Text>
                     </View>
-                )}
+                    <View style={styles.attentionItem}>
+                        <Ionicons name="heart-outline" size={13} color={colors.text.tertiary} />
+                        <Text style={styles.attentionText}>{stat.likes}</Text>
+                    </View>
+                    <View style={styles.attentionItem}>
+                        <Ionicons name="calendar-outline" size={13} color={colors.text.tertiary} />
+                        <Text style={styles.attentionText}>{stat.bookings_pending + stat.bookings_accepted}</Text>
+                    </View>
+                </View>
+            )}
 
-                <Text style={styles.postDate}>
-                    {item.date_created ? formatDate(item.date_created) : ''}
-                </Text>
-                {item.expires_at && (() => {
-                    const days = Math.ceil((new Date(item.expires_at) - Date.now()) / 86400000);
-                    const isUrgent = days <= 5;
-                    const label = days < 0
-                        ? t('posts.expired')
-                        : days === 0 ? t('posts.expiresToday')
-                        : t('posts.expiresIn', { days });
-                    return (
-                        <Text style={[styles.postDate, isUrgent && { color: days < 0 ? colors.danger : colors.warning }]}>
-                            {label}
-                        </Text>
-                    );
-                })()}
-            </View>
-        </PressableScale>
+            <Text style={styles.postDate}>
+                {item.date_created ? formatDate(item.date_created) : ''}
+            </Text>
+            {expiry && (
+                <Text style={[styles.postDate, expiry.color && { color: expiry.color }]}>{expiry.label}</Text>
+            )}
+        </PostCard>
     );
 }, (prevProps, nextProps) => {
     return (
@@ -179,8 +146,6 @@ const PostItem = React.memo(({
         prevProps.item.approval_status === nextProps.item.approval_status &&
         prevProps.item.rejection_reason === nextProps.item.rejection_reason &&
         prevProps.item.expires_at === nextProps.item.expires_at &&
-        prevProps.imageErrors[`${prevProps.item.postType}-${prevProps.item.id}`] ===
-        nextProps.imageErrors[`${nextProps.item.postType}-${nextProps.item.id}`] &&
         prevProps.isLoading === nextProps.isLoading &&
         prevProps.colors === nextProps.colors &&
         prevProps.stat?.views === nextProps.stat?.views &&
@@ -196,11 +161,10 @@ const MINE_PAGE_SIZE = 50;
 const ProviderPostList = ({ navigation }) => {
     const { colors, isDark } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const insets = useSafeAreaInsets();
     const [isLoading, setIsLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
-    const [imageErrors, setImageErrors] = useState({});
 
     // `/posts/mine` is capped server-side (post.service.ts findByUser), so the
     // list has to page. It used to fetch one page and present it as everything,
@@ -214,7 +178,8 @@ const ProviderPostList = ({ navigation }) => {
         hasNextPage,
         isFetchingNextPage,
     } = useInfiniteQuery({
-        queryKey: ['provider', 'mine'],
+        // Under the `['posts']` prefix so invalidatePostData() reaches it.
+        queryKey: ['posts', 'mine'],
         initialPageParam: 1,
         queryFn: async ({ pageParam }) => {
             const response = await postService.getMine({ page: pageParam, limit: MINE_PAGE_SIZE });
@@ -226,7 +191,7 @@ const ProviderPostList = ({ navigation }) => {
         getNextPageParam: (last) => (last.items.length === MINE_PAGE_SIZE ? last.page + 1 : undefined),
         staleTime: 0,
     });
-    const queryLoading = useMinDisplayTime(queryLoadingRaw);
+    const queryLoading = queryLoadingRaw;
 
     const posts = useMemo(
         () => (queryData?.pages ?? []).flatMap((pg) => pg.items)
@@ -242,7 +207,7 @@ const ProviderPostList = ({ navigation }) => {
     // list payload doesn't carry). Non-blocking: tiles show local numbers
     // immediately and upgrade when this lands.
     const { data: serverStats } = useQuery({
-        queryKey: ['provider', 'mine', 'stats'],
+        queryKey: ['posts', 'mine', 'stats'],
         queryFn: () => postService.getMyStats(),
         staleTime: 60_000,
     });
@@ -264,7 +229,6 @@ const ProviderPostList = ({ navigation }) => {
     // Reload posts every time this screen is focused (handles create/edit/delete/approve)
     useFocusEffect(
         useCallback(() => {
-            setImageErrors({});
             refetch();
         }, [refetch])
     );
@@ -433,47 +397,37 @@ const ProviderPostList = ({ navigation }) => {
     // Listing-quality score needs each post's schema (field count, has_price).
 
     const renderPostItem = useCallback(({ item, index }) => (
-        <FadeSlideIn index={index} style={isTablet && { flex: 1 }}>
+        <View style={isTablet && { flex: 1 }}>
         <PostItem
             item={item}
             onPress={handlePostPress}
             onEdit={handleEditPost}
             onDelete={handleDeletePost}
-            imageErrors={imageErrors}
             isLoading={isLoading || item.isDeleting}
             getPostTitle={getPostTitleWrapped}
-            setImageErrors={setImageErrors}
             colors={colors}
             t={t}
             stat={statsById.get(item.id)}
         />
-        </FadeSlideIn>
-    ), [handlePostPress, handleEditPost, handleDeletePost, imageErrors, isLoading, getPostTitleWrapped, colors, t, statsById]);
+        </View>
+    ), [handlePostPress, handleEditPost, handleDeletePost, isLoading, getPostTitleWrapped, colors, t, statsById]);
 
     if (queryError && posts.length === 0) {
         return (
-            <CustomSafeAreaView
-                backgroundColor={colors.background}
-                statusBarColor={colors.surface}
-                statusBarStyle={isDark ? 'light-content' : 'dark-content'}
-            >
-                <ScreenHeader title={t('posts.myPosts')} showBack={false} rightComponent={<NotificationBell />} />
-                <ScreenError
-                    title={t('common.error')}
-                    message={t('posts.loadError')}
-                    onRetry={refetch}
-                />
-            </CustomSafeAreaView>
+            <ScreenLayout
+                title={t('posts.myPosts')}
+                showBack={false}
+                rightComponent={<NotificationBell />}
+                error
+                errorTitle={t('common.error')}
+                errorMessage={t('posts.loadError')}
+                onRetry={refetch}
+            />
         );
     }
 
     return (
-        <CustomSafeAreaView
-            backgroundColor={colors.background}
-            statusBarColor={colors.surface}
-            statusBarStyle={isDark ? 'light-content' : 'dark-content'}
-        >
-            <ScreenHeader title={t('posts.myPosts')} showBack={false} rightComponent={<NotificationBell />} />
+        <ScreenLayout title={t('posts.myPosts')} showBack={false} rightComponent={<NotificationBell />}>
 
             {queryLoading && posts.length === 0 ? (
                 <FlatList
@@ -536,7 +490,7 @@ const ProviderPostList = ({ navigation }) => {
                     updateCellsBatchingPeriod={100}
                 />
             )}
-        </CustomSafeAreaView>
+        </ScreenLayout>
     );
 };
 
@@ -547,17 +501,6 @@ const createStyles = (colors) => StyleSheet.create({
     },
     listContainer: {
         padding: spacing.lg,
-    },
-    postCard: {
-        ...colors.elevation.sm,
-        backgroundColor: colors.surface,
-        borderRadius: radius.card,
-        marginBottom: spacing.md,
-        overflow: 'hidden',
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        borderWidth: 1,
-        borderColor: colors.border.light,
     },
     // Paid placement, shown to the owner so they can see what they bought.
     featuredChip: {
@@ -579,52 +522,12 @@ const createStyles = (colors) => StyleSheet.create({
         // pushes the star out of the chip instead of truncating.
         flexShrink: 1,
     },
-    imageContainer: {
-        width: 96,
-        alignSelf: 'stretch',
-        backgroundColor: colors.border.light,
-    },
-    postImage: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-    },
-    noImageContainer: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    postContent: {
-        flex: 1,
-        padding: spacing.md,
-        gap: spacing.xs,
-    },
-    postHeader: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: spacing.xs,
-    },
-    postTitle: {
-        ...typography.styles.title,
-        flex: 1,
-        color: colors.text.primary,
-    },
     menuButton: {
         width: 32,
         height: 32,
         alignItems: 'center',
         justifyContent: 'center',
         flexShrink: 0,
-    },
-    postPrice: {
-        ...typography.styles.price,
-        color: colors.text.link,
     },
     postDate: {
         ...typography.styles.small,

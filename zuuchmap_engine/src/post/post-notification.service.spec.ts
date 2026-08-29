@@ -24,7 +24,9 @@ describe('PostNotificationService.dispatch', () => {
     }),
   });
 
-  const make = (devices: Array<{ id: string; token: string }>) => {
+  const make = (
+    devices: Array<{ id: string; token: string; user?: { id: string } }>,
+  ) => {
     const pushDeviceRepo = {
       find: jest.fn(async () => devices),
       delete: jest.fn(async (_criteria: any) => ({ affected: 1 })),
@@ -50,9 +52,9 @@ describe('PostNotificationService.dispatch', () => {
     );
     global.fetch = fetchMock as any;
     const { svc } = make([
-      { id: 'd1', token: 'ExponentPushToken[a]' },
-      { id: 'd2', token: 'ExponentPushToken[b]' }, // same user, second device
-      { id: 'd3', token: 'ExponentPushToken[c]' },
+      { id: 'd1', token: 'ExponentPushToken[a]', user: { id: 'u1' } },
+      { id: 'd2', token: 'ExponentPushToken[b]', user: { id: 'u1' } }, // same user, second device
+      { id: 'd3', token: 'ExponentPushToken[c]', user: { id: 'u2' } },
     ]);
 
     await svc.notifyUsers(['u1', 'u2'], 'title', 'body', { postId: 5 });
@@ -73,8 +75,8 @@ describe('PostNotificationService.dispatch', () => {
       async () => expoResponse(['ok', 'error']) as any,
     ) as any;
     const { svc, pushDeviceRepo } = make([
-      { id: 'd1', token: 'ExponentPushToken[live]' },
-      { id: 'd2', token: 'ExponentPushToken[dead]' },
+      { id: 'd1', token: 'ExponentPushToken[live]', user: { id: 'u1' } },
+      { id: 'd2', token: 'ExponentPushToken[dead]', user: { id: 'u1' } },
     ]);
 
     await svc.notifyUsers(['u1'], 't', 'b');
@@ -93,8 +95,8 @@ describe('PostNotificationService.dispatch', () => {
       async () => ({ ok: false, status: 502 }) as any,
     ) as any;
     const { svc } = make([
-      { id: 'd1', token: 'ExponentPushToken[a]' },
-      { id: 'd2', token: 'ExponentPushToken[b]' },
+      { id: 'd1', token: 'ExponentPushToken[a]', user: { id: 'u1' } },
+      { id: 'd2', token: 'ExponentPushToken[b]', user: { id: 'u1' } },
     ]);
 
     const userRepoQb = {
@@ -120,8 +122,8 @@ describe('PostNotificationService.dispatch', () => {
     const fetchMock = jest.fn(async () => expoResponse(['ok']) as any);
     global.fetch = fetchMock as any;
     const { svc } = make([
-      { id: 'd1', token: 'fcm-legacy-token' },
-      { id: 'd2', token: 'ExponentPushToken[ok]' },
+      { id: 'd1', token: 'fcm-legacy-token', user: { id: 'u1' } },
+      { id: 'd2', token: 'ExponentPushToken[ok]', user: { id: 'u1' } },
     ]);
 
     await svc.notifyUsers(['u1'], 't', 'b');
@@ -133,7 +135,9 @@ describe('PostNotificationService.dispatch', () => {
   it('carries the booking event name the app routes on', async () => {
     const fetchMock = jest.fn(async () => expoResponse(['ok']) as any);
     global.fetch = fetchMock as any;
-    const { svc } = make([{ id: 'd1', token: 'ExponentPushToken[a]' }]);
+    const { svc } = make([
+      { id: 'd1', token: 'ExponentPushToken[a]', user: { id: 'u1' } },
+    ]);
 
     // The app decides received-vs-own bookings from this exact value; an
     // underscore spelling here is what made every provider land on the
@@ -214,7 +218,9 @@ describe('PostNotificationService.dispatch', () => {
     global.fetch = jest.fn(async () => {
       throw new Error('network down');
     }) as any;
-    const { svc } = make([{ id: 'd1', token: 'ExponentPushToken[a]' }]);
+    const { svc } = make([
+      { id: 'd1', token: 'ExponentPushToken[a]', user: { id: 'u1' } },
+    ]);
     await expect(svc.notifyUsers(['u1'], 't', 'b')).resolves.toBeUndefined();
   });
 });

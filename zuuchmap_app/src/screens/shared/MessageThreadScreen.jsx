@@ -4,14 +4,16 @@ import {
     KeyboardAvoidingView, Platform, StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { spacing, typography, radius, isTablet, interactions } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import ScreenHeader from '../../components/ScreenHeader';
 import ScreenError from '../../components/ScreenError';
-import messageService, { CONVERSATIONS_KEY, UNREAD_KEY, messagesKey, threadKey } from '../../services/api/messageService';
+import messageService, {
+    CONVERSATIONS_KEY, UNREAD_KEY, messagesKey, threadKey, flattenMessages, messageCursor,
+} from '../../services/api/messageService';
 import { showErrorModal } from '../../utils/errorManager';
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -19,6 +21,14 @@ const pad = (n) => String(n).padStart(2, '0');
 const clock = (value) => {
     const d = new Date(value);
     return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+/** Page 0 is the newest page — that is where the live tail (and optimistic rows) live. */
+const patchNewest = (old, fn) => {
+    if (!old) return old;
+    const pages = [...old.pages];
+    pages[0] = fn(pages[0] ?? []);
+    return { ...old, pages };
 };
 
 /**
@@ -43,14 +53,25 @@ const MessageThreadScreen = ({ navigation, route }) => {
         enabled: Boolean(id),
     });
 
-    const { data: messages = [], isLoading, isError, refetch } = useQuery({
+    const {
+        data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage,
+    } = useInfiniteQuery({
         queryKey: messagesKey(id),
-        queryFn: () => messageService.history(id),
+        queryFn: ({ pageParam }) => messageService.history(id, pageParam),
+        initialPageParam: undefined,
+        getNextPageParam: messageCursor,
         enabled: Boolean(id),
     });
+    const messages = useMemo(() => flattenMessages(data?.pages), [data]);
 
     // Clearing the badge touches the reader's own side only, and the endpoint
-    // is idempotent — safe to call on every open.
+    // is idempotent — safe to call on every open, and again whenever a new
+    // message from the other side lands while the thread is on screen;
+    // otherwise the badge stays lit for a message the reader is looking at.
+    const latestTheirs = useMemo(
+        () => [...messages].reverse().find((m) => !m.mine && !m.pending)?.id ?? null,
+        [messages]
+    );
     useEffect(() => {
         if (!id) return;
         messageService
@@ -60,24 +81,38 @@ const MessageThreadScreen = ({ navigation, route }) => {
                 qc.invalidateQueries({ queryKey: UNREAD_KEY });
             })
             .catch(() => { });
-    }, [id, qc]);
+    }, [id, latestTheirs, qc]);
+
+    // Scroll to the tail only when the tail changes — loading older history
+    // prepends, and must not yank the reader back to the bottom.
+    const lastId = messages[messages.length - 1]?.id;
+    const lastSeenTail = useRef(null);
+    const onContentSizeChange = useCallback(() => {
+        if (lastId && lastId !== lastSeenTail.current) {
+            lastSeenTail.current = lastId;
+            listRef.current?.scrollToEnd({ animated: false });
+        }
+    }, [lastId]);
 
     const send = useMutation({
-        mutationFn: (body) => messageService.send(id, body),
-        onMutate: async (body) => {
+        mutationFn: ({ body }) => messageService.send(id, body),
+        onMutate: async ({ body, tempId }) => {
             await qc.cancelQueries({ queryKey: messagesKey(id) });
-            const previous = qc.getQueryData(messagesKey(id));
-            qc.setQueryData(messagesKey(id), (old = []) => [
-                ...old,
-                { id: `pending-${Date.now()}`, body, mine: true, pending: true, date_created: new Date().toISOString() },
-            ]);
-            return { previous };
+            qc.setQueryData(messagesKey(id), (old) =>
+                patchNewest(old ?? { pages: [[]], pageParams: [undefined] }, (page) => [
+                    ...page.filter((m) => m.id !== tempId),
+                    { id: tempId, body, mine: true, pending: true, date_created: new Date().toISOString() },
+                ])
+            );
         },
-        onError: (_e, body, context) => {
-            // Put the text back in the box rather than leaving a message that
-            // looks sent but never was.
-            qc.setQueryData(messagesKey(id), context?.previous);
-            setDraft(body);
+        onError: (_e, { tempId }) => {
+            // Keep the bubble, flagged failed and tappable to retry — discarding
+            // it is how a message ends up typed twice.
+            qc.setQueryData(messagesKey(id), (old) =>
+                patchNewest(old, (page) =>
+                    page.map((m) => (m.id === tempId ? { ...m, pending: false, failed: true } : m))
+                )
+            );
             showErrorModal(t('common.error'), t('messages.failed'));
         },
         onSuccess: () => {
@@ -90,29 +125,49 @@ const MessageThreadScreen = ({ navigation, route }) => {
         const body = draft.trim();
         if (!body) return;
         setDraft('');
-        send.mutate(body);
+        send.mutate({ body, tempId: `pending-${Date.now()}` });
     }, [draft, send]);
+
+    const retry = useCallback((m) => send.mutate({ body: m.body, tempId: m.id }), [send]);
 
     const renderItem = ({ item }) => (
         <View style={[styles.bubbleRow, item.mine ? styles.bubbleRowMine : styles.bubbleRowTheirs]}>
-            <View
+            <TouchableOpacity
+                disabled={!item.failed}
+                onPress={() => retry(item)}
+                activeOpacity={interactions.activeOpacityLight}
+                accessibilityRole={item.failed ? 'button' : undefined}
+                accessibilityLabel={item.failed ? t('messages.retry') : undefined}
                 style={[
                     styles.bubble,
                     item.mine
                         ? { backgroundColor: colors.primary }
                         : { backgroundColor: colors.surfaceElevated },
                     item.pending && { opacity: 0.6 },
+                    item.failed && { opacity: 0.6, borderWidth: 1.5, borderColor: colors.danger },
                 ]}
             >
                 <Text style={[styles.bubbleText, { color: item.mine ? colors.onPrimary : colors.text.primary }]}>
                     {item.body}
                 </Text>
                 <Text style={[styles.bubbleTime, { color: item.mine ? colors.onPrimary : colors.text.tertiary }]}>
-                    {item.pending ? t('messages.sending') : clock(item.date_created)}
+                    {item.failed ? t('messages.retry') : item.pending ? t('messages.sending') : clock(item.date_created)}
                 </Text>
-            </View>
+            </TouchableOpacity>
         </View>
     );
+
+    const loadOlder = hasNextPage && !isLoading ? (
+        <TouchableOpacity
+            onPress={() => fetchNextPage()}
+            disabled={isFetchingNextPage}
+            hitSlop={interactions.hitSlop}
+            accessibilityRole="button"
+            style={[styles.loadOlder, isFetchingNextPage && { opacity: 0.5 }]}
+        >
+            <Text style={styles.loadOlderText}>{t('messages.loadOlder')}</Text>
+        </TouchableOpacity>
+    ) : null;
 
     return (
         <CustomSafeAreaView
@@ -149,7 +204,11 @@ const MessageThreadScreen = ({ navigation, route }) => {
                         renderItem={renderItem}
                         keyExtractor={(item) => String(item.id)}
                         contentContainerStyle={styles.list}
-                        onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
+                        ListHeaderComponent={loadOlder}
+                        // Keeps the visible message in place while older ones
+                        // are prepended above it.
+                        maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+                        onContentSizeChange={onContentSizeChange}
                         refreshing={isLoading}
                         onRefresh={refetch}
                     />
@@ -210,6 +269,8 @@ const createStyles = (colors) => StyleSheet.create({
         paddingVertical: spacing.sm,
         gap: spacing.xxs,
     },
+    loadOlder: { alignSelf: 'center', paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
+    loadOlderText: { ...typography.styles.label, color: colors.text.link },
     bubbleText: { ...typography.styles.body },
     bubbleTime: { ...typography.styles.micro },
     composer: {

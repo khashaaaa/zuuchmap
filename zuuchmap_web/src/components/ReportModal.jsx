@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import Modal from '@/components/Modal'
 import Button from '@/components/Button'
-import { reportsApi } from '@/lib/api'
+import { reportsApi, REPORT_REASONS } from '@/lib/api'
 
 /**
  * Flag a listing that is already live.
@@ -14,15 +14,22 @@ import { reportsApi } from '@/lib/api'
  * turns out to be a scam, a price edited into bait — stayed up until someone
  * happened to look. This is the channel back.
  *
- * Reasons come from the server (`GET /reports/reasons`) rather than a list
- * kept here, so the two cannot drift; the labels are translated client-side.
+ * Reasons come from the server (`GET /reports/reasons`); the list below is only
+ * the offline/first-paint fallback and is held to the engine's by check:sync.
+ * Labels are translated client-side under `report.reasons.<KEY>`.
  */
-const REASONS = ['SPAM', 'SCAM', 'WRONG_INFO', 'UNAVAILABLE', 'OFFENSIVE', 'OTHER']
 
 export default function ReportModal({ open, onClose, postId }) {
   const { t } = useTranslation()
-  const [reason, setReason] = useState(REASONS[0])
+  const [reason, setReason] = useState(REPORT_REASONS[0])
   const [detail, setDetail] = useState('')
+
+  const { data: reasons = REPORT_REASONS } = useQuery({
+    queryKey: ['reports', 'reasons'],
+    queryFn: reportsApi.reasons,
+    staleTime: Infinity,
+    enabled: open,
+  })
 
   const mutation = useMutation({
     mutationFn: () => reportsApi.create(postId, reason, detail.trim() || undefined),
@@ -55,7 +62,7 @@ export default function ReportModal({ open, onClose, postId }) {
       <fieldset>
         <legend className="text-xs uppercase tracking-wide text-muted mb-2">{t('report.reason')}</legend>
         <div className="space-y-1.5">
-          {REASONS.map((key) => (
+          {reasons.map((key) => (
             <label
               key={key}
               className="flex items-start gap-2 p-2 rounded-btn hover:bg-surface2 cursor-pointer"

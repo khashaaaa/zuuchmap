@@ -25,9 +25,11 @@ Construction marketplace for Mongolia. Providers post rentals/services/jobs acro
 
 These values are duplicated across the three apps by design. `npm run check:sync`
 (`scripts/check-sync.js`, zero deps) verifies them and **gates deploy.sh as step
-0/6** — run it after touching any of them. It reports **16 contracts** against the
-14 rows below: the locations row covers `provinces` + `districts`, and the i18n
-row covers `i18n:mn` + `i18n:en`.
+0/6** — run it after touching any of them. It reports **21 contracts** against the
+15 rows below: the locations row covers `provinces` + `districts`, and the i18n
+row covers `i18n:mn|en|zh|ru` + `i18n completeness` (every non-`en` locale has
+exactly `en`'s key set on its side, plural suffixes aside) + `i18n keys` (every
+literal `t('…')` must resolve).
 
 | Contract | Copies |
 |---|---|
@@ -36,14 +38,15 @@ row covers `i18n:mn` + `i18n:en`.
 | palette | `app/design/theme.js` · `web/src/index.css` (1:1 tokens only — the file names the deliberate exceptions) |
 | `Province` / `District` | engine `enums/province.ts` · `app/config/app.config.js` · `web/lib/utils.js` |
 | `PriceUnit` | engine `enums/priceunit.ts` · `web/lib/utils.js` · `app/config/app.config.js` |
-| shared i18n keys | `app/i18n/locales/{mn,en}.js` · `web/i18n/{mn,en}.js` — each tree keeps ~280 platform-specific keys, but a key present in **both** must have the same value |
+| shared i18n keys | `app/i18n/locales/{mn,en,zh,ru}.js` · `web/i18n/{mn,en,zh,ru}.js` — each tree keeps ~280 platform-specific keys, but a key present in **both** must have the same value |
 | `getPostTitle` | `app/utils/postUtils.js` · `web/lib/utils.js` — checked *behaviourally*: both are lifted, stubbed and run over shared fixtures |
 | `postHealth` | `app/utils/postHealth.js` · `web/lib/postHealth.js` — behavioural; the same listing must score the same on both |
 | map clustering | `app/screens/customer/CustomerMapView.jsx` (`gridCluster`) · `web/lib/mapCluster.js` — behavioural, across four zoom levels |
 | `formatPrice` | `app/utils/displayUtils.js` · `web/lib/utils.js` — behavioural; mn-MN grouping, no decimal tail, and never a `/unit` suffix on `TOTAL` |
 | `formatDate` | `app/utils/displayUtils.js` · `web/lib/utils.js` — behavioural; `YYYY.MM.DD` built by hand on both. **Neither side may use `Intl`** — RN's JSC has no full ICU on Android, so a locale-driven format silently falls back to en-US there |
-| price unit labels | `app/i18n/locales/{mn,en}.js` (`priceUnit.HOUR`) · `web/i18n/{mn,en}.js` (`priceUnit.hour`) — the casing differs, so the shared-i18n contract above cannot see these; compared case-insensitively instead |
+| price unit labels | `app/i18n/locales/*.js` (`priceUnit.HOUR`) · `web/i18n/*.js` (`priceUnit.hour`) — the casing differs, so the shared-i18n contract above cannot see these; compared case-insensitively instead |
 | typeface | `app/design/theme.js` (bundled Commissioner TTFs) · `web/src/index.css` (`@font-face`, self-hosted). **Never load it from Google Fonts** — that serves Commissioner as four `unicode-range` subsets, stranding Ө/Ү in `cyrillic-ext` and ₮ in `latin-ext`, so those glyphs render in the fallback face until a second request lands |
+| `REPORT_REASONS` | engine `enums/report.ts` · `web/lib/api.js` · `app/services/api/reportService.js` — the engine is the authority (`GET /reports/reasons`); the client copies are only the first-paint fallback |
 | form validation | `app/utils/formUtils.js` · `web/lib/utils.js` — `validateEmail` `validatePhone` `validateRequired` `normalizeWebsiteUrl`, behavioural. The company DTOs have no server-side decorators, so these are the only gate; no call site may hand-roll the `https://` prefix rule |
 
 ---
@@ -180,17 +183,18 @@ GET  /payments/:id/check          JWT   polls QPay server-to-server; settles + g
 GET  /payments/mine               JWT   receipts
 GET  /payments/callback/:id       QPay nudge — unauthenticated, never trusted alone (same rule as verify.mn)
 
-GET  /conversations               JWT   inbox
+GET  /conversations               JWT   inbox, 50/page, ?before=<ISO> cursor on last activity
 GET  /conversations/unread-count  JWT
 POST /conversations               JWT   {post_id, body?} → opens or returns the existing thread
-GET  /conversations/:id/messages  JWT   ?before=<ISO> cursor
+GET  /conversations/:id/messages  JWT   ?before=<ISO>&before_id=<uuid> cursor on (date_created,id), 30/page
 POST /conversations/:id/messages  JWT   {body}
 PUT  /conversations/:id/read      JWT   idempotent
 
 GET  /reports/reasons             JWT   closed list — clients must not hardcode it
 POST /reports                     JWT   {post_id,reason,detail?}; duplicate returns the existing one
-GET  /reports  GET /reports/count JWT+AdminGuard  ?status=OPEN|RESOLVED|DISMISSED
-PUT  /reports/:id                 JWT+AdminGuard  {status,resolution?}
+GET  /reports  GET /reports/count JWT+AdminGuard  ?status=OPEN|RESOLVED|DISMISSED&post_id
+PUT  /reports/:id                 JWT+AdminGuard  {status,resolution?} — OPEN only; a verdict is written once
+                                  filing pushes admins (`notifyAdminsOfReport`, notifType 'report') as well as the admin socket room
 
 GET  /seo/sitemap.xml             sitemap index; -static and -posts-N pages beneath it
 GET  /seo/post/:id                server-rendered OG tags for crawlers (nginx routes bot UAs here)
@@ -229,7 +233,7 @@ Web/app read `is_admin` from JWT response — they do not duplicate the list.
 **HTTP:** `src/lib/api.js` — Axios, auto-JWT, redirects `/login` on 401.  
 **State:** `useAuthStore` + `useThemeStore` + `useNotificationStore` (Zustand, `src/store.js`); everything else React Query.  
 **Realtime:** `hooks/useRealtimeSync.js` — Socket.io (JWT auth), invalidates queries on events.  
-**i18n:** `src/i18n/` — `mn en`. (zh/ru retired; engine `labels` still carry them, so restoring is a client-side change only.)
+**i18n:** `src/i18n/` — `mn en zh ru`, listed in `LANGUAGES` (`i18n/index.js`); the header switcher and `AdminCategories` label inputs both derive from that list. Adding a string means adding it to all four files — `check:sync` fails otherwise. Russian plurals need `_one/_few/_many/_other`; Chinese keeps `_one/_other` with the same text.
 
 **Key utilities** (`src/lib/utils.js`): `getPostCategory(post)`; `getCategoryLabel` / `getSubcategoryLabel` / `getFieldLabel` — resolve schema `labels[locale]` first, then client i18n, then raw label. Always use these for category-related display text.
 
@@ -275,7 +279,7 @@ Customer: /customer /customer/browse /customer/map /customer/saved /customer/pro
 **LikeButton:** every call site gates admins itself (`!isProvider && !isAdmin`, `showLike={isCustomer}`, or a customer-only screen). The component's own `hidden` fallback lives in `initializeLikeData()`, which is skipped whenever `skip_check` and `is_authenticated` are both passed — i.e. in every list. Do not rely on it.  
 **⚠ BottomSheetModal:** `PanResponder` captures closures at mount — `onClose` is mirrored into a ref; keep that pattern when editing.
 
-**i18n:** `src/i18n/locales/` — `mn en`. (zh/ru retired; see web note.)
+**i18n:** `src/i18n/locales/` — `mn en zh ru`; same rules as the web note. Locale is persisted by `AppContext.setLocale`.
 
 ---
 

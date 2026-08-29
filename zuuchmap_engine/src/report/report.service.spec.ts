@@ -30,12 +30,13 @@ describe('ReportService', () => {
     };
     const users: any = { findOne: jest.fn(async () => ({ id: 'reporter-1' })) };
     const events: any = { emitReportCreated: jest.fn() };
-    const svc = new ReportService(reports, posts, users, events);
-    return { svc, reports, events };
+    const notifications: any = { notifyAdminsOfReport: jest.fn(async () => {}) };
+    const svc = new ReportService(reports, posts, users, events, notifications);
+    return { svc, reports, events, notifications };
   };
 
   it('files a report and puts it in front of the admins immediately', async () => {
-    const { svc, events } = makeService();
+    const { svc, events, notifications } = makeService();
 
     const result = await svc.create(
       'reporter-1',
@@ -51,6 +52,24 @@ describe('ReportService', () => {
     expect(events.emitReportCreated).toHaveBeenCalledWith(
       expect.objectContaining({ postId: 5, reason: 'SCAM' }),
     );
+    // The socket only reaches whoever is connected; the push reaches the rest.
+    expect(notifications.notifyAdminsOfReport).toHaveBeenCalledWith(
+      5,
+      expect.any(String),
+      'SCAM',
+    );
+  });
+
+  it('writes a verdict once — a resolved report cannot be re-resolved', async () => {
+    const { svc, reports } = makeService();
+    reports.findOne = jest.fn(async () => ({
+      id: 'rep-1',
+      status: ReportStatus.DISMISSED,
+    }));
+    await expect(svc.resolve('rep-1', ReportStatus.RESOLVED)).rejects.toThrow(
+      'REPORT_ALREADY_RESOLVED',
+    );
+    expect(reports.save).not.toHaveBeenCalled();
   });
 
   // Filing the same complaint again adds no information and costs a second read.

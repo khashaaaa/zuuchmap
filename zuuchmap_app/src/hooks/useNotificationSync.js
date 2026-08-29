@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Platform } from 'react-native';
+import { Platform, AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import * as Notifications from 'expo-notifications';
@@ -11,6 +11,61 @@ import { queryClient, invalidatePostData } from '../services/queryClient';
 import apiClient from '../services/api/apiClient';
 import { API_CONFIG } from '../config/api.config';
 import { logger } from '../utils/logger';
+import { navigationRef } from '../utils/navigationUtils';
+import { CONVERSATIONS_KEY, UNREAD_KEY, messagesKey } from '../services/api/messageService';
+
+export const SOUND_PREF_KEY = 'zm_sound';
+const LOCAL_SOUND = 'notify.wav';
+const DEDUPE_MS = 5000;
+
+// `${type}:${id}` of banners presented in the last few seconds. The server
+// sends the same event over the socket AND as a push; whichever lands second
+// must not raise a second banner.
+const recentBanners = new Map();
+export function markSeen(key, now = Date.now()) {
+    for (const [k, ts] of recentBanners) if (now - ts > DEDUPE_MS) recentBanners.delete(k);
+    if (recentBanners.has(key)) return false;
+    recentBanners.set(key, now);
+    return true;
+}
+
+export async function isSoundEnabled() {
+    try {
+        const v = await AsyncStorage.getItem(SOUND_PREF_KEY);
+        return v !== '0';
+    } catch { return true; }
+}
+
+// Is the user already looking at the screen this event belongs to? A banner
+// over the very thread a message just landed in is noise, not news.
+function isViewing(screen, params) {
+    if (!navigationRef.isReady?.()) return false;
+    const route = navigationRef.getCurrentRoute?.();
+    if (!route || route.name !== screen) return false;
+    if (!params) return true;
+    return Object.entries(params).every(([k, v]) => String(route.params?.[k]) === String(v));
+}
+
+/**
+ * Foreground banner + chime for a socket event. `data` must be the shape the
+ * server push carries (`type`/`notifType` + ids) — the tap is handled by the
+ * same `handleNotificationResponse` in App.js as a real push.
+ */
+async function presentLocal({ key, title, body, data, viewing }) {
+    if (AppState.currentState !== 'active') return;
+    if (!markSeen(key)) return;
+    if (viewing && isViewing(viewing.screen, viewing.params)) return;
+    try {
+        const sound = await isSoundEnabled();
+        await Notifications.scheduleNotificationAsync({
+            content: { title, body, data, sound: sound ? LOCAL_SOUND : false },
+            trigger: null,
+        });
+    } catch (err) {
+        // Expo Go / no permission — the in-app bell row still exists.
+        logger.warn?.('Local notification failed:', err?.message);
+    }
+}
 
 const EAS_PROJECT_ID = '40d1a5b1-f537-4097-88f7-ffad9545f7d0';
 
@@ -27,6 +82,9 @@ async function registerPushToken() {
             await Notifications.setNotificationChannelAsync('default', {
                 name: 'default',
                 importance: Notifications.AndroidImportance.MAX,
+                // Bundled via the expo-notifications plugin `sounds` array;
+                // present only from the next EAS build, default sound until then.
+                sound: LOCAL_SOUND,
             });
         }
         const { status: existing } = await Notifications.getPermissionsAsync();
@@ -73,11 +131,26 @@ export function useNotificationSync() {
 
             const socket = socketService.connect(rooms);
 
+            // A message sent while the socket was down never arrives as an
+            // event. Refetch the messaging reads on every *re*connect (the
+            // first connect is skipped — screens fetch on mount) so the gap
+            // closes when the network returns, not on the next foreground.
+            let connectedOnce = socket.connected;
+            const onReconnect = () => {
+                if (!mounted) return;
+                if (!connectedOnce) { connectedOnce = true; return; }
+                queryClient.invalidateQueries({ queryKey: CONVERSATIONS_KEY });
+                queryClient.invalidateQueries({ queryKey: UNREAD_KEY });
+                queryClient.invalidateQueries({ queryKey: ['conversation'] });
+            };
+
             // postId/postType/role and bookingRole make the rows on
             // NotificationsScreen tappable — they mirror the push-tap routing.
             const onPostCreated = ({ postId, category, title } = {}) => {
                 if (!mounted) return;
                 invalidatePostData();
+                // Only admins receive this — it is a new row in their queue.
+                queryClient.invalidateQueries({ queryKey: ['admin'] });
                 addNotification({
                     title: t('notifications.postCreated'),
                     message: title || t('notifications.postCreatedDesc'),
@@ -85,6 +158,13 @@ export function useNotificationSync() {
                     postId,
                     postType: category,
                     role: 'admin',
+                });
+                presentLocal({
+                    key: `post.created:${postId}`,
+                    title: t('notifications.postCreated'),
+                    body: title || t('notifications.postCreatedDesc'),
+                    data: { postId, post_type: category, notifType: 'new_post' },
+                    viewing: { screen: 'PostDetailScreen', params: { postId } },
                 });
             };
 
@@ -101,6 +181,12 @@ export function useNotificationSync() {
                     postType: category,
                     role: 'provider',
                 });
+                presentLocal({
+                    key: `post.approved:${postId}`,
+                    title: t('notifications.postApproved'),
+                    body: title || t('notifications.postApprovedDesc'),
+                    data: { postId, post_type: category, notifType: 'approved' },
+                });
             };
 
             const onPostRejected = ({ postId, reason, category } = {}) => {
@@ -114,9 +200,15 @@ export function useNotificationSync() {
                     postType: category,
                     role: 'provider',
                 });
+                presentLocal({
+                    key: `post.rejected:${postId}`,
+                    title: t('notifications.postRejected'),
+                    body: reason || t('notifications.postRejectedDesc'),
+                    data: { postId, post_type: category, notifType: 'rejected' },
+                });
             };
 
-            const onBookingRequested = () => {
+            const onBookingRequested = ({ bookingId } = {}) => {
                 if (!mounted) return;
                 queryClient.invalidateQueries({ queryKey: ['bookings'] });
                 addNotification({
@@ -125,21 +217,37 @@ export function useNotificationSync() {
                     type: 'info',
                     bookingRole: 'provider',
                 });
-            };
-
-            const onBookingResponded = ({ status } = {}) => {
-                if (!mounted) return;
-                queryClient.invalidateQueries({ queryKey: ['bookings'] });
-                const accepted = status === 'ACCEPTED';
-                addNotification({
-                    title: accepted ? t('notifications.bookingAccepted') : t('notifications.bookingDeclined'),
-                    message: accepted ? t('notifications.bookingAcceptedDesc') : t('notifications.bookingDeclinedDesc'),
-                    type: accepted ? 'success' : 'error',
-                    bookingRole: 'customer',
+                presentLocal({
+                    key: `booking.requested:${bookingId}`,
+                    title: t('notifications.bookingRequested'),
+                    body: t('notifications.bookingRequestedDesc'),
+                    data: { bookingId, notifType: SOCKET_EVENTS.BOOKING_REQUESTED },
+                    viewing: { screen: 'BookingList', params: { role: 'provider' } },
                 });
             };
 
-            const onBookingCancelled = () => {
+            const onBookingResponded = ({ status, bookingId } = {}) => {
+                if (!mounted) return;
+                queryClient.invalidateQueries({ queryKey: ['bookings'] });
+                const accepted = status === 'ACCEPTED';
+                const title = accepted ? t('notifications.bookingAccepted') : t('notifications.bookingDeclined');
+                const body = accepted ? t('notifications.bookingAcceptedDesc') : t('notifications.bookingDeclinedDesc');
+                addNotification({
+                    title,
+                    message: body,
+                    type: accepted ? 'success' : 'error',
+                    bookingRole: 'customer',
+                });
+                presentLocal({
+                    key: `booking.responded:${bookingId}:${status}`,
+                    title,
+                    body,
+                    data: { bookingId, notifType: SOCKET_EVENTS.BOOKING_RESPONDED },
+                    viewing: { screen: 'BookingList', params: { role: 'customer' } },
+                });
+            };
+
+            const onBookingCancelled = ({ bookingId } = {}) => {
                 if (!mounted) return;
                 queryClient.invalidateQueries({ queryKey: ['bookings'] });
                 addNotification({
@@ -148,6 +256,54 @@ export function useNotificationSync() {
                     type: 'info',
                     bookingRole: 'provider',
                 });
+                presentLocal({
+                    key: `booking.cancelled:${bookingId}`,
+                    title: t('notifications.bookingCancelled'),
+                    body: t('notifications.bookingCancelledDesc'),
+                    data: { bookingId, notifType: SOCKET_EVENTS.BOOKING_CANCELLED },
+                    viewing: { screen: 'BookingList', params: { role: 'provider' } },
+                });
+            };
+
+            // Recipient-only on the server, so no "is this mine" check here.
+            const onMessageCreated = ({ conversationId, messageId, postId, preview } = {}) => {
+                if (!mounted) return;
+                queryClient.invalidateQueries({ queryKey: CONVERSATIONS_KEY });
+                queryClient.invalidateQueries({ queryKey: UNREAD_KEY });
+                if (conversationId) queryClient.invalidateQueries({ queryKey: messagesKey(conversationId) });
+                addNotification({
+                    title: t('notifications.newMessage'),
+                    message: preview || '',
+                    type: 'info',
+                    conversationId,
+                    postId,
+                });
+                presentLocal({
+                    key: `message:${messageId ?? conversationId}`,
+                    title: t('notifications.newMessage'),
+                    body: preview || '',
+                    data: { type: 'message', conversationId, postId: postId ?? null },
+                    viewing: { screen: 'MessageThread', params: { id: conversationId } },
+                });
+            };
+
+            const onReportCreated = ({ reportId, postId } = {}) => {
+                if (!mounted) return;
+                queryClient.invalidateQueries({ queryKey: ['reports'] });
+                addNotification({
+                    title: t('notifications.reportCreated'),
+                    message: t('notifications.reportCreatedDesc'),
+                    type: 'error',
+                    postId,
+                    role: 'admin',
+                    reportId,
+                });
+                presentLocal({
+                    key: `report.created:${reportId ?? postId}`,
+                    title: t('notifications.reportCreated'),
+                    body: t('notifications.reportCreatedDesc'),
+                    data: { postId, notifType: 'report' },
+                });
             };
 
             const onStatsUpdated = () => {
@@ -155,6 +311,7 @@ export function useNotificationSync() {
                 invalidatePostData();
             };
 
+            socket.on('connect', onReconnect);
             socket.on(SOCKET_EVENTS.POST_CREATED, onPostCreated);
             socket.on(SOCKET_EVENTS.POST_APPROVED, onPostApproved);
             socket.on(SOCKET_EVENTS.POST_REJECTED, onPostRejected);
@@ -162,8 +319,11 @@ export function useNotificationSync() {
             socket.on(SOCKET_EVENTS.BOOKING_RESPONDED, onBookingResponded);
             socket.on(SOCKET_EVENTS.BOOKING_CANCELLED, onBookingCancelled);
             socket.on(SOCKET_EVENTS.STATS_UPDATED, onStatsUpdated);
+            socket.on(SOCKET_EVENTS.MESSAGE_CREATED, onMessageCreated);
+            if (isAdmin) socket.on(SOCKET_EVENTS.REPORT_CREATED, onReportCreated);
 
             return () => {
+                socket.off('connect', onReconnect);
                 socket.off(SOCKET_EVENTS.POST_CREATED, onPostCreated);
                 socket.off(SOCKET_EVENTS.POST_APPROVED, onPostApproved);
                 socket.off(SOCKET_EVENTS.POST_REJECTED, onPostRejected);
@@ -171,6 +331,8 @@ export function useNotificationSync() {
                 socket.off(SOCKET_EVENTS.BOOKING_RESPONDED, onBookingResponded);
                 socket.off(SOCKET_EVENTS.BOOKING_CANCELLED, onBookingCancelled);
                 socket.off(SOCKET_EVENTS.STATS_UPDATED, onStatsUpdated);
+                socket.off(SOCKET_EVENTS.MESSAGE_CREATED, onMessageCreated);
+                socket.off(SOCKET_EVENTS.REPORT_CREATED, onReportCreated);
             };
         };
 

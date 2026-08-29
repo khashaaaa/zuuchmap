@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import { authApi } from '@/lib/api'
 import { getDeviceId } from '@/lib/device'
@@ -13,6 +13,7 @@ import Logo from '@/components/Logo'
 import { apiErrorMessage } from '@/lib/utils'
 
 export default function LoginPage() {
+  const shouldReduceMotion = useReducedMotion()
   const { t } = useTranslation()
   const [phone, setPhone] = useState('')
   const [loading, setLoading] = useState(false)
@@ -55,7 +56,7 @@ export default function LoginPage() {
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.2 }}
+        transition={{ duration: shouldReduceMotion ? 0 : 0.2 }}
         className="w-full max-w-sm"
       >
         <div className="text-center mb-8">

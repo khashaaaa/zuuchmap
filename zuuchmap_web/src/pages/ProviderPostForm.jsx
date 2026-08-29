@@ -4,9 +4,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Upload, X, MapPin, AlertTriangle, XCircle } from 'lucide-react'
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet'
+import { tileLayerProps } from '@/lib/mapTiles'
 import 'leaflet/dist/leaflet.css'
-import { postsApi, categoryApi } from '@/lib/api'
-import { getCategoryLabel, getSubcategoryLabel, getFieldLabel, getOptionLabel, getPostCategory, getCategoryColor, getImageUrl, goBack, PRICE_UNITS, PROVINCES, DISTRICTS, apiErrorMessage, hideBrokenImage, normalizeWebsiteUrl } from '@/lib/utils'
+import { postsApi } from '@/lib/api'
+import { getCategoryLabel, getSubcategoryLabel, getFieldLabel, getPostCategory, getCategoryColor, getImageUrl, goBack, PRICE_UNITS, PROVINCES, DISTRICTS, apiErrorMessage, hideBrokenImage, normalizeWebsiteUrl } from '@/lib/utils'
 import { categoryPin } from '@/lib/mapPin'
 import AlertBanner from '@/components/AlertBanner'
 import { useThemeStore } from '@/store'
@@ -14,6 +15,7 @@ import { track } from '@/lib/analytics'
 import { toast } from 'sonner'
 import Input from '../components/Input'
 import CollapsibleSection from '../components/CollapsibleSection'
+import { DynamicField, FormSection } from '../components/PostFormFields'
 import Button from '../components/Button'
 import PageHeader from '../components/PageHeader'
 import ConfirmModal from '../components/ConfirmModal'
@@ -22,6 +24,7 @@ import PostHealthRing from '../components/PostHealthRing'
 import DraftResumeBanner from '../components/DraftResumeBanner'
 import { computePostHealth } from '@/lib/postHealth'
 import { loadDraft, saveDraft, clearDraft, listDrafts } from '@/lib/draftStorage'
+import { useCategories } from '@/hooks/useCategories'
 
 function compressImage(file) {
   return new Promise((resolve, reject) => {
@@ -69,8 +72,7 @@ function LocationPicker({ lat, lng, color, onChange }) {
     <MapContainer center={lat && lng ? [lat, lng] : UB_CENTER} zoom={lat && lng ? 14 : 10} style={{ height: '180px', width: '100%' }}>
       <TileLayer
         key={theme}
-        url={`https://{s}.basemaps.cartocdn.com/${theme === 'dark' ? 'dark_all' : 'light_all'}/{z}/{x}/{y}{r}.png`}
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
+        {...tileLayerProps(theme === 'dark')}
       />
       <ClickHandler />
       {lat && lng && <Marker position={[lat, lng]} icon={categoryPin(color)} />}
@@ -79,7 +81,6 @@ function LocationPicker({ lat, lng, color, onChange }) {
 }
 
 // Localized placeholder mirrors `labels`; the flat `placeholder` is the fallback.
-const fieldPlaceholder = (field, lng) => field.placeholders?.[lng] ?? field.placeholder ?? ''
 
 // A boolean starts false and a multiselect [] — seeding them with '' would hand
 // the checkbox a string and break the chip group's Array checks.
@@ -120,89 +121,6 @@ const CLEARABLE_POST_FIELDS = new Set([
   'subcategory',
 ])
 
-function DynamicField({ field, value, onChange, t, lng }) {
-  const unit = field.unit ? ` (${field.unit})` : ''
-  // A boolean is always answered — the checkbox carries `false`, and the engine
-  // accepts it (`validateRequiredAttributes` only rejects empty strings and
-  // empty arrays). Marking one "required" promised a gate that nothing can
-  // enforce, so the asterisk goes everywhere except there.
-  const showRequired = field.required && field.type !== 'boolean'
-  const lbl = <>{getFieldLabel(field, t)}{unit}{showRequired && <span className="text-danger"> *</span>}</>
-
-  if (field.type === 'select') return (
-    <div>
-      <label className="field-label">{lbl}</label>
-      <Input as="select" value={value} onChange={(e) => onChange(e.target.value)} required={field.required}>
-        <option value="">{t('common.select')}</option>
-        {field.options?.map((opt) => <option key={opt} value={opt}>{getOptionLabel(opt, t)}</option>)}
-      </Input>
-    </div>
-  )
-
-  if (field.type === 'boolean') return (
-    <div>
-      <label className="field-label">{lbl}</label>
-      <label className="flex items-center gap-2 cursor-pointer">
-        <input type="checkbox" checked={value === true}
-          onChange={(e) => onChange(e.target.checked)}
-          className="w-4 h-4 accent-primary" />
-        <span className="text-sm text-text">{value === true ? t('common.yes') : t('common.no')}</span>
-      </label>
-    </div>
-  )
-
-  if (field.type === 'multiselect') {
-    const selected = Array.isArray(value) ? value : []
-    const toggle = (opt) => onChange(selected.includes(opt) ? selected.filter((s) => s !== opt) : [...selected, opt])
-    return (
-      <div>
-        <label className="field-label">{lbl}</label>
-        <div className="flex flex-wrap gap-2">
-          {field.options?.map((opt) => (
-            <button key={opt} type="button" onClick={() => toggle(opt)}
-              aria-pressed={selected.includes(opt)}
-              className={`px-3 py-1.5 text-xs rounded-btn border transition-colors ${
-                selected.includes(opt)
-                  ? 'bg-primary text-on-primary border-primary'
-                  : 'border-border/40 text-muted hover:text-text'
-              }`}>
-              {getOptionLabel(opt, t)}
-            </button>
-          ))}
-        </div>
-      </div>
-    )
-  }
-
-  if (field.type === 'textarea') return (
-    <div>
-      <label className="field-label">{lbl}</label>
-      <Input as="textarea" value={value} onChange={(e) => onChange(e.target.value)} required={field.required} rows={3}
-        placeholder={fieldPlaceholder(field, lng)} className="resize-none" />
-    </div>
-  )
-
-  const inputType = field.type === 'phone' ? 'tel' : field.type === 'text' ? 'text' : field.type
-  return (
-    <div>
-      <label className="field-label">{lbl}</label>
-      <Input type={inputType} value={value} onChange={(e) => onChange(e.target.value)}
-        placeholder={fieldPlaceholder(field, lng)} required={field.required} />
-    </div>
-  )
-}
-
-// Section card — same idiom as ProviderCompany's detail card, so the form
-// reads as a sequence of concerns instead of one unbroken column of controls.
-function FormSection({ title, children }) {
-  return (
-    <section className="bg-surface border border-border/20 shadow-card rounded-card p-5 space-y-4">
-      <h2 className="text-sm font-semibold text-text">{title}</h2>
-      {children}
-    </section>
-  )
-}
-
 export default function ProviderPostForm() {
   const { t, i18n } = useTranslation()
   const { id } = useParams()
@@ -222,11 +140,7 @@ export default function ProviderPostForm() {
     enabled: isEdit,
   })
 
-  const { data: schemas = [] } = useQuery({
-    queryKey: ['categories'],
-    queryFn: categoryApi.getAll,
-    staleTime: 300_000,
-  })
+  const { data: schemas = [] } = useCategories()
 
   const [form, setForm] = useState({
     category: '',

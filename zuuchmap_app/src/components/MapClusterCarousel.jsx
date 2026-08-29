@@ -4,7 +4,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { spacing, typography, radius, interactions, isTablet } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
-import FadeSlideIn from './FadeSlideIn';
 import { HorizontalPostCard } from './SimilarPostsDrawer';
 
 const GAP = spacing.md;
@@ -42,9 +41,7 @@ const MapClusterCarousel = ({ posts, onPressPost, onClose, onActiveChange, botto
     }, [interval, posts, active, onActiveChange]);
 
     const renderItem = useCallback(({ item, index }) => (
-        <FadeSlideIn index={Math.min(index, 3)}>
             <HorizontalPostCard post={item} onPress={onPressPost} width={cardWidth} showAvailability />
-        </FadeSlideIn>
     ), [onPressPost, cardWidth]);
 
     if (!posts?.length) return null;

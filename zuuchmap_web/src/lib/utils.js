@@ -21,6 +21,8 @@ export const apiErrorMessage = (error, t, fallback) => {
   }
   // Throttler 429s carry no code and an English-only message — localize them.
   if (error?.response?.status === 429) return t('errors.tooManyRequests')
+  // A 413 from nginx carries an HTML body, not our JSON — never surface that.
+  if (error?.response?.status === 413) return t('errors.payloadTooLarge')
   return error?.response?.data?.message || fallback
 }
 
@@ -196,7 +198,6 @@ export const debounce = (fn, ms = 300) => {
 
 // User-entered URLs are stored raw; without a scheme the browser treats them
 // as relative paths and the SPA catch-all swallows them into "/".
-export const externalHref = (v) => normalizeWebsiteUrl(v)
 
 // --- Form validation ---
 //

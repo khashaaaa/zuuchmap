@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { MapContainer, TileLayer, Marker, Circle, useMap, useMapEvents } from 'react-leaflet'
+import { tileLayerProps } from '@/lib/mapTiles'
 import { useTranslation } from 'react-i18next'
 import { SlidersHorizontal, LocateFixed, RefreshCw, Layers, X } from 'lucide-react'
-import { postsApi, categoryApi } from '@/lib/api'
+import { postsApi } from '@/lib/api'
 import { getCategoryColor, getPostCategory, toneForTheme } from '@/lib/utils'
 import { categoryPin, clusterPin } from '@/lib/mapPin'
 import {
@@ -16,6 +17,7 @@ import ErrorState from '@/components/ErrorState'
 import EmptyState from '@/components/EmptyState'
 import Button from '@/components/Button'
 import { useThemeStore } from '@/store'
+import { useCategories } from '@/hooks/useCategories'
 
 const UB = [47.9184676, 106.9177016]
 const DEFAULT_ZOOM = 12
@@ -64,11 +66,7 @@ export default function CustomerMap() {
     staleTime: 60_000,
   })
 
-  const { data: schemas = [] } = useQuery({
-    queryKey: ['categories'],
-    queryFn: categoryApi.getAll,
-    staleTime: 300_000,
-  })
+  const { data: schemas = [] } = useCategories()
 
   // Non-location filters. Kept apart from the radius pass so a GPS update does
   // not recompute category/price work that did not change — same split the app
@@ -166,8 +164,7 @@ export default function CustomerMap() {
         <MapContainer center={UB} zoom={DEFAULT_ZOOM} style={{ height: '100%', width: '100%' }} zoomControl>
           <TileLayer
             key={theme}
-            url={`https://{s}.basemaps.cartocdn.com/${isDark ? 'dark_all' : 'light_all'}/{z}/{x}/{y}{r}.png`}
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
+            {...tileLayerProps(isDark)}
           />
           <MapBridge onViewport={setViewport} onReady={setMap} />
 

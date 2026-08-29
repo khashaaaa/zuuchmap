@@ -1,25 +1,27 @@
 import { useState, useEffect } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Building } from 'lucide-react'
-import { companyApi, usersApi } from '@/lib/api'
-import { useAuthStore as useStore } from '@/store'
-import { getCompanyLogoUrl, apiErrorMessage, hideBrokenImage, normalizeWebsiteUrl, validateEmail, validatePhone, validateRequired } from '@/lib/utils'
+import { companyApi } from '@/lib/api'
+import { useProfile } from '@/hooks/useProfile'
+import { useApiMutation } from '@/hooks/useApiMutation'
+import { getCompanyLogoUrl, hideBrokenImage, normalizeWebsiteUrl, validateEmail, validatePhone, validateRequired } from '@/lib/utils'
 import Button from '@/components/Button'
 import Input from '@/components/Input'
 import PageHeader from '@/components/PageHeader'
 import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
 import { toast } from 'sonner'
+import ImageCropModal from '@/components/ImageCropModal'
 
 export default function ProviderCompany() {
   const { t } = useTranslation()
-  const user = useStore((s) => s.user)
   const qc = useQueryClient()
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({ name: '', description: '', phone_number: '', email: '', address: '', website: '' })
   const [logo, setLogo] = useState(null)
   const [logoUrl, setLogoUrl] = useState(null)
+  const [pendingLogo, setPendingLogo] = useState(null)
 
   useEffect(() => {
     if (!logo) return setLogoUrl(null)
@@ -28,13 +30,9 @@ export default function ProviderCompany() {
     return () => URL.revokeObjectURL(url)
   }, [logo])
 
-  const { data: profile } = useQuery({
-    queryKey: ['profile'],
-    queryFn: usersApi.getProfile,
-    staleTime: 30_000,
-  })
+  const { data: profile } = useProfile()
 
-  const companyId = profile?.company?.id ?? user?.company?.id
+  const companyId = profile?.company?.id
 
   const { data: company, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['my-company'],
@@ -49,7 +47,7 @@ export default function ProviderCompany() {
     }
   }, [company])
 
-  const createMut = useMutation({
+  const createMut = useApiMutation({
     mutationFn: (fd) => companyApi.create(fd),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['my-company'] })
@@ -57,10 +55,9 @@ export default function ProviderCompany() {
       setEditing(false)
       toast.success(t('company.created'))
     },
-    onError: (e) => toast.error(apiErrorMessage(e, t, t('common.error'))),
   })
 
-  const updateMut = useMutation({
+  const updateMut = useApiMutation({
     mutationFn: (fd) => companyApi.update(company.id, fd),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['my-company'] })
@@ -68,7 +65,6 @@ export default function ProviderCompany() {
       setEditing(false)
       toast.success(t('company.updated'))
     },
-    onError: (e) => toast.error(apiErrorMessage(e, t, t('common.error'))),
   })
 
   // Same rules the app applies in ProviderCompany/EditProfileScreen — the company
@@ -193,7 +189,7 @@ export default function ProviderCompany() {
                <Building size={20} className="text-muted" />}
             </div>
             <input type="file" accept="image/*" className="hidden" onChange={(e) => {
-              setLogo(e.target.files[0])
+              setPendingLogo(e.target.files[0] ?? null)
               // Same file re-picked is not a value change and fires no event —
               // reset so the picker keeps working. Matches AvatarPicker.
               e.target.value = ''
@@ -201,6 +197,7 @@ export default function ProviderCompany() {
           </label>
           <span className="text-xs text-muted">{t('company.logo')}</span>
         </div>
+        <ImageCropModal file={pendingLogo} onDone={(f) => { setPendingLogo(null); setLogo(f) }} onCancel={() => setPendingLogo(null)} />
         {formFields.map(([label, key, req, inputType, mode]) => (
           <div key={key}>
             <label className="field-label">

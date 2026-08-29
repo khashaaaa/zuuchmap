@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { motion, useReducedMotion } from 'framer-motion'
 import { FileText, Users, CheckCircle, XCircle, UserCheck, UserSearch, Megaphone } from 'lucide-react'
-import { adminApi, categoryApi } from '@/lib/api'
+import { adminApi } from '@/lib/api'
 import { getCategoryLabel, getCategoryColor } from '@/lib/utils'
 import StatCard from '@/components/StatCard'
 import PageHeader from '@/components/PageHeader'
@@ -13,6 +12,7 @@ import Button from '@/components/Button'
 import ConfirmModal from '@/components/ConfirmModal'
 import { BarList } from '@/components/Charts'
 import { useMinDisplayTime } from '@/hooks/useMinDisplayTime'
+import { useCategories } from '@/hooks/useCategories'
 
 /** Push-campaign form: seasonal pushes and announcements to app users. */
 function BroadcastPanel({ schemas }) {
@@ -113,7 +113,6 @@ function BroadcastPanel({ schemas }) {
 
 export default function AdminDashboard() {
   const { t } = useTranslation()
-  const shouldReduceMotion = useReducedMotion()
 
   const { data: stats, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin-stats'],
@@ -122,11 +121,7 @@ export default function AdminDashboard() {
   })
   const showSkeleton = useMinDisplayTime(isLoading)
 
-  const { data: schemas = [] } = useQuery({
-    queryKey: ['categories'],
-    queryFn: categoryApi.getAll,
-    staleTime: 300_000,
-  })
+  const { data: schemas = [] } = useCategories()
 
   const categoryChartData = stats?.byType
     ? stats.byType.map((row) => ({
@@ -180,18 +175,17 @@ export default function AdminDashboard() {
               label={t('admin.pendingPosts')}
               value={stats?.totals?.pending ?? 0}
               color="text-text"
-              index={0}
               className="col-span-2"
             />
-            {postStatCards.map(({ icon, label, value, color }, i) => (
-              <StatCard key={label} icon={icon} label={label} value={value ?? 0} color={color} index={i + 1} />
+            {postStatCards.map(({ icon, label, value, color }) => (
+              <StatCard key={label} icon={icon} label={label} value={value ?? 0} color={color} />
             ))}
           </div>
 
           <h2 className={`${overline} mt-6`}>{t('admin.usersSection')}</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mb-8">
-            {userStatCards.map(({ icon, label, value, color }, i) => (
-              <StatCard key={label} icon={icon} label={label} value={value ?? 0} color={color} index={i + 4} />
+            {userStatCards.map(({ icon, label, value, color }) => (
+              <StatCard key={label} icon={icon} label={label} value={value ?? 0} color={color} />
             ))}
           </div>
         </>
@@ -200,9 +194,7 @@ export default function AdminDashboard() {
       {/* An empty chart panel and a missing one look the same — say "no data"
           instead of silently dropping the section (ProviderDashboard idiom). */}
       {!showSkeleton && !isError && (
-      <motion.div
-        initial={shouldReduceMotion ? false : { opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0, transition: { delay: shouldReduceMotion ? 0 : 0.3 } }}
+      <div
         className="grid grid-cols-1 lg:grid-cols-3 gap-6"
       >
         <div className="lg:col-span-2 bg-surface border border-border/20 shadow-card rounded-card p-5 md:p-6">
@@ -235,7 +227,7 @@ export default function AdminDashboard() {
             <BarList data={userBreakdownData} label={t('admin.userBreakdown')} />
           )}
         </div>
-      </motion.div>
+      </div>
       )}
 
       {!showSkeleton && !isError && <BroadcastPanel schemas={schemas} />}

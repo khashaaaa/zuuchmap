@@ -1,16 +1,22 @@
 const DEVICE_KEY = 'zm_device_id'
 const ANON_KEY = 'zm_anon_id'
 
-function stableId(key) {
+const randomId = () => crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
+
+/**
+ * A random id this browser keeps under `key`, minted on first use. Private
+ * mode / disabled storage still gets an id — a per-tab one beats nothing, and
+ * every caller is a best-effort identifier rather than a credential.
+ */
+export function stableId(key) {
   try {
     const existing = localStorage.getItem(key)
     if (existing) return existing
-    const fresh = crypto.randomUUID()
+    const fresh = randomId()
     localStorage.setItem(key, fresh)
     return fresh
   } catch {
-    // Private mode / storage disabled — a per-tab id still beats nothing.
-    return crypto.randomUUID()
+    return randomId()
   }
 }
 

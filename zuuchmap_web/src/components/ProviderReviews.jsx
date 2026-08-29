@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Star } from 'lucide-react'
 import { toast } from 'sonner'
@@ -9,7 +9,8 @@ import Input from '@/components/Input'
 import Button from '@/components/Button'
 import UserAvatar from '@/components/UserAvatar'
 import ErrorState from '@/components/ErrorState'
-import { formatDate, apiErrorMessage } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
+import { useApiMutation } from '@/hooks/useApiMutation'
 
 export function Stars({ value, size = 14, onSelect }) {
   const { t } = useTranslation()
@@ -68,7 +69,7 @@ export default function ProviderReviews({ providerId, canReview }) {
     }
   }, [data?.own])
 
-  const mut = useMutation({
+  const mut = useApiMutation({
     // Send the empty string rather than dropping the key: omitting it reads as
     // "leave the comment alone", which silently kept the old text under the new
     // rating. The trim keeps whitespace from counting as a comment.
@@ -77,7 +78,6 @@ export default function ProviderReviews({ providerId, canReview }) {
       qc.invalidateQueries({ queryKey: ['reviews', providerId] })
       toast.success(t('review.submitted'))
     },
-    onError: (e) => toast.error(apiErrorMessage(e, t, t('common.error'))),
   })
 
   if (!providerId) return null

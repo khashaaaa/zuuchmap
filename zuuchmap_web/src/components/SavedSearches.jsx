@@ -1,10 +1,12 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { BellRing, Trash2, Search } from 'lucide-react'
 import { toast } from 'sonner'
-import { savedSearchApi, categoryApi } from '@/lib/api'
-import { getCategoryLabel, getSubcategoryLabel, apiErrorMessage } from '@/lib/utils'
+import { savedSearchApi } from '@/lib/api'
+import { getCategoryLabel, getSubcategoryLabel } from '@/lib/utils'
+import { useCategories } from '@/hooks/useCategories'
+import { useApiMutation } from '@/hooks/useApiMutation'
 
 /** Rebuilds the /customer/browse query string a saved search was captured from. */
 export function savedSearchToParams(s) {
@@ -28,12 +30,11 @@ export default function SavedSearches({ className = '', headed = true }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const { data: searches = [], isLoading } = useQuery({ queryKey: ['saved-searches'], queryFn: savedSearchApi.list })
-  const { data: schemas = [] } = useQuery({ queryKey: ['categories'], queryFn: categoryApi.getAll, staleTime: 5 * 60_000 })
+  const { data: schemas = [] } = useCategories()
 
-  const del = useMutation({
+  const del = useApiMutation({
     mutationFn: savedSearchApi.remove,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['saved-searches'] }); toast.success(t('savedSearch.deleted')) },
-    onError: (e) => toast.error(apiErrorMessage(e, t, t('common.error'))),
   })
 
   const summary = (s) => {

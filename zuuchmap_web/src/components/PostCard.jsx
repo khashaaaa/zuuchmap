@@ -1,18 +1,17 @@
 import { memo } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, useReducedMotion } from 'framer-motion'
-import { useQuery } from '@tanstack/react-query'
 import { MapPin, Eye } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { categoryApi } from '../lib/api'
 import { getImageUrl, getPostTitle, getPostCategory, getCategoryLabel, getCategoryColor, toneForTheme, withAlpha, formatPrice, formatDate } from '../lib/utils'
 import { useThemeStore } from '../store'
 import CategoryBadge from './CategoryBadge'
 import StatusBadge from './StatusBadge'
 import AvailabilityStrip from './AvailabilityStrip'
 import { hideBrokenImage, getLocationLabel } from '@/lib/utils'
+import { useCategories } from '@/hooks/useCategories'
 
-function PostCard({ post, actions, to, index = 0 }) {
+function PostCard({ post, actions, to }) {
   const { t } = useTranslation()
   const shouldReduceMotion = useReducedMotion()
   const img = post.images?.[0]
@@ -23,11 +22,7 @@ function PostCard({ post, actions, to, index = 0 }) {
   // Emphasis is an admin-set schema flag (CategorySchema.emphasized) — no
   // hardcoded category keys. Same key/staleTime as every other consumer, so
   // this reads the shared cache rather than refetching per card.
-  const { data: schemas = [] } = useQuery({
-    queryKey: ['categories'],
-    queryFn: categoryApi.getAll,
-    staleTime: 5 * 60_000,
-  })
+  const { data: schemas = [] } = useCategories()
   const category = getPostCategory(post)
   const cardSchema = schemas.find((s) => s.key === category)
   const emphasized = !!cardSchema?.emphasized
@@ -46,26 +41,19 @@ function PostCard({ post, actions, to, index = 0 }) {
 
   return (
     <motion.div
-      layout={!shouldReduceMotion}
-      initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
-      animate={{
-        opacity: 1,
-        y: 0,
-        transition: { duration: shouldReduceMotion ? 0 : 0.2, ease: 'easeOut', delay: shouldReduceMotion ? 0 : Math.min(index, 10) * 0.03 },
-      }}
       whileHover={shouldReduceMotion ? undefined : { y: -3 }}
       transition={{ duration: shouldReduceMotion ? 0 : 0.15 }}
-      className={`group bg-surface border ${emphasized ? 'border-danger/50' : 'border-border/20'} shadow-card hover:shadow-card-hover transition-shadow duration-200 rounded-card overflow-hidden flex flex-col`}
+      className={`group bg-surface border ${emphasized ? 'border-primary/50 bg-primary/5' : 'border-border/20'} shadow-card hover:shadow-card-hover transition-shadow duration-200 rounded-card overflow-hidden flex flex-col`}
     >
       <Link to={to ?? `/posts/${post.id}`} className="block">
-        <div className="relative h-44 bg-surface2 overflow-hidden">
+        <div className="relative aspect-[4/3] bg-surface2 overflow-hidden">
           {img ? (
             <img
               src={getImageUrl(img)}
               alt={title}
               loading="lazy"
               decoding="async"
-              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.04]" onError={hideBrokenImage} />
+              className="w-full h-full object-cover object-[center_40%] transition-transform duration-300 group-hover:scale-[1.04]" onError={hideBrokenImage} />
           ) : (
             <div
               className="w-full h-full flex items-center justify-center text-sm"

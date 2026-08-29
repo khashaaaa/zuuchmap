@@ -21,9 +21,7 @@ import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 
 import { ScreenHeader, ScreenLoading, WizardSteps, PostHealthRing, DraftResumeBanner } from '../../components';
 import ImageUploadSection from '../../components/ImageUploadSection';
-import LocationSection from '../../components/LocationSection';
-import ContactSection from '../../components/ContactSection';
-import StatusSection from '../../components/StatusSection';
+import { ContactSection, LocationSection, StatusSection } from '../../components/PostFormSections';
 import DynamicForm, { fieldLabel, FieldHighlight } from '../../components/DynamicForm';
 import Button from '../../components/Button';
 import FormField from '../../components/FormField';

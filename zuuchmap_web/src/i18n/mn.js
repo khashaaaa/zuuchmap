@@ -1,6 +1,7 @@
 export default {
   errors: {
     tooManyRequests: 'Хэт олон хүсэлт илгээсэн байна. Түр хүлээнэ үү.',
+    payloadTooLarge: 'Илгээсэн файлын хэмжээ хэт их байна. Цөөн эсвэл жижиг зураг ашиглана уу.',
     codes: {
       TOO_MANY_VERIFICATIONS: 'Баталгаажуулах оролдлого хэтэрхий олон байна. Нэг цагийн дараа дахин оролдоно уу.',
       BOOKING_POST_UNAVAILABLE: 'Энэ зар захиалга авах боломжгүй байна.',
@@ -73,7 +74,6 @@ export default {
     sessionExpired: 'Таны нэвтрэлтийн хугацаа дууссан байна. Дахин нэвтэрнэ үү.',
     loadFailed: 'Мэдээлэл ачаалж чадсангүй',
     loadFailedDesc: 'Холболтоо шалгана уу.',
-    showingOf: 'Нийт {{total}}-с {{shown}} харуулж байна',
     goHome: 'Нүүр хуудас руу',
     view: 'Харах',
   },
@@ -217,8 +217,6 @@ export default {
     creating: 'Хадгалж байна...',
     uploadingPct: 'Илгээж байна… {{pct}}%', created: 'Зар нэмэгдлээ', updated: 'Зар шинэчлэгдлээ',
     stats: { views: 'Үзэлт', saves: 'Хадгалалт', requests: 'Захиалгын хүсэлт' },
-    signInToSave: 'Хадгалахын тулд нэвтэрнэ үү',
-    signInToBook: 'Захиалахын тулд нэвтэрнэ үү',
     editNeedsApproval: 'Агуулгыг засвал зар дахин хянагдаж, тэр хугацаанд түр хасагдана. Түрээсийн төлөв, огноог чөлөөтэй засаж болно.',
     updatedPending: 'Хадгаллаа — таны зар дахин хянагдаж байгаа бөгөөд зөвшөөрөгдсөний дараа зах зээлд эргэн харагдана.',
     createError: 'Зар үүсгэхэд асуудал гарлаа',
@@ -257,6 +255,7 @@ export default {
     privacy: 'Нууцлалын бодлого', terms: 'Үйлчилгээний нөхцөл',
     deleteAccount: 'Бүртгэл устгах', helpSupport: 'Тусламж, дэмжлэг',
   },
+  crop: { title: 'Зураг тохируулах', zoom: 'Томруулах', rotate: '90° эргүүлэх', hint: 'Чирж байрлалыг өөрчилнө үү. Дөрвөлжин хэсэг л харагдана.' },
   company: {
     regNumber: 'Улсын бүртгэлийн дугаар',
     nameRequired: 'Компанийн нэр оруулна уу',
@@ -364,6 +363,7 @@ export default {
     statsUpdated: 'Статистик шинэчлэгдлээ',
     bookingRequested: 'Шинэ захиалгын хүсэлт', bookingAccepted: 'Таны захиалга батлагдлаа',
     bookingDeclined: 'Таны захиалга татгалзагдлаа', bookingCancelled: 'Захиалга цуцлагдлаа',
+    sound: 'Дуу',
   },
   subcategory: {
     car: 'Суудлын машин', suv: 'Жийп', truck: 'Ачааны машин', bus: 'Автобус', van: 'Микроавтобус',
@@ -442,6 +442,7 @@ export default {
   },
 
   booking: {
+    book: 'Захиалах',
     postRemoved: 'Зар устгагдсан',
     request: 'Захиалга хүсэх', startDate: 'Эхлэх огноо', endDate: 'Дуусах огноо',
     message: 'Мессеж', messagePlaceholder: 'Юу хэрэгтэйгээ бичнэ үү...',
@@ -532,21 +533,18 @@ export default {
   },
   messages: {
     title: 'Мессеж',
-    inbox: 'Ирсэн мессеж',
     empty: 'Мессеж алга',
     emptyHint: 'Зар дээрх "Мессеж бичих" товчоор эзэнтэй нь шууд холбогдоно.',
-    openThread: 'Нээх',
     messageProvider: 'Мессеж бичих',
     placeholder: 'Мессежээ бичнэ үү...',
     send: 'Илгээх',
     sending: 'Илгээж байна...',
-    loadEarlier: 'Өмнөх мессежүүд',
     deletedListing: 'Зар устсан',
-    unread_one: '{{count}} шинэ',
-    unread_other: '{{count}} шинэ',
     failed: 'Мессеж илгээж чадсангүй.',
+    retry: 'Илгээгдсэнгүй · дахин оролдох',
+    loadOlder: 'Өмнөх мессежүүдийг үзэх',
+    loadMore: 'Цааш үзэх',
     signInRequired: 'Мессеж бичихийн тулд нэвтэрнэ үү.',
-    ownPost: 'Өөрийн зар дээр мессеж бичих боломжгүй.',
   },
   billing: {
     title: 'Багц ба төлбөр',
@@ -555,7 +553,6 @@ export default {
     expiresOn: '{{date}} хүртэл',
     expired: 'Хугацаа дууссан',
     postsLimit: '{{count}} идэвхтэй зар',
-    upgrade: 'Багц авах',
     months: 'Хугацаа',
     monthsValue: '{{count}} сар',
     total: 'Нийт дүн',
@@ -571,8 +568,6 @@ export default {
     history: 'Төлбөрийн түүх',
     noHistory: 'Төлбөр хийгдээгүй байна.',
     reference: 'Лавлагаа',
-    amount: 'Дүн',
-    cancel: 'Болих',
   },
   report: {
     action: 'Гомдол мэдүүлэх',
@@ -600,6 +595,7 @@ export default {
     dismiss: 'Үндэслэлгүй',
     resolutionPlaceholder: 'Юу хийснээ бичнэ үү (заавал биш)',
     reporter: 'Мэдэгдсэн',
+    openOnPost: 'Энэ зар дээр шийдвэрлээгүй {{count}} гомдол байна',
     openCount: 'Шийдвэрлээгүй {{count}}',
     status: { OPEN: 'Шийдвэрлээгүй', RESOLVED: 'Шийдвэрлэсэн', DISMISSED: 'Үндэслэлгүй' },
   },
@@ -608,7 +604,6 @@ export default {
     description: 'Таб хаалттай үед ч захиалга, зөвшөөрлийн мэдэгдэл хүлээн авах.',
     enable: 'Идэвхжүүлэх',
     disable: 'Унтраах',
-    enabled: 'Идэвхтэй',
     blocked: 'Хөтөч дээр мэдэгдэл хаагдсан байна. Хөтчийн тохиргооноос зөвшөөрнө үү.',
     unsupported: 'Энэ хөтөч мэдэгдэл дэмждэггүй.',
     notConfigured: 'Мэдэгдэл түр боломжгүй байна.',

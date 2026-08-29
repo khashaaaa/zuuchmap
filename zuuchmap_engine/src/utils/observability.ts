@@ -16,10 +16,6 @@ const logger = new Logger('Observability');
 
 let enabled = false;
 
-export function observabilityEnabled(): boolean {
-  return enabled;
-}
-
 export function initObservability(): void {
   const dsn = process.env.SENTRY_DSN;
   if (!dsn) {

@@ -19,6 +19,7 @@ import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 import userService from '../../services/api/userService';
 import { queryClient } from '../../services/queryClient';
+import { PROFILE_KEY } from '../../hooks/useProfile';
 import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import ScreenHeader from '../../components/ScreenHeader';
 import ScreenLoading from '../../components/ScreenLoading';
@@ -200,14 +201,14 @@ const ProviderCompany = ({ route, navigation }) => {
 
             if (isCreate) {
                 await userService.createCompany(submitData);
-                queryClient.invalidateQueries({ queryKey: ['profile'] });
+                queryClient.invalidateQueries({ queryKey: PROFILE_KEY });
                 setDirty(false);
                 navigation.goBack();
                 return;
             }
 
             await userService.updateCompany(form.id, submitData);
-            queryClient.invalidateQueries({ queryKey: ['profile'] });
+            queryClient.invalidateQueries({ queryKey: PROFILE_KEY });
             setIsEditing(false);
             setLogoChanged(false);
             setDirty(false);

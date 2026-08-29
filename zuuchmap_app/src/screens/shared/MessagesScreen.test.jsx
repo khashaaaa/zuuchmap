@@ -7,6 +7,7 @@ jest.mock('../../services/api/messageService', () => ({
   __esModule: true,
   default: { list: jest.fn() },
   CONVERSATIONS_KEY: ['conversations'],
+  inboxCursor: (page) => (page.length < 50 ? undefined : page[page.length - 1].last_message_at),
 }));
 
 // RNTL v14's render is async — awaiting it is what flushes the mount effects,

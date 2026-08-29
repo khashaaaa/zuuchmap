@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { CheckCircle, XCircle, Clock, Eye, ImageOff } from 'lucide-react'
-import { adminApi, postsApi, categoryApi } from '@/lib/api'
+import { adminApi, postsApi } from '@/lib/api'
 import { formatDate, getPostCategory, getPostTitle, getImageUrl, hideBrokenImage, apiErrorMessage } from '@/lib/utils'
 import Button from '@/components/Button'
 import PageHeader from '@/components/PageHeader'
@@ -21,6 +21,8 @@ import ConfirmModal from '@/components/ConfirmModal'
 import { useMinDisplayTime } from '@/hooks/useMinDisplayTime'
 import { useHotkeys } from '@/hooks/useHotkeys'
 import KeyboardHints from '@/components/KeyboardHints'
+import { useCategories } from '@/hooks/useCategories'
+import { invalidatePostQueries } from '@/lib/queryClient'
 
 const TAB_KEYS = ['APPROVED', 'PENDING', 'REJECTED']
 
@@ -45,7 +47,7 @@ export default function AdminPosts() {
   useEffect(() => { setSelected(new Set()); setPage(1); setCursor(-1) }, [tab])
 
   // Schemas feed the reject dialog's "which field?" list.
-  const { data: schemas = [] } = useQuery({ queryKey: ['categories'], queryFn: categoryApi.getAll, staleTime: 5 * 60_000 })
+  const { data: schemas = [] } = useCategories()
 
   // Both tabs are server-paged. They used to fetch one capped page and present
   // it as the whole list, so posts past the cap were simply unreachable.
@@ -77,10 +79,7 @@ export default function AdminPosts() {
   const approveMut = useMutation({
     mutationFn: adminApi.approve,
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin-pending'] })
-      qc.invalidateQueries({ queryKey: ['admin-stats'] })
-      qc.invalidateQueries({ queryKey: ['posts'] })
-      qc.invalidateQueries({ queryKey: ['posts-map'] })
+      invalidatePostQueries(qc)
       toast.success(t('admin.approveSuccess'))
     },
     onError: () => toast.error(t('common.error')),
@@ -92,7 +91,7 @@ export default function AdminPosts() {
   const rejectMut = useMutation({
     mutationFn: ({ id, reason, fieldKey }) => adminApi.reject(id, reason, fieldKey),
     onSuccess: () => {
-      ;['admin-pending', 'admin-stats', 'posts', 'posts-map'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }))
+      invalidatePostQueries(qc)
       setRejectTarget(null)
       toast.success(t('admin.rejectSuccess'))
     },
@@ -107,10 +106,7 @@ export default function AdminPosts() {
     mutationFn: (ids) => adminApi.approveMany(ids),
     onSuccess: (result) => {
       setSelected(new Set())
-      qc.invalidateQueries({ queryKey: ['admin-pending'] })
-      qc.invalidateQueries({ queryKey: ['admin-stats'] })
-      qc.invalidateQueries({ queryKey: ['posts'] })
-      qc.invalidateQueries({ queryKey: ['posts-map'] })
+      invalidatePostQueries(qc)
       const approved = result?.approved?.length ?? 0
       const failed = result?.failed?.length ?? 0
       // Say what actually happened: a partial result is not a success and not

@@ -45,8 +45,15 @@ export const IMAGE_CONFIG = {
     maxWidth: 1000,
     maxHeight: 1000,
   },
-  // Post uploads all resolve to the default 'posts' branch in processAfterSave;
-  // the per-category entries died with the pre-R2 per-category upload dirs.
+  // One entry for every post upload; the per-category entries died with the
+  // pre-R2 per-category upload dirs. The interceptor enforces maxSize.
+  POST: {
+    prefix: 'posts',
+    maxSize: 15 * 1024 * 1024,
+    quality: 75,
+    maxWidth: 1920,
+    maxHeight: 1080,
+  },
 } as const;
 
 // Magic-byte MIME validation — checks actual file bytes, not the client-supplied Content-Type
@@ -151,7 +158,7 @@ function makeKey(prefix: string): string {
   return `${prefix}/${crypto.randomUUID()}.jpg`;
 }
 
-// ─── Public API (same signatures as before, callers unchanged) ──────────────
+// ─── Public API ─────────────────────────────────────────────────────────────
 
 export const createProfilePictureInterceptor = () =>
   FileInterceptor('profile_picture', {
@@ -171,66 +178,61 @@ export const createPostImageUploadInterceptor = (maxCount = 10) =>
   FilesInterceptor('images', maxCount, {
     storage: memoryStorage(),
     fileFilter: imageFileFilter,
-    limits: { fileSize: 15 * 1024 * 1024 },
+    limits: { fileSize: IMAGE_CONFIG.POST.maxSize },
   });
 
-export class ImageUploadHandler {
-  static async handleSingleUpload(
-    file: Express.Multer.File,
-    imageType: keyof typeof IMAGE_CONFIG,
-  ): Promise<string | null> {
-    if (!file?.buffer) return null;
-    const config = IMAGE_CONFIG[imageType];
+export async function handleSingleUpload(
+  file: Express.Multer.File,
+  imageType: keyof typeof IMAGE_CONFIG,
+): Promise<string | null> {
+  if (!file?.buffer) return null;
+  const config = IMAGE_CONFIG[imageType];
 
-    validateImageBytes(file.buffer);
-    const compressed = await compressToBuffer(file.buffer, config);
-    return uploadToR2(compressed, makeKey(config.prefix));
-  }
+  validateImageBytes(file.buffer);
+  const compressed = await compressToBuffer(file.buffer, config);
+  return uploadToR2(compressed, makeKey(config.prefix));
+}
 
-  /**
-   * Compresses and uploads a post's images concurrently.
-   *
-   * One at a time, a ten-photo post paid for ten decodes and ten R2 round-trips
-   * end to end. Measured on 4000x3000 photos, the compression alone was 713 ms
-   * sequential against 188 ms concurrent for eight images, and the uploads —
-   * pure network latency — were serialised behind it.
-   *
-   * Bounded rather than unbounded: Sharp decodes to raw pixels, so ten
-   * 4000x3000 images in flight is ~360 MB of resident buffers, which is a real
-   * risk on a small VPS. Four at a time keeps the win and caps the memory.
-   * Order is preserved — the array position is the image order on the post.
-   */
-  static async processAfterSave(
-    files: Express.Multer.File[],
-  ): Promise<string[]> {
-    if (!files || files.length === 0) return [];
+/**
+ * Compresses and uploads a post's images concurrently.
+ *
+ * One at a time, a ten-photo post paid for ten decodes and ten R2 round-trips
+ * end to end. Measured on 4000x3000 photos, the compression alone was 713 ms
+ * sequential against 188 ms concurrent for eight images, and the uploads —
+ * pure network latency — were serialised behind it.
+ *
+ * Bounded rather than unbounded: Sharp decodes to raw pixels, so ten
+ * 4000x3000 images in flight is ~360 MB of resident buffers, which is a real
+ * risk on a small VPS. Four at a time keeps the win and caps the memory.
+ * Order is preserved — the array position is the image order on the post.
+ */
+export async function processAfterSave(
+  files: Express.Multer.File[],
+): Promise<string[]> {
+  if (!files || files.length === 0) return [];
 
-    const config = {
-      prefix: 'posts',
-      quality: 75,
-      maxWidth: 1920,
-      maxHeight: 1080,
-    };
-    const usable = files.filter((f) => f?.buffer);
-    const urls: string[] = new Array(usable.length);
-    const CONCURRENCY = 4;
+  const config = IMAGE_CONFIG.POST;
+  const usable = files.filter((f) => f?.buffer);
+  const CONCURRENCY = 4;
 
-    let next = 0;
-    const worker = async () => {
-      while (true) {
-        const i = next++;
-        if (i >= usable.length) return;
-        const file = usable[i];
-        validateImageBytes(file.buffer);
-        const compressed = await compressToBuffer(file.buffer, config);
-        urls[i] = await uploadToR2(compressed, makeKey(config.prefix));
-      }
-    };
-    await Promise.all(
-      Array.from({ length: Math.min(CONCURRENCY, usable.length) }, worker),
-    );
-    return urls;
-  }
+  // A pool, not chunks: a chunk waits for its slowest image before the next
+  // starts, so one 8 MB photo stalls three small ones behind it. Each worker
+  // takes the next index as soon as it frees up.
+  const urls: string[] = new Array(usable.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < usable.length) {
+      const i = next++;
+      const file = usable[i];
+      validateImageBytes(file.buffer);
+      const compressed = await compressToBuffer(file.buffer, config);
+      urls[i] = await uploadToR2(compressed, makeKey(config.prefix));
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(CONCURRENCY, usable.length) }, worker),
+  );
+  return urls;
 }
 
 // These are called when posts/profiles are deleted — now delete from R2

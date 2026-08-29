@@ -1,11 +1,13 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useRef, useState } from 'react'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
-import { Menu, Globe, Sun, Moon, Bell } from 'lucide-react'
+import { Menu, Globe, Sun, Moon, Bell, Volume2, VolumeX } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { LANGUAGES } from '@/i18n/index'
-import { useThemeStore, useNotificationStore } from '@/store'
+import { useAuthStore, useThemeStore, useNotificationStore } from '@/store'
 import { formatDate } from '@/lib/utils'
+import { targetFor } from '@/lib/notificationTarget'
+import { isNotifySoundEnabled, setNotifySoundEnabled } from '@/lib/notifySound'
 
 export default function AppHeader({ onMenuClick }) {
   const { i18n, t } = useTranslation()
@@ -13,7 +15,10 @@ export default function AppHeader({ onMenuClick }) {
   const [notifOpen, setNotifOpen] = useState(false)
   const current = LANGUAGES.find((l) => l.code === i18n.language) ?? LANGUAGES[0]
   const { theme, toggleTheme } = useThemeStore()
-  const { notifications, unreadCount, markAllRead } = useNotificationStore()
+  const { notifications, unreadCount, markAllRead, markRead } = useNotificationStore()
+  const { isAdmin } = useAuthStore()
+  const navigate = useNavigate()
+  const [soundOn, setSoundOn] = useState(isNotifySoundEnabled)
   const notifBtnRef = useRef(null)
   const langBtnRef = useRef(null)
   const shouldReduceMotion = useReducedMotion()
@@ -24,6 +29,21 @@ export default function AppHeader({ onMenuClick }) {
     exit: { opacity: 0, y: -4, scale: 0.98 },
     transition: { duration: shouldReduceMotion ? 0 : 0.15, ease: 'easeOut' },
     style: { transformOrigin: 'top right' },
+  }
+
+  function toggleSound() {
+    const next = !soundOn
+    setNotifySoundEnabled(next)
+    setSoundOn(next)
+  }
+
+  // A row goes where the notifications page would send it; rows about nothing
+  // in particular (a stats ping) just get marked read.
+  function openNotification(n) {
+    markRead(n.id)
+    setNotifOpen(false)
+    const to = targetFor(n, { isAdmin })
+    if (to) navigate(to)
   }
 
   function changeLang(code) {
@@ -75,24 +95,38 @@ export default function AppHeader({ onMenuClick }) {
               <motion.div {...dropdownMotion} className="absolute right-0 top-full mt-1 w-72 max-w-[calc(100vw-2rem)] bg-surface border border-border/20 rounded-card shadow-card z-50 overflow-hidden">
                 <div className="flex items-center justify-between px-3 py-2 border-b border-border/50">
                   <span className="text-sm font-medium text-text">{t('notifications.title')}</span>
-                  {unreadCount > 0 && (
-                    <button onClick={markAllRead} className="text-xs text-primary-text hover:underline">
-                      {t('notifications.markAllRead')}
+                  <div className="flex items-center gap-2">
+                    {unreadCount > 0 && (
+                      <button onClick={markAllRead} className="text-xs text-primary-text hover:underline">
+                        {t('notifications.markAllRead')}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={toggleSound}
+                      aria-pressed={soundOn}
+                      title={t('notifications.sound')}
+                      aria-label={t('notifications.sound')}
+                      className={`p-1 rounded-btn transition-colors hover:bg-surface2 ${soundOn ? 'text-primary-text' : 'text-muted'}`}
+                    >
+                      {soundOn ? <Volume2 size={14} /> : <VolumeX size={14} />}
                     </button>
-                  )}
+                  </div>
                 </div>
                 {notifications.length === 0 ? (
                   <div className="px-3 py-6 text-center text-sm text-muted">{t('notifications.empty')}</div>
                 ) : (
                   <div className="max-h-80 overflow-y-auto">
                     {notifications.map((n) => (
-                      <div
+                      <button
                         key={n.id}
-                        className={`px-3 py-3 border-b border-border/50 last:border-0 ${n.read ? '' : 'bg-primary/5'}`}
+                        type="button"
+                        onClick={() => openNotification(n)}
+                        className={`block w-full text-left px-3 py-3 border-b border-border/50 last:border-0 hover:bg-surface2 transition-colors ${n.read ? '' : 'bg-primary/5'}`}
                       >
                         <p className="text-sm text-text">{n.message}</p>
                         <p className="text-xs text-muted mt-0.5">{formatDate(n.ts)}</p>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 )}

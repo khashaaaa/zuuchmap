@@ -5,12 +5,12 @@ import useOnline from '@/hooks/useOnline'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { X, Heart, BellPlus, WifiOff, SlidersHorizontal, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
-import { postsApi, categoryApi, likesApi, savedSearchApi } from '@/lib/api'
+import { postsApi, likesApi, savedSearchApi } from '@/lib/api'
 import { debounce, PROVINCES, DISTRICTS, getPostCategory, getCategoryLabel, getSubcategoryLabel, getFieldLabel, getOptionLabel, getCategoryColor, apiErrorMessage } from '@/lib/utils'
 import Button from '@/components/Button'
 import Input from '@/components/Input'
 import SearchBar from '@/components/SearchBar'
-import CategoryPills from '@/components/CategoryPills'
+import CategoryFilterPills from '@/components/CategoryFilterPills'
 import PostCard from '@/components/PostCard'
 import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
@@ -19,6 +19,7 @@ import PostGrid from '@/components/PostGrid'
 import Modal from '@/components/Modal'
 import { useAuthStore } from '@/store'
 import { track } from '@/lib/analytics'
+import { useCategories } from '@/hooks/useCategories'
 
 // 12 turned a 2.4k-listing catalogue into 200+ pages behind prev/next arrows.
 // 48 fills the 3-column grid 16 rows deep and cuts the page count by 4x; the
@@ -183,11 +184,7 @@ export default function CustomerBrowse() {
     staleTime: 30_000,
   })
 
-  const { data: schemas = [], isError: schemasError, refetch: refetchSchemas } = useQuery({
-    queryKey: ['categories'],
-    queryFn: categoryApi.getAll,
-    staleTime: 300_000,
-  })
+  const { data: schemas = [], isError: schemasError, refetch: refetchSchemas } = useCategories()
 
   const { data: likedIds = [] } = useQuery({
     queryKey: ['liked-ids'],
@@ -317,7 +314,7 @@ export default function CustomerBrowse() {
             {schemasError && schemas.length === 0 && (
               <ErrorState compact onRetry={refetchSchemas} />
             )}
-            <CategoryPills
+            <CategoryFilterPills
               categories={schemas.filter((s) => s.active).map((s) => ({
                 key: s.key,
                 label: getCategoryLabel(s.key, t, schemas),
@@ -326,7 +323,6 @@ export default function CustomerBrowse() {
               value={category}
               onChange={handleCategory}
               allLabel={t('filter.allCategories')}
-              as="button"
               shape="lg"
             />
           </div>
@@ -470,7 +466,7 @@ export default function CustomerBrowse() {
           cols={3}
           skeletonCount={LIMIT}
         >
-          {posts.map((post, i) => {
+          {posts.map((post) => {
             const saved = likedSet.has(String(post.id))
             const postType = getPostCategory(post)
             const isPendingThis = likeMut.isPending && likeMut.variables?.postId === post.id
@@ -478,7 +474,6 @@ export default function CustomerBrowse() {
               <PostCard
                 key={post.id}
                 post={post}
-                index={i}
                 actions={
                   <button
                     onClick={() => {

@@ -1,17 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { createPortal } from 'react-dom'
-import { useParams, Link, useNavigate, useLocation } from 'react-router-dom'
+import { useParams, Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
-  CheckCircle, XCircle, MapPin, Eye, Phone, Mail, Globe,
-  ArrowLeft, Heart, Building2, Pencil, Trash2, Calendar, Sparkles, CalendarRange,
-  ChevronLeft, ChevronRight, MessageSquare, Flag, X as CloseIcon } from 'lucide-react'
+  MapPin, Eye, Phone, Mail, Globe,
+  ArrowLeft, Heart, Building2, Pencil, Trash2, Calendar, CalendarRange,
+  ChevronLeft, ChevronRight, MessageSquare, Flag } from 'lucide-react'
 import { MapContainer, TileLayer, Marker } from 'react-leaflet'
-import { motion, useReducedMotion } from 'framer-motion'
+import { tileLayerProps } from '@/lib/mapTiles'
 import 'leaflet/dist/leaflet.css'
-import { postsApi, adminApi, likesApi, categoryApi } from '@/lib/api'
-import { formatDate, formatPriceParts, getImageUrl, getCompanyLogoUrl, getPostTitle, getPostCategory, getCategoryColor, getFieldLabel, getOptionLabel, getSubcategoryLabel, goBack, externalHref, withAlpha, toneForTheme, hideBrokenImage, getLocationLabel, apiErrorMessage, lockScroll } from '@/lib/utils'
+import { postsApi, likesApi } from '@/lib/api'
+import { formatDate, formatPriceParts, getImageUrl, getCompanyLogoUrl, getPostTitle, getPostCategory, getCategoryColor, getFieldLabel, getOptionLabel, getSubcategoryLabel, goBack, normalizeWebsiteUrl, withAlpha, toneForTheme, hideBrokenImage, getLocationLabel } from '@/lib/utils'
 import { categoryPin } from '@/lib/mapPin'
 import UserAvatar from '@/components/UserAvatar'
 import AlertBanner from '@/components/AlertBanner'
@@ -24,19 +23,21 @@ import AvailabilityStrip from '@/components/AvailabilityStrip'
 import { useAuthStore, useThemeStore } from '@/store'
 import StatusBadge, { Chip } from '@/components/StatusBadge'
 import Input from '@/components/Input'
-import Modal from '@/components/Modal'
 import Button from '@/components/Button'
 import ConfirmModal from '@/components/ConfirmModal'
-import RejectReasonModal from '@/components/RejectReasonModal'
-import PostDiff from '@/components/PostDiff'
-import KeyboardHints from '@/components/KeyboardHints'
+import PostModerationPanel from '@/components/PostModerationPanel'
+import { usePostModeration } from '@/hooks/usePostModeration'
+import ImageLightbox from '@/components/ImageLightbox'
 import { useHotkeys } from '@/hooks/useHotkeys'
+import { useCategories } from '@/hooks/useCategories'
+import { invalidatePostQueries } from '@/lib/queryClient'
 import { toast } from 'sonner'
 import InfoSection from '@/components/InfoSection'
 import CollapsibleSection from '@/components/CollapsibleSection'
 import CategoryBadge from '@/components/CategoryBadge'
 import ErrorState from '@/components/ErrorState'
 import ReportModal from '@/components/ReportModal'
+import { reportsApi } from '@/lib/api'
 import { messagesApi } from '@/lib/api'
 import useDocumentMeta from '@/hooks/useDocumentMeta'
 
@@ -59,26 +60,34 @@ export default function PostDetail() {
   // should return to it — an admin who opened this post from browse expects to
   // stay where they were.
   const cameFromQueue = useLocation().state?.from === 'queue'
+  // `?review=1` is what the review-prompt push links to: bring the review
+  // section into view once the page has something to scroll to.
+  const [searchParams] = useSearchParams()
+  const wantsReview = searchParams.get('review') === '1'
+  const reviewRef = useRef(null)
   const qc = useQueryClient()
   const { token, user: currentUser, isAdmin } = useAuthStore()
   const [reportOpen, setReportOpen] = useState(false)
   const { theme } = useThemeStore()
-  const shouldReduceMotion = useReducedMotion()
 
   const [activeImg, setActiveImg] = useState(0)
   const [zoomed, setZoomed] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
-  const [approveOpen, setApproveOpen] = useState(false)
-  const [rejectOpen, setRejectOpen] = useState(false)
-  const [editMode, setEditMode] = useState(false)
-  const [editedTitle, setEditedTitle] = useState('')
-  const [editedDetails, setEditedDetails] = useState('')
 
   const { data: post, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['post', id],
     queryFn: () => postsApi.getOne(id),
     staleTime: 60_000,
   })
+
+  useEffect(() => {
+    if (!wantsReview || !post?.id || !reviewRef.current) return
+    const timer = setTimeout(() => {
+      reviewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      reviewRef.current?.focus?.({ preventScroll: true })
+    }, 150)
+    return () => clearTimeout(timer)
+  }, [wantsReview, post?.id])
 
   useEffect(() => {
     if (post?.id) track('post.detail.view', { post_id: post.id, category: post.category })
@@ -95,11 +104,7 @@ export default function PostDetail() {
     url: post?.id ? `${window.location.origin}/posts/${post.id}` : undefined,
   })
 
-  const { data: schemas = [], isError: schemasError, refetch: refetchSchemas } = useQuery({
-    queryKey: ['categories'],
-    queryFn: categoryApi.getAll,
-    staleTime: 300_000,
-  })
+  const { data: schemas = [], isError: schemasError, refetch: refetchSchemas } = useCategories()
   const schema = schemas.find((s) => s.key === getPostCategory(post))
 
   useEffect(() => {
@@ -107,13 +112,6 @@ export default function PostDetail() {
     const timer = setTimeout(() => postsApi.view(post.id).catch(() => {}), 2000)
     return () => clearTimeout(timer)
   }, [post?.id, token])
-
-  useEffect(() => {
-    if (post) {
-      setEditedTitle(post.title || post.name || '')
-      setEditedDetails(post.details || post.description || '')
-    }
-  }, [post?.id])
 
   const { data: likeData } = useQuery({
     queryKey: ['like-check', id],
@@ -125,10 +123,7 @@ export default function PostDetail() {
   const deleteMut = useMutation({
     mutationFn: () => postsApi.remove(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['my-posts'] })
-      qc.invalidateQueries({ queryKey: ['posts'] })
-      qc.invalidateQueries({ queryKey: ['posts-map'] })
-      qc.invalidateQueries({ queryKey: ['admin-stats'] })
+      invalidatePostQueries(qc)
       toast.success(t('posts.deleted'))
       // Never navigate(-1) here: back can land on the post we just deleted.
       navigate(isAdmin ? '/admin/posts' : '/provider/posts', { replace: true })
@@ -136,78 +131,17 @@ export default function PostDetail() {
     onError: () => toast.error(t('common.error')),
   })
 
-  // Admin edits ride along with the verdict — saved inside the same mutation so
-  // a failed save surfaces as an error instead of silently approving unedited.
-  const saveEditsIfNeeded = async () => {
-    const origTitle = post?.title || post?.name || ''
-    const origDetails = post?.details || post?.description || ''
-    if (editedTitle.trim() !== origTitle || editedDetails.trim() !== origDetails) {
-      await adminApi.editPost(id, { title: editedTitle.trim() || undefined, details: editedDetails.trim() || undefined })
-    }
-  }
+  const mod = usePostModeration({ post, id, isAdmin, cameFromQueue })
 
-  // Paid placement. Phase 1 fulfils it manually, so the control lives beside
-  // approve/reject rather than behind a checkout — the admin opens the window
-  // once payment has landed, and 0 days closes it again.
-  const featureMut = useMutation({
-    mutationFn: (days) => adminApi.feature(id, days),
-    onSuccess: (_res, days) => {
-      qc.invalidateQueries({ queryKey: ['post', id] })
-      qc.invalidateQueries({ queryKey: ['posts'] })
-      toast.success(days > 0 ? t('admin.featureApplied', { days }) : t('admin.featureCleared'))
-    },
-    onError: (e) => toast.error(apiErrorMessage(e, t, t('common.error'))),
+  // What users have flagged on this listing. The queue page links here, and an
+  // admin arriving from anywhere else still needs to see the complaint next to
+  // the thing complained about.
+  const { data: openReports } = useQuery({
+    queryKey: ['reports', 'OPEN', { post_id: Number(id) }],
+    queryFn: () => reportsApi.list({ status: 'OPEN', post_id: id }),
+    enabled: isAdmin && Boolean(post),
   })
-
-  const approveMut = useMutation({
-    mutationFn: async () => {
-      await saveEditsIfNeeded()
-      return adminApi.approve(id)
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['post', id] })
-      qc.invalidateQueries({ queryKey: ['admin-pending'] })
-      qc.invalidateQueries({ queryKey: ['posts'] })
-      qc.invalidateQueries({ queryKey: ['posts-map'] })
-      qc.invalidateQueries({ queryKey: ['admin-stats'] })
-      setApproveOpen(false)
-      toast.success(t('admin.approveSuccess'))
-      // Back to the queue. Parking on the post just decided meant the admin had
-      // to navigate out and re-find their place for every single item.
-      if (cameFromQueue) navigate('/admin/posts')
-    },
-    onError: () => toast.error(t('admin.approveError')),
-  })
-
-  const rejectMut = useMutation({
-    // The reason arrives as the mutation argument, not from state: the dialog
-    // owns it, and reading a just-set state value here would send the previous
-    // rejection's text.
-    mutationFn: async ({ reason, fieldKey }) => {
-      await saveEditsIfNeeded()
-      return adminApi.reject(id, reason, fieldKey)
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['post', id] })
-      qc.invalidateQueries({ queryKey: ['admin-pending'] })
-      qc.invalidateQueries({ queryKey: ['posts'] })
-      qc.invalidateQueries({ queryKey: ['posts-map'] })
-      qc.invalidateQueries({ queryKey: ['admin-stats'] })
-      setRejectOpen(false)
-      toast.success(t('admin.rejectSuccess'))
-      if (cameFromQueue) navigate('/admin/posts')
-    },
-    onError: () => toast.error(t('admin.rejectError')),
-  })
-
-  // Same keys as the queue, so an admin who opened a post with Enter can decide
-  // it without reaching for the mouse. Esc returns to the queue.
-  const canModerate = Boolean(isAdmin && post?.approval_status === 'PENDING')
-  useHotkeys({
-    a: () => !approveMut.isPending && !rejectMut.isPending && setApproveOpen(true),
-    r: () => !approveMut.isPending && !rejectMut.isPending && setRejectOpen(true),
-    Escape: () => goBack(navigate, '/admin/posts'),
-  }, { enabled: canModerate })
+  const { editMode, editedTitle, setEditedTitle, editedDetails, setEditedDetails } = mod
 
   // The photo is the product, and the only way through it used to be tapping a
   // 64px thumbnail — no arrows, no swipe, no keys. Wraps around: at the last
@@ -222,23 +156,6 @@ export default function PostDetail() {
     // The location map is keyboard-pannable and its container is focusable, so
     // it must keep its own arrow keys while it has focus.
   }, { enabled: imageCount > 1 && !zoomed, ignoreWithin: '.leaflet-container' })
-
-  // The zoom overlay carries role="dialog", which useHotkeys deliberately
-  // treats as "the dialog owns the keyboard" — so it binds its own keys, and
-  // locks the page behind it the same way Modal does.
-  useEffect(() => {
-    if (!zoomed) return
-    const onKey = (e) => {
-      if (e.key === 'Escape') setZoomed(false)
-      else if (e.key === 'ArrowLeft') stepImage(-1)
-      else if (e.key === 'ArrowRight') stepImage(1)
-      else return
-      e.preventDefault()
-    }
-    window.addEventListener('keydown', onKey)
-    const unlock = lockScroll()
-    return () => { window.removeEventListener('keydown', onKey); unlock() }
-  }, [zoomed, stepImage])
 
   // Swipe. A tracked axis, not just distance — a vertical scroll that drifts
   // sideways must not count as a page turn.
@@ -285,32 +202,11 @@ export default function PostDetail() {
   // Mirrors the engine's booking availability gate in booking.service.ts.
   const isBookable = post.status === 'ACTIVE'
     && (!post.expires_at || new Date(post.expires_at) > new Date())
-  // Only a window still open counts as featured — a past date is not a badge.
-  const featuredUntil = post.featured_until && new Date(post.featured_until) > new Date()
-    ? post.featured_until
-    : null
   const priceParts = formatPriceParts(post.price_amount, post.price_unit, t)
   const location = getLocationLabel(post, t)
   const title = getPostTitle(post, t)
   const isDark = theme !== 'light'
   const catColor = getCategoryColor(getPostCategory(post), schemas)
-
-  const originalTitle = post.title || post.name || ''
-  const originalDetails = post.details || post.description || ''
-  const hasEdits = editedTitle.trim() !== originalTitle || editedDetails.trim() !== originalDetails
-
-  const REASON_TYPES = Object.values(t('admin.reasonTypes', { returnObjects: true }))
-
-  // Arrival order mirrors reading order: photo, then the words, then the money
-  // column — the same stagger idiom the landing hero uses.
-  const item = {
-    hidden: shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 8 },
-    show: { opacity: 1, y: 0, transition: { duration: 0.25, ease: 'easeOut' } },
-  }
-  const sequence = {
-    hidden: {},
-    show: { transition: { staggerChildren: shouldReduceMotion ? 0 : 0.06 } },
-  }
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">
@@ -322,7 +218,7 @@ export default function PostDetail() {
         <div className="flex items-center gap-2">
           {isAdmin && isPendingApproval && (
             <button
-              onClick={() => setEditMode(p => !p)}
+              onClick={mod.toggleEditMode}
               className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-btn border transition-colors ${editMode ? 'border-primary/40 text-primary-text bg-primary/10' : 'border-border/50 text-muted hover:text-text'}`}
             >
               {editMode ? t('admin.editDone') : t('admin.editPost')}
@@ -347,6 +243,22 @@ export default function PostDetail() {
         </div>
       </div>
 
+      {isAdmin && openReports?.items?.length > 0 && (
+        <AlertBanner variant="warning" className="mb-4">
+          <div className="min-w-0">
+            <p className="font-semibold">{t('report.openOnPost', { count: openReports.total ?? openReports.items.length })}</p>
+            <ul className="mt-1 space-y-0.5">
+              {openReports.items.slice(0, 5).map((r) => (
+                <li key={r.id} className="text-xs">
+                  {t(`report.reasons.${r.reason}`)}{r.detail ? ` — ${r.detail}` : ''}
+                </li>
+              ))}
+            </ul>
+            <Link to="/admin/reports" className="inline-block mt-1.5 text-xs underline">{t('report.queue')}</Link>
+          </div>
+        </AlertBanner>
+      )}
+
       {/* Rejection reason banner — page-level alert, spans full width */}
       {post.rejection_reason && post.approval_status === 'REJECTED' && (
         <AlertBanner variant="danger" className="mb-4">
@@ -354,12 +266,12 @@ export default function PostDetail() {
         </AlertBanner>
       )}
 
-      <motion.div initial="hidden" animate="show" variants={sequence} className="flex flex-col lg:flex-row gap-6 items-start">
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
         {/* Main content */}
         <div className="flex-1 min-w-0 w-full surface-card">
           {/* Images — the photo is the product; give it a real canvas, count the
               frames, and let a photo-less listing wear its category instead of grey. */}
-          <motion.div variants={item}>
+          <div>
             <div
               className="relative aspect-[4/3] md:aspect-[16/10] bg-surface2 overflow-hidden"
               onTouchStart={onTouchStart}
@@ -427,64 +339,20 @@ export default function PostDetail() {
                 ))}
               </div>
             )}
-            {/* Full-bleed view. The card crops to 16:10, so a wide machine or a
-                tall crane was only ever shown in part; here the whole frame
-                fits. Portalled to <body> for the same reason Modal is. */}
-            {zoomed && post.images?.length > 0 && createPortal(
-              <div
-                role="dialog"
-                aria-modal="true"
-                aria-label={title}
-                className="fixed inset-0 z-[1300] bg-black/95 flex items-center justify-center"
-                onClick={() => setZoomed(false)}
+            {zoomed && post.images?.length > 0 && (
+              <ImageLightbox
+                images={post.images}
+                index={activeImg}
+                title={title}
+                onClose={() => setZoomed(false)}
+                onStep={stepImage}
                 onTouchStart={onTouchStart}
                 onTouchEnd={onTouchEnd}
-              >
-                <img
-                  src={getImageUrl(post.images[activeImg])}
-                  alt={title}
-                  className="max-w-full max-h-full object-contain"
-                  onClick={(e) => e.stopPropagation()}
-                  onError={hideBrokenImage}
-                />
-                <button
-                  type="button"
-                  onClick={() => setZoomed(false)}
-                  aria-label={t('common.close')}
-                  autoFocus
-                  className="absolute top-3 right-3 min-w-touch min-h-touch flex items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25 transition-colors"
-                >
-                  <CloseIcon size={20} />
-                </button>
-                {post.images.length > 1 && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); stepImage(-1) }}
-                      aria-label={t('posts.viewImage', { index: ((activeImg - 1 + post.images.length) % post.images.length) + 1 })}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 min-w-touch min-h-touch flex items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25 transition-colors"
-                    >
-                      <ChevronLeft size={22} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); stepImage(1) }}
-                      aria-label={t('posts.viewImage', { index: ((activeImg + 1) % post.images.length) + 1 })}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 min-w-touch min-h-touch flex items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25 transition-colors"
-                    >
-                      <ChevronRight size={22} />
-                    </button>
-                    <span className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-btn bg-white/15 px-2.5 py-1 text-xs font-medium text-white tabular-nums">
-                      {activeImg + 1} / {post.images.length}
-                    </span>
-                  </>
-                )}
-              </div>,
-              document.body,
+              />
             )}
-          </motion.div>
+          </div>
 
-          <motion.div variants={item} className="p-5 space-y-4">
+          <div className="p-5 space-y-4">
             {/* Title + badges + status */}
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1 min-w-0">
@@ -593,8 +461,7 @@ export default function PostDetail() {
                   <MapContainer center={[Number(post.latitude), Number(post.longitude)]} zoom={14} style={{ height: '100%', width: '100%' }} zoomControl={false}>
                     <TileLayer
                       key={theme}
-                      url={`https://{s}.basemaps.cartocdn.com/${theme === 'dark' ? 'dark_all' : 'light_all'}/{z}/{x}/{y}{r}.png`}
-                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
+                      {...tileLayerProps(theme === 'dark')}
                     />
                     <Marker
                       position={[Number(post.latitude), Number(post.longitude)]}
@@ -633,7 +500,7 @@ export default function PostDetail() {
                         </a>
                       )}
                       {post.user.company.website && (
-                        <a href={externalHref(post.user.company.website)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-muted hover:text-primary-text transition-colors mt-0.5">
+                        <a href={normalizeWebsiteUrl(post.user.company.website)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-muted hover:text-primary-text transition-colors mt-0.5">
                           <Globe size={11} className="shrink-0" /> <span className="break-all">{post.user.company.website}</span>
                         </a>
                       )}
@@ -646,16 +513,18 @@ export default function PostDetail() {
             {/* Provider credentials + reviews — one query feeds both */}
             {post.user && <ProviderCredentials providerId={post.user.id} className="pt-4" />}
             {post.user && (
-              <ProviderReviews
-                providerId={post.user.id}
-                canReview={Boolean(token) && !isOwner && !isAdmin && currentUser?.type === 'CUSTOMER'}
-              />
+              <div ref={reviewRef} tabIndex={-1} className="outline-none scroll-mt-20">
+                <ProviderReviews
+                  providerId={post.user.id}
+                  canReview={Boolean(token) && !isOwner && !isAdmin && currentUser?.type === 'CUSTOMER'}
+                />
+              </div>
             )}
-          </motion.div>
+          </div>
         </div>
 
         {/* Action sidebar — sticky on desktop */}
-        <motion.div variants={item} className="w-full lg:w-80 shrink-0 lg:sticky lg:top-(--sticky-offset) space-y-4">
+        <div className="w-full lg:w-80 shrink-0 lg:sticky lg:top-(--sticky-offset) space-y-4">
           <div
             className="bg-surface border border-border/20 shadow-card rounded-card p-5 md:p-6 space-y-4"
             style={catColor ? { borderTop: `3px solid ${catColor}` } : undefined}
@@ -703,8 +572,8 @@ export default function PostDetail() {
                 the main way people arrive, so offer the account instead of
                 silently withholding the feature. */}
             {!token && (
-              <Button variant="outline" onClick={() => navigate('/login', { state: { from: `/posts/${id}` } })}>
-                <Heart size={14} /> {t('posts.signInToSave')}
+              <Button variant="outline" className="w-full" onClick={() => navigate('/login', { state: { from: `/posts/${id}` } })}>
+                <Heart size={14} /> {t('common.save')}
               </Button>
             )}
 
@@ -723,7 +592,7 @@ export default function PostDetail() {
                   </a>
                 )}
                 {post.website && (
-                  <a href={externalHref(post.website)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-text hover:text-primary-text transition-colors">
+                  <a href={normalizeWebsiteUrl(post.website)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-text hover:text-primary-text transition-colors">
                     <Globe size={14} className="text-muted shrink-0" /> <span className="break-all">{post.website}</span>
                   </a>
                 )}
@@ -785,7 +654,7 @@ export default function PostDetail() {
                   className="w-full"
                   onClick={() => navigate('/login', { state: { from: `/posts/${id}` } })}
                 >
-                  <CalendarRange size={14} /> {t('posts.signInToBook')}
+                  <CalendarRange size={14} /> {t('booking.book')}
                 </Button>
               </div>
             )}
@@ -801,122 +670,12 @@ export default function PostDetail() {
               </div>
             )}
 
-            {/* Paid placement — approved posts only: featuring something that is
-                not published yet would rank it into a list it cannot appear in. */}
-            {isAdmin && post.approval_status === 'APPROVED' && (
-              <div className="pt-4 border-t border-border/50">
-                <div className="flex items-center gap-2 mb-2">
-                  <Sparkles size={14} className="text-primary-text" />
-                  <span className="text-sm font-medium text-text">{t('admin.featured')}</span>
-                </div>
-                <p className="text-xs text-muted mb-2">
-                  {featuredUntil
-                    ? t('admin.featuredUntil') + ': ' + formatDate(featuredUntil)
-                    : t('admin.featureNone')}
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {[7, 30, 90].map((days) => (
-                    <Button
-                      key={days}
-                      variant="outline"
-                      size="sm"
-                      onClick={() => featureMut.mutate(days)}
-                      disabled={featureMut.isPending}
-                    >
-                      {t('admin.featureDays', { days })}
-                    </Button>
-                  ))}
-                  {featuredUntil && (
-                    <Button
-                      variant="danger-outline"
-                      size="sm"
-                      onClick={() => featureMut.mutate(0)}
-                      disabled={featureMut.isPending}
-                    >
-                      {t('admin.featureClear')}
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Admin moderation. Shown for any state, not just PENDING: these
-                controls used to vanish the moment a post was approved, so a
-                mis-click on the queue's one-click approve had no way back —
-                even though the API allows it and the app offers it. Approving
-                an approved post is meaningless, so each state offers only the
-                move that changes something. */}
-            {isAdmin && (
-              <div className="pt-4 border-t border-border/50 space-y-2">
-                {isPendingApproval && <PostDiff post={post} schema={schema} />}
-                {hasEdits && editMode && (
-                  <p className="text-xs text-muted italic">{t('admin.editHint')}</p>
-                )}
-                {post.approval_status !== 'APPROVED' && (
-                  <Button
-                    className="w-full"
-                    onClick={() => setApproveOpen(true)}
-                    disabled={approveMut.isPending || rejectMut.isPending}
-                  >
-                    <CheckCircle size={15} />
-                    {hasEdits ? t('admin.saveAndApprove')
-                      : isPendingApproval ? t('admin.approve')
-                        : t('admin.reinstate')}
-                  </Button>
-                )}
-                {post.approval_status !== 'REJECTED' && (
-                  <Button
-                    variant="danger"
-                    className="w-full"
-                    onClick={() => setRejectOpen(true)}
-                    disabled={approveMut.isPending || rejectMut.isPending}
-                  >
-                    <XCircle size={15} />
-                    {isPendingApproval ? t('admin.reject') : t('admin.takeDown')}
-                  </Button>
-                )}
-                {!isPendingApproval && (
-                  <p className="text-xs text-muted">
-                    {post.approval_status === 'APPROVED' ? t('admin.takeDownHint') : t('admin.reinstateHint')}
-                  </p>
-                )}
-              </div>
-            )}
+            {isAdmin && <PostModerationPanel mod={mod} post={post} schema={schema} />}
           </div>
-        </motion.div>
-      </motion.div>
+        </div>
+      </div>
 
       <SimilarPosts postId={id} />
-
-      <RejectReasonModal
-        key={rejectOpen ? 'open' : 'closed'}
-        open={rejectOpen}
-        onClose={() => setRejectOpen(false)}
-        isPending={rejectMut.isPending}
-        schema={schema}
-        onConfirm={(reason, fieldKey) => rejectMut.mutate({ reason, fieldKey })}
-      />
-
-      {canModerate && (
-        <KeyboardHints hints={[
-          { keys: ['A'], label: t('admin.hotkeyApprove') },
-          { keys: ['R'], label: t('admin.hotkeyReject') },
-          { keys: ['Esc'], label: t('admin.hotkeyClose') },
-        ]} />
-      )}
-
-      {/* Approve confirm — symmetry with reject: no verdict on a single click */}
-      <ConfirmModal
-        open={approveOpen}
-        onClose={() => setApproveOpen(false)}
-        title={hasEdits ? t('admin.saveAndApprove') : t('admin.approve')}
-        message={t('admin.confirmApprove')}
-        confirmLabel={hasEdits ? t('admin.saveAndApprove') : t('admin.approve')}
-        confirmVariant="primary"
-        cancelLabel={t('common.cancel')}
-        onConfirm={() => approveMut.mutate()}
-        isPending={approveMut.isPending}
-      />
 
       {/* Delete modal */}
       <ConfirmModal
@@ -938,25 +697,34 @@ export default function PostDetail() {
 function LikeButton({ post, liked }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
-  const [optimistic, setOptimistic] = useState(liked)
+  // Display is derived from the `like-check` query, patched optimistically and
+  // rolled back on error; a local useState seeded before the query resolved
+  // never showed the saved state at all.
+  const key = ['like-check', String(post.id)] // same shape as the page query above
   const { mutate, isPending } = useMutation({
-    mutationFn: () => likesApi.toggle(post.id, getPostCategory(post)),
-    // `next` travels as the mutation variable so success/error read the
-    // intended state instead of a stale closure.
+    mutationFn: (next) =>
+      next ? likesApi.toggle(post.id, getPostCategory(post)) : likesApi.unlike(getPostCategory(post), post.id),
+    onMutate: async (next) => {
+      await qc.cancelQueries({ queryKey: key })
+      const previous = qc.getQueryData(key)
+      qc.setQueryData(key, (old) => ({ ...(old ?? {}), is_liked: next }))
+      return previous
+    },
     onSuccess: (_, next) => {
       qc.invalidateQueries({ queryKey: ['liked-posts'] })
       qc.invalidateQueries({ queryKey: ['liked-ids'] })
-      qc.invalidateQueries({ queryKey: ['like-check'] })
       toast.success(t(next ? 'posts.saved' : 'posts.unsaved'))
     },
-    onError: (_, next) => {
-      setOptimistic(!next)
+    onError: (_, __, previous) => {
+      qc.setQueryData(key, previous)
       toast.error(t('common.error'))
     },
+    onSettled: () => qc.invalidateQueries({ queryKey: key }),
   })
+  const optimistic = Boolean(liked)
   return (
     <button
-      onClick={() => { const next = !optimistic; setOptimistic(next); mutate(next) }}
+      onClick={() => mutate(!optimistic)}
       disabled={isPending}
       className={`flex items-center gap-2 px-4 py-2 rounded-btn border text-sm font-medium transition-colors disabled:opacity-50 ${
         optimistic ? 'bg-primary/15 text-primary-text border-primary/30' : 'border-border/50 text-muted hover:text-primary-text hover:border-primary/40'

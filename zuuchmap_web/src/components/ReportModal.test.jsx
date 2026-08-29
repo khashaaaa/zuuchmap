@@ -5,7 +5,8 @@ import { renderWithProviders } from '@/test/render'
 import ReportModal from './ReportModal'
 
 vi.mock('@/lib/api', () => ({
-  reportsApi: { create: vi.fn() },
+  reportsApi: { create: vi.fn(), reasons: vi.fn(async () => ['SPAM', 'SCAM', 'WRONG_INFO', 'UNAVAILABLE', 'OFFENSIVE', 'OTHER']) },
+  REPORT_REASONS: ['SPAM', 'SCAM', 'WRONG_INFO', 'UNAVAILABLE', 'OFFENSIVE', 'OTHER'],
 }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 

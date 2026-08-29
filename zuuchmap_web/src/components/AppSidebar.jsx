@@ -1,7 +1,6 @@
 import { NavLink, Link, useNavigate } from 'react-router-dom'
 import { motion, useReducedMotion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
-import { useQuery } from '@tanstack/react-query'
 import { useId, useMemo, useState } from 'react'
 import {
   LayoutDashboard, FileText, Users, Map, Heart, User, Building2,
@@ -9,7 +8,9 @@ import {
   MessageSquare, Flag, CreditCard,
 } from 'lucide-react'
 import { useAuthStore } from '../store'
-import { usersApi } from '@/lib/api'
+import { useProfile } from '@/hooks/useProfile'
+import { useQuery } from '@tanstack/react-query'
+import { reportsApi } from '@/lib/api'
 import UserAvatar from './UserAvatar'
 import ConfirmModal from './ConfirmModal'
 
@@ -47,7 +48,7 @@ function buildNav(t) {
   }
 }
 
-function NavItem({ to, label, icon: Icon, end, onClick, indicatorId }) {
+function NavItem({ to, label, icon: Icon, end, onClick, indicatorId, badge }) {
   const shouldReduceMotion = useReducedMotion()
   return (
     <NavLink
@@ -72,6 +73,11 @@ function NavItem({ to, label, icon: Icon, end, onClick, indicatorId }) {
           )}
           <Icon size={18} className="relative shrink-0" />
           <span className="relative flex-1 truncate">{label}</span>
+          {badge > 0 && (
+            <span className="relative shrink-0 min-w-5 h-5 px-1.5 rounded-full bg-danger text-on-color text-[11px] font-semibold leading-5 text-center">
+              {badge > 99 ? '99+' : badge}
+            </span>
+          )}
           <ChevronRight size={14} className="relative opacity-50 shrink-0" />
         </>
       )}
@@ -83,7 +89,7 @@ export default function AppSidebar({ onNavigate }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { user, isAdmin, logout } = useAuthStore()
-  const { data: profile } = useQuery({ queryKey: ['profile'], queryFn: usersApi.getProfile, staleTime: 30_000 })
+  const { data: profile } = useProfile()
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   // The sidebar mounts twice (desktop + mobile drawer) — a per-instance id
   // keeps each indicator gliding within its own nav.
@@ -94,11 +100,18 @@ export default function AppSidebar({ onNavigate }) {
   const role = isAdmin ? t('admin.role') : user?.type === 'PROVIDER' ? t('onboarding.provider') : t('onboarding.customer')
   const profilePath = isAdmin ? '/admin/profile' : user?.type === 'PROVIDER' ? '/provider/profile' : '/customer/profile'
   const displayUser = profile ?? user
+  // The open-report count. Realtime invalidates it on REPORT_CREATED and the
+  // queue page on resolve; the interval is the fallback for a missed socket.
+  const { data: reportCount } = useQuery({
+    queryKey: ['reports', 'count'],
+    queryFn: reportsApi.count,
+    enabled: isAdmin,
+    refetchInterval: 60_000,
+  })
+  const badgeFor = (to) => (to === '/admin/reports' ? reportCount?.open : undefined)
 
   return (
-    <motion.aside
-      initial={{ x: -20, opacity: 0 }}
-      animate={{ x: 0, opacity: 1 }}
+    <aside
       className="flex flex-col w-60 h-full bg-surface border-r border-border/20 shadow-card shrink-0"
     >
       <div className="h-14 px-4 flex flex-col justify-center border-b border-border/50 overflow-hidden">
@@ -109,7 +122,7 @@ export default function AppSidebar({ onNavigate }) {
       </div>
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {nav.map((item) => (
-          <NavItem key={item.to} {...item} onClick={onNavigate} indicatorId={indicatorId} />
+          <NavItem key={item.to} {...item} badge={badgeFor(item.to)} onClick={onNavigate} indicatorId={indicatorId} />
         ))}
         {isAdminProvider && (
           <>
@@ -153,6 +166,6 @@ export default function AppSidebar({ onNavigate }) {
         cancelLabel={t('common.cancel')}
         onConfirm={() => { setShowLogoutConfirm(false); logout(); navigate('/login', { replace: true }) }}
       />
-    </motion.aside>
+    </aside>
   )
 }

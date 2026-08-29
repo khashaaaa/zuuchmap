@@ -1,11 +1,13 @@
-import React, { useMemo, useEffect } from 'react';
-import { View, Text, SectionList, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useMemo, useEffect, useState } from 'react';
+import { View, Text, SectionList, TouchableOpacity, StyleSheet, Switch } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { ScreenLayout, EmptyState, FadeSlideIn } from '../../components';
+import { ScreenLayout, EmptyState } from '../../components';
 import { spacing, typography, radius, withAlpha, interactions } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useAppContext } from '../../context/AppContext';
+import { SOUND_PREF_KEY, isSoundEnabled } from '../../hooks/useNotificationSync';
 
 const TYPE_ICON = {
     success: 'checkmark-circle',
@@ -83,9 +85,23 @@ const NotificationsScreen = ({ navigation }) => {
     // unread tint before it has been seen and hides the header action entirely.
     useEffect(() => () => { markAllRead(); }, [markAllRead]);
 
+    // Chime on foreground banners. Read by useNotificationSync at present time.
+    const [sound, setSound] = useState(true);
+    useEffect(() => { isSoundEnabled().then(setSound); }, []);
+    const toggleSound = (v) => {
+        setSound(v);
+        AsyncStorage.setItem(SOUND_PREF_KEY, v ? '1' : '0').catch(() => {});
+    };
+
     // Mirrors the push-tap routing in App.js: post events open the post,
     // booking events open the booking list on the relevant side.
     const pressHandlerFor = (item) => {
+        if (item.conversationId) {
+            return () => navigation.navigate('MessageThread', { id: item.conversationId });
+        }
+        if (item.reportId) {
+            return () => navigation.navigate('AdminDashboard', { screen: 'Reports' });
+        }
         if (item.postId) {
             return () => navigation.navigate('PostDetailScreen', {
                 postId: item.postId,
@@ -115,6 +131,16 @@ const NotificationsScreen = ({ navigation }) => {
                 </TouchableOpacity>
             ) : null}
         >
+            <View style={[styles.soundRow, { borderBottomColor: colors.border.light }]}>
+                <Ionicons name={sound ? 'volume-high-outline' : 'volume-mute-outline'} size={18} color={colors.text.secondary} />
+                <Text style={[styles.soundLabel, { color: colors.text.primary }]}>{t('notifications.sound')}</Text>
+                <Switch
+                    value={sound}
+                    onValueChange={toggleSound}
+                    trackColor={{ true: colors.primary }}
+                    accessibilityLabel={t('notifications.sound')}
+                />
+            </View>
             {notifications.length === 0 ? (
                 <EmptyState
                     icon="notifications-off-outline"
@@ -127,9 +153,7 @@ const NotificationsScreen = ({ navigation }) => {
                     sections={sections}
                     keyExtractor={(item) => String(item.id)}
                     renderItem={({ item, index }) => (
-                        <FadeSlideIn index={index}>
                             <NotifItem item={item} colors={colors} onPress={pressHandlerFor(item)} />
-                        </FadeSlideIn>
                     )}
                     renderSectionHeader={({ section }) => (
                         <Text style={[styles.sectionHeader, { color: colors.text.tertiary, backgroundColor: colors.background }]}>
@@ -180,6 +204,15 @@ const styles = StyleSheet.create({
         paddingTop: spacing.md,
         paddingBottom: spacing.xs,
     },
+    soundRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.sm,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+    },
+    soundLabel: { ...typography.styles.label, flex: 1 },
     readBtn: { paddingHorizontal: spacing.sm, paddingVertical: spacing.sm },
     readBtnText: { ...typography.styles.label },
 });

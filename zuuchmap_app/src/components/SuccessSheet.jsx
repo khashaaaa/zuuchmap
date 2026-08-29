@@ -6,12 +6,13 @@ import { useAppTheme } from '../hooks/useAppTheme';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import BaseModal from './BaseModal';
 import Button from './Button';
+import { successHaptic } from '../utils/haptics';
 
 /**
  * The celebration counterpart to ErrorModal — for moments worth staging
  * (first post published, booking accepted), not for routine confirmations.
  * The checkmark lands on the `pop` spring (the one token that is meant to be
- * seen bouncing), then title, body and CTA follow at `animations.stagger`.
+ * seen bouncing); title, body and CTA are visible immediately.
  */
 const SuccessSheet = ({ visible, onClose, title, message, ctaText, onCta }) => {
     const { colors } = useAppTheme();
@@ -19,41 +20,17 @@ const SuccessSheet = ({ visible, onClose, title, message, ctaText, onCta }) => {
     const reduced = useReducedMotion();
 
     const checkScale = useRef(new Animated.Value(0)).current;
-    const titleAnim = useRef(new Animated.Value(0)).current;
-    const bodyAnim = useRef(new Animated.Value(0)).current;
-    const ctaAnim = useRef(new Animated.Value(0)).current;
-    const rows = [titleAnim, bodyAnim, ctaAnim];
 
     useEffect(() => {
         if (!visible) return;
+        successHaptic();
         if (reduced) {
             checkScale.setValue(1);
-            rows.forEach((r) => r.setValue(1));
             return;
         }
         checkScale.setValue(0);
-        rows.forEach((r) => r.setValue(0));
-        Animated.sequence([
-            // Let BaseModal's dialog spring land before the moment starts.
-            Animated.delay(animations.duration.fast),
-            Animated.parallel([
-                Animated.spring(checkScale, { toValue: 1, useNativeDriver: true, ...animations.pop }),
-                Animated.stagger(
-                    animations.stagger,
-                    rows.map((r) => Animated.timing(r, {
-                        toValue: 1,
-                        duration: animations.duration.normal,
-                        useNativeDriver: true,
-                    })),
-                ),
-            ]),
-        ]).start();
+        Animated.spring(checkScale, { toValue: 1, useNativeDriver: true, ...animations.pop }).start();
     }, [visible, reduced]);
-
-    const rowStyle = (anim) => ({
-        opacity: anim,
-        transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }],
-    });
 
     return (
         <BaseModal visible={visible} onClose={onClose} variant="dialog">
@@ -61,13 +38,13 @@ const SuccessSheet = ({ visible, onClose, title, message, ctaText, onCta }) => {
                 <Animated.View style={[styles.checkDisc, { transform: [{ scale: checkScale }] }]}>
                     <Ionicons name="checkmark" size={44} color={colors.success} />
                 </Animated.View>
-                <Animated.Text style={[styles.title, rowStyle(titleAnim)]}>{title}</Animated.Text>
+                <Text style={styles.title}>{title}</Text>
                 {!!message && (
-                    <Animated.Text style={[styles.message, rowStyle(bodyAnim)]}>{message}</Animated.Text>
+                    <Text style={styles.message}>{message}</Text>
                 )}
-                <Animated.View style={[styles.ctaWrap, rowStyle(ctaAnim)]}>
+                <View style={styles.ctaWrap}>
                     <Button title={ctaText} onPress={onCta || onClose} fullWidth />
-                </Animated.View>
+                </View>
             </View>
         </BaseModal>
     );

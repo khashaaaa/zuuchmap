@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Trash2, Phone, Mail, MapPin, Calendar, BadgeCheck, Building2 } from 'lucide-react'
 import { usersApi, adminApi } from '@/lib/api'
-import { formatDate, goBack, apiErrorMessage } from '@/lib/utils'
+import { formatDate, goBack } from '@/lib/utils'
 import UserAvatar from '@/components/UserAvatar'
 import { useAuthStore } from '@/store'
 import ConfirmModal from '@/components/ConfirmModal'
@@ -13,6 +13,7 @@ import { TypeBadge } from '@/components/StatusBadge'
 import PageHeader from '@/components/PageHeader'
 import ErrorState from '@/components/ErrorState'
 import { toast } from 'sonner'
+import { useApiMutation } from '@/hooks/useApiMutation'
 
 export default function AdminUserDetail() {
   const { id } = useParams()
@@ -30,16 +31,15 @@ export default function AdminUserDetail() {
   // The badge asserts that a human checked this company against the state
   // register, so it is granted here — beside the registration number the admin
   // is checking — and never as a side effect of a payment or a plan change.
-  const verifyMut = useMutation({
+  const verifyMut = useApiMutation({
     mutationFn: (next) => adminApi.verifyCompany(user.company.id, next),
     onSuccess: (_res, next) => {
       qc.invalidateQueries({ queryKey: ['user', id] })
       toast.success(next ? t('admin.companyVerified') : t('admin.companyUnverified'))
     },
-    onError: (e) => toast.error(apiErrorMessage(e, t, t('common.error'))),
   })
 
-  const deleteMut = useMutation({
+  const deleteMut = useApiMutation({
     mutationFn: () => usersApi.deleteUser(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-users'] })
@@ -47,7 +47,6 @@ export default function AdminUserDetail() {
       toast.success(t('admin.userDeleted'))
       navigate('/admin/users', { replace: true })
     },
-    onError: (e) => toast.error(apiErrorMessage(e, t, t('common.error'))),
   })
 
   if (isLoading) return (

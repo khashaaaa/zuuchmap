@@ -6,9 +6,10 @@ import { User } from '../user/entities/user.entity';
 import { ReportController } from './report.controller';
 import { ReportService } from './report.service';
 import { EventsModule } from '../events/events.module';
+import { PostModule } from '../post/post.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Report, Post, User]), EventsModule],
+  imports: [TypeOrmModule.forFeature([Report, Post, User]), EventsModule, PostModule],
   controllers: [ReportController],
   providers: [ReportService],
   exports: [ReportService],

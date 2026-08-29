@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
+import { useCategories } from '@/hooks/useCategories'
+import { useApiMutation } from '@/hooks/useApiMutation'
 import { useTranslation } from 'react-i18next'
 import { Plus, Pencil, X, ChevronUp, ChevronDown, ToggleLeft, ToggleRight, Tag } from 'lucide-react'
 import { categoryApi } from '@/lib/api'
-import { PRICE_UNITS, CATEGORY_COLORS, getCategoryColor, apiErrorMessage } from '@/lib/utils'
+import { PRICE_UNITS, CATEGORY_COLORS, getCategoryColor } from '@/lib/utils'
 import { LANGUAGES } from '@/i18n'
 import PageHeader from '@/components/PageHeader'
 import ErrorState from '@/components/ErrorState'
@@ -313,31 +315,24 @@ export default function AdminCategories() {
   const [density, toggleDensity] = useTableDensity()
   const cellPad = density === 'compact' ? 'px-4 py-1.5' : 'px-4 py-3'
 
-  const { data: schemas = [], isLoading, isError, refetch } = useQuery({
-    queryKey: ['categories', 'admin'],
-    queryFn: categoryApi.getAllForAdmin,
-    staleTime: 60_000,
-  })
+  const { data: schemas = [], isLoading, isError, refetch } = useCategories({ admin: true })
 
-  const createMut = useMutation({
+  const createMut = useApiMutation({
     mutationFn: (body) => categoryApi.create(body),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['categories'] }); setEditing(null); toast.success(t('admin.categoryCreated')) },
-    onError: (e) => toast.error(apiErrorMessage(e, t, t('common.error'))),
   })
 
-  const updateMut = useMutation({
+  const updateMut = useApiMutation({
     mutationFn: ({ key, body }) => categoryApi.update(key, body),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['categories'] }); setEditing(null); toast.success(t('admin.categoryUpdated')) },
-    onError: (e) => toast.error(apiErrorMessage(e, t, t('common.error'))),
   })
 
-  const toggleMut = useMutation({
+  const toggleMut = useApiMutation({
     mutationFn: ({ key, active }) => categoryApi.update(key, { active }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['categories'] })
       toast.success(t('admin.categoryUpdated'))
     },
-    onError: (e) => toast.error(apiErrorMessage(e, t, t('common.error'))),
   })
 
   const showSkeleton = useMinDisplayTime(isLoading)

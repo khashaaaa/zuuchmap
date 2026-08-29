@@ -53,6 +53,12 @@ export function resolveNotificationRoute(data = {}) {
     return { screen: 'PostDetailScreen', params: { ...postParams, role: 'customer' } };
   }
 
+  // A user flagged a live listing. Admin-only; lands on the queue, where the
+  // reason and the reporter's note are, rather than on the bare listing.
+  if (data.notifType === 'report') {
+    return { screen: 'AdminDashboard', params: { screen: 'Reports' } };
+  }
+
   if (data.bookingId) {
     // 'provider' is the received-requests view, 'customer' is own requests, so
     // the role is the *recipient's* side. The engine sends a new request and a

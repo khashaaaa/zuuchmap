@@ -28,7 +28,7 @@
  *     deleted, to exercise `ON DELETE SET NULL` and review eligibility surviving
  *
  * Wipes first: `--wipe` truncates every domain table (never `migrations`).
- * Run: npx ts-node -r tsconfig-paths/register src/database/seed-test-posts.ts --wipe
+ * Run: npx ts-node -r tsconfig-paths/register src/database/seed-test-posts.ts --wipe [--seed=N]
  */
 // Not `dotenv/config`: that reads ./.env, and this project keeps its
 // settings in config/variables/<NODE_ENV>.env — the same file app.module
@@ -50,8 +50,11 @@ const ADMIN_PHONES = (process.env.ADMIN_PHONES ?? '')
   .map((p) => p.trim())
   .filter(Boolean);
 
-// Deterministic pseudo-randomness so re-running produces a comparable corpus.
-let s = 12345;
+// Seeded PRNG: random by default so every run yields a fresh corpus, but the
+// seed is printed and can be pinned with `--seed <n>` to reproduce a run.
+const seedArg = process.argv.find((a) => a.startsWith('--seed='))?.slice(7);
+const SEED = seedArg ? Number(seedArg) : (Date.now() ^ (process.pid << 8)) & 0x7fffffff;
+let s = SEED;
 const rnd = () => (s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
 const pick = <T>(a: T[]) => a[Math.floor(rnd() * a.length)];
 const int = (lo: number, hi: number) => lo + Math.floor(rnd() * (hi - lo + 1));
@@ -1281,6 +1284,7 @@ async function wipe(client: Client) {
     TRUNCATE TABLE
       analytics_event, review, booking, likedpost, viewedpost,
       saved_search, push_device, trusted_device, verification_session,
+      message, conversation, report, payment,
       post, "user", company
     RESTART IDENTITY CASCADE`);
   console.log('wiped: all domain tables (schema and migrations untouched)');
@@ -1341,7 +1345,12 @@ async function seedCompanies(client: Client) {
   return rows;
 }
 
-type Owner = { id: string; phone: string; email: string | null };
+/** `cap` mirrors PLAN_LIMITS for the owner's *effective* plan — a lapsed
+ * PROVIDER plan is a FREE quota — so the corpus never shows a provider holding
+ * more live posts than the create path would have let them. */
+type Owner = { id: string; phone: string; email: string | null; cap: number };
+const FREE_CAP = 3;
+const PROVIDER_CAP = 25;
 
 async function seedUsers(client: Client, companies: string[]) {
   const providers: Owner[] = [];
@@ -1369,7 +1378,7 @@ async function seedUsers(client: Client, companies: string[]) {
        VALUES ('PROVIDER',$1,$2,$3,$4,true,'FREE') RETURNING id`,
       [phone, given, parent, `${latin(given)}@zuuchmap.mn`],
     );
-    admins.push({ id: u.id, phone, email: `${latin(given)}@zuuchmap.mn` });
+    admins.push({ id: u.id, phone, email: `${latin(given)}@zuuchmap.mn`, cap: FREE_CAP });
   }
 
   for (let i = 0; i < 24; i++) {
@@ -1385,6 +1394,7 @@ async function seedUsers(client: Client, companies: string[]) {
       plan = 'PROVIDER';
       planExpires = `now() - interval '${int(1, 40)} days'`;
     }
+    const cap = plan === 'PROVIDER' && i % 8 !== 3 ? PROVIDER_CAP : FREE_CAP;
 
     const given = GIVEN_NAMES[i % GIVEN_NAMES.length];
     const parent = PARENT_NAMES[(i * 3) % PARENT_NAMES.length];
@@ -1426,7 +1436,7 @@ async function seedUsers(client: Client, companies: string[]) {
         avatar,
       ],
     );
-    providers.push({ id: u.id, phone, email });
+    providers.push({ id: u.id, phone, email, cap });
   }
 
   for (let i = 0; i < 40; i++) {
@@ -1488,20 +1498,121 @@ function priceFor(catKey: string): number {
   return Math.max(step, Math.round(raw / step) * step);
 }
 
+/**
+ * How many listings each vertical carries, before ±jitter. A marketplace is
+ * lopsided: rentals and materials dominate, SOS and winter services are a
+ * handful. Uniform "N per category" hides every layout problem that a long
+ * list or a two-item list would show.
+ */
+const CATEGORY_VOLUME: Record<string, number> = {
+  vehiclerent: 34,
+  machineryrent: 30,
+  materialstore: 28,
+  construction: 24,
+  jobvacancy: 22,
+  toolrent: 18,
+  transport: 16,
+  usedequipment: 14,
+  designservice: 10,
+  factory: 9,
+  miningsupport: 7,
+  sos: 6,
+  winterservice: 5,
+};
+
+/** Beyond the one-of-each edge pass, the tail of a category is mostly live. */
+const LIFECYCLE_TAIL = [
+  ...Array(6).fill(LIFECYCLES[0]), // live, 30d
+  ...Array(3).fill(LIFECYCLES[1]), // live, 12d
+  LIFECYCLES[2], // expiring soon
+  LIFECYCLES[3], // featured
+  LIFECYCLES[5], // rented
+  ...Array(2).fill(LIFECYCLES[8]), // pending
+  LIFECYCLES[10], // rejected
+];
+
+const shuffle = <T>(a: T[]) => {
+  const c = [...a];
+  for (let i = c.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [c[i], c[j]] = [c[j], c[i]];
+  }
+  return c;
+};
+
+/** Weighted pick: a few elements are far likelier than the rest. */
+const pickWeighted = <T>(items: T[], weights: number[]): T => {
+  const total = weights.reduce((x, y) => x + y, 0);
+  let r = rnd() * total;
+  for (let i = 0; i < items.length; i++) {
+    r -= weights[i];
+    if (r <= 0) return items[i];
+  }
+  return items[items.length - 1];
+};
+
+/** Capital-heavy: roughly half of everything is in Ulaanbaatar. */
+const pickProvince = () =>
+  rnd() < 0.45 ? 'ULAANBAATAR' : pick(PROVINCES.filter((p) => p !== 'ULAANBAATAR'));
+
+/** Gallery size distribution — most posts carry one or two photos. */
+const pickShots = () => {
+  const r = rnd();
+  return r < 0.12 ? 0 : r < 0.5 ? 1 : r < 0.78 ? 2 : r < 0.9 ? 3 : 4;
+};
+
 async function seedPosts(
   client: Client,
   owners: Owner[],
   imagePool: Record<string, string[]>,
 ) {
   const ids: number[] = [];
-  let lifecycleIdx = 0;
+  const perCategory: string[] = [];
+  // Paid providers own the bulk of the listings; the FREE long tail holds
+  // one to three each. Live posts are only ever assigned within the owner's
+  // quota, so the corpus agrees with what the create path would have allowed.
+  const ownerWeights = owners.map((o) => (o.cap >= PROVIDER_CAP ? 6 : 1));
+  const liveCount = new Map<string, number>(owners.map((o) => [o.id, 0]));
+  const countsAsLive = (lc: (typeof LIFECYCLES)[number]) =>
+    lc.approval !== 'REJECTED' &&
+    lc.status !== 'EXPIRED' &&
+    (lc.expires === null || lc.expires > 0);
+  const pickOwner = (lc: (typeof LIFECYCLES)[number]): Owner => {
+    if (!countsAsLive(lc)) return pickWeighted(owners, ownerWeights);
+    const eligible = owners.filter((o) => (liveCount.get(o.id) ?? 0) < o.cap);
+    const pool = eligible.length ? eligible : owners;
+    const o = pickWeighted(
+      pool,
+      pool.map((x) => (x.cap >= PROVIDER_CAP ? 6 : 1)),
+    );
+    liveCount.set(o.id, (liveCount.get(o.id) ?? 0) + 1);
+    return o;
+  };
+  let i = 0;
 
   for (const cat of CATEGORY_SEED) {
     const catalog = CATALOG[cat.key as string];
     const subs = (cat.subcategories ?? []).map((x: any) => x.value);
-    for (let i = 0; i < LIFECYCLES.length; i++) {
-      const lc = LIFECYCLES[lifecycleIdx++ % LIFECYCLES.length];
-      const sub = subs.length ? subs[i % subs.length] : null;
+    // One or two subcategories dominate each vertical.
+    const subWeights = subs.map(() => 1);
+    if (subs.length > 1) {
+      subWeights[Math.floor(rnd() * subs.length)] = 4;
+      subWeights[Math.floor(rnd() * subs.length)] += 2;
+    }
+
+    const base = CATEGORY_VOLUME[cat.key as string] ?? 8;
+    const count = Math.max(4, Math.round(base * (0.8 + rnd() * 0.45)));
+    // Every edge state once (in random order) where the vertical is big
+    // enough, a random subset of them where it is not, then a live-heavy tail.
+    const edges = shuffle(LIFECYCLES).slice(0, count);
+    const lifecycles = [
+      ...edges,
+      ...Array.from({ length: count - edges.length }, () => pick(LIFECYCLE_TAIL)),
+    ];
+
+    for (const lc of lifecycles) {
+      i++;
+      const sub = subs.length ? pickWeighted(subs, subWeights) : null;
 
       // Brand and model are chosen once, then reused by both the title and the
       // identity fields — a listing headed "Komatsu PC200-8" whose manufacturer
@@ -1521,11 +1632,11 @@ async function seedPosts(
       }
       const ctx: PostCtx = { brand, model, sub };
 
-      // Every field gets a value on most posts so the corpus covers the optional
-      // half of each schema; a slice gets only required fields, because that is
-      // what a real hurried listing looks like.
+      // Most posts fill every field so the corpus covers the optional half of
+      // each schema; a fifth get only required fields, because that is what a
+      // real hurried listing looks like.
       const attributes: Record<string, any> = {};
-      const sparse = i % 5 === 4;
+      const sparse = rnd() < 0.2;
       for (const f of cat.fields ?? []) {
         if (sparse && !f.required) continue;
         attributes[f.key] = valueFor(f, i, cat, ctx);
@@ -1547,25 +1658,26 @@ async function seedPosts(
         .replace(/\s+/g, ' ')
         .trim();
 
-      const province = pick(PROVINCES);
+      const province = pickProvince();
       const place = PLACES[province];
       const district = province === 'ULAANBAATAR' ? pick(UB_DISTRICTS) : null;
       const address = addressFor(province, district);
       // A tenth of posts carry no coordinates — they must stay in browse and
       // stay off the map, rather than becoming a null pin.
-      const located = i % 10 !== 7;
-      // A real spread: some listings have no photo, most have one or two, a few
-      // carry a gallery. One image on every post never exercises the carousel,
-      // the counter badge or the detail-screen swipe.
+      const located = rnd() >= 0.1;
       const pool = imagePool[cat.key as string] ?? [];
-      const shots = i % 6 === 5 ? 0 : i % 4 === 3 ? 4 : i % 3 === 1 ? 2 : 1;
-      const images = JSON.stringify(pool.slice(0, shots));
-      const owner = pick(owners);
+      const images = JSON.stringify(shuffle(pool).slice(0, pickShots()));
+      const owner = pickOwner(lc);
 
       const details =
         `${pick(catalog?.details ?? ['Дэлгэрэнгүй мэдээллийг утсаар авна уу.'])}` +
         ` Байршил: ${address}.` +
         (rnd() < 0.5 ? ` Холбоо барих: ${owner.phone}.` : '');
+
+      // Views are long-tailed: most listings get a few dozen, a few go big.
+      const views = Math.floor(Math.pow(rnd(), 2.5) * 1500);
+      // Listing age skews recent — a live marketplace is mostly new posts.
+      const ageDays = Math.floor(Math.pow(rnd(), 1.8) * 180);
 
       const {
         rows: [p],
@@ -1577,12 +1689,12 @@ async function seedPosts(
             attributes, images, status, approval_status, rejection_reason, views,
             expires_at, featured_until, is_featured, "userId", date_created)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$22,$8,$9,$10,$11,$12,$13,$14,
-                 ${cat.has_availability_dates ? `now() - interval '5 days', now() + interval '${int(20, 90)} days'` : 'NULL, NULL'},
+                 ${cat.has_availability_dates ? `now() - interval '${int(0, 10)} days', now() + interval '${int(10, 120)} days'` : 'NULL, NULL'},
                  $15::jsonb,$16::jsonb,$17,$18,$19,$20,
                  ${lc.expires === null ? 'NULL' : days(lc.expires)},
                  ${lc.featured === null ? 'NULL' : days(lc.featured)},
                  ${lc.featured !== null && lc.featured > 0 ? 'true' : 'false'},
-                 $21, now() - interval '${int(0, 200)} days')
+                 $21, now() - interval '${ageDays} days')
          RETURNING id`,
         [
           cat.key,
@@ -1599,29 +1711,26 @@ async function seedPosts(
           cat.has_price ? priceFor(cat.key as string) : null,
           cat.has_price ? (cat.default_price_unit ?? 'DAY') : null,
           owner.phone,
-          i % 4 === 0 ? owner.email : null,
-          i % 7 === 0 ? `www.${pick(COMPANIES).trade}.mn` : null,
+          rnd() < 0.3 ? owner.email : null,
+          rnd() < 0.15 ? `www.${pick(COMPANIES).trade}.mn` : null,
           JSON.stringify(attributes),
           images,
           lc.status,
           lc.approval,
           lc.approval === 'REJECTED' ? pick(REJECTIONS) : null,
-          int(0, 400),
+          views,
           owner.id,
           // The map picker's reverse-geocoded name, which the app submits on
-          // create. The old corpus left it null on every row, which reads like
-          // a dead column until you check what the client actually sends.
-          // Derived from this post's own address so the two agree — in the
-          // capital the neighbourhood is the recognisable part, elsewhere the
-          // sum is.
+          // create. Derived from this post's own address so the two agree.
           located ? `${nearestLandmark(province, address)} орчим` : null,
         ],
       );
       ids.push(p.id);
     }
+    perCategory.push(`${cat.key} ${count}`);
   }
   console.log(
-    `posts: ${ids.length} across ${CATEGORY_SEED.length} categories, ${LIFECYCLES.length} lifecycle states each`,
+    `posts: ${ids.length} across ${CATEGORY_SEED.length} categories — ${perCategory.join(', ')}`,
   );
   return ids;
 }
@@ -1635,13 +1744,20 @@ async function seedEngagement(
     .rows;
   const byId = new Map(cats.map((r: any) => [r.id, r]));
 
+  // Popularity is long-tailed: most listings draw a trickle, a few draw a
+  // crowd. Uniform 6%/10% odds gave every post the same three likes.
+  const heat = new Map<number, number>(
+    postIds.map((id) => [id, Math.pow(rnd(), 2.2)]),
+  );
+
   let likes = 0;
   let views = 0;
   for (const uid of customers) {
     for (const pid of postIds) {
       const post: any = byId.get(pid);
       if (!post || post.userId === uid) continue; // nobody likes their own post
-      if (rnd() < 0.06) {
+      const h = heat.get(pid) ?? 0;
+      if (rnd() < 0.01 + 0.22 * h) {
         await client.query(
           `INSERT INTO likedpost (user_id, post_type, post_id, date_liked)
            VALUES ($1,$2,$3, now() - interval '${int(0, 60)} days') ON CONFLICT DO NOTHING`,
@@ -1649,7 +1765,7 @@ async function seedEngagement(
         );
         likes++;
       }
-      if (rnd() < 0.1) {
+      if (rnd() < 0.02 + 0.45 * h) {
         await client.query(
           `INSERT INTO viewedpost (user_id, post_type, post_id, date_viewed)
            VALUES ($1,'post',$2, now() - interval '${int(0, 60)} days') ON CONFLICT DO NOTHING`,
@@ -1664,14 +1780,23 @@ async function seedEngagement(
   // 0-400 against 664 real rows — put the two screens ~45x apart, which would
   // have drowned out any genuine disagreement between them. Anonymous traffic
   // is the only legitimate gap, so the counter is the log plus a share of it.
-  await client.query(`
-    UPDATE post p
-       SET views = sub.logged + (sub.logged * 2) + (p.id % 17)
-      FROM (SELECT post_id, COUNT(*)::int AS logged FROM viewedpost GROUP BY post_id) sub
-     WHERE sub.post_id = p.id`);
-  await client.query(
-    `UPDATE post SET views = id % 9 WHERE id NOT IN (SELECT post_id FROM viewedpost)`,
+  const logged = new Map<number, number>(
+    (
+      await client.query(
+        'SELECT post_id, COUNT(*)::int AS n FROM viewedpost GROUP BY post_id',
+      )
+    ).rows.map((r: any) => [r.post_id, r.n]),
   );
+  for (const pid of postIds) {
+    const h = heat.get(pid) ?? 0;
+    const n = logged.get(pid) ?? 0;
+    // Anonymous traffic on top of the logged views, scaled by the same heat.
+    const anon = Math.floor(h * h * 900) + int(0, 6);
+    await client.query('UPDATE post SET views = $2 WHERE id = $1', [
+      pid,
+      n * 3 + anon,
+    ]);
+  }
   console.log(
     `engagement: ${likes} likes, ${views} recorded views (post.views reconciled with the log)`,
   );
@@ -2014,6 +2139,7 @@ async function main() {
     database: process.env.PG_NAME,
   });
   await client.connect();
+  console.log(`seed: ${SEED} (re-run with --seed=${SEED} to reproduce)`);
 
   if (process.argv.includes('--wipe')) await wipe(client);
 

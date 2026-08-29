@@ -20,9 +20,14 @@ import { OpenConversationDto, SendMessageDto } from './dto/messaging.dto';
 export class MessagingController {
   constructor(private readonly messaging: MessagingService) {}
 
+  /** `before` is a cursor on the thread's last activity — see the service. */
   @Get()
-  list(@Req() req) {
-    return this.messaging.list(req.user.id);
+  list(
+    @Req() req,
+    @Query('before') before?: string,
+    @Query('before_id') beforeId?: string,
+  ) {
+    return this.messaging.list(req.user.id, before, beforeId);
   }
 
   /** Drives the inbox badge; polled on focus, so it stays a single cheap read. */
@@ -47,8 +52,9 @@ export class MessagingController {
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req,
     @Query('before') before?: string,
+    @Query('before_id') beforeId?: string,
   ) {
-    return this.messaging.history(id, req.user.id, before);
+    return this.messaging.history(id, req.user.id, before, beforeId);
   }
 
   /**

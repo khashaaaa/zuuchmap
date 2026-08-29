@@ -7,7 +7,7 @@ import { spacing, typography, radius, interactions, animations } from '../design
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import bookingService from '../services/api/bookingService';
-import { showErrorModal, showSuccessModal, getErrorMessage } from '../utils/errorManager';
+import { showErrorModal, getErrorMessage } from '../utils/errorManager';
 import { formatDate } from '../utils/displayUtils';
 import Button from './Button';
 
@@ -98,7 +98,7 @@ const ReviewSection = ({ providerId, canReview, autoOpen = false }) => {
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ['reviews', providerId] });
             setShowForm(false);
-            showSuccessModal(t('review.title'), t('review.submitted'));
+            showErrorModal(t('review.title'), t('review.submitted'), [{ text: t('common.ok') }], 'success');
         },
         onError: (e) => {
             const status = e?.response?.status;

@@ -6,6 +6,7 @@ import PageHeader from '@/components/PageHeader'
 import EmptyState from '@/components/EmptyState'
 import { useAuthStore, useNotificationStore } from '@/store'
 import { goBack } from '@/lib/utils'
+import { targetFor as resolveTarget } from '@/lib/notificationTarget'
 
 const KIND_ICON = { success: CheckCircle, error: XCircle, info: Info }
 const KIND_CLASS = { success: 'text-success', error: 'text-danger', info: 'text-primary-text' }
@@ -53,15 +54,7 @@ export default function NotificationsPage() {
   // Mirrors `resolveNotificationRoute` in the app: a post opens the post (in
   // the admin console when that is where the action is), a booking opens the
   // list on the recipient's side.
-  const targetFor = (n) => {
-    // Messages first: a message notification also carries a postId, and the
-    // thread — not the listing — is what the reader is being called to.
-    if (n.conversationId) return `/messages/${n.conversationId}`
-    if (n.postId) return isAdmin && n.role === 'admin' ? `/admin/posts/${n.postId}` : `/posts/${n.postId}`
-    if (n.bookingRole === 'provider') return '/provider/bookings'
-    if (n.bookingRole === 'customer') return '/customer/bookings'
-    return null
-  }
+  const targetFor = (n) => resolveTarget(n, { isAdmin })
 
   const stamp = (ts) => {
     const d = new Date(ts)

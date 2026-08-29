@@ -10,7 +10,6 @@ import { Post } from '../post/entities/post.entity';
 import { User } from '../user/entities/user.entity';
 import { Company } from '../company/entities/company.entity';
 import { UserType } from '../enums/usertype';
-import { PlanService } from '../user/plan.service';
 import { PostNotificationService } from '../post/post-notification.service';
 import { PostService } from '../post/post.service';
 import { SavedSearchService } from '../saved-search/saved-search.service';
@@ -18,11 +17,6 @@ import { EventsGateway } from '../events/events.gateway';
 import { sharedCache, invalidatePostReadCaches } from '../utils/cache';
 
 const STATS_TTL = 30_000; // 30 s
-
-// Lives in PlanService now — both the admin grant and a settled QPay invoice
-// have to agree on what "another month" means. Re-exported because callers
-// (and its tests) have always imported it from here.
-export { addMonths } from '../user/plan.service';
 
 @Injectable()
 export class AdminService {
@@ -40,21 +34,7 @@ export class AdminService {
     private readonly notifications: PostNotificationService,
     private readonly posts: PostService,
     @Optional() private readonly savedSearches: SavedSearchService,
-    private readonly plans: PlanService,
   ) {}
-
-  /**
-   * Grants or revokes a provider plan — the manual path, used after a bank
-   * transfer has been reconciled by hand. Delegates to PlanService so it
-   * cannot drift from the path a QPay invoice takes.
-   */
-  async setUserPlan(
-    userId: string,
-    plan: string,
-    months = 1,
-  ): Promise<{ plan: string; plan_expires_at: Date | null }> {
-    return this.plans.setPlan(userId, plan, months);
-  }
 
   /**
    * Marks a company verified.
@@ -183,7 +163,12 @@ export class AdminService {
         [userId],
         'Зар зөвшөөрөгдлөө',
         `"${post.title}" нийтлэгдлээ. Та одоо харагдаж байна.`,
-        { postId, post_type: post.category, notifType: 'approved' },
+        {
+          postId,
+          post_type: post.category,
+          notifType: 'approved',
+          url: `/posts/${postId}`,
+        },
       );
       this.events.emitPostApproved(postId, userId, post.title, post.category);
     }
@@ -257,6 +242,7 @@ export class AdminService {
           reason: reason.trim(),
           field_key: field ?? undefined,
           notifType: 'rejected',
+          url: `/posts/${postId}`,
         },
       );
       this.events.emitPostRejected(

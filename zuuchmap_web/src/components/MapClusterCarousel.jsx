@@ -50,9 +50,9 @@ export default function MapClusterCarousel({ posts, onClose }) {
         onScroll={onScroll}
         className="flex gap-4 overflow-x-auto pb-1 snap-x snap-mandatory scroll-smooth pointer-events-auto"
       >
-        {posts.map((p, i) => (
+        {posts.map((p) => (
           <div key={p.id} className="w-64 shrink-0 snap-start">
-            <PostCard post={p} index={Math.min(i, 3)} />
+            <PostCard post={p} />
           </div>
         ))}
       </div>

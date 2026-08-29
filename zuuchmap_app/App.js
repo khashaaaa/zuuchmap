@@ -15,6 +15,7 @@ import { palettes, dimensions, typography, spacing, fonts, animations } from './
 // (and the stored theme preference) is available — they commit to dark.
 const colors = palettes.dark;
 import { useAppTheme } from './src/hooks/useAppTheme';
+import { useReducedMotion } from './src/hooks/useReducedMotion';
 import CustomSafeAreaView from './src/components/CustomSafeAreaView';
 import { getUserInfo, getUserType, getAuthToken } from './src/services/api/authHelpers';
 
@@ -81,15 +82,19 @@ if (global.ErrorUtils) {
 
 try {
   Notifications.setNotificationHandler({
-    handleNotification: async () => {
-      // While the realtime socket is live the same event already lands in the
-      // in-app bell — suppress the duplicate OS banner. Backgrounded (or
-      // disconnected) the socket is down, so pushes surface normally.
+    handleNotification: async (notification) => {
+      // Local notifications are raised by useNotificationSync from socket
+      // events — always show them with sound. Remote pushes carry the same
+      // event; while the socket is live the local one already covered it, so
+      // keep the push silent. Backgrounded (or disconnected) the socket is
+      // down, so pushes surface normally.
+      const isPush = notification?.request?.trigger?.type === 'push';
       const realtimeLive = socketService.isConnected();
+      const show = !isPush || !realtimeLive;
       return {
-        shouldShowBanner: !realtimeLive,
+        shouldShowBanner: show,
         shouldShowList: true,
-        shouldPlaySound: !realtimeLive,
+        shouldPlaySound: show,
         shouldSetBadge: false,
       };
     },
@@ -334,6 +339,7 @@ const App = () => {
 
 const ThemedApp = ({ initialRoute }) => {
   const { colors, isDark } = useAppTheme();
+  const reducedMotion = useReducedMotion();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const online = useOnline();
@@ -377,8 +383,8 @@ const ThemedApp = ({ initialRoute }) => {
               // Screen transitions were the platform default with no declared
               // timing; drive them from the motion tokens so a push feels like
               // the same system as a press or a list entrance.
-              animation: 'slide_from_right',
-              animationDuration: animations.duration.slow,
+              animation: reducedMotion ? 'none' : 'slide_from_right',
+              animationDuration: animations.duration.normal,
               gestureEnabled: true,
             }}
           >

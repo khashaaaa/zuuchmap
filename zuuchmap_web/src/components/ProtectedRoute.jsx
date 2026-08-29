@@ -10,37 +10,21 @@ function Spinner() {
 }
 
 /**
- * Signed in, any role. For screens all three roles share — the app has one
- * Notifications screen, not three.
+ * Route guard. Signed-out visitors go to login; a signed-in user who fails
+ * `allow({ user, isAdmin })` goes home, where RootRedirect sends them to the
+ * app that is theirs. No predicate means "any signed-in role".
  */
-export function AuthedRoute() {
-  const { token, isLoading } = useAuthStore()
-  if (isLoading) return <Spinner />
-  if (!token) return <Navigate to="/login" replace />
-  return <Outlet />
-}
-
-export function AdminRoute() {
-  const { token, isAdmin, isLoading } = useAuthStore()
-  if (isLoading) return <Spinner />
-  if (!token) return <Navigate to="/login" replace />
-  if (!isAdmin) return <Navigate to="/" replace />
-  return <Outlet />
-}
-
-export function ProviderRoute() {
+export function RoleRoute({ allow }) {
   const { token, user, isAdmin, isLoading } = useAuthStore()
   if (isLoading) return <Spinner />
   if (!token) return <Navigate to="/login" replace />
-  // Admins who are also providers can access provider routes
-  if (user?.type !== 'PROVIDER' && !isAdmin) return <Navigate to="/" replace />
+  if (allow && !allow({ user, isAdmin })) return <Navigate to="/" replace />
   return <Outlet />
 }
 
-export function CustomerRoute() {
-  const { token, user, isLoading } = useAuthStore()
-  if (isLoading) return <Spinner />
-  if (!token) return <Navigate to="/login" replace />
-  if (user?.type !== 'CUSTOMER') return <Navigate to="/" replace />
-  return <Outlet />
-}
+/** Signed in, any role — the app has one Notifications screen, not three. */
+export const AuthedRoute = () => <RoleRoute />
+export const AdminRoute = () => <RoleRoute allow={({ isAdmin }) => isAdmin} />
+// Admins who are also providers can access provider routes.
+export const ProviderRoute = () => <RoleRoute allow={({ user, isAdmin }) => isAdmin || user?.type === 'PROVIDER'} />
+export const CustomerRoute = () => <RoleRoute allow={({ user }) => user?.type === 'CUSTOMER'} />

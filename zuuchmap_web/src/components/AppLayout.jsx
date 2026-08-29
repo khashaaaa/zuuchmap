@@ -7,8 +7,9 @@ import AppHeader from './AppHeader'
 import useOnline from '@/hooks/useOnline'
 import { APP_SCROLL_ID } from '@/lib/utils'
 import { WifiOff } from 'lucide-react'
-
-const FOCUSABLE_SELECTOR = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+import ErrorBoundary from './ErrorBoundary'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
+import { useQueryClient } from '@tanstack/react-query'
 
 export default function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -17,8 +18,8 @@ export default function AppLayout() {
   const { t } = useTranslation()
   const online = useOnline()
   const drawerRef = useRef(null)
-  const lastFocusedRef = useRef(null)
   const mainRef = useRef(null)
+  const qc = useQueryClient()
 
   // The document never scrolls in here (the shell is `h-full overflow-hidden`),
   // so the browser has no scroll position to restore and React Router's own
@@ -29,36 +30,8 @@ export default function AppLayout() {
   }, [location.pathname])
 
   // The mobile drawer is a modal surface — same Escape / focus-trap / focus-
-  // return contract as Modal.jsx, otherwise keyboard users tab into the page
-  // behind the scrim and can't dismiss it.
-  useEffect(() => {
-    if (!mobileOpen) return
-    lastFocusedRef.current = document.activeElement
-    const handler = (e) => {
-      if (e.key === 'Escape') { setMobileOpen(false); return }
-      if (e.key === 'Tab') {
-        const panel = drawerRef.current
-        if (!panel) return
-        const focusable = Array.from(panel.querySelectorAll(FOCUSABLE_SELECTOR))
-        if (focusable.length === 0) return
-        const first = focusable[0]
-        const last = focusable[focusable.length - 1]
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault()
-          last.focus()
-        } else if (!e.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) {
-          e.preventDefault()
-          first.focus()
-        }
-      }
-    }
-    window.addEventListener('keydown', handler)
-    drawerRef.current?.focus()
-    return () => {
-      window.removeEventListener('keydown', handler)
-      lastFocusedRef.current?.focus?.()
-    }
-  }, [mobileOpen])
+  // return contract as Modal.jsx.
+  useFocusTrap(drawerRef, mobileOpen, { onEscape: () => setMobileOpen(false), restoreFocus: true })
 
   return (
     <div className="flex h-full overflow-hidden bg-background">
@@ -75,6 +48,7 @@ export default function AppLayout() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              transition={{ duration: shouldReduceMotion ? 0 : 0.15 }}
               className="fixed inset-0 bg-scrim z-50 md:hidden"
               onClick={() => setMobileOpen(false)}
             />
@@ -119,7 +93,11 @@ export default function AppLayout() {
             transition={{ duration: shouldReduceMotion ? 0 : 0.14 }}
             className="p-3 md:p-6 min-h-full"
           >
-            <Outlet />
+            {/* Keyed on the path: a page that threw must not keep its error
+                state once the user navigates somewhere else. */}
+            <ErrorBoundary key={location.pathname} queryClient={qc}>
+              <Outlet />
+            </ErrorBoundary>
           </motion.div>
         </main>
       </div>

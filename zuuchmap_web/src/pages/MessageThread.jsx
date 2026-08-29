@@ -1,13 +1,27 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { ArrowLeft, Send } from 'lucide-react'
 import ErrorState from '@/components/ErrorState'
 import Button from '@/components/Button'
 import { messagesApi } from '@/lib/api'
 import { useAuthStore } from '@/store'
+
+const PAGE_SIZE = 30
+
+/** Pages are newest-first (page 0 = latest 30); flatten into one chronological list. */
+const flatten = (pages = []) => [...pages].reverse().flat()
+const cursorOf = (page) =>
+  page.length < PAGE_SIZE ? undefined : { before: page[0].date_created, before_id: page[0].id }
+/** Newest (last) page holds the live tail — optimistic rows go there. */
+const patchLast = (old, fn) => {
+  if (!old) return old
+  const pages = [...old.pages]
+  pages[0] = fn(pages[0] ?? [])
+  return { ...old, pages }
+}
 
 /**
  * One conversation.
@@ -30,13 +44,22 @@ export default function MessageThread() {
     queryFn: () => messagesApi.detail(id),
   })
 
-  const { data: messages = [], isLoading, isError, refetch } = useQuery({
-    queryKey: ['conversation', id, 'messages'],
-    queryFn: () => messagesApi.history(id),
+  const messagesKey = ['conversation', id, 'messages']
+  const {
+    data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: messagesKey,
+    queryFn: ({ pageParam }) => messagesApi.history(id, pageParam),
+    initialPageParam: undefined,
+    getNextPageParam: cursorOf,
   })
+  const messages = useMemo(() => flatten(data?.pages), [data])
 
   // Clearing the badge is the reader's own side only, and the endpoint is
-  // idempotent — safe to call on every open.
+  // idempotent — safe to call on every open, and again whenever a new message
+  // from the other side lands while the thread is on screen; otherwise the
+  // badge stays lit for a message the reader is already looking at.
+  const latestTheirs = [...messages].reverse().find((m) => !m.mine && !m.pending)?.id ?? null
   useEffect(() => {
     if (!id) return
     messagesApi
@@ -46,34 +69,47 @@ export default function MessageThread() {
         qc.invalidateQueries({ queryKey: ['messages', 'unread'] })
       })
       .catch(() => {})
-  }, [id, qc])
+  }, [id, latestTheirs, qc])
 
-  // Jump to the newest message, the way every chat behaves. `auto` rather than
-  // `smooth` on first paint: animating a scroll the user did not ask for is
-  // motion for its own sake.
+  // Jump to the newest message, the way every chat behaves — but only when the
+  // tail changes. Loading older history must not yank the reader back down.
+  const lastId = messages[messages.length - 1]?.id
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: 'end' })
-  }, [messages.length])
+  }, [lastId])
+
+  // Loading older pages prepends; keep the message the reader was looking at
+  // in place by restoring the scroll offset from the bottom.
+  const scrollRef = useRef(null)
+  const loadOlder = async () => {
+    const el = scrollRef.current
+    const fromBottom = el ? el.scrollHeight - el.scrollTop : 0
+    await fetchNextPage()
+    // The new rows are not committed yet when the promise settles; wait a frame.
+    if (el) requestAnimationFrame(() => { el.scrollTop = el.scrollHeight - fromBottom })
+  }
 
   const sendMut = useMutation({
-    mutationFn: (body) => messagesApi.send(id, body),
-    onMutate: async (body) => {
-      await qc.cancelQueries({ queryKey: ['conversation', id, 'messages'] })
-      const previous = qc.getQueryData(['conversation', id, 'messages'])
-      qc.setQueryData(['conversation', id, 'messages'], (old = []) => [
-        ...old,
-        { id: `pending-${Date.now()}`, body, mine: true, pending: true, date_created: new Date().toISOString() },
-      ])
-      return { previous }
+    mutationFn: ({ body }) => messagesApi.send(id, body),
+    onMutate: async ({ body, tempId }) => {
+      await qc.cancelQueries({ queryKey: messagesKey })
+      qc.setQueryData(messagesKey, (old) =>
+        patchLast(old ?? { pages: [[]], pageParams: [undefined] }, (page) => [
+          ...page.filter((m) => m.id !== tempId),
+          { id: tempId, body, mine: true, pending: true, date_created: new Date().toISOString() },
+        ]),
+      )
     },
-    onError: (_err, _body, context) => {
-      // Put the text back in the box rather than leaving a message that looks
-      // sent but never was.
-      qc.setQueryData(['conversation', id, 'messages'], context?.previous)
+    onError: (_err, { tempId }) => {
+      // Keep the bubble, flagged failed and tappable to retry — discarding it
+      // is how a message ends up typed twice.
+      qc.setQueryData(messagesKey, (old) =>
+        patchLast(old, (page) => page.map((m) => (m.id === tempId ? { ...m, pending: false, failed: true } : m))),
+      )
       toast.error(t('messages.failed'))
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['conversation', id, 'messages'] })
+      qc.invalidateQueries({ queryKey: messagesKey })
       qc.invalidateQueries({ queryKey: ['conversations'] })
     },
   })
@@ -83,8 +119,9 @@ export default function MessageThread() {
     const body = draft.trim()
     if (!body) return
     setDraft('')
-    sendMut.mutate(body)
+    sendMut.mutate({ body, tempId: `pending-${Date.now()}` })
   }
+  const retry = (m) => sendMut.mutate({ body: m.body, tempId: m.id })
 
   const stamp = (value) => {
     const locale = i18n.language === 'mn' ? 'mn-MN' : 'en-GB'
@@ -114,7 +151,14 @@ export default function MessageThread() {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto py-4 space-y-2">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto py-4 space-y-2">
+        {!isError && !isLoading && hasNextPage && (
+          <div className="flex justify-center pb-2">
+            <Button variant="secondary" size="sm" onClick={loadOlder} disabled={isFetchingNextPage}>
+              {t('messages.loadOlder')}
+            </Button>
+          </div>
+        )}
         {isError ? (
           <ErrorState onRetry={refetch} compact />
         ) : isLoading ? (
@@ -125,13 +169,17 @@ export default function MessageThread() {
           messages.map((m) => (
             <div key={m.id} className={`flex ${m.mine ? 'justify-end' : 'justify-start'}`}>
               <div
+                role={m.failed ? 'button' : undefined}
+                tabIndex={m.failed ? 0 : undefined}
+                onClick={m.failed ? () => retry(m) : undefined}
+                onKeyDown={m.failed ? (e) => e.key === 'Enter' && retry(m) : undefined}
                 className={`max-w-[80%] rounded-card px-3 py-2 ${
                   m.mine ? 'bg-primary text-on-primary' : 'bg-surface2 text-text'
-                } ${m.pending ? 'opacity-60' : ''}`}
+                } ${m.pending ? 'opacity-60' : ''} ${m.failed ? 'opacity-60 ring-2 ring-danger cursor-pointer' : ''}`}
               >
                 <p className="text-sm whitespace-pre-wrap break-words">{m.body}</p>
                 <p className={`text-[10px] mt-1 ${m.mine ? 'text-on-primary/70' : 'text-muted'}`}>
-                  {m.pending ? t('messages.sending') : stamp(m.date_created)}
+                  {m.failed ? t('messages.retry') : m.pending ? t('messages.sending') : stamp(m.date_created)}
                 </p>
               </div>
             </div>

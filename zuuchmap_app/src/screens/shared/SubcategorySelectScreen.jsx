@@ -3,15 +3,13 @@ import { View, Text, FlatList, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spacing, typography, safeAreaHelpers, radius, withAlpha } from '../../design/theme';
+import { ScreenLayout } from '../../components';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
-import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import SearchInput from '../../components/SearchInput';
-import ScreenHeader from '../../components/ScreenHeader';
 import WizardSteps from '../../components/WizardSteps';
 import EmptyState from '../../components/EmptyState';
 import PressableScale from '../../components/PressableScale';
-import FadeSlideIn from '../../components/FadeSlideIn';
 
 const SubcategoryCard = ({ item, isSelected, onSelect, colors, styles, label }) => {
     const displayName = label;
@@ -39,7 +37,7 @@ const SubcategoryCard = ({ item, isSelected, onSelect, colors, styles, label }) 
 };
 
 const SubcategorySelectScreen = ({ route, navigation }) => {
-    const { colors, isDark, styles: gStyles } = useAppTheme();
+    const { colors, styles: gStyles } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
     const { t, i18n } = useTranslation();
     const { role, category, categoryDisplayName, subcategories } = route.params;
@@ -94,8 +92,7 @@ const SubcategorySelectScreen = ({ route, navigation }) => {
     };
 
     return (
-        <CustomSafeAreaView backgroundColor={colors.background} statusBarColor={colors.surface} statusBarStyle={isDark ? 'light-content' : 'dark-content'}>
-            <ScreenHeader title={t('category.subcategoryTitle')} onBack={() => navigation.goBack()} />
+        <ScreenLayout title={t('category.subcategoryTitle')} onBack={() => navigation.goBack()}>
             {role === 'provider' && (
                 <WizardSteps current={2} labels={[t('provider.stepCategory'), t('provider.stepSubcategory'), t('provider.stepLocation'), t('provider.stepDetails')]} />
             )}
@@ -131,7 +128,6 @@ const SubcategorySelectScreen = ({ route, navigation }) => {
                         keyboardShouldPersistTaps="handled"
                         keyExtractor={(item, i) => (typeof item === 'object' ? item.value : item) + i}
                         renderItem={({ item, index }) => (
-                            <FadeSlideIn index={index}>
                                 <SubcategoryCard
                                     item={item}
                                     isSelected={selected === item}
@@ -140,7 +136,6 @@ const SubcategorySelectScreen = ({ route, navigation }) => {
                                     styles={styles}
                                     label={subLabel(item)}
                                 />
-                            </FadeSlideIn>
                         )}
                         contentContainerStyle={[
                             styles.list,
@@ -164,7 +159,7 @@ const SubcategorySelectScreen = ({ route, navigation }) => {
                     />
                 )}
             </View>
-        </CustomSafeAreaView>
+        </ScreenLayout>
     );
 };
 

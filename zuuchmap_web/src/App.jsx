@@ -1,13 +1,13 @@
 import { useEffect, lazy, Suspense } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import { AnimatePresence, useReducedMotion } from 'framer-motion'
-import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore, useThemeStore } from './store'
 import AppLayout from './components/AppLayout'
 import { AdminRoute, ProviderRoute, CustomerRoute, AuthedRoute } from './components/ProtectedRoute'
 import ErrorBoundary from './components/ErrorBoundary'
 import { useRealtimeSync } from './hooks/useRealtimeSync'
+import { useProfile } from './hooks/useProfile'
 import { trackPageView } from './lib/analytics'
+import { queryClient } from './lib/queryClient'
 
 // The landing page and the public chrome stay in the entry chunk: `/` is the
 // most common first paint, and making it wait on a second round trip is the
@@ -35,14 +35,13 @@ const AdminAnalytics = lazy(() => import('./pages/AdminAnalytics'))
 const ProviderDashboard = lazy(() => import('./pages/ProviderDashboard'))
 const ProviderPosts = lazy(() => import('./pages/ProviderPosts'))
 const ProviderPostForm = lazy(() => import('./pages/ProviderPostForm'))
-const ProviderProfile = lazy(() => import('./pages/ProviderProfile'))
+const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 const ProviderCompany = lazy(() => import('./pages/ProviderCompany'))
 const Bookings = lazy(() => import('./pages/Bookings'))
 const CustomerDashboard = lazy(() => import('./pages/CustomerDashboard'))
 const CustomerBrowse = lazy(() => import('./pages/CustomerBrowse'))
 const CustomerMap = lazy(() => import('./pages/CustomerMap'))
 const CustomerSaved = lazy(() => import('./pages/CustomerSaved'))
-const CustomerProfile = lazy(() => import('./pages/CustomerProfile'))
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage'))
 const SavedSearchesPage = lazy(() => import('./pages/SavedSearchesPage'))
 const MessagesPage = lazy(() => import('./pages/MessagesPage'))
@@ -97,13 +96,14 @@ export default function App() {
   const hydrate = useAuthStore((s) => s.hydrate)
   const theme = useThemeStore((s) => s.theme)
   const location = useLocation()
-  const qc = useQueryClient()
-  const shouldReduceMotion = useReducedMotion()
 
   // Lives here, above the pathname-keyed <Routes> — inside AppLayout it was
   // remounted on every navigation, tearing down and re-handshaking the
   // WebSocket each time (dropped events + a connect storm on the server).
   useRealtimeSync()
+  // Mounted once for the whole app: fetches the profile as soon as a token is
+  // known and keeps the store's identity (type / is_admin) in step with the server.
+  useProfile()
 
   useEffect(() => { hydrate() }, []) // eslint-disable-line
 
@@ -117,13 +117,15 @@ export default function App() {
   useEffect(() => { trackPageView(location.pathname) }, [location.pathname])
 
   return (
-    /* Suspense sits OUTSIDE AnimatePresence on purpose: AnimatePresence tracks
-       the keys of its DIRECT children, so interposing an unkeyed <Suspense>
-       between it and the pathname-keyed <Routes> silently kills every page
-       exit transition. */
+    /* <Routes> is deliberately NOT keyed on the pathname. Keying it remounted
+       the whole tree on every navigation — sidebar and header included — so
+       the entire screen blinked out and faded back. The page-only crossfade
+       lives in AppLayout's pathname-keyed motion.div; the shell stays put. */
+    /* Pages inside the app shell get a boundary in AppLayout; this one catches
+       the public routes (login, verify, browse, listing, policy). */
+    <ErrorBoundary queryClient={queryClient}>
     <Suspense fallback={<RouteFallback />}>
-    <AnimatePresence mode={shouldReduceMotion ? 'sync' : 'wait'}>
-      <Routes location={location} key={location.pathname}>
+      <Routes>
         {/* Public */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/verify" element={<VerifyPage />} />
@@ -139,60 +141,60 @@ export default function App() {
         {/* Shared by every signed-in role, like the app's Notifications screen. */}
         <Route element={<AuthedRoute />}>
           <Route element={<AppLayout />}>
-            <Route path="/notifications" element={<ErrorBoundary queryClient={qc}><NotificationsPage /></ErrorBoundary>} />
+            <Route path="/notifications" element={<NotificationsPage />} />
             {/* Both sides of a thread live here — a conversation has a customer
                 and a provider, so it cannot sit under either role's routes. */}
-            <Route path="/messages" element={<ErrorBoundary queryClient={qc}><MessagesPage /></ErrorBoundary>} />
-            <Route path="/messages/:id" element={<ErrorBoundary queryClient={qc}><MessageThread /></ErrorBoundary>} />
+            <Route path="/messages" element={<MessagesPage />} />
+            <Route path="/messages/:id" element={<MessageThread />} />
           </Route>
         </Route>
 
         <Route element={<AdminRoute />}>
           <Route element={<AppLayout />}>
-            <Route path="/admin" element={<ErrorBoundary queryClient={qc}><AdminDashboard /></ErrorBoundary>} />
-            <Route path="/admin/posts" element={<ErrorBoundary queryClient={qc}><AdminPosts /></ErrorBoundary>} />
-            <Route path="/admin/posts/:id" element={<ErrorBoundary queryClient={qc}><PostDetail /></ErrorBoundary>} />
-            <Route path="/admin/users" element={<ErrorBoundary queryClient={qc}><AdminUsers /></ErrorBoundary>} />
-            <Route path="/admin/users/:id" element={<ErrorBoundary queryClient={qc}><AdminUserDetail /></ErrorBoundary>} />
-            <Route path="/admin/categories" element={<ErrorBoundary queryClient={qc}><AdminCategories /></ErrorBoundary>} />
-            <Route path="/admin/analytics" element={<ErrorBoundary queryClient={qc}><AdminAnalytics /></ErrorBoundary>} />
-            <Route path="/admin/reports" element={<ErrorBoundary queryClient={qc}><AdminReports /></ErrorBoundary>} />
-            <Route path="/admin/profile" element={<ErrorBoundary queryClient={qc}><ProviderProfile /></ErrorBoundary>} />
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin/posts" element={<AdminPosts />} />
+            <Route path="/admin/posts/:id" element={<PostDetail />} />
+            <Route path="/admin/users" element={<AdminUsers />} />
+            <Route path="/admin/users/:id" element={<AdminUserDetail />} />
+            <Route path="/admin/categories" element={<AdminCategories />} />
+            <Route path="/admin/analytics" element={<AdminAnalytics />} />
+            <Route path="/admin/reports" element={<AdminReports />} />
+            <Route path="/admin/profile" element={<ProfilePage />} />
           </Route>
         </Route>
 
         {/* Provider (and admin-providers) */}
         <Route element={<ProviderRoute />}>
           <Route element={<AppLayout />}>
-            <Route path="/provider" element={<ErrorBoundary queryClient={qc}><ProviderDashboard /></ErrorBoundary>} />
-            <Route path="/provider/posts" element={<ErrorBoundary queryClient={qc}><ProviderPosts /></ErrorBoundary>} />
-            <Route path="/provider/posts/new" element={<ErrorBoundary queryClient={qc}><ProviderPostForm /></ErrorBoundary>} />
-            <Route path="/provider/posts/:id" element={<ErrorBoundary queryClient={qc}><PostDetail /></ErrorBoundary>} />
-            <Route path="/provider/posts/:id/edit" element={<ErrorBoundary queryClient={qc}><ProviderPostForm /></ErrorBoundary>} />
-            <Route path="/provider/profile" element={<ErrorBoundary queryClient={qc}><ProviderProfile /></ErrorBoundary>} />
-            <Route path="/provider/company" element={<ErrorBoundary queryClient={qc}><ProviderCompany /></ErrorBoundary>} />
-            <Route path="/provider/bookings" element={<ErrorBoundary queryClient={qc}><Bookings mode="provider" /></ErrorBoundary>} />
-            <Route path="/provider/billing" element={<ErrorBoundary queryClient={qc}><ProviderBilling /></ErrorBoundary>} />
+            <Route path="/provider" element={<ProviderDashboard />} />
+            <Route path="/provider/posts" element={<ProviderPosts />} />
+            <Route path="/provider/posts/new" element={<ProviderPostForm />} />
+            <Route path="/provider/posts/:id" element={<PostDetail />} />
+            <Route path="/provider/posts/:id/edit" element={<ProviderPostForm />} />
+            <Route path="/provider/profile" element={<ProfilePage />} />
+            <Route path="/provider/company" element={<ProviderCompany />} />
+            <Route path="/provider/bookings" element={<Bookings mode="provider" />} />
+            <Route path="/provider/billing" element={<ProviderBilling />} />
           </Route>
         </Route>
 
         {/* Customer only */}
         <Route element={<CustomerRoute />}>
           <Route element={<AppLayout />}>
-            <Route path="/customer" element={<ErrorBoundary queryClient={qc}><CustomerDashboard /></ErrorBoundary>} />
-            <Route path="/customer/browse" element={<ErrorBoundary queryClient={qc}><CustomerBrowse /></ErrorBoundary>} />
-            <Route path="/customer/map" element={<ErrorBoundary queryClient={qc}><CustomerMap /></ErrorBoundary>} />
-            <Route path="/customer/saved" element={<ErrorBoundary queryClient={qc}><CustomerSaved /></ErrorBoundary>} />
-            <Route path="/customer/saved-searches" element={<ErrorBoundary queryClient={qc}><SavedSearchesPage /></ErrorBoundary>} />
-            <Route path="/customer/profile" element={<ErrorBoundary queryClient={qc}><CustomerProfile /></ErrorBoundary>} />
-            <Route path="/customer/bookings" element={<ErrorBoundary queryClient={qc}><Bookings mode="customer" /></ErrorBoundary>} />
+            <Route path="/customer" element={<CustomerDashboard />} />
+            <Route path="/customer/browse" element={<CustomerBrowse />} />
+            <Route path="/customer/map" element={<CustomerMap />} />
+            <Route path="/customer/saved" element={<CustomerSaved />} />
+            <Route path="/customer/saved-searches" element={<SavedSearchesPage />} />
+            <Route path="/customer/profile" element={<ProfilePage />} />
+            <Route path="/customer/bookings" element={<Bookings mode="customer" />} />
           </Route>
         </Route>
 
         <Route path="/" element={<RootRedirect />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </AnimatePresence>
     </Suspense>
+    </ErrorBoundary>
   )
 }

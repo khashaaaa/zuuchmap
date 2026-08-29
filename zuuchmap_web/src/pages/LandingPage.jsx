@@ -4,7 +4,7 @@ import { motion, useReducedMotion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ShieldCheck } from 'lucide-react'
-import { postsApi, categoryApi } from '@/lib/api'
+import { postsApi } from '@/lib/api'
 import { getCategoryLabel, getCategoryColor, getCategoryIcon, getImageUrl, getPostTitle, formatPrice, withAlpha, toneForTheme, hideBrokenImage } from '@/lib/utils'
 import { trackPageView } from '@/lib/analytics'
 import { useThemeStore } from '@/store'
@@ -13,13 +13,11 @@ import PublicFooter from '@/components/PublicFooter'
 import PostCard from '@/components/PostCard'
 import ErrorState from '@/components/ErrorState'
 import Button from '@/components/Button'
-import { CountUp } from '@/components/StatCard'
+import { useCategories } from '@/hooks/useCategories'
 
 /* Film-strip tile for the showcase ribbon: the photo is the card, title and
-   price sit on a scrim (onMedia idiom — white on photography in both themes).
-   The ribbon's duplicate group passes tabbable={false} so keyboard users only
-   meet each listing once. */
-function RibbonCard({ post, t, tabbable = true }) {
+   price sit on a scrim (onMedia idiom — white on photography in both themes). */
+function RibbonCard({ post, t }) {
   const title = getPostTitle(post, t)
   const price = formatPrice(post.price_amount, post.price_unit, t)
   // bg-surface2 so a photo that 404s leaves a card, not a hole: hideBrokenImage
@@ -27,7 +25,6 @@ function RibbonCard({ post, t, tabbable = true }) {
   return (
     <Link
       to={`/posts/${post.id}`}
-      tabIndex={tabbable ? undefined : -1}
       className="group relative block w-64 h-44 rounded-card overflow-hidden bg-surface2 shadow-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
     >
       <img
@@ -69,11 +66,7 @@ export default function LandingPage() {
     staleTime: 5 * 60_000,
   })
 
-  const { data: schemas = [], isError: schemasError, isLoading: schemasLoading, refetch: refetchSchemas } = useQuery({
-    queryKey: ['categories'],
-    queryFn: categoryApi.getAll,
-    staleTime: 5 * 60_000,
-  })
+  const { data: schemas = [], isError: schemasError, isLoading: schemasLoading, refetch: refetchSchemas } = useCategories()
 
   const { data: recent = [], isLoading: recentLoading, isError: recentError } = useQuery({
     queryKey: ['posts', { approval_status: 'APPROVED', limit: 12 }],
@@ -83,9 +76,9 @@ export default function LandingPage() {
   })
 
   // The ribbon is a film-strip, so it only holds listings that bring a photo;
-  // with too few it can't loop convincingly and the static grid reads better.
+  // with too few a row reads worse than the plain grid.
   const withImages = recent.filter((p) => p.images?.length)
-  const showRibbon = !shouldReduceMotion && withImages.length >= 4
+  const showRibbon = withImages.length >= 4
 
   const countFor = (key) =>
     stats?.by_category?.find((c) => c.key === key)?.count ?? 0
@@ -109,7 +102,7 @@ export default function LandingPage() {
         className="relative isolate max-w-6xl mx-auto px-4 pt-14 pb-10 md:pt-20 md:pb-14"
       >
         <div className="hero-ambient" aria-hidden="true" />
-        <motion.h1 variants={heroItem} className="max-w-3xl font-extrabold text-text tracking-tight leading-[1.05] text-[clamp(2.25rem,6vw,4rem)]">
+        <motion.h1 variants={heroItem} className="max-w-3xl font-extrabold text-text tracking-tight leading-[1.12] text-[clamp(2.25rem,6vw,4rem)]">
           {t('landing.heroTitle')}
         </motion.h1>
         <motion.p variants={heroItem} className="max-w-2xl mt-5 text-base md:text-lg text-muted leading-relaxed">
@@ -130,7 +123,7 @@ export default function LandingPage() {
             <div key={stat.label}>
               <dt className="sr-only">{stat.label}</dt>
               <dd className="text-2xl md:text-3xl font-bold text-text tabular-nums">
-                {typeof stat.value === 'number' ? <CountUp value={stat.value} /> : '—'}
+                {typeof stat.value === 'number' ? stat.value.toLocaleString() : '—'}
               </dd>
               <p className="text-xs text-muted mt-0.5" aria-hidden="true">{stat.label}</p>
             </div>
@@ -168,7 +161,7 @@ export default function LandingPage() {
                   <Icon size={18} className="shrink-0 mt-0.5" style={tone ? { color: tone } : undefined} aria-hidden="true" />
                 </span>
                 <span className="mt-3 text-2xl font-bold text-text tabular-nums">
-                  <CountUp value={countFor(schema.key)} />
+                  {countFor(schema.key).toLocaleString()}
                 </span>
               </Link>
             )
@@ -195,19 +188,14 @@ export default function LandingPage() {
               ))}
             </div>
           ) : showRibbon ? (
-            <div className="marquee" style={{ '--marquee-dur': `${withImages.length * 6}s` }}>
+            <div className="marquee">
               <div className="marquee-track">
-                <div className="marquee-group">
-                  {withImages.map((post) => <RibbonCard key={post.id} post={post} t={t} />)}
-                </div>
-                <div className="marquee-group" aria-hidden="true">
-                  {withImages.map((post) => <RibbonCard key={`dup-${post.id}`} post={post} t={t} tabbable={false} />)}
-                </div>
+                {withImages.map((post) => <RibbonCard key={post.id} post={post} t={t} />)}
               </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {recent.slice(0, 8).map((post, i) => <PostCard key={post.id} post={post} index={i} />)}
+              {recent.slice(0, 8).map((post) => <PostCard key={post.id} post={post} />)}
             </div>
           )}
         </section>

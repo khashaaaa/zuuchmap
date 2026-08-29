@@ -193,7 +193,12 @@ export class BookingService {
         [post.user.id],
         'Шинэ захиалгын хүсэлт',
         `"${post.title ?? schema.label}" зарт захиалгын хүсэлт ирлээ.`,
-        { bookingId: saved.id, notifType: SOCKET_EVENTS.BOOKING_REQUESTED },
+        {
+          bookingId: saved.id,
+          postId: post.id,
+          notifType: SOCKET_EVENTS.BOOKING_REQUESTED,
+          url: '/provider/bookings',
+        },
       )
       .catch((err) =>
         this.logger.warn(`booking notify backstop: ${err?.message}`),
@@ -308,7 +313,12 @@ export class BookingService {
         accept
           ? `"${booking.post.title ?? ''}" захиалгын хүсэлт зөвшөөрөгдлөө.`
           : `"${booking.post.title ?? ''}" захиалгын хүсэлт татгалзагдлаа.`,
-        { bookingId: saved.id, notifType: SOCKET_EVENTS.BOOKING_RESPONDED },
+        {
+          bookingId: saved.id,
+          postId: booking.post?.id,
+          notifType: SOCKET_EVENTS.BOOKING_RESPONDED,
+          url: '/customer/bookings',
+        },
       )
       .catch((err) =>
         this.logger.warn(`booking notify backstop: ${err?.message}`),
@@ -374,7 +384,12 @@ export class BookingService {
         [booking.provider.id],
         'Захиалга цуцлагдлаа',
         `"${booking.post.title ?? ''}" захиалга цуцлагдлаа.`,
-        { bookingId: saved.id, notifType: SOCKET_EVENTS.BOOKING_CANCELLED },
+        {
+          bookingId: saved.id,
+          postId: booking.post?.id,
+          notifType: SOCKET_EVENTS.BOOKING_CANCELLED,
+          url: '/provider/bookings',
+        },
       )
       .catch((err) =>
         this.logger.warn(`booking notify backstop: ${err?.message}`),
@@ -456,6 +471,7 @@ export class BookingService {
               bookingId: b.id,
               postId: b.post.id,
               providerId: b.provider?.id,
+              url: `/posts/${b.post.id}?review=1`,
             },
           })),
       );

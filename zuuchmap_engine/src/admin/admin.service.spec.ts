@@ -22,7 +22,6 @@ describe('AdminService.getPendingPosts', () => {
       {} as any,
       {} as any,
       undefined as any,
-      {} as any,
     );
     return { svc, qb };
   };

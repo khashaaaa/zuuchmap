@@ -6,7 +6,6 @@ import {
     Text,
     FlatList,
     TouchableOpacity,
-    Image,
     RefreshControl,
     ScrollView,
     StyleSheet,
@@ -15,11 +14,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spacing, typography, radius, interactions, isTablet, toneForTheme } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
-import { useMinDisplayTime } from '../../hooks/useMinDisplayTime';
 import { useTranslation } from 'react-i18next';
-import CustomSafeAreaView from '../../components/CustomSafeAreaView';
-import ScreenHeader from '../../components/ScreenHeader';
-import { EmptyState, SkeletonItem, FadeSlideIn, PressableScale, SelectionPop } from '../../components';
+import PostCard from '../../components/PostCard';
+import { ScreenLayout, EmptyState, SkeletonItem, SelectionPop } from '../../components';
 import ScreenError from '../../components/ScreenError';
 import postService from '../../services/api/postService';
 import { getPostImageUrl } from '../../config/api.config';
@@ -35,7 +32,6 @@ const AdminPostList = ({ navigation, route }) => {
     const { t } = useTranslation();
     const initialFilter = route?.params?.filterType || 'all';
     const [activeFilter, setActiveFilter] = useState(initialFilter);
-    const [imageErrors, setImageErrors] = useState({});
 
     const { data: categories = [] } = useQuery({
         queryKey: ['categories'],
@@ -62,58 +58,45 @@ const AdminPostList = ({ navigation, route }) => {
 
     const handleRefresh = refetch;
 
+    const handlePostPress = useCallback((item) => {
+        navigation.navigate('PostDetailScreen', { postId: item.id, postType: item.postType, role: 'admin' });
+    }, [navigation]);
+
     const renderItem = useCallback(({ item, index }) => {
-        const imgKey = `${item.postType}-${item.id}`;
-        const hasErr = imageErrors[imgKey];
-        const thumb = getPostImageUrl(item.images?.[0]);
-        const title = getPostTitle(item, item.postType);
         // Schema colour through toneForTheme — amber stays reserved for accents.
         const schema = categories.find(c => c.key === item.postType);
         const typeColor = schema?.color ? toneForTheme(schema.color, isDark) : colors.text.secondary;
+        const typeLabel = schema ? getSchemaLabel(schema) : (item.postType ? t(`category.${item.postType}`, { defaultValue: item.postType }) : '');
 
         return (
-            <FadeSlideIn index={index} style={isTablet && { flex: 1 }}>
-                <PressableScale
+            <View style={isTablet && { flex: 1 }}>
+                <PostCard
+                    item={item}
+                    onPress={handlePostPress}
+                    imageUri={getPostImageUrl(item.images?.[0])}
+                    title={getPostTitle(item, item.postType)}
                     style={styles.card}
-                    onPress={() => navigation.navigate('PostDetailScreen', { postId: item.id, postType: item.postType, role: 'admin' })}
+                    memoKey={typeLabel}
+                    badges={<Text style={[styles.cardType, { color: typeColor }]}>{typeLabel}</Text>}
+                    trailing={<Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} style={styles.chevron} />}
                 >
-                    <View style={styles.imgBox}>
-                        {hasErr || !thumb ? (
-                            <View style={styles.noImg}>
-                                <Ionicons name="image-outline" size={28} color={colors.iconAccent} />
-                            </View>
-                        ) : (
-                            <Image
-                                source={{ uri: thumb }}
-                                style={styles.img}
-                                resizeMode="cover"
-                                onError={() => setImageErrors(p => ({ ...p, [imgKey]: true }))}
-                            />
-                        )}
-                    </View>
-                    <View style={styles.cardBody}>
-                        <Text style={styles.cardTitle} numberOfLines={2}>{title}</Text>
-                        <Text style={[styles.cardType, { color: typeColor }]}>{schema ? getSchemaLabel(schema) : (item.postType ? t(`category.${item.postType}`, { defaultValue: item.postType }) : '')}</Text>
-                        {item.user && (
-                            <Text style={styles.cardUser} numberOfLines={1}>
-                                {item.user.given_name || item.user.phone_number}
-                            </Text>
-                        )}
-                        <Text style={styles.cardDate}>
-                            {formatDate(item.date_created)}
+                    {item.user && (
+                        <Text style={styles.cardUser} numberOfLines={1}>
+                            {item.user.given_name || item.user.phone_number}
                         </Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} style={styles.chevron} />
-                </PressableScale>
-            </FadeSlideIn>
+                    )}
+                    <Text style={styles.cardDate}>
+                        {formatDate(item.date_created)}
+                    </Text>
+                </PostCard>
+            </View>
         );
-    }, [imageErrors, navigation, colors, categories, isDark, t]);
+    }, [handlePostPress, colors, styles, categories, isDark, t]);
 
-    const showSkeleton = useMinDisplayTime(loading);
+    const showSkeleton = loading;
 
     return (
-        <CustomSafeAreaView backgroundColor={colors.background} statusBarColor={colors.surface} statusBarStyle={isDark ? 'light-content' : 'dark-content'}>
-            <ScreenHeader title={t('admin.pendingPosts')} onBack={() => navigation.goBack()} />
+        <ScreenLayout title={t('admin.pendingPosts')} onBack={() => navigation.goBack()}>
 
             <ScrollView
                 horizontal
@@ -182,7 +165,7 @@ const AdminPostList = ({ navigation, route }) => {
                     showsVerticalScrollIndicator={false}
                 />
             )}
-        </CustomSafeAreaView>
+        </ScreenLayout>
     );
 };
 
@@ -194,14 +177,10 @@ const createStyles = (colors) => StyleSheet.create({
     // shifts every sibling in the row on tap.
     filterText: { ...typography.styles.label, includeFontPadding: false, textAlignVertical: 'center' },
     list: { padding: spacing.lg },
-    card: { ...colors.elevation.sm, flexDirection: 'row', borderRadius: radius.card, marginBottom: spacing.md, overflow: 'hidden', alignItems: 'center', backgroundColor: colors.surface, },
-    imgBox: { width: 100, height: 100, backgroundColor: colors.border.light },
-    img: { width: '100%', height: '100%' },
-    noImg: { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' },
-    cardBody: { flex: 1, padding: spacing.md },
-    cardTitle: { ...typography.styles.title, marginBottom: spacing.xs, color: colors.text.primary },
-    cardType: { ...typography.styles.badge, marginBottom: spacing.xs },
-    cardUser: { ...typography.styles.small, marginBottom: spacing.xs, color: colors.text.secondary },
+    // The chevron sits on the card's vertical centre, not at the top.
+    card: { alignItems: 'center' },
+    cardType: { ...typography.styles.badge },
+    cardUser: { ...typography.styles.small, color: colors.text.secondary },
     cardDate: { ...typography.styles.small, color: colors.text.tertiary },
     chevron: { paddingRight: spacing.sm },
 });

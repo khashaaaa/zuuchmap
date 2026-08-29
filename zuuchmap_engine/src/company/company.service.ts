@@ -1,7 +1,6 @@
 import {
   Injectable,
   NotFoundException,
-  InternalServerErrorException,
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -47,47 +46,31 @@ export class CompanyService {
   }
 
   async findOne(id: string): Promise<Company> {
-    try {
-      const company = await this.companyRepository.findOne({
-        where: { id },
-        relations: ['users'],
-      });
-      if (!company) {
-        throw new NotFoundException(`Company with ID ${id} not found`);
-      }
-      return company;
-    } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
-      throw new InternalServerErrorException(
-        'Failed to retrieve company: ' + error.message,
-      );
+    const company = await this.companyRepository.findOne({
+      where: { id },
+      relations: ['users'],
+    });
+    if (!company) {
+      throw new NotFoundException(`Company with ID ${id} not found`);
     }
+    return company;
   }
 
   async update(
     id: string,
     updateCompanyDto: UpdateCompanyDto,
   ): Promise<Company> {
-    try {
-      const company = await this.findOne(id);
+    const company = await this.findOne(id);
 
-      if (
-        updateCompanyDto.logo &&
-        company.logo &&
-        company.logo !== updateCompanyDto.logo
-      ) {
-        await deleteSingleImage(company.logo);
-      }
-
-      Object.assign(company, updateCompanyDto);
-      return await this.companyRepository.save(company);
-    } catch (error) {
-      if (error instanceof NotFoundException) throw error;
-      throw new InternalServerErrorException(
-        'Failed to update company: ' + error.message,
-      );
+    if (
+      updateCompanyDto.logo &&
+      company.logo &&
+      company.logo !== updateCompanyDto.logo
+    ) {
+      await deleteSingleImage(company.logo);
     }
+
+    Object.assign(company, updateCompanyDto);
+    return this.companyRepository.save(company);
   }
 }

@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, LessThan } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { SimpleCache } from 'src/utils/cache';
+import { sharedCache } from '../utils/cache';
 import { AnalyticsEvent } from './entities/analytics-event.entity';
 import { User } from '../user/entities/user.entity';
 import { APP_TIMEZONE } from '../utils/timezone';
@@ -29,7 +29,7 @@ interface DailyPoint {
 @Injectable()
 export class AnalyticsService {
   private readonly logger = new Logger(AnalyticsService.name);
-  private readonly cache = new SimpleCache();
+  private readonly cache = sharedCache;
 
   constructor(
     @InjectRepository(AnalyticsEvent)
@@ -108,7 +108,7 @@ export class AnalyticsService {
    */
   async summary(days: number): Promise<Record<string, unknown>> {
     const window = Math.min(Math.max(days || 30, 1), 365);
-    const key = `summary:${window}`;
+    const key = `analytics:summary:${window}`;
     const cached = this.cache.get<Record<string, unknown>>(key);
     if (cached) return cached;
 

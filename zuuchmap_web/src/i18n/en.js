@@ -1,6 +1,7 @@
 export default {
   errors: {
     tooManyRequests: 'Too many requests. Wait a moment.',
+    payloadTooLarge: 'The upload is too large. Use fewer or smaller photos.',
     codes: {
       TOO_MANY_VERIFICATIONS: 'Too many verification attempts. Try again in an hour.',
       BOOKING_POST_UNAVAILABLE: 'This post is not available for booking.',
@@ -73,7 +74,6 @@ export default {
     sessionExpired: 'Your session has expired. Sign in again.',
     loadFailed: "Couldn't load this",
     loadFailedDesc: 'Check your connection.',
-    showingOf: 'Showing {{shown}} of {{total}}',
     goHome: 'Go home',
     view: 'View',
   },
@@ -217,8 +217,6 @@ export default {
     creating: 'Saving...',
     uploadingPct: 'Uploading… {{pct}}%', created: 'Post added', updated: 'Post updated',
     stats: { views: 'Views', saves: 'Saves', requests: 'Booking requests' },
-    signInToSave: 'Sign in to save',
-    signInToBook: 'Sign in to book',
     editNeedsApproval: 'Editing the content sends this post back for review and hides it until then. Rental status and dates change freely.',
     updatedPending: 'Saved — your post is back in review and will return to the marketplace once approved.',
     createError: 'There was a problem creating your post',
@@ -257,6 +255,7 @@ export default {
     privacy: 'Privacy policy', terms: 'Terms of service',
     deleteAccount: 'Delete account', helpSupport: 'Help & support',
   },
+  crop: { title: 'Adjust image', zoom: 'Zoom', rotate: 'Rotate 90°', hint: 'Drag to reposition. The square is what will be shown.' },
   company: {
     regNumber: 'Registration number',
     nameRequired: 'Company name is required',
@@ -364,6 +363,7 @@ export default {
     statsUpdated: 'Stats updated',
     bookingRequested: 'New booking request', bookingAccepted: 'Your booking was accepted',
     bookingDeclined: 'Your booking was declined', bookingCancelled: 'A booking was cancelled',
+    sound: 'Sound',
   },
   subcategory: {
     car: 'Sedan', suv: 'SUV', truck: 'Truck', bus: 'Bus', van: 'Van',
@@ -442,6 +442,7 @@ export default {
   },
 
   booking: {
+    book: 'Book',
     postRemoved: 'Post removed',
     request: 'Request booking', startDate: 'Start date', endDate: 'End date',
     message: 'Message', messagePlaceholder: 'Tell the provider what you need...',
@@ -532,21 +533,18 @@ export default {
   },
   messages: {
     title: 'Messages',
-    inbox: 'Inbox',
     empty: 'No messages yet',
     emptyHint: 'Use "Message provider" on any listing to reach the owner directly.',
-    openThread: 'Open',
     messageProvider: 'Message provider',
     placeholder: 'Write a message...',
     send: 'Send',
     sending: 'Sending...',
-    loadEarlier: 'Earlier messages',
     deletedListing: 'Listing removed',
-    unread_one: '{{count}} new',
-    unread_other: '{{count}} new',
     failed: 'Could not send the message.',
+    retry: 'Not sent · tap to retry',
+    loadOlder: 'Load earlier messages',
+    loadMore: 'Load more',
     signInRequired: 'Sign in to send a message.',
-    ownPost: 'You cannot message yourself about your own listing.',
   },
   billing: {
     title: 'Plan & billing',
@@ -555,7 +553,6 @@ export default {
     expiresOn: 'Until {{date}}',
     expired: 'Expired',
     postsLimit: '{{count}} active listings',
-    upgrade: 'Upgrade',
     months: 'Duration',
     monthsValue: '{{count}} months',
     total: 'Total',
@@ -571,8 +568,6 @@ export default {
     history: 'Payment history',
     noHistory: 'No payments yet.',
     reference: 'Reference',
-    amount: 'Amount',
-    cancel: 'Cancel',
   },
   report: {
     action: 'Report',
@@ -600,6 +595,8 @@ export default {
     dismiss: 'Dismiss',
     resolutionPlaceholder: 'What you did about it (optional)',
     reporter: 'Reported by',
+    openOnPost_one: '{{count}} open report on this listing',
+    openOnPost_other: '{{count}} open reports on this listing',
     openCount: '{{count}} open',
     status: { OPEN: 'Open', RESOLVED: 'Resolved', DISMISSED: 'Dismissed' },
   },
@@ -608,7 +605,6 @@ export default {
     description: 'Get booking requests and approvals even when this tab is closed.',
     enable: 'Enable',
     disable: 'Turn off',
-    enabled: 'On',
     blocked: 'Notifications are blocked for this site. Allow them in your browser settings.',
     unsupported: 'This browser does not support notifications.',
     notConfigured: 'Notifications are unavailable right now.',

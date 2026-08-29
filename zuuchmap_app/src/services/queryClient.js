@@ -54,14 +54,19 @@ export const queryClient = new QueryClient({
   },
 });
 
-// One entry point for "post data changed" — clears both React Query caches and the
-// AsyncStorage fallbacks so no layer serves stale posts after a mutation/socket event.
+// One entry point for "post data changed" — refreshes every query that renders
+// post content plus the AsyncStorage map fallback, so no layer serves stale posts
+// after a mutation/socket event.
+//
+// Keys under `['posts']`: browse pages, similar posts, the provider's own list
+// (`['posts','mine']`) and its stats/summary. `['post']` is the detail screen.
+// The admin queue (`['admin']`) is invalidated where it changes instead —
+// usePostModeration and the admin socket events. `['liked']` stays here: a
+// deleted or rejected post must also leave the saved list.
 export const invalidatePostData = () => {
   invalidatePostCaches().catch(() => {});
   queryClient.invalidateQueries({ queryKey: ['posts'] });
   queryClient.invalidateQueries({ queryKey: ['post'] });
-  queryClient.invalidateQueries({ queryKey: ['provider', 'mine'] });
   queryClient.invalidateQueries({ queryKey: ['map', 'posts'] });
-  queryClient.invalidateQueries({ queryKey: ['admin'] });
   queryClient.invalidateQueries({ queryKey: ['liked'] });
 };

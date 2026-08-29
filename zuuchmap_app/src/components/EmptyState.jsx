@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { spacing, typography, radius, animations } from '../design/theme';
+import { spacing, typography, radius, animations, withAlpha, toneForTheme } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import Button from './Button';
@@ -15,6 +15,8 @@ import Button from './Button';
  *   button is the anchor.
  * - 'default'    — generic dead-end.
  * `eyebrow` optionally names the context above the title (overline).
+ * `accent` is a category hex: a filter dead-end for excavators should not look
+ * like one for jobs. Toned per theme and used for the glyph + disc tint.
  */
 const EmptyState = ({
     icon = 'document-outline',
@@ -23,9 +25,10 @@ const EmptyState = ({
     title,
     subtitle,
     actionButton,
+    accent,
     variant = 'default'
 }) => {
-    const { colors } = useAppTheme();
+    const { colors, isDark } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
     const reduced = useReducedMotion();
     const iconAnim = useRef(new Animated.Value(reduced ? 1 : 0)).current;
@@ -48,8 +51,10 @@ const EmptyState = ({
     });
 
     const invitation = variant === 'invitation';
+    const accentTone = accent ? toneForTheme(accent, isDark) : null;
     const getIconColor = () => {
-        if (variant === 'search' || invitation) return colors.primary;
+        if (accentTone) return accentTone;
+        if (variant === 'search' || invitation) return colors.iconAccent;
         return colors.text.tertiary;
     };
 
@@ -59,6 +64,7 @@ const EmptyState = ({
                 style={[
                     styles.iconContainer,
                     invitation && styles.iconContainerInvitation,
+                    accent && { backgroundColor: withAlpha(accent, isDark ? 0.14 : 0.1), borderColor: withAlpha(accent, isDark ? 0.4 : 0.3) },
                     !reduced && { opacity: iconAnim, transform: [{ scale: iconScale }] },
                 ]}
             >

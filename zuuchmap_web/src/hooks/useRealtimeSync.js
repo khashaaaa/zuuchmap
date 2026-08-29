@@ -3,6 +3,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useAuthStore, useNotificationStore } from '@/store'
+import { invalidatePostQueries } from '@/lib/queryClient'
+import { playNotifySound } from '@/lib/notifySound'
 import { connectSocket, disconnectSocket, destroySocket, SOCKET_EVENTS, ROOM_ADMIN, userRoom } from '@/lib/socket'
 
 export function useRealtimeSync() {
@@ -22,6 +24,18 @@ export function useRealtimeSync() {
     const handlers = {}
     const on = (event, fn) => { handlers[event] = fn; socket.on(event, fn) }
 
+    // A message sent while the socket was down never reaches this client as
+    // an event. Refetch the messaging reads on every *re*connect (the first
+    // connect is skipped — the screens fetch on mount) so the gap closes as
+    // soon as the network is back rather than on the next tab focus.
+    let connectedOnce = socket.connected
+    on('connect', () => {
+      if (!connectedOnce) { connectedOnce = true; return }
+      qc.invalidateQueries({ queryKey: ['conversations'] })
+      qc.invalidateQueries({ queryKey: ['messages', 'unread'] })
+      qc.invalidateQueries({ queryKey: ['conversation'] })
+    })
+
     on(SOCKET_EVENTS.POST_CREATED, ({ postId } = {}) => {
       qc.invalidateQueries({ queryKey: ['admin-pending'], refetchType: 'none' })
       qc.invalidateQueries({ queryKey: ['admin-stats'] })
@@ -29,27 +43,18 @@ export function useRealtimeSync() {
     })
 
     on(SOCKET_EVENTS.POST_APPROVED, ({ postId }) => {
-      qc.invalidateQueries({ queryKey: ['admin-pending'] })
-      qc.invalidateQueries({ queryKey: ['admin-stats'] })
-      qc.invalidateQueries({ queryKey: ['my-posts'] })
-      qc.invalidateQueries({ queryKey: ['posts'] })
-      qc.invalidateQueries({ queryKey: ['posts-map'] })
-      qc.invalidateQueries({ queryKey: ['public-stats'] })
-      if (postId) qc.invalidateQueries({ queryKey: ['post', String(postId)] })
+      invalidatePostQueries(qc, { postId })
       if (!isAdmin) {
+        playNotifySound()
         toast.success(t('admin.approveSuccess'))
         useNotificationStore.getState().add({ message: t('notifications.postApproved'), kind: 'success', postId })
       }
     })
 
     on(SOCKET_EVENTS.POST_REJECTED, ({ postId, reason }) => {
-      qc.invalidateQueries({ queryKey: ['admin-pending'] })
-      qc.invalidateQueries({ queryKey: ['admin-stats'] })
-      qc.invalidateQueries({ queryKey: ['my-posts'] })
-      qc.invalidateQueries({ queryKey: ['posts'] })
-      qc.invalidateQueries({ queryKey: ['posts-map'] })
-      if (postId) qc.invalidateQueries({ queryKey: ['post', String(postId)] })
+      invalidatePostQueries(qc, { postId })
       if (!isAdmin) {
+        playNotifySound()
         toast.error(`${t('posts.rejectionReason')}: ${reason}`)
         useNotificationStore.getState().add({ message: `${t('notifications.postRejected')}: ${reason}`, kind: 'error', postId })
       }
@@ -60,24 +65,27 @@ export function useRealtimeSync() {
       if (isAdmin) useNotificationStore.getState().add({ message: t('notifications.statsUpdated'), kind: 'info' })
     })
 
-    on(SOCKET_EVENTS.BOOKING_REQUESTED, () => {
+    on(SOCKET_EVENTS.BOOKING_REQUESTED, ({ postId } = {}) => {
       qc.invalidateQueries({ queryKey: ['bookings'] })
+      playNotifySound()
       toast(t('notifications.bookingRequested'))
-      useNotificationStore.getState().add({ message: t('notifications.bookingRequested'), kind: 'info', bookingRole: 'provider' })
+      useNotificationStore.getState().add({ message: t('notifications.bookingRequested'), kind: 'info', bookingRole: 'provider', postId, url: '/provider/bookings' })
     })
 
-    on(SOCKET_EVENTS.BOOKING_RESPONDED, ({ status }) => {
+    on(SOCKET_EVENTS.BOOKING_RESPONDED, ({ status } = {}) => {
       qc.invalidateQueries({ queryKey: ['bookings'] })
+      playNotifySound()
       const accepted = status === 'ACCEPTED'
       const message = accepted ? t('notifications.bookingAccepted') : t('notifications.bookingDeclined')
       if (accepted) toast.success(message); else toast.error(message)
-      useNotificationStore.getState().add({ message, kind: accepted ? 'success' : 'error', bookingRole: 'customer' })
+      useNotificationStore.getState().add({ message, kind: accepted ? 'success' : 'error', bookingRole: 'customer', url: '/customer/bookings' })
     })
 
     on(SOCKET_EVENTS.BOOKING_CANCELLED, () => {
       qc.invalidateQueries({ queryKey: ['bookings'] })
+      playNotifySound()
       toast(t('notifications.bookingCancelled'))
-      useNotificationStore.getState().add({ message: t('notifications.bookingCancelled'), kind: 'info', bookingRole: 'provider' })
+      useNotificationStore.getState().add({ message: t('notifications.bookingCancelled'), kind: 'info', bookingRole: 'provider', url: '/provider/bookings' })
     })
 
     on(SOCKET_EVENTS.MESSAGE_CREATED, ({ conversationId, preview } = {}) => {
@@ -87,6 +95,7 @@ export function useRealtimeSync() {
       qc.invalidateQueries({ queryKey: ['conversations'] })
       qc.invalidateQueries({ queryKey: ['messages', 'unread'] })
       if (conversationId) qc.invalidateQueries({ queryKey: ['conversation', conversationId] })
+      playNotifySound()
       toast(preview || t('messages.title'))
       useNotificationStore.getState().add({
         message: preview || t('messages.title'),
@@ -95,11 +104,12 @@ export function useRealtimeSync() {
       })
     })
 
-    on(SOCKET_EVENTS.REPORT_CREATED, () => {
+    on(SOCKET_EVENTS.REPORT_CREATED, ({ postId, reportId } = {}) => {
       // Admin-only by construction — the gateway emits this to the admin room.
-      qc.invalidateQueries({ queryKey: ['reports'] })
+      qc.invalidateQueries({ queryKey: ['reports'] }) // covers the queue, the count and per-post lists
       if (isAdmin) {
-        useNotificationStore.getState().add({ message: t('report.queue'), kind: 'info' })
+        playNotifySound()
+        useNotificationStore.getState().add({ message: t('report.queue'), kind: 'info', postId, reportId, url: '/admin/reports' })
       }
     })
 

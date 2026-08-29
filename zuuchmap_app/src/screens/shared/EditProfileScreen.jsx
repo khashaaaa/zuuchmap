@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import {
     View,
     Text,
@@ -26,6 +27,7 @@ import { validateEmail, validatePhone, validateRequired } from '../../utils/form
 import { showErrorModal, showInfoModal, showWarningModal } from '../../utils/errorManager';
 import { logger } from '../../utils/logger';
 import { queryClient } from '../../services/queryClient';
+import { PROFILE_KEY } from '../../hooks/useProfile';
 
 const PROFILE_FIELDS = [
     { key: 'parent_name', labelKey: 'profile.parentName', required: true },
@@ -74,7 +76,6 @@ const EditProfileScreen = ({ route, navigation }) => {
     const [profile, setProfile] = useState(passedProfile || null);
     const [formData, setFormData] = useState(formFromProfile(passedProfile));
     const [loading, setLoading] = useState(!passedProfile);
-    const [saving, setSaving] = useState(false);
     const [profileImage, setProfileImage] = useState(passedProfile?.profilePicture || null);
     const [companyLogo, setCompanyLogo] = useState(passedProfile?.companyLogo || null);
     const [newProfileImageSelected, setNewProfileImageSelected] = useState(false);
@@ -191,16 +192,9 @@ const EditProfileScreen = ({ route, navigation }) => {
         return Object.keys(errors).length ? errors : null;
     };
 
-    const handleSave = async () => {
-        const errors = validateForm();
-        if (errors) {
-            const firstErrorField = Object.keys(errors)[0];
-            if (firstErrorField) setTimeout(() => inputRefs.current[firstErrorField]?.focus?.(), 200);
-            return;
-        }
-
-        setSaving(true);
-        try {
+    const save = useMutation({
+        mutationKey: ['profile', 'update'],
+        mutationFn: async () => {
             const profilePayload = {
                 parent_name: formData.parent_name,
                 given_name: formData.given_name,
@@ -226,9 +220,11 @@ const EditProfileScreen = ({ route, navigation }) => {
                     showWarningModal(t('common.warning'), t('profile.companyUpdateFailed'));
                 }
             }
-
+            return { companyFailed };
+        },
+        onSuccess: ({ companyFailed }) => {
             // The profile half landed, so refresh it either way.
-            queryClient.invalidateQueries({ queryKey: ['profile'] });
+            queryClient.invalidateQueries({ queryKey: PROFILE_KEY });
 
             // ...but if the company half failed, stay put. Clearing `dirty` and
             // popping the screen discarded the company fields the user had just
@@ -238,12 +234,22 @@ const EditProfileScreen = ({ route, navigation }) => {
 
             setDirty(false);
             navigation.goBack();
-        } catch (error) {
+        },
+        onError: (error) => {
             logger.error('Profile update error:', error);
             showErrorModal(t('common.error'), t('profile.updateError'));
-        } finally {
-            setSaving(false);
+        },
+    });
+    const saving = save.isPending;
+
+    const handleSave = () => {
+        const errors = validateForm();
+        if (errors) {
+            const firstErrorField = Object.keys(errors)[0];
+            if (firstErrorField) setTimeout(() => inputRefs.current[firstErrorField]?.focus?.(), 200);
+            return;
         }
+        save.mutate();
     };
 
     const renderField = (field, isLast) => {

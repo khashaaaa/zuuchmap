@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
     View,
     Text,
@@ -14,6 +15,7 @@ import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet, d
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 import userService from '../../services/api/userService';
+import { useProfile } from '../../hooks/useProfile';
 import { ScreenLayout, SettingsSection, PressableScale, StatTile, FadeSlideIn } from '../../components';
 import { ProfileSection, ProfileActionRow } from '../../components';
 import { ProfileBadge } from '../../components';
@@ -26,51 +28,35 @@ const ProviderProfile = ({ navigation }) => {
     const insets = useSafeAreaInsets();
     const { colors, styles: gStyles } = useAppTheme();
     const { t } = useTranslation();
-    const [profile, setProfile] = useState(null);
-    const [isLoading, setIsLoading] = useState(true);
     const [imageError, setImageError] = useState(false);
     const [companyImageError, setCompanyImageError] = useState(false);
-    const [refreshing, setRefreshing] = useState(false);
+
+    const { data: profileData = null, isLoading, isRefetching, refetch: refetchProfile, error: profileError } = useProfile();
+    const { data: postsRes, refetch: refetchPosts, isRefetching: isRefetchingPosts } = useQuery({
+        queryKey: ['posts', 'mine', 'summary'],
+        queryFn: () => userService.getUserPosts().catch(() => null),
+        staleTime: 60 * 1000,
+    });
+
+    const profile = profileData && {
+        ...profileData,
+        totalPosts: postsRes?.data?.totalPosts ?? 0,
+        activePosts: postsRes?.data?.activePosts ?? 0,
+    };
 
     useEffect(() => {
-        loadProfile();
-
-        const unsubscribe = navigation.addListener('focus', () => {
-            loadProfile();
-        });
-
-        return unsubscribe;
-    }, [navigation]);
-
-    const loadProfile = async (showLoader = true) => {
-        if (showLoader) setIsLoading(true);
-        setImageError(false);
-        setCompanyImageError(false);
-        try {
-            const [profileData, postsRes] = await Promise.all([
-                userService.getUserProfile(),
-                userService.getUserPosts().catch(() => null),
-            ]);
-            setProfile({
-                ...profileData,
-                totalPosts: postsRes?.data?.totalPosts ?? 0,
-                activePosts: postsRes?.data?.activePosts ?? 0,
-            });
-        } catch (error) {
-            // See CustomerProfile: a tokenless 401 here is the logout, not a fault.
-            if (!isPostLogoutStraggler(error)) {
-                logger.error('Profile loading error:', error);
-                showErrorModal(t('common.error'), t('profile.saveError'));
-            }
-        } finally {
-            setIsLoading(false);
+        // See CustomerProfile: a tokenless 401 here is the logout, not a fault.
+        if (profileError && !isPostLogoutStraggler(profileError)) {
+            logger.error('Profile loading error:', profileError);
+            showErrorModal(t('common.error'), t('profile.saveError'));
         }
-    };
+    }, [profileError]);
 
-    const handleRefresh = async () => {
-        setRefreshing(true);
-        try { await loadProfile(false); } finally { setRefreshing(false); }
-    };
+    useEffect(() => { setImageError(false); setCompanyImageError(false); }, [profileData?.profilePicture, profileData?.companyLogo]);
+
+    const loadProfile = () => { refetchProfile(); refetchPosts(); };
+    const refreshing = isRefetching || isRefetchingPosts;
+    const handleRefresh = loadProfile;
 
     const handleImageError = () => setImageError(true);
     const handleCompanyImageError = () => setCompanyImageError(true);

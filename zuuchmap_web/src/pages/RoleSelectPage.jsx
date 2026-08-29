@@ -1,17 +1,18 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import { Truck, Search } from 'lucide-react'
-import { usersApi, categoryApi } from '@/lib/api'
+import { usersApi } from '@/lib/api'
 import { useAuthStore, useThemeStore } from '@/store'
 import { CATEGORY_COLORS, withAlpha, toneForTheme } from '@/lib/utils'
 import { toast } from 'sonner'
 import Button from '@/components/Button'
 import Logo from '@/components/Logo'
+import { useCategories } from '@/hooks/useCategories'
 
 export default function RoleSelectPage() {
+  const shouldReduceMotion = useReducedMotion()
   const { t } = useTranslation()
   const [selected, setSelected] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -22,11 +23,7 @@ export default function RoleSelectPage() {
 
   // The count was baked into the copy as "13". Categories are admin-editable
   // without a deploy, so the sentence went stale the moment one was added.
-  const { data: schemas = [] } = useQuery({
-    queryKey: ['categories'],
-    queryFn: categoryApi.getAll,
-    staleTime: 5 * 60_000,
-  })
+  const { data: schemas = [] } = useCategories()
   const categoryCount = schemas.filter((c) => c.active).length
 
   function handleBack() {
@@ -61,7 +58,7 @@ export default function RoleSelectPage() {
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.2 }}
+        transition={{ duration: shouldReduceMotion ? 0 : 0.2 }}
         className="w-full max-w-2xl"
       >
         <div className="text-center mb-8">

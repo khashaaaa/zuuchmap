@@ -44,11 +44,10 @@ let reported = 0
 const seenErrors = new Set()
 
 /**
- * Crash reporting, carried by the analytics pipe we already have — no third
- * party, no extra dependency, and it lands in a table the admin dashboard
- * reads. Without this a crash on a user's machine is invisible to us forever.
- *
- * Capped and deduped: a render loop must not turn into a request loop.
+ * Crash reporting carried by the analytics pipe — lands in the table
+ * /admin/analytics reads. `observability.captureError` calls this whenever
+ * Sentry is not configured (the documented default), so a crash is never
+ * invisible. Capped and deduped: a render loop must not become a request loop.
  */
 export function reportError(error, context) {
   try {
@@ -68,11 +67,6 @@ export function reportError(error, context) {
   } catch {
     // The reporter must never become the thing that breaks the page.
   }
-}
-
-if (typeof window !== 'undefined') {
-  window.addEventListener('error', (e) => reportError(e.error ?? e.message, 'window.error'))
-  window.addEventListener('unhandledrejection', (e) => reportError(e.reason, 'unhandledrejection'))
 }
 
 if (typeof document !== 'undefined') {

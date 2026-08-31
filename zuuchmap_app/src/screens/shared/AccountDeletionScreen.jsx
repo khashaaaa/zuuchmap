@@ -4,7 +4,7 @@ import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { ScreenLayout, Button } from '../../components';
-import { spacing, typography, radius } from '../../design/theme';
+import { spacing, typography, radius, isTablet } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG } from '../../config/api.config';
@@ -106,7 +106,12 @@ const AccountDeletionScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  content: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxxl },
+  content: {
+    padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxxl,
+    // Reading column: unbounded this ran ~115 characters a line on a 10" tablet.
+    ...(isTablet ? { maxWidth: 680, alignSelf: 'center', width: '100%' } : {}),
+  },
+
   warningCard: { borderWidth: 1, borderRadius: radius.xl, padding: spacing.lg, flexDirection: 'row', gap: spacing.md },
   warningIcon: { marginTop: spacing.xxs },
   warningTitle: { ...typography.styles.labelStrong, marginBottom: spacing.xs },

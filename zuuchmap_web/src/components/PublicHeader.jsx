@@ -31,7 +31,11 @@ export default function PublicHeader() {
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
         <Link to="/" className="flex items-center gap-2 shrink-0">
           <Logo />
-          <span className="font-bold text-text">ZuuchMap</span>
+          {/* Logo + wordmark + four language pills + the login button add up to
+              399px. Below `sm` the wordmark goes screen-reader-only and the
+              pills tighten, or every phone narrower than that (360–393 is most
+              of them) renders the whole public site zoomed out to fit. */}
+          <span className="font-bold text-text sr-only sm:not-sr-only">ZuuchMap</span>
         </Link>
 
         <div className="flex items-center gap-2">
@@ -42,7 +46,8 @@ export default function PublicHeader() {
                 type="button"
                 onClick={() => i18n.changeLanguage(lang.code)}
                 aria-pressed={i18n.resolvedLanguage === lang.code}
-                className={`relative min-h-[36px] px-3 py-2 text-xs font-medium transition-colors ${
+                className={`relative min-h-[36px] px-2 sm:px-3 py-2 text-xs font-medium transition-colors ${
+
                   i18n.resolvedLanguage === lang.code
                     ? 'text-text'
                     : 'text-muted hover:text-text'

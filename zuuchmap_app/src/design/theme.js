@@ -1,7 +1,16 @@
 import { StyleSheet, Platform, StatusBar, Dimensions } from 'react-native';
 
-const { width } = Dimensions.get('window');
-export const isTablet = width >= 768;
+const { width, height } = Dimensions.get('window');
+// Device class, not window width. The shorter side does not change on rotation,
+// so a phone launched in landscape (~900 wide) stays a phone and an iPad stays a
+// tablet either way — the old `width >= 768` would have frozen whichever
+// verdict the launch orientation produced. 700 admits the iPad mini (744pt),
+// which that threshold treated as a phone; 7" Androids (600dp) stay on the
+// phone path. Read once at load like the rest of the theme: every
+// `typography.styles.*` and `maxWidth` cap is baked into StyleSheets at module
+// scope, so this cannot be a hook.
+export const isTablet =
+    (Platform.OS === 'ios' && Platform.isPad === true) || Math.min(width, height) >= 700;
 const s = isTablet ? 1.25 : 1;
 
 // Direction A — neutral grounds, amber reserved for accents.
@@ -560,6 +569,10 @@ export const dimensions = {
     statusBarHeight: Platform.OS === 'android' ? StatusBar.currentHeight || 24 : 0,
     headerHeight: 64,
     bottomTabHeight: Platform.OS === 'android' ? 65 : 88,
+    // Post-detail hero height. Shared with the detail skeleton so the page does
+    // not jump when the real image lands.
+    detailHero: isTablet ? 360 : 260,
+
     navigationBarHeight: Platform.OS === 'android' ? 24 : 0,
 };
 

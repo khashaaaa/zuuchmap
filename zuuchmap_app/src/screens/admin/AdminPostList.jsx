@@ -131,7 +131,11 @@ const AdminPostList = ({ navigation, route }) => {
             {showSkeleton && posts.length === 0 ? (
                 <FlatList
                     data={Array(4).fill({})}
-                    renderItem={() => <SkeletonItem />}
+                    numColumns={isTablet ? 2 : 1}
+                    key={isTablet ? 'tablet-skeleton' : 'phone-skeleton'}
+                    columnWrapperStyle={isTablet ? { gap: spacing.md } : undefined}
+                    renderItem={() => <View style={isTablet && { flex: 1 }}><SkeletonItem /></View>}
+
                     keyExtractor={(_, i) => `sk-${i}`}
                     contentContainerStyle={styles.list}
                 />

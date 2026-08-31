@@ -19,7 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet, animations, toneForTheme, withAlpha } from '../../design/theme';
+import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet, animations, toneForTheme, withAlpha, dimensions } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useTranslation } from 'react-i18next';
@@ -1123,14 +1123,15 @@ const createStyles = (colors, width) => StyleSheet.create({
     },
 
     // Image
-    imageContainer: { width: '100%', height: isTablet ? 360 : 260, backgroundColor: colors.background },
+    imageContainer: { width: '100%', height: dimensions.detailHero, backgroundColor: colors.background },
     heroFallback: {
         alignItems: 'center',
         justifyContent: 'center',
         gap: spacing.sm,
     },
     heroLoading: { position: 'absolute', top: 0, left: 0 },
-    postImage: { width, height: isTablet ? 360 : 260 },
+    postImage: { width, height: dimensions.detailHero },
+
     pagination: {
         position: 'absolute',
         bottom: spacing.lg,

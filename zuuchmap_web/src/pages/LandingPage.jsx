@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { motion, useReducedMotion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { useDocumentMeta } from '@/hooks/useDocumentMeta'
 import { ShieldCheck } from 'lucide-react'
 import { postsApi } from '@/lib/api'
 import { getCategoryLabel, getCategoryColor, getCategoryIcon, getImageUrl, getPostTitle, formatPrice, withAlpha, toneForTheme, hideBrokenImage } from '@/lib/utils'
@@ -49,6 +50,8 @@ function RibbonCard({ post, t }) {
  */
 export default function LandingPage() {
   const { t } = useTranslation()
+  // Defaults are the landing copy; this only pins the canonical to `/`.
+  useDocumentMeta({ url: `${window.location.origin}/` })
   const shouldReduceMotion = useReducedMotion()
   const theme = useThemeStore((s) => s.theme)
   const isDark = theme !== 'light'

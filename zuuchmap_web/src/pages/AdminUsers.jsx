@@ -96,7 +96,7 @@ export default function AdminUsers() {
                 <th className="text-left px-4 py-3 text-xs text-muted font-medium hidden sm:table-cell">{t('common.phone')}</th>
                 <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('onboarding.title')}</th>
                 <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('admin.plan')}</th>
-                <th className="text-left px-4 py-3 text-xs text-muted font-medium hidden sm:table-cell">{t('common.date')}</th>
+                <th className="text-left px-4 py-3 text-xs text-muted font-medium hidden xl:table-cell">{t('common.date')}</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -149,7 +149,8 @@ export default function AdminUsers() {
                       </div>
                     )}
                   </td>
-                  <td className={`${cellPad} text-muted hidden sm:table-cell`}>{formatDate(user.date_created)}</td>
+                  <td className={`${cellPad} text-muted hidden xl:table-cell`}>{formatDate(user.date_created)}</td>
+
                   <td className={cellPad}>
                     {(user.is_admin !== true && user.id !== currentUser?.id) && (
                       <button

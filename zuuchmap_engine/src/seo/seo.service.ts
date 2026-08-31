@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Post } from '../post/entities/post.entity';
+import { Status } from '../enums/status';
 import { CategoryService } from '../post/category.service';
 
 /** Sitemaps are capped at 50k URLs / 50MB by the protocol; 5k keeps each one small. */
@@ -21,6 +22,21 @@ const escape = (s: string) =>
         '"': '&quot;',
       })[c] as string,
   );
+
+// Inside <script>, JSON.stringify is not enough: it leaves `<` alone, so a
+// details field containing `</script>` closes the element and the rest runs on
+// the site origin. `\u003c` is still valid JSON and still parses as `<`.
+export const jsonForScript = (v: unknown) =>
+  JSON.stringify(v).replace(/</g, '\\u003c');
+
+/**
+ * What counts as a live listing for crawlers — the same rule browse applies
+ * (`post.service.ts` applyFilters): approved, not flipped to EXPIRED by the
+ * cron, and not past its window either. Without the second half a rental
+ * nobody can book sat in the sitemap for weeks.
+ */
+const LIVE_WHERE = `post.approval_status = 'APPROVED' AND post.status != :expired AND (post.expires_at IS NULL OR post.expires_at > NOW())`;
+const LIVE_PARAMS = { expired: Status.EXPIRED };
 
 @Injectable()
 export class SeoService {
@@ -49,9 +65,10 @@ export class SeoService {
    * generated sitemap is for.
    */
   async sitemapIndex(): Promise<string> {
-    const total = await this.posts.count({
-      where: { approval_status: 'APPROVED' },
-    });
+    const total = await this.posts
+      .createQueryBuilder('post')
+      .where(LIVE_WHERE, LIVE_PARAMS)
+      .getCount();
     const pages = Math.max(Math.ceil(total / PAGE_SIZE), 1);
     const base = this.siteUrl();
 
@@ -98,13 +115,14 @@ export class SeoService {
   /** One page of live listings, oldest id first so page boundaries stay stable. */
   async postSitemap(page: number): Promise<string> {
     const safePage = Math.max(Math.floor(page) || 1, 1);
-    const rows = await this.posts.find({
-      where: { approval_status: 'APPROVED' },
-      select: { id: true, date_updated: true },
-      order: { id: 'ASC' },
-      take: PAGE_SIZE,
-      skip: (safePage - 1) * PAGE_SIZE,
-    });
+    const rows = await this.posts
+      .createQueryBuilder('post')
+      .select(['post.id', 'post.date_updated'])
+      .where(LIVE_WHERE, LIVE_PARAMS)
+      .orderBy('post.id', 'ASC')
+      .take(PAGE_SIZE)
+      .skip((safePage - 1) * PAGE_SIZE)
+      .getMany();
     const base = this.siteUrl();
     return this.urlset(
       rows.map((p) => {
@@ -126,13 +144,19 @@ export class SeoService {
    * reaches them; the tags have to exist in the HTML that comes back.
    *
    * Humans who land here (a mis-routed request, someone opening the URL) get
-   * sent on to the real app immediately, so this is never a page anyone reads.
+   * sent on to the real app, so this is never a page anyone reads. The hand-off
+   * is a link plus a *delayed* refresh, not an instant one: nginx used to send
+   * Googlebot here too, and Google treats a 0-second meta refresh as a redirect
+   * — back to the very URL it was fetching, with the same UA, so the listing
+   * reported as a redirect loop and never indexed. Search engines render the
+   * SPA themselves and are no longer routed here; the delay is a backstop.
    */
   async postMetaHtml(id: number): Promise<string> {
-    const post = await this.posts.findOne({
-      where: { id, approval_status: 'APPROVED' },
-      relations: ['user'],
-    });
+    const post = await this.posts
+      .createQueryBuilder('post')
+      .where('post.id = :id', { id })
+      .andWhere(LIVE_WHERE, LIVE_PARAMS)
+      .getOne();
     if (!post) throw new NotFoundException('Post not found');
 
     const base = this.siteUrl();
@@ -168,7 +192,7 @@ export class SeoService {
 <meta name="twitter:title" content="${escape(title)}" />
 <meta name="twitter:description" content="${escape(description)}" />
 <meta name="twitter:image" content="${escape(image)}" />
-<script type="application/ld+json">${JSON.stringify({
+<script type="application/ld+json">${jsonForScript({
       '@context': 'https://schema.org',
       '@type': 'Product',
       name: title,
@@ -186,7 +210,8 @@ export class SeoService {
           }
         : {}),
     })}</script>
-<meta http-equiv="refresh" content="0; url=${escape(url)}" />
+<meta name="robots" content="noindex" />
+<meta http-equiv="refresh" content="2; url=${escape(url)}" />
 </head>
 <body><a href="${escape(url)}">${escape(title)}</a></body>
 </html>`;

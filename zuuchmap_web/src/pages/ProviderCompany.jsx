@@ -5,7 +5,7 @@ import { Building } from 'lucide-react'
 import { companyApi } from '@/lib/api'
 import { useProfile } from '@/hooks/useProfile'
 import { useApiMutation } from '@/hooks/useApiMutation'
-import { getCompanyLogoUrl, hideBrokenImage, normalizeWebsiteUrl, validateEmail, validatePhone, validateRequired } from '@/lib/utils'
+import { getCompanyLogoUrl, hideBrokenImage, normalizeWebsiteUrl, telHref, validateEmail, validatePhone, validateRequired } from '@/lib/utils'
 import Button from '@/components/Button'
 import Input from '@/components/Input'
 import PageHeader from '@/components/PageHeader'
@@ -130,7 +130,7 @@ export default function ProviderCompany() {
     // A phone number you cannot tap and a website you cannot click are the two
     // things a visitor actually came for.
     const href = (kind, v) =>
-      kind === 'phone' ? `tel:${String(v).replace(/\s/g, '')}` :
+      kind === 'phone' ? telHref(v) :
       kind === 'email' ? `mailto:${v}` :
       kind === 'website' ? normalizeWebsiteUrl(v) : null
     const details = [

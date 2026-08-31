@@ -34,7 +34,7 @@ jobs:
         with:
           node-version: '20'
       # scripts/check-sync.js has zero dependencies on purpose — nothing to install.
-      - name: Verify the 16 duplicated contracts
+      - name: Verify the 21 duplicated contracts
         run: npm run check:sync
 
   engine:
@@ -103,6 +103,15 @@ jobs:
       - name: Migrations
         working-directory: zuuchmap_engine
         run: npm run migration:run
+
+      # schema.int-spec reads the corpus rather than seeding its own rows: it
+      # asks for a featured post, a lapsed-but-ACTIVE one, a provider on the
+      # quota line. The fixture generator plants exactly those edge states, so
+      # an unseeded database fails the suite for want of data, not a bug.
+      # Pinned seed ⇒ the same corpus on every run.
+      - name: Seed fixtures
+        working-directory: zuuchmap_engine
+        run: npx ts-node -r tsconfig-paths/register src/database/seed-test-posts.ts --wipe --seed=1
 
       # Talks to the real Postgres above: schema assertions plus the end-to-end
       # journey over HTTP (create → approve → view → message → report).

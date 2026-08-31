@@ -35,8 +35,11 @@ export default function AppLayout() {
 
   return (
     <div className="flex h-full overflow-hidden bg-background">
-      {/* Desktop sidebar */}
-      <div className="hidden md:flex">
+      {/* Desktop sidebar. `lg`, not `md`: at 768–1023 the 240px rail left 528px
+          for content, and every page's own desktop layout (3-column grids,
+          tables) also switches on `md`, so tablet portrait got desktop layouts
+          in a phone's width. Below `lg` the drawer serves. */}
+      <div className="hidden lg:flex">
         <AppSidebar />
       </div>
 
@@ -49,7 +52,7 @@ export default function AppLayout() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: shouldReduceMotion ? 0 : 0.15 }}
-              className="fixed inset-0 bg-scrim z-50 md:hidden"
+              className="fixed inset-0 bg-scrim z-50 lg:hidden"
               onClick={() => setMobileOpen(false)}
             />
             <motion.div
@@ -62,7 +65,8 @@ export default function AppLayout() {
               animate={{ x: 0 }}
               exit={{ x: -240 }}
               transition={shouldReduceMotion ? { duration: 0 } : { type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed left-0 top-0 h-full z-[60] md:hidden"
+              className="fixed left-0 top-0 h-full z-[60] lg:hidden"
+
             >
               <AppSidebar onNavigate={() => setMobileOpen(false)} />
             </motion.div>

@@ -160,11 +160,14 @@ location ~ ^/sitemap-posts-(\d+)\.xml$ {
     proxy_pass http://localhost:8282/engine/seo/sitemap-posts-$1.xml;
 }
 
-# Crawlers asking for a listing get server-rendered OG tags; people get the SPA.
-# Facebook and Messenger do not run JavaScript, so no client-side fix reaches
-# them — every shared listing showed the site's generic card until this existed.
+# Social crawlers asking for a listing get server-rendered OG tags; people get
+# the SPA. Facebook and Messenger do not run JavaScript, so no client-side fix
+# reaches them — every shared listing showed the site's generic card until this
+# existed. Search engines are deliberately NOT in the list: Google renders the
+# SPA (useDocumentMeta sets the tags), and the stub's meta refresh back to the
+# same URL read to Googlebot as a redirect loop, so listings never indexed.
 location ~ ^/posts/(\d+)$ {
-    if ($http_user_agent ~* "(facebookexternalhit|Facebot|Twitterbot|Slackbot|WhatsApp|TelegramBot|LinkedInBot|Discordbot|Googlebot|bingbot|YandexBot)") {
+    if ($http_user_agent ~* "(facebookexternalhit|Facebot|Twitterbot|Slackbot|WhatsApp|TelegramBot|LinkedInBot|Discordbot)") {
         proxy_pass http://localhost:8282/engine/seo/post/$1;
     }
     try_files $uri /index.html;

@@ -11,6 +11,11 @@ import { spacing, radius, animations } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 
+// Widest a bottom sheet gets. A no-op on phones; on a tablet the sheet becomes
+// a centred card instead of a 1024-wide tray holding a paragraph. Exported so
+// sheets that size their own children from the window can size from this.
+export const SHEET_MAX_WIDTH = 640;
+
 const BaseModal = ({
     visible,
     onClose,
@@ -28,7 +33,7 @@ const BaseModal = ({
     // Live, not read once at module load: a sheet sized against the height the
     // JS bundle happened to start at overshoots the window in split-screen or
     // on a folded/unfolded device, and slides in from the wrong offset.
-    const { height: SCREEN_HEIGHT } = useWindowDimensions();
+    const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useWindowDimensions();
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
     const scaleAnim = useRef(new Animated.Value(0.8)).current;
@@ -102,10 +107,18 @@ const BaseModal = ({
                 return {
                     ...colors.elevation.lg,
                     width: '100%',
+                    maxWidth: SHEET_MAX_WIDTH,
+                    alignSelf: 'center',
                     flexShrink: 1,
                     overflow: 'hidden',
                     borderTopLeftRadius: radius.modal,
                     borderTopRightRadius: radius.modal,
+                    // Once it no longer spans the screen it is a card, and a
+                    // card has four corners.
+                    ...(SCREEN_WIDTH > SHEET_MAX_WIDTH
+                        ? { borderBottomLeftRadius: radius.modal, borderBottomRightRadius: radius.modal }
+                        : {}),
+
                     backgroundColor: colors.surface,
                     maxHeight: SCREEN_HEIGHT * 0.9,
                 };

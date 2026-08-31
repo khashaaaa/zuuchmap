@@ -65,8 +65,18 @@ describe('matchesSavedSearch', () => {
     expect(matchesSavedSearch(post, { q: 'howo crane' })).toBe(false);
   });
 
-  it('a hyphenated query still finds the hyphenated word', () => {
+  it('punctuation splits, on both the query and the document', () => {
     expect(matchesSavedSearch(post, { q: 'self-dumper' })).toBe(true);
+    expect(matchesSavedSearch(post, { q: 'dumper' })).toBe(true);
+    // The old query side glued `self-dumper` into `selfdumper`, which the
+    // generated column never stored — browse and this matcher disagreed.
+    expect(matchesSavedSearch(post, { q: 'selfdumper' })).toBe(false);
+    expect(
+      matchesSavedSearch({ ...post, title: 'Komatsu PC-200' }, { q: 'PC-200' }),
+    ).toBe(true);
+    expect(
+      matchesSavedSearch({ ...post, title: 'Komatsu PC-200' }, { q: '200' }),
+    ).toBe(true);
   });
 
   it('attrs: equality, with or without the attr. prefix, compared as strings', () => {

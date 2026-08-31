@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, View, StyleSheet, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { spacing, radius, animations } from '../design/theme';
+import { spacing, radius, animations, dimensions, isTablet } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 
@@ -84,7 +84,8 @@ const SkeletonItem = ({ style, variant = 'post', visible = true }) => {
         // for this very screen. Same content, same loading language now.
         return (
             <Animated.View style={[styles.detailWrap, { opacity: fade }, style]}>
-                <Block width="100%" height={220} borderRadius={0} />
+                <Block width="100%" height={dimensions.detailHero} borderRadius={0} />
+
                 <View style={styles.detailBody}>
                     <Block width="80%" height={22} borderRadius={radius.sm} />
                     <Block width="40%" height={18} borderRadius={radius.sm} style={{ marginTop: spacing.md }} />

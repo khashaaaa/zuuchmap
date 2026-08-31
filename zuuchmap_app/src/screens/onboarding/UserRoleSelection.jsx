@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { spacing, typography, radius, interactions } from '../../design/theme';
+import { spacing, typography, radius, interactions, isTablet } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useAppContext } from '../../context/AppContext';
 import { useTranslation } from 'react-i18next';
@@ -286,7 +286,10 @@ const styles = StyleSheet.create({
         flex: 1,
         paddingHorizontal: spacing.xxl,
         paddingTop: spacing.lg,
+        // Two icon+line cards; the auth screens next to this one cap at 480.
+        ...(isTablet ? { maxWidth: 560, alignSelf: 'center', width: '100%' } : {}),
     },
+
     topRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',

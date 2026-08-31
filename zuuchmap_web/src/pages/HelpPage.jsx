@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Phone, Mail, Clock, HelpCircle } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
 import { goBack } from '@/lib/utils'
+import { useDocumentMeta } from '@/hooks/useDocumentMeta'
 
 function FaqItem({ q, a }) {
   return (
@@ -15,6 +16,7 @@ function FaqItem({ q, a }) {
 
 export default function HelpPage() {
   const { t } = useTranslation()
+  useDocumentMeta({ title: t('helpSupport.title') })
   const navigate = useNavigate()
 
   return (

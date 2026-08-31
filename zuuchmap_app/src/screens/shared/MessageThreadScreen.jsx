@@ -215,6 +215,7 @@ const MessageThreadScreen = ({ navigation, route }) => {
                 )}
 
                 <View style={styles.composer}>
+                    <View style={styles.composerInner}>
                     <TextInput
                         style={styles.input}
                         value={draft}
@@ -240,6 +241,7 @@ const MessageThreadScreen = ({ navigation, route }) => {
                     >
                         <Ionicons name="send" size={16} color={colors.onPrimary} />
                     </TouchableOpacity>
+                    </View>
                 </View>
             </KeyboardAvoidingView>
         </CustomSafeAreaView>
@@ -274,17 +276,23 @@ const createStyles = (colors) => StyleSheet.create({
     bubbleText: { ...typography.styles.body },
     bubbleTime: { ...typography.styles.micro },
     composer: {
-        flexDirection: 'row',
-        alignItems: 'flex-end',
-        gap: spacing.sm,
         padding: spacing.md,
         borderTopWidth: StyleSheet.hairlineWidth,
         borderTopColor: colors.border.light,
         backgroundColor: colors.surface,
     },
+    // Same column as `list` (its padding is lg, ours md — hence the correction),
+    // or the input row runs the full tablet width under a 680 thread.
+    composerInner: {
+        flexDirection: 'row',
+        alignItems: 'flex-end',
+        gap: spacing.sm,
+        ...(isTablet ? { maxWidth: 680 - 2 * (spacing.lg - spacing.md), alignSelf: 'center', width: '100%' } : {}),
+    },
     input: {
         flex: 1,
         maxHeight: 120,
+
         minHeight: 42,
         borderRadius: radius.button,
         paddingHorizontal: spacing.md,

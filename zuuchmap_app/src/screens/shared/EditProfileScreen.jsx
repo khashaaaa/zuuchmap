@@ -398,6 +398,8 @@ const EditProfileScreen = ({ route, navigation }) => {
                     styles.buttonContainer,
                     { backgroundColor: colors.surface },
                 ]}>
+                    {/* The bar spans the screen; the button stays in the form's column. */}
+                    <View style={isTablet ? styles.tabletContainer : undefined}>
                     <Button
                         title={t('common.save')}
                         onPress={handleSave}
@@ -405,7 +407,9 @@ const EditProfileScreen = ({ route, navigation }) => {
                         loadingText={t('common.saving')}
                         fullWidth
                     />
+                    </View>
                 </View>
+
             </KeyboardAvoidingView>
         </CustomSafeAreaView>
     );

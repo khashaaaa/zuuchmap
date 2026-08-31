@@ -15,6 +15,15 @@ import '@testing-library/react-native';
 // tree never commits.
 global.IS_REACT_ACT_ENVIRONMENT = true;
 
+// RN's jest preset reports a 750×1334 window. `theme.isTablet` classifies by
+// the shorter side (≥ 700), so that default would run every test at tablet
+// scale with two-column lists. Pin a phone — the same 390×844 frame
+// `render.jsx` gives the safe-area provider — before any test imports theme.
+const { Dimensions } = require('react-native');
+const phone = { width: 390, height: 844, scale: 3, fontScale: 1 };
+Dimensions.set({ window: phone, screen: phone });
+
+
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 );

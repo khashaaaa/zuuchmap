@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing, typography, safeAreaHelpers } from '../../design/theme';
+import { spacing, typography, safeAreaHelpers, isTablet } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 import likeService from '../../services/api/likeService';
@@ -166,6 +166,8 @@ const CustomerLikeList = ({ navigation }) => {
     };
 
     const renderPostItem = useCallback(({ item, index }) => (
+            // Same two-up grid as CustomerPostList — it is the same card.
+            <View style={isTablet && { flex: 1 }}>
             <PostCard
                 item={item}
                 onPress={handlePostPress}
@@ -193,6 +195,7 @@ const CustomerLikeList = ({ navigation }) => {
                     </>
                 )}
             />
+            </View>
     // styles/colors/t must be deps — a stale closure here kept rendering the
     // old palette after a theme switch (and old strings after a locale switch).
     ), [handlePostPress, handleUnlike, styles, colors, t, isAuthenticated, categoryLabel]);
@@ -254,7 +257,10 @@ const CustomerLikeList = ({ navigation }) => {
                 skeleton={(
                     <FlatList
                         data={Array(8).fill({})}
-                        renderItem={() => <SkeletonItem />}
+                        numColumns={isTablet ? 2 : 1}
+                        key={isTablet ? 'tablet-skeleton' : 'phone-skeleton'}
+                        columnWrapperStyle={isTablet ? { gap: spacing.md } : undefined}
+                        renderItem={() => <View style={isTablet && { flex: 1 }}><SkeletonItem /></View>}
                         keyExtractor={(_, i) => `sk-${i}`}
                         contentContainerStyle={[styles.listContainer, { paddingTop: spacing.md }]}
                         showsVerticalScrollIndicator={false}
@@ -266,7 +272,11 @@ const CustomerLikeList = ({ navigation }) => {
                 data={posts}
                 renderItem={renderPostItem}
                 keyExtractor={(item) => `${item.post_type}-${item.id}`}
+                numColumns={isTablet ? 2 : 1}
+                key={isTablet ? 'tablet' : 'phone'}
+                columnWrapperStyle={isTablet ? { gap: spacing.md } : undefined}
                 contentContainerStyle={[
+
                     styles.listContainer,
                     gStyles.scrollViewContentWithBottomInset(
                         safeAreaHelpers.getBottomSafeArea(insets)

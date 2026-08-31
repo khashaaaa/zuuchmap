@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { ScreenLayout } from '../../components';
 import PressableScale from '../../components/PressableScale';
-import { spacing, typography, radius } from '../../design/theme';
+import { spacing, typography, radius, isTablet } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 
 const ContactRow = ({ icon, label, value, onPress, colors }) => (
@@ -91,7 +91,12 @@ const HelpSupportScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  content: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxxl },
+  content: {
+    padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxxl,
+    // Reading column: unbounded this ran ~115 characters a line on a 10" tablet.
+    ...(isTablet ? { maxWidth: 680, alignSelf: 'center', width: '100%' } : {}),
+  },
+
   card: { borderRadius: radius.xl, padding: spacing.lg, },
   contactRow: { flexDirection: 'row', alignItems: 'center', minHeight: 44, paddingVertical: spacing.sm },
   hoursRow: { flexDirection: 'row', alignItems: 'center', minHeight: 44, paddingVertical: spacing.sm },

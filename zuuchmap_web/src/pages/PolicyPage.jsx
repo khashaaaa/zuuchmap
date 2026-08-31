@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Shield, FileText } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
 import { goBack } from '@/lib/utils'
+import { useDocumentMeta } from '@/hooks/useDocumentMeta'
 
 // Section key order and header icon per policy document.
 const DOCS = {
@@ -24,6 +25,7 @@ export default function PolicyPage({ doc = 'privacy' }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { icon, sections } = DOCS[doc] ?? DOCS.privacy
+  useDocumentMeta({ title: t(`${doc}.title`) })
 
   return (
     <div className="min-h-screen bg-background p-3 md:p-6">

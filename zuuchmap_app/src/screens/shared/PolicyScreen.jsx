@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { ScreenLayout } from '../../components';
-import { spacing, typography, radius } from '../../design/theme';
+import { spacing, typography, radius, isTablet } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 
 // Section key pairs per policy document; the screen renders whichever
@@ -47,7 +47,12 @@ const PolicyScreen = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  content: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxxl },
+  content: {
+    padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxxl,
+    // Reading column: unbounded this ran ~115 characters a line on a 10" tablet.
+    ...(isTablet ? { maxWidth: 680, alignSelf: 'center', width: '100%' } : {}),
+  },
+
   card: { borderRadius: radius.xl, padding: spacing.lg, },
   effective: { ...typography.styles.small, marginBottom: spacing.sm },
   intro: { ...typography.styles.body },

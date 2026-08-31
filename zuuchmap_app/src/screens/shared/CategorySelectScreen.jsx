@@ -158,7 +158,11 @@ const CategorySelectScreen = ({ route, navigation }) => {
 const createStyles = (colors) => StyleSheet.create({
     content: { flex: 1, padding: spacing.lg },
     searchBar: { marginBottom: spacing.lg },
-    list: { paddingBottom: spacing.xxl },
+    list: {
+        paddingBottom: spacing.xxl,
+        ...(isTablet ? { maxWidth: 680, alignSelf: 'center', width: '100%' } : {}),
+    },
+
     card: {
         ...colors.elevation.sm,
         flexDirection: 'row',

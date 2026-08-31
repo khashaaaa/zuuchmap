@@ -212,6 +212,21 @@ export const validateEmail = (email) => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
 }
 
+/**
+ * `tel:` href for a stored number. Numbers are kept as bare national digits
+ * (`99112233`), so without the country code a visitor outside Mongolia, or a
+ * desktop dialer, gets the wrong number. Mirrors the app, which already dials
+ * `+976` + digits. A number that carries its own `+` is left alone.
+ */
+export const telHref = (phone) => {
+  const raw = String(phone ?? '').trim()
+  if (!raw) return null
+  const digits = raw.replace(/[^\d+]/g, '')
+  if (digits.startsWith('+')) return `tel:${digits}`
+  if (digits.startsWith('976') && digits.length > 8) return `tel:+${digits}`
+  return `tel:+976${digits}`
+}
+
 export const validatePhone = (phone, minLength = 8, maxLength = 15) => {
   if (!phone || typeof phone !== 'string') return false
   const digitsOnly = phone.replace(/[^\d]/g, '')

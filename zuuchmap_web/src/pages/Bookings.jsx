@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Phone, CalendarRange } from 'lucide-react'
 import { toast } from 'sonner'
 import { bookingsApi } from '@/lib/api'
-import { formatDate, getImageUrl, getPostTitle, apiErrorMessage, hideBrokenImage } from '@/lib/utils'
+import { formatDate, getImageUrl, getPostTitle, apiErrorMessage, hideBrokenImage, telHref } from '@/lib/utils'
 import PageHeader from '@/components/PageHeader'
 import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
@@ -68,7 +68,7 @@ function BookingCard({ booking, mode, onAccept, onDecline, onRequestCancel, busy
             >
               <span className="overflow-hidden min-w-0">
                 {other?.phone_number && (
-                  <a href={`tel:${other.phone_number}`} className="flex items-center gap-1 text-xs text-primary-text whitespace-nowrap">
+                  <a href={telHref(other.phone_number)} className="flex items-center gap-1 text-xs text-primary-text whitespace-nowrap">
                     <Phone size={11} /> {other.phone_number}
                   </a>
                 )}

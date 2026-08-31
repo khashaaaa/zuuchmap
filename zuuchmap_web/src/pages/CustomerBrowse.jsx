@@ -20,6 +20,7 @@ import Modal from '@/components/Modal'
 import { useAuthStore } from '@/store'
 import { track } from '@/lib/analytics'
 import { useCategories } from '@/hooks/useCategories'
+import { useDocumentMeta } from '@/hooks/useDocumentMeta'
 
 // 12 turned a 2.4k-listing catalogue into 200+ pages behind prev/next arrows.
 // 48 fills the 3-column grid 16 rows deep and cuts the page count by 4x; the
@@ -186,6 +187,7 @@ export default function CustomerBrowse() {
 
   const { data: schemas = [], isError: schemasError, refetch: refetchSchemas } = useCategories()
 
+
   const { data: likedIds = [] } = useQuery({
     queryKey: ['liked-ids'],
     queryFn: likesApi.getIds,
@@ -261,6 +263,16 @@ export default function CustomerBrowse() {
 
   const activeColor = category ? getCategoryColor(category, schemas) : null
   const overline = 'text-[11px] font-semibold uppercase tracking-wider text-muted'
+
+  // One document per category landing (`/browse?category=x` is what the
+  // sitemap advertises), and plain browse otherwise. Other filters are
+  // refinements of that document, so they do not enter the canonical.
+  const categoryLabel = category ? getCategoryLabel(category, t, schemas) : ''
+  useDocumentMeta({
+    title: categoryLabel ? `${categoryLabel} — ${t('landing.browse')}` : t('landing.browse'),
+    description: categoryLabel ? `${categoryLabel}. ${t('landing.heroLead')}` : t('landing.heroLead'),
+    url: `${window.location.origin}/browse${category ? `?category=${encodeURIComponent(category)}` : ''}`,
+  })
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 items-start">

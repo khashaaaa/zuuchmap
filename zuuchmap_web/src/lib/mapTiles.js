@@ -1,8 +1,8 @@
 // Tile provider for every Leaflet map on the web. Picked with VITE_MAP_TILES
-// (stadia | osm | carto); default is Stadia because CARTO's basemaps drop most
-// streets/POIs outside big Western cities and Latinise names, so Ulaanbaatar
-// renders nearly blank. Stadia needs zuuchmap.com whitelisted in its dashboard
-// (no key in the bundle); localhost works unauthenticated.
+// (stadia | osm | carto); default is CARTO Voyager, which the app already uses.
+// Stadia draws Ulaanbaatar in more detail, but it answers 401 to any origin not
+// whitelisted in its dashboard — and zuuchmap.com never was, so production maps
+// were grey. Opt back in with VITE_MAP_TILES=stadia once the domain is listed.
 const OSM = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
 
 const PROVIDERS = {
@@ -26,7 +26,7 @@ const PROVIDERS = {
   },
 }
 
-const provider = PROVIDERS[import.meta.env.VITE_MAP_TILES] ?? PROVIDERS.stadia
+const provider = PROVIDERS[import.meta.env.VITE_MAP_TILES] ?? PROVIDERS.carto
 
 /** Props for a react-leaflet <TileLayer>; spread them and add key={theme} so the layer remounts on theme change. */
 export function tileLayerProps(isDark) {

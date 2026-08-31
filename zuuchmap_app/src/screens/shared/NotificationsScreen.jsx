@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { ScreenLayout, EmptyState } from '../../components';
-import { spacing, typography, radius, withAlpha, interactions } from '../../design/theme';
+import { spacing, typography, radius, withAlpha, interactions, isTablet } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useAppContext } from '../../context/AppContext';
 import { SOUND_PREF_KEY, isSoundEnabled } from '../../hooks/useNotificationSync';
@@ -169,7 +169,11 @@ const NotificationsScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-    list: { paddingBottom: spacing.xl },
+    list: {
+        paddingBottom: spacing.xl,
+        ...(isTablet ? { maxWidth: 680, alignSelf: 'center', width: '100%' } : {}),
+    },
+
     item: {
         flexDirection: 'row',
         alignItems: 'flex-start',

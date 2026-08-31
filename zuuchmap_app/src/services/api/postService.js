@@ -165,7 +165,7 @@ const postService = {
 
   getList: async ({
     category, subcategory, province, district, approval_status, status,
-    page, limit, q, sort, price_min, price_max,
+    page, limit, q, sort, price_min, price_max, attrs,
   } = {}) => {
     const params = new URLSearchParams();
     if (category) params.append('category', category);
@@ -180,6 +180,11 @@ const postService = {
     if (sort) params.append('sort', sort);
     if (price_min) params.append('price_min', price_min);
     if (price_max) params.append('price_max', price_max);
+    // `attr.<key>` / `attr.<key>_min|_max`, the same shape the engine's saved
+    // search matcher reads. Stored keys may or may not carry the prefix.
+    for (const [k, v] of Object.entries(attrs || {})) {
+      if (v !== undefined && v !== null && v !== '') params.append(`attr.${k.replace(/^attr\./, '')}`, v);
+    }
     const qs = params.toString();
     const isFirstPage = !page || Number(page) === 1;
     const cacheKey = `${BROWSE_CACHE_PREFIX}${qs}`;

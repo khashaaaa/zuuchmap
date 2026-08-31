@@ -617,6 +617,8 @@ const ProviderPostForm = ({ route, navigation }) => {
                 </ScrollView>
 
                 <View style={[gStyles.bottomContainerWithInset(safeAreaHelpers.getBottomSafeArea(insets)), { backgroundColor: colors.surface }]}>
+                    {/* The bar spans the screen; the button stays in the form's column. */}
+                    <View style={isTablet ? styles.tabletContainer : undefined}>
                     <Button
                         title={t(isEdit ? 'provider.postEdit' : 'provider.postCreate')}
                         onPress={handleSubmit}
@@ -627,8 +629,10 @@ const ProviderPostForm = ({ route, navigation }) => {
                             : t(isEdit ? 'provider.updating' : 'provider.creating')}
                         fullWidth
                     />
+                    </View>
                 </View>
             </KeyboardAvoidingView>
+
 
             <SuccessSheet
                 visible={successState.visible}

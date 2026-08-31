@@ -4,5 +4,9 @@ Disallow: /admin
 Disallow: /provider
 Disallow: /customer
 Disallow: /verify
+Disallow: /login
+Disallow: /onboarding
+Disallow: /notifications
+Disallow: /messages
 
 Sitemap: https://zuuchmap.com/sitemap.xml

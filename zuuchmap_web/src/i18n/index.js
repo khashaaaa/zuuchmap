@@ -31,6 +31,10 @@ i18n.use(initReactI18next).init({
 
 i18n.on('languageChanged', (lng) => {
   try { localStorage.setItem('zm_lang', lng) } catch { /* noop */ }
+  // index.html ships lang="mn"; keep the document honest for screen readers
+  // and crawlers when the UI is switched.
+  if (typeof document !== 'undefined') document.documentElement.lang = lng
 })
+if (typeof document !== 'undefined') document.documentElement.lang = i18n.language || stored
 
 export default i18n

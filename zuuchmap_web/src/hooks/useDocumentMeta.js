@@ -37,11 +37,18 @@ function setTag(selector, attr, value) {
   }
 }
 
+/**
+ * `url` is the canonical. When a page passes none, it is the current path
+ * without query or hash — `index.html` used to ship a fixed canonical of `/`,
+ * which told search engines that browse, every category landing and the policy
+ * pages were duplicates of the homepage. Pages whose query IS the document
+ * (`/browse?category=…`) pass an explicit url.
+ */
 export function useDocumentMeta({ title, description, image, url } = {}) {
   const finalTitle = title ? `${title} — ZuuchMap` : DEFAULTS.title
   const finalDescription = description || DEFAULTS.description
   const finalImage = image || DEFAULTS.image
-  const finalUrl = url || (typeof window !== 'undefined' ? window.location.href : '')
+  const finalUrl = url || (typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname}` : '')
 
   useEffect(() => {
     const previousTitle = document.title

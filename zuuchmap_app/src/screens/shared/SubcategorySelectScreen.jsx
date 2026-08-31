@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import { View, Text, FlatList, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing, typography, safeAreaHelpers, radius, withAlpha } from '../../design/theme';
+import { spacing, typography, safeAreaHelpers, radius, withAlpha, isTablet } from '../../design/theme';
 import { ScreenLayout } from '../../components';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
@@ -199,7 +199,11 @@ const createStyles = (colors) => StyleSheet.create({
         ...typography.styles.bodyBold,
         color: colors.success,
     },
-    list: { paddingBottom: spacing.xxl },
+    list: {
+        paddingBottom: spacing.xxl,
+        ...(isTablet ? { maxWidth: 680, alignSelf: 'center', width: '100%' } : {}),
+    },
+
     card: {
         ...colors.elevation.sm,
         flexDirection: 'row',

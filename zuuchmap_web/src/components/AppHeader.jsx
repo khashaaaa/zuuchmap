@@ -66,7 +66,8 @@ export default function AppHeader({ onMenuClick }) {
       <button
         onClick={onMenuClick}
         aria-label={t('nav.menu')}
-        className="md:hidden min-w-touch min-h-touch flex items-center justify-center p-2 rounded-btn hover:bg-surface2 transition-colors mr-2"
+        className="lg:hidden min-w-touch min-h-touch flex items-center justify-center p-2 rounded-btn hover:bg-surface2 transition-colors mr-2"
+
       >
         <Menu size={20} />
       </button>

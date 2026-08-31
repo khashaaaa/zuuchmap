@@ -54,6 +54,7 @@ const CustomerPostList = ({ route, navigation }) => {
         province: routeProvince,
         district: routeDistrict,
         q: routeQuery,
+        attrs: routeAttrs,
     } = route?.params || {};
 
     // isFilterMode: navigated to with a category (from SubcategorySelectScreen)
@@ -106,9 +107,12 @@ const CustomerPostList = ({ route, navigation }) => {
             subcategory: isFilterMode ? (routeSubcategory || undefined) : undefined,
             q: q || undefined,
         };
+        // Location and attributes apply in both modes: a saved search opens
+        // with a category (filter mode) and still means "in this province".
+        if (filters.province) params.province = filters.province;
+        if (filters.district) params.district = filters.district;
+        if (routeAttrs && Object.keys(routeAttrs).length) params.attrs = routeAttrs;
         if (!isFilterMode) {
-            if (filters.province) params.province = filters.province;
-            if (filters.district) params.district = filters.district;
             if (filters.sort) params.sort = filters.sort;
             if (debouncedPriceMin) params.price_min = debouncedPriceMin;
             if (debouncedPriceMax) params.price_max = debouncedPriceMax;
@@ -117,7 +121,7 @@ const CustomerPostList = ({ route, navigation }) => {
         }
         return params;
     }, [
-        isFilterMode, getPostType, routeSubcategory, debouncedSearchQuery,
+        isFilterMode, getPostType, routeSubcategory, routeAttrs, debouncedSearchQuery,
         filters.category, filters.province, filters.district, filters.sort, filters.status,
         debouncedPriceMin, debouncedPriceMax,
     ]);
@@ -229,6 +233,20 @@ const CustomerPostList = ({ route, navigation }) => {
             shouldIncrementViews: true,
         });
     }, [navigation, getPostType]);
+
+    // The screen stays mounted across navigations to it, so a second saved
+    // search must land its params in state too — state was seeded once, and
+    // the previous query text and location used to survive into the new one.
+    useEffect(() => {
+        setFilters((prev) => ({
+            ...prev,
+            category: routeCategory || '',
+            subcategory: routeSubcategory || '',
+            province: routeProvince || '',
+            district: routeDistrict || '',
+        }));
+        setSearchQuery(routeQuery || '');
+    }, [routeCategory, routeSubcategory, routeProvince, routeDistrict, routeQuery]);
 
     const clearFilters = useCallback(() => {
         setFilters({
@@ -441,7 +459,7 @@ const CustomerPostList = ({ route, navigation }) => {
                 subcategory: filters.subcategory,
                 province: filters.province,
                 district: filters.district,
-                q: debouncedSearchQuery,
+                q: debouncedSearchQuery.trim(),
             }}
         />
     );
@@ -577,7 +595,13 @@ const CustomerPostList = ({ route, navigation }) => {
                 <FlatList
                     data={Array(6).fill({})}
                     keyboardShouldPersistTaps="handled"
-                    renderItem={() => <SkeletonItem />}
+                    // Same columns as the real list below, or the load shows
+                    // full-width rows that snap into a grid when the data lands.
+                    numColumns={isTablet ? 2 : 1}
+                    key={isTablet ? 'tablet-skeleton' : 'phone-skeleton'}
+                    columnWrapperStyle={isTablet ? { gap: spacing.md } : undefined}
+                    renderItem={() => <View style={isTablet && { flex: 1 }}><SkeletonItem /></View>}
+
                     keyExtractor={(_, index) => `skeleton-${index}`}
                     contentContainerStyle={[
                         styles.listContainer,

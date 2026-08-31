@@ -2,56 +2,41 @@
  * The one definition of how a free-text query is cut into terms.
  *
  * Browse turns `q` into a prefix tsquery against `post.search_vector`, a
- * generated column over `to_tsvector('simple', title || ' ' || details)`.
- * The saved-search matcher had to answer the same question in JS and did it
- * with `title.toLowerCase().includes(q)` — which never looked at `details`, and
- * required the whole phrase verbatim in the title. A two-word saved search
- * therefore matched in browse and then essentially never notified.
+ * generated column over `to_tsvector('simple', regexp_replace(title || ' ' ||
+ * details, '[^[:alnum:]]+', ' ', 'g'))` (SearchVectorNormalised migration).
+ * The saved-search matcher has to answer the same question in JS, so it
+ * tokenises here too, and the two can only drift together.
  *
- * Both sides now tokenise here, so the two can only drift together.
- *
- * `simple` is deliberate on the Postgres side: no stemming, no stopwords, just
- * fold-to-lower and split on non-word characters. That is exactly what these
- * two functions do, which is what makes the JS side a faithful stand-in.
+ * Both sides split on every non-letter/non-digit run and fold to lower — the
+ * query, the JS document, and (via the regexp_replace) the SQL document. The
+ * previous shape stripped punctuation *inside* a query term (`PC-200` →
+ * `pc200`) while Postgres stored `pc` and `-200`, so a model number typed the
+ * way it is printed found nothing in browse but matched in the JS matcher.
  */
 
 const MAX_QUERY_CHARS = 100;
 const MAX_TERMS = 8;
 
+const splitTokens = (text: string): string[] =>
+  text
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean);
+
 /** Query → the terms browse would prefix-match, in order, bounded and cleaned. */
 export function searchTerms(raw: unknown): string[] {
   const text = String(Array.isArray(raw) ? (raw[0] ?? '') : (raw ?? ''));
-  return text
-    .trim()
-    .substring(0, MAX_QUERY_CHARS)
-    .split(/\s+/)
-    .map((t) => t.replace(/[^\p{L}\p{N}]/gu, '').toLowerCase())
-    .filter(Boolean)
-    .slice(0, MAX_TERMS);
+  return splitTokens(text.trim().substring(0, MAX_QUERY_CHARS)).slice(
+    0,
+    MAX_TERMS,
+  );
 }
 
-/**
- * Document text → the lexemes `to_tsvector('simple', …)` would store.
- *
- * Each whitespace-delimited chunk yields both its parts and the chunk with
- * punctuation removed, because the two sides treat a hyphen differently:
- * Postgres emits `self-dumper` plus `self` and `dumper`, while `searchTerms`
- * strips the hyphen and asks for `selfdumper`. Emitting both keeps a query for
- * a hyphenated word matching the post that contains it.
- */
+/** Document text → the lexemes the generated column stores. */
 export function documentTokens(
   ...parts: (string | null | undefined)[]
 ): string[] {
-  const tokens: string[] = [];
-  for (const chunk of parts.filter(Boolean).join(' ').trim().split(/\s+/)) {
-    if (!chunk) continue;
-    for (const piece of chunk.split(/[^\p{L}\p{N}]+/u)) {
-      if (piece) tokens.push(piece.toLowerCase());
-    }
-    const joined = chunk.replace(/[^\p{L}\p{N}]/gu, '').toLowerCase();
-    if (joined) tokens.push(joined);
-  }
-  return tokens;
+  return splitTokens(parts.filter(Boolean).join(' '));
 }
 
 /**

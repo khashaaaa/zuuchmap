@@ -11,6 +11,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import BottomSheetModal from './BottomSheetModal';
+import { SHEET_MAX_WIDTH } from './BaseModal';
+
 import Button from './Button';
 import SelectionPop from './SelectionPop';
 import { spacing, typography, radius, interactions, toneForTheme } from '../design/theme';
@@ -411,7 +413,9 @@ const createStyles = (colors, screenWidth) => StyleSheet.create({
         borderRadius: radius.md,
         borderWidth: 1,
         borderColor: colors.border.light,
-        width: (screenWidth - spacing.lg * 2 - spacing.xs * 2) / 2 - spacing.xs,
+        // Two per row of the *sheet*, which BaseModal caps — not of the window.
+        width: (Math.min(screenWidth, SHEET_MAX_WIDTH) - spacing.lg * 2 - spacing.xs * 2) / 2 - spacing.xs,
+
     },
     categoryItemSelected: {
         borderColor: colors.primary,

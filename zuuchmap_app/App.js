@@ -7,9 +7,10 @@ import { View, ActivityIndicator, Text, StyleSheet, Platform, Animated, AppState
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import userService from './src/services/api/userService';
 import { queryClient, invalidatePostData } from './src/services/queryClient';
-import { palettes, dimensions, typography, spacing, fonts, animations } from './src/design/theme';
+import { palettes, dimensions, typography, spacing, fonts, animations, isTablet } from './src/design/theme';
 
 // Splash and the pre-provider loading screen render before AppContext
 // (and the stored theme preference) is available — they commit to dark.
@@ -152,6 +153,15 @@ AppState.addEventListener('change', (state) => {
 });
 
 const App = () => {
+  // Phones stay portrait (app.json `orientation`); tablets rotate. iPad gets
+  // its orientations from `UISupportedInterfaceOrientations~ipad` in app.json,
+  // Android from lifting the manifest lock at runtime — it has no per-device
+  // manifest setting. Needs the EAS rebuild that is pending anyway.
+  useEffect(() => {
+    if (!isTablet) return;
+    ScreenOrientation.unlockAsync().catch(() => {});
+  }, []);
+
   // Commissioner is bundled, so this resolves in milliseconds — but the JS
   // splash below is itself set in Commissioner, so we hold on the native splash
   // (return null) until it is registered rather than flashing a fallback face.

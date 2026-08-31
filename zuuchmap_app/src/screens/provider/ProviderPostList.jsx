@@ -432,7 +432,11 @@ const ProviderPostList = ({ navigation }) => {
             {queryLoading && posts.length === 0 ? (
                 <FlatList
                     data={Array(5).fill({})}
-                    renderItem={() => <SkeletonItem />}
+                    numColumns={isTablet ? 2 : 1}
+                    key={isTablet ? 'tablet-skeleton' : 'phone-skeleton'}
+                    columnWrapperStyle={isTablet ? { gap: spacing.md } : undefined}
+                    renderItem={() => <View style={isTablet && { flex: 1 }}><SkeletonItem /></View>}
+
                     keyExtractor={(_, index) => `skeleton-${index}`}
                     contentContainerStyle={[
                         styles.listContainer,

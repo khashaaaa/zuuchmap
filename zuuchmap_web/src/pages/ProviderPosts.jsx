@@ -138,7 +138,7 @@ export default function ProviderPosts() {
             onChange={setTab}
           />
           {/* Row density is a table concern; the phone layout has no rows. */}
-          <div className="hidden md:block">
+          <div className="hidden lg:block">
             <DensityToggle density={density} onToggle={toggleDensity} />
           </div>
         </div>
@@ -164,10 +164,11 @@ export default function ProviderPosts() {
         <EmptyState icon={FileText} title={t('common.noData')} />
       ) : (
         <>
-        {/* Phones get cards, not a 640px-wide table in a horizontal scroller —
+        {/* Phones and tablets get cards, not a 640px-wide table in a horizontal scroller —
+
             that pushed Edit and Delete, the only two actions on the screen,
             entirely off the right edge with nothing to say they were there. */}
-        <div className="md:hidden space-y-3">
+        <div className="lg:hidden space-y-3">
           {filtered.map((post) => {
             const expiry = expiryLabel(post)
             const stat = statsById.get(post.id)
@@ -225,7 +226,7 @@ export default function ProviderPosts() {
           })}
         </div>
 
-        <div className="surface-card hidden md:block">
+        <div className="surface-card hidden lg:block">
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[640px]">
               <thead>
@@ -234,7 +235,10 @@ export default function ProviderPosts() {
                   <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('posts.category')}</th>
                   <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('common.status')}</th>
                   <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('posts.statAttention')}</th>
-                  <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('posts.expires')}</th>
+                  {/* The table's natural width is ~820px; beside the sidebar at
+                      1024 it has 736, which put the edit/delete column off-screen.
+                      Expiry is the column the phone cards already fold away. */}
+                  <th className="text-left px-4 py-3 text-xs text-muted font-medium hidden xl:table-cell">{t('posts.expires')}</th>
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
@@ -272,8 +276,9 @@ export default function ProviderPosts() {
                           </span>
                         ) : <span className="text-muted text-xs">—</span>}
                       </td>
-                      <td className={cellPad}>
+                      <td className={`${cellPad} hidden xl:table-cell`}>
                         {expiry ? (
+
                           <span className={`flex items-center gap-1 text-xs ${expiry.cls}`}>
                             <Timer size={11} /> {expiry.text}
                           </span>

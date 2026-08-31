@@ -10,7 +10,7 @@ import { MapContainer, TileLayer, Marker } from 'react-leaflet'
 import { tileLayerProps } from '@/lib/mapTiles'
 import 'leaflet/dist/leaflet.css'
 import { postsApi, likesApi } from '@/lib/api'
-import { formatDate, formatPriceParts, getImageUrl, getCompanyLogoUrl, getPostTitle, getPostCategory, getCategoryColor, getFieldLabel, getOptionLabel, getSubcategoryLabel, goBack, normalizeWebsiteUrl, withAlpha, toneForTheme, hideBrokenImage, getLocationLabel } from '@/lib/utils'
+import { formatDate, formatPriceParts, getImageUrl, getCompanyLogoUrl, getPostTitle, getPostCategory, getCategoryColor, getFieldLabel, getOptionLabel, getSubcategoryLabel, goBack, normalizeWebsiteUrl, withAlpha, toneForTheme, hideBrokenImage, getLocationLabel, telHref } from '@/lib/utils'
 import { categoryPin } from '@/lib/mapPin'
 import UserAvatar from '@/components/UserAvatar'
 import AlertBanner from '@/components/AlertBanner'
@@ -100,7 +100,7 @@ export default function PostDetail() {
   useDocumentMeta({
     title: post?.title || post?.name || undefined,
     description: (post?.details || post?.description || '').replace(/\s+/g, ' ').slice(0, 200) || undefined,
-    image: post?.images?.[0] || undefined,
+    image: getImageUrl(post?.images?.[0]) || undefined,
     url: post?.id ? `${window.location.origin}/posts/${post.id}` : undefined,
   })
 
@@ -495,7 +495,7 @@ export default function PostDetail() {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-text">{post.user.company.name}</p>
                       {post.user.company.phone_number && (
-                        <a href={`tel:${post.user.company.phone_number}`} className="flex items-center gap-1 text-xs text-muted hover:text-primary-text transition-colors mt-0.5">
+                        <a href={telHref(post.user.company.phone_number)} className="flex items-center gap-1 text-xs text-muted hover:text-primary-text transition-colors mt-0.5">
                           <Phone size={11} className="shrink-0" /> <span className="break-all">{post.user.company.phone_number}</span>
                         </a>
                       )}
@@ -553,7 +553,7 @@ export default function PostDetail() {
                 exists for, visible signed-out too. */}
             {post.contact_phone && !isOwner && !isAdmin && (
               <Button
-                href={`tel:${post.contact_phone}`}
+                href={telHref(post.contact_phone)}
                 size="lg"
                 className="w-full tabular-nums"
                 onClick={() => track('contact.revealed', { post_id: post.id, category: post.category })}
@@ -582,7 +582,7 @@ export default function PostDetail() {
               <div className="pt-4 border-t border-border/50 space-y-2 first:border-t-0 first:pt-0">
                 <p className="text-sm text-muted font-medium">{t('posts.contactInfo')}</p>
                 {post.contact_phone && (isOwner || isAdmin) && (
-                  <a href={`tel:${post.contact_phone}`} className="flex items-center gap-2 text-sm text-text hover:text-primary-text transition-colors">
+                  <a href={telHref(post.contact_phone)} className="flex items-center gap-2 text-sm text-text hover:text-primary-text transition-colors">
                     <Phone size={14} className="text-muted shrink-0" /> <span className="break-all">{post.contact_phone}</span>
                   </a>
                 )}

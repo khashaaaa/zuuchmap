@@ -161,7 +161,7 @@ jobs:
         run: npm run build
 
   app:
-    name: App — tests
+    name: App — tests, bundle
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -178,6 +178,17 @@ jobs:
       - name: Tests
         working-directory: zuuchmap_app
         run: npm test
+
+      # The engine typechecks and the web builds; the app did neither, so a
+      # syntax error or a bad import in any screen without a test reached EAS
+      # unchallenged — and most screens have no test. A Metro bundle is the
+      # cheapest thing that actually resolves every import in the graph.
+      #
+      # Android only: the JS graph is the same on both platforms, and the second
+      # export would buy nothing for the minutes it costs.
+      - name: Bundle
+        working-directory: zuuchmap_app
+        run: npx expo export --platform android --output-dir "$RUNNER_TEMP/expo-export"
 
   engine-lint:
     name: Engine lint (advisory)

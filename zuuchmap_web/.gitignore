@@ -13,6 +13,9 @@ dist-ssr
 *.local
 .env
 .env.*
+# ...but the template is the point: it is the only thing in the repo that tells
+# a fresh clone which VITE_* variables exist. It carries no secrets.
+!.env.example
 
 # Editor directories and files
 .vscode/*

@@ -52,7 +52,7 @@ const CODE_TRACKING = 8;
  * they text to the shortcode from the number they are claiming, and possession
  * is proven by that message arriving from that number.
  */
-const OtpVerification = ({ route, navigation }) => {
+const PhoneVerification = ({ route, navigation }) => {
     // `userType` is no longer passed in — the verification result carries the
     // account type, and it is the only source that has proven the caller owns
     // this number. Still read from params so an older navigation state (a warm
@@ -373,4 +373,4 @@ const styles = StyleSheet.create({
     },
 });
 
-export default OtpVerification;
+export default PhoneVerification;

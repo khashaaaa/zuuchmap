@@ -51,6 +51,7 @@ import { showErrorModal, showInfoModal, getErrorMessage } from '../../utils/erro
 import messageService from '../../services/api/messageService';
 import reportService, { REPORTS_KEY } from '../../services/api/reportService';
 import ReportSheet from '../../components/ReportSheet';
+import { ensureAuth } from '../../utils/requireAuth';
 
 
 // i18n key map for known attribute keys
@@ -230,11 +231,11 @@ const PostDetailScreen = ({ route, navigation }) => {
         },
         onSettled: () => qc.invalidateQueries({ queryKey: likeStatsKey }),
     });
-    const handleToggleLike = () => {
-        if (!currentUserId) {
-            showErrorModal(t('auth.title'), t('posts.loginToSave'), [{ text: t('common.close') }], 'warning');
-            return;
-        }
+    // Guests reach this screen now, so the four handlers below gate themselves.
+    // The old check here showed a warning with a single Close button — it told
+    // someone an account was needed and gave them no way to get one.
+    const handleToggleLike = async () => {
+        if (!(await ensureAuth(navigation, 'auth.guestSave'))) return;
         toggleLike.mutate({ post_type: postType, post_id: postId, liked });
     };
 
@@ -337,6 +338,7 @@ const PostDetailScreen = ({ route, navigation }) => {
     };
 
     const handleMessage = async () => {
+        if (!(await ensureAuth(navigation, 'auth.guestMessage'))) return;
         try {
             const thread = await messageService.open(post.id);
             navigation.navigate('MessageThread', {
@@ -348,7 +350,15 @@ const PostDetailScreen = ({ route, navigation }) => {
         }
     };
 
-    const handleReport = () => setShowReportSheet(true);
+    const handleReport = async () => {
+        if (!(await ensureAuth(navigation, 'auth.guestReport'))) return;
+        setShowReportSheet(true);
+    };
+
+    const handleBook = async () => {
+        if (!(await ensureAuth(navigation, 'auth.guestBook'))) return;
+        setShowBookingModal(true);
+    };
 
     const handleCall = () => {
         if (post?.contact_phone) {
@@ -1019,7 +1029,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                             <Button
                                 icon={bookingOpen ? 'calendar-outline' : 'call-outline'}
                                 title={bookingOpen ? t('booking.request') : t('posts.call')}
-                                onPress={bookingOpen ? () => setShowBookingModal(true) : handleCall}
+                                onPress={bookingOpen ? handleBook : handleCall}
                                 variant="primary"
                                 size="medium"
                                 style={styles.footerBtn}

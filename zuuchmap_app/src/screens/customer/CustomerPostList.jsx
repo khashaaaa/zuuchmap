@@ -19,6 +19,7 @@ import postService from '../../services/api/postService';
 import categoryService from '../../services/api/categoryService';
 import { getPostImageUrl } from '../../config/api.config';
 import LikeButton from '../../components/LikeButton';
+import { ensureAuth } from '../../utils/requireAuth';
 import PostCard from '../../components/PostCard';
 import { ScreenLayout, CategoryBadge, SkeletonItem, EmptyState, LocationRow, SelectionPop, AvailabilityStrip, OfflineBanner, SavedSearchSheet, BrowseFilterSheet } from '../../components';
 import ScreenError from '../../components/ScreenError';
@@ -66,6 +67,10 @@ const CustomerPostList = ({ route, navigation }) => {
     const debouncedSearchQuery = useDebounce(searchQuery, 300);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [isCustomer, setIsCustomer] = useState(false);
+    // Guests browse this list now. They get the heart too — hiding it would
+    // make saving undiscoverable to exactly the people we want to sign up —
+    // and tapping it prompts for an account instead of silently failing.
+    const [isGuest, setIsGuest] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
     const [showSaveSearch, setShowSaveSearch] = useState(false);
     const [filters, setFilters] = useState({
@@ -189,6 +194,7 @@ const CustomerPostList = ({ route, navigation }) => {
             const authenticated = authStatus?.authenticated ?? false;
             setIsAuthenticated(authenticated);
             setIsCustomer(authenticated && !authStatus?.is_admin && authStatus?.userType === 'CUSTOMER');
+            setIsGuest(!authenticated);
         }).catch(() => {});
     }, []);
 
@@ -274,9 +280,10 @@ const CustomerPostList = ({ route, navigation }) => {
 
     // --- Render helpers ---
 
-    const handleToggleLike = useCallback((item, liked) => {
+    const handleToggleLike = useCallback(async (item, liked) => {
+        if (!(await ensureAuth(navigation, 'auth.guestSave'))) return;
         toggleLike.mutate({ post_type: item.post_type || 'construction', post_id: item.id, liked });
-    }, [toggleLike.mutate]);
+    }, [toggleLike.mutate, navigation]);
 
     // Emphasis is an admin-set schema flag (CategorySchema.emphasized) — no hardcoded category keys
     const emphasisByKey = useMemo(() => {
@@ -313,8 +320,8 @@ const CustomerPostList = ({ route, navigation }) => {
                     price={getPostPrice(item)}
                     emphasized={!!emphasisLabel}
                     statusOverlay
-                    memoKey={`${liked}-${pending}-${isCustomer}-${item.status}-${item.busy_dates}-${emphasisLabel}-${i18n.language}-${isDark}`}
-                    actions={isCustomer ? (
+                    memoKey={`${liked}-${pending}-${isCustomer}-${isGuest}-${item.status}-${item.busy_dates}-${emphasisLabel}-${i18n.language}-${isDark}`}
+                    actions={(isCustomer || isGuest) ? (
                         <LikeButton liked={liked} size="small" disabled={pending} onToggle={() => handleToggleLike(item, liked)} />
                     ) : null}
                     badges={
@@ -355,7 +362,7 @@ const CustomerPostList = ({ route, navigation }) => {
                 </PostCard>
             </View>
         );
-    }, [handlePostPress, likedPostsStatus, isCustomer, handleToggleLike, toggleLike.isPending, toggleLike.variables, colors, styles, emphasisByKey, rentalByKey, t, i18n.language]);
+    }, [handlePostPress, likedPostsStatus, isCustomer, isGuest, handleToggleLike, toggleLike.isPending, toggleLike.variables, colors, styles, emphasisByKey, rentalByKey, t, i18n.language]);
 
     const keyExtractor = useCallback((item) => item.id.toString(), []);
 

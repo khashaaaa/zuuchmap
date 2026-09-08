@@ -1,4 +1,8 @@
 export default {
+  meta: {
+    title: 'ZuuchMap — Mongolia’s construction marketplace | Machinery, materials, contractors',
+    description: 'Mongolia’s construction marketplace. Rent machinery, vehicles and tools, buy building materials, find factories, contractors, jobs and SOS services — across all 21 provinces.',
+  },
   errors: {
     tooManyRequests: 'Too many requests. Wait a moment.',
     payloadTooLarge: 'The upload is too large. Use fewer or smaller photos.',

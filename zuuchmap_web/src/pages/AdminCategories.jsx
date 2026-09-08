@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Plus, Pencil, X, ChevronUp, ChevronDown, ToggleLeft, ToggleRight, Tag } from 'lucide-react'
 import { categoryApi } from '@/lib/api'
 import { PRICE_UNITS, CATEGORY_COLORS, getCategoryColor } from '@/lib/utils'
-import { LANGUAGES } from '@/i18n'
+import { SCHEMA_LOCALES, SCHEMA_LOCALE_LABELS } from '@/i18n'
 import PageHeader from '@/components/PageHeader'
 import ErrorState from '@/components/ErrorState'
 import EmptyState from '@/components/EmptyState'
@@ -23,7 +23,11 @@ import { useTableDensity } from '@/hooks/useTableDensity'
 import { toast } from 'sonner'
 
 const FIELD_TYPES = ['text', 'textarea', 'number', 'select', 'multiselect', 'boolean', 'date', 'phone']
-const LOCALES = LANGUAGES.map((l) => l.code)
+// Schema labels cover all four locales the APP renders, not the two this admin
+// UI is offered in. Deriving these from the header's language list would mean
+// zh/ru category names could never be entered again, and would decay to the
+// raw key on every app screen that shows one.
+const LOCALES = SCHEMA_LOCALES
 const DEFAULT_COLOR = CATEGORY_COLORS.construction
 
 const emptySchema = () => ({
@@ -41,7 +45,8 @@ function LabelsEditor({ value = {}, onChange }) {
   return (
     <div className="grid grid-cols-2 gap-2">
       {LOCALES.map((lng) => (
-        <Input key={lng} value={value?.[lng] ?? ''} placeholder={lng.toUpperCase()}
+        <Input key={lng} value={value?.[lng] ?? ''}
+          placeholder={`${lng.toUpperCase()} — ${SCHEMA_LOCALE_LABELS[lng]}`}
           onChange={(e) => onChange({ ...(value ?? {}), [lng]: e.target.value })}  />
       ))}
     </div>

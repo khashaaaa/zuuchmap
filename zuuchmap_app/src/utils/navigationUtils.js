@@ -5,7 +5,7 @@ import { createNavigationContainerRef } from '@react-navigation/native';
 // screen's control.
 export const navigationRef = createNavigationContainerRef();
 
-const AUTH_SCREENS = ['PhoneNumber', 'OtpVerification', 'UserRoleSelection'];
+const AUTH_SCREENS = ['PhoneNumber', 'PhoneVerification', 'UserRoleSelection'];
 
 export const resetToLogin = () => {
     if (!navigationRef.isReady()) return;

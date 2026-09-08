@@ -40,8 +40,27 @@ function objectLiteral(src, name) {
   try { return eval('(' + body + ')'); } catch { return null; }
 }
 
-/** Every locale both clients ship. `mn` is the fallback and the source of truth. */
-const LOCALES = ['mn', 'en', 'zh', 'ru'];
+/**
+ * The locales each client ships. These deliberately differ. The app serves all
+ * four; the web ships mn/en only, because a browser visitor who reads neither
+ * is far rarer than an app user who does, and two fewer trees is two fewer
+ * places for a string to rot.
+ *
+ * `mn` is the fallback and the source of truth on both sides.
+ *
+ * Cross-client contracts (shared keys, price-unit labels) can only compare what
+ * both ship, so they iterate SHARED_LOCALES. Per-client contracts (completeness)
+ * iterate that client's own list via CLIENT_LOCALES.
+ *
+ * Note this is NOT the list of locales a category schema carries: `labels` on
+ * CategorySchema stays {mn,en,zh,ru} because the app renders all four, and the
+ * web admin is the only place to edit them. See SCHEMA_LOCALES in
+ * zuuchmap_web/src/i18n/index.js.
+ */
+const APP_LOCALES = ['mn', 'en', 'zh', 'ru'];
+const WEB_LOCALES = ['mn', 'en'];
+const SHARED_LOCALES = APP_LOCALES.filter((l) => WEB_LOCALES.includes(l));
+const CLIENT_LOCALES = { app: APP_LOCALES, web: WEB_LOCALES };
 
 /** Load an i18n locale module (ESM default export) and flatten it to dotted keys. */
 const Module = require('module');
@@ -265,7 +284,7 @@ function agree(contract, sets) {
 // no screen for. What must not drift is the overlap: a key present in BOTH has
 // to say the same thing, or the same product speaks with two voices.
 {
-  for (const locale of LOCALES) {
+  for (const locale of SHARED_LOCALES) {
     checks.push(`i18n:${locale}`);
     const a = loadLocale(`zuuchmap_app/src/i18n/locales/${locale}.js`);
     const b = loadLocale(`zuuchmap_web/src/i18n/${locale}.js`);
@@ -289,7 +308,7 @@ function agree(contract, sets) {
   const base = (k) => k.replace(/_(zero|one|two|few|many|other)$/, '');
   for (const [client, dir] of [['web', 'zuuchmap_web/src/i18n'], ['app', 'zuuchmap_app/src/i18n/locales']]) {
     const en = new Set(Object.keys(loadLocale(`${dir}/en.js`)).map(base));
-    for (const locale of LOCALES) {
+    for (const locale of CLIENT_LOCALES[client]) {
       if (locale === 'en') continue;
       const keys = new Set(Object.keys(loadLocale(`${dir}/${locale}.js`)).map(base));
       const missing = [...en].filter((k) => !keys.has(k));
@@ -682,7 +701,7 @@ function agree(contract, sets) {
       .filter(([k]) => k.startsWith('priceUnit.'))
       .map(([k, v]) => [k.slice('priceUnit.'.length).toUpperCase(), v]));
 
-  for (const locale of LOCALES) {
+  for (const locale of SHARED_LOCALES) {
     const a = units(loadLocale(`zuuchmap_app/src/i18n/locales/${locale}.js`));
     const w = units(loadLocale(`zuuchmap_web/src/i18n/${locale}.js`));
     const codes = [...new Set([...Object.keys(a), ...Object.keys(w)])].sort();

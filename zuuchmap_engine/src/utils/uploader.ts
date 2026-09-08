@@ -56,8 +56,11 @@ export const IMAGE_CONFIG = {
   },
 } as const;
 
-// Magic-byte MIME validation — checks actual file bytes, not the client-supplied Content-Type
-function validateImageBytes(buffer: Buffer): void {
+// Magic-byte MIME validation — checks actual file bytes, not the client-supplied Content-Type.
+// Exported for its unit test: this is the boundary that decides what reaches
+// Sharp and then R2, and testing it through the multer interceptor would test
+// multer instead of the rule.
+export function validateImageBytes(buffer: Buffer): void {
   if (!buffer || buffer.length < 12) {
     throw new HttpException(
       'Invalid or empty image file',

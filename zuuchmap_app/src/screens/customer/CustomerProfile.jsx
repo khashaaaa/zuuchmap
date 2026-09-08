@@ -23,6 +23,7 @@ import { ProfileBadge } from '../../components';
 import { DEFAULT_AVATAR_URL } from '../../config/app.config';
 import { showErrorModal, isPostLogoutStraggler } from '../../utils/errorManager';
 import { confirmLogout } from '../../utils/navigationUtils';
+import { useIsGuest } from '../../utils/requireAuth';
 import { logger } from '../../utils/logger';
 
 const CustomerProfile = ({ navigation }) => {
@@ -30,6 +31,10 @@ const CustomerProfile = ({ navigation }) => {
     const { colors, styles: gStyles } = useAppTheme();
     const { t } = useTranslation();
     const [imageError, setImageError] = useState(false);
+    // Guests reach this tab now. `null` while the token read is in flight — the
+    // member view must not paint first and then swap, and neither must the
+    // guest card.
+    const guest = useIsGuest();
 
     const { data: user = null, isLoading: loading, isRefetching: refreshingProfile, refetch: refetchProfile, error: profileError } = useProfile();
 
@@ -65,6 +70,98 @@ const CustomerProfile = ({ navigation }) => {
         name: user.name,
         profilePicture: user.profilePicture,
     });
+
+    if (guest === null) {
+        return (
+            <ScreenLayout
+                title={t('profile.title')}
+                showBack={false}
+                loading
+                loadingMessage={t('profile.loading')}
+            />
+        );
+    }
+
+    /**
+     * Browsing without an account.
+     *
+     * Everything here that does not need a session stays — language, theme,
+     * help, the policies — because they are the reason a guest opens this tab
+     * at all. Without this branch the screen fell through to the `!user` error
+     * state below and told a perfectly healthy guest that something had failed.
+     */
+    if (guest) {
+        return (
+            <ScreenLayout title={t('profile.title')} showBack={false}>
+                <ScrollView
+                    style={styles.scrollView}
+                    contentContainerStyle={[
+                        styles.scrollContent,
+                        gStyles.scrollViewContentWithBottomInset(
+                            safeAreaHelpers.getBottomSafeArea(insets) + dimensions.bottomTabHeight
+                        )
+                    ]}
+                    showsVerticalScrollIndicator={false}
+                >
+                    <View style={styles.tabletCentering}>
+                        <FadeSlideIn index={0}>
+                            <View style={styles.profileHeader}>
+                                <View style={[styles.profileCard, colors.elevation.md, { backgroundColor: colors.surface }]}>
+                                    <View style={styles.avatarContainer}>
+                                        <View style={[styles.avatar, styles.guestAvatar, { backgroundColor: colors.opacity.background.primary, borderColor: colors.surface }]}>
+                                            <Ionicons name="person-outline" size={36} color={colors.iconAccent} />
+                                        </View>
+                                    </View>
+                                    <View style={styles.profileInfo}>
+                                        <Text style={[styles.userName, { color: colors.text.primary }]} numberOfLines={1}>
+                                            {t('profile.guestTitle')}
+                                        </Text>
+                                        <Text style={[styles.guestSubtitle, { color: colors.text.secondary }]}>
+                                            {t('profile.guestSubtitle')}
+                                        </Text>
+                                    </View>
+                                </View>
+                            </View>
+                        </FadeSlideIn>
+
+                        <FadeSlideIn index={1}>
+                            <ProfileSection>
+                                <ProfileActionRow
+                                    icon="log-in-outline"
+                                    text={t('auth.title')}
+                                    onPress={() => navigation.navigate('PhoneNumber')}
+                                    isLast
+                                />
+                            </ProfileSection>
+                        </FadeSlideIn>
+
+                        <FadeSlideIn index={2}>
+                            <ProfileSection>
+                                <ProfileActionRow
+                                    icon="help-circle-outline"
+                                    text={t('profile.helpSupport')}
+                                    onPress={() => navigation.navigate('HelpSupport')}
+                                />
+                                <ProfileActionRow
+                                    icon="shield-outline"
+                                    text={t('privacy.title')}
+                                    onPress={() => navigation.navigate('PrivacyPolicy')}
+                                />
+                                <ProfileActionRow
+                                    icon="document-text-outline"
+                                    text={t('terms.title')}
+                                    onPress={() => navigation.navigate('Terms')}
+                                    isLast
+                                />
+                            </ProfileSection>
+                        </FadeSlideIn>
+
+                        <SettingsSection />
+                    </View>
+                </ScrollView>
+            </ScreenLayout>
+        );
+    }
 
     if (loading) {
         return (
@@ -257,8 +354,12 @@ const styles = StyleSheet.create({
     },
     avatarContainer: { position: 'relative', marginRight: spacing.lg },
     avatar: { width: isTablet ? 110 : 80, height: isTablet ? 110 : 80, borderRadius: radius.pill, borderWidth: 3 },
+    // Same box as the avatar image it stands in for, so the guest card and the
+    // member card have identical geometry and the tab does not shift on login.
+    guestAvatar: { justifyContent: 'center', alignItems: 'center' },
     profileInfo: { flex: 1 },
     userName: { ...typography.styles.h3, marginBottom: spacing.xs },
+    guestSubtitle: { ...typography.styles.caption },
     phoneContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm },
     userPhone: { ...typography.styles.caption, marginLeft: spacing.xs },
     editButton: { width: 36, height: 36, borderRadius: radius.xl, justifyContent: 'center', alignItems: 'center' },

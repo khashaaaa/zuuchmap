@@ -1,4 +1,11 @@
 export default {
+  // The document title and meta description for any page that does not set its
+  // own. Moved out of useDocumentMeta.js, where they were hardcoded Mongolian
+  // and shown to every reader regardless of the language they had picked.
+  meta: {
+    title: 'ZuuchMap — Барилгын зах зээл | Машин механизм, материал, гүйцэтгэгч',
+    description: 'Монголын барилгын зах зээл. Машин механизм, тээврийн хэрэгсэл, багаж түрээслэх, барилгын материал, үйлдвэр, гүйцэтгэгч, ажлын байр, SOS үйлчилгээ — 21 аймагт.',
+  },
   errors: {
     tooManyRequests: 'Хэт олон хүсэлт илгээсэн байна. Түр хүлээнэ үү.',
     payloadTooLarge: 'Илгээсэн файлын хэмжээ хэт их байна. Цөөн эсвэл жижиг зураг ашиглана уу.',

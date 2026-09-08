@@ -114,7 +114,7 @@
         }
       ]
     ],
-    "runtimeVersion": "1.0.1",
+    "runtimeVersion": "1",
     "owner": "khashaa",
     "extra": {
       "eas": {

@@ -20,13 +20,6 @@ export class UserService {
     private readonly pushDeviceRepository: Repository<PushDevice>,
   ) {}
 
-  async findByPhoneNumber(phone_number: string): Promise<User | null> {
-    return this.userRepository.findOne({
-      where: { phone_number },
-      relations: ['company'],
-    });
-  }
-
   async setUserType(
     phone_number: string,
     type: string,

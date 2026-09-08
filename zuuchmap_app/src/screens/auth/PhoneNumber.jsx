@@ -105,7 +105,7 @@ const PhoneNumber = ({ navigation }) => {
                 return;
             }
 
-            navigation.navigate('OtpVerification', { phoneNumber, session });
+            navigation.navigate('PhoneVerification', { phoneNumber, session });
         } catch (error) {
             logger.error('Phone number verification error:', error);
             showErrorModal(t('common.error'), getErrorMessage(error, t('auth.sendError')));
@@ -124,7 +124,26 @@ const PhoneNumber = ({ navigation }) => {
                 <View style={styles.tabletCentering}>
             <View style={styles.content}>
                     <View style={styles.topRow}>
-                        <View />
+                        {/*
+                          * A guest who tapped "sign in" from browsing must be
+                          * able to change their mind. Only rendered when there
+                          * IS somewhere to go back to — on a cold start this is
+                          * the root and a dead back arrow would be a lie.
+                          */}
+                        {navigation.canGoBack() ? (
+                            <TouchableOpacity
+                                style={[styles.themeToggle, { backgroundColor: colors.opacity.background.primary }]}
+                                onPress={() => navigation.goBack()}
+                                accessibilityRole="button"
+                                accessibilityLabel={t('common.back')}
+                                activeOpacity={interactions.activeOpacityLight}
+                                hitSlop={interactions.hitSlop}
+                            >
+                                <Ionicons name="arrow-back" size={20} color={colors.iconAccent} />
+                            </TouchableOpacity>
+                        ) : (
+                            <View />
+                        )}
                         <TouchableOpacity
                             style={[styles.themeToggle, { backgroundColor: colors.opacity.background.primary }]}
                             onPress={() => setThemeMode(isDark ? 'light' : 'dark')}

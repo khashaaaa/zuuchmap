@@ -20,7 +20,6 @@ import {
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { CheckUserDto } from './dto/check-user.dto';
 import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import {
@@ -37,47 +36,6 @@ import { vapidPublicKey } from '../utils/webPush';
 @Controller('user')
 export class UserController {
   constructor(private readonly userService: UserService) {}
-
-  /**
-   * LEGACY — kept only for app builds already installed.
-   *
-   * It answers "does this number have an account, and what type" to an
-   * unauthenticated caller. Mongolian mobile numbers are 8 digits over a
-   * handful of prefixes, so under the global 100/min default this was a
-   * walkable enumeration oracle that also returned the account UUID. The
-   * current app no longer calls it: `auth/verify/start` carries the account
-   * type on a result that has actually proven possession of the number.
-   *
-   * Until old builds age out it stays, at the same 3/min per IP that
-   * `verify/start` gets — enough for a human signing in, useless for a sweep.
-   * Delete the route (and `checkUserExists` in the app) once those builds are gone.
-   */
-  @Post('check')
-  @Throttle({ default: { ttl: 60000, limit: 3 } })
-  async findByPhoneNumber(@Body() body: CheckUserDto) {
-    const { phone_number } = body;
-
-    const user = await this.userService.findByPhoneNumber(phone_number);
-
-    if (!user) {
-      throw new NotFoundException(
-        `User with phone number ${phone_number} not found`,
-      );
-    }
-
-    return {
-      id: user.id,
-      type: user.type,
-      is_verified: user.is_verified,
-      exists: true,
-      hasUserType: !!user.type,
-      // `isVerified` duplicates `is_verified` above, and both it and
-      // `hasUserType` are kept only for app builds already installed — unlike
-      // the biometric pair that stood here, they still return real values, so
-      // dropping them would change what an old client sees.
-      isVerified: user.is_verified,
-    };
-  }
 
   @Post('type')
   @UseGuards(JwtAuthGuard)

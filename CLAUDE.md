@@ -25,11 +25,17 @@ Construction marketplace for Mongolia. Providers post rentals/services/jobs acro
 
 These values are duplicated across the three apps by design. `npm run check:sync`
 (`scripts/check-sync.js`, zero deps) verifies them and **gates deploy.sh as step
-0/6** — run it after touching any of them. It reports **21 contracts** against the
+0/6** — run it after touching any of them. It reports **19 contracts** against the
 15 rows below: the locations row covers `provinces` + `districts`, and the i18n
-row covers `i18n:mn|en|zh|ru` + `i18n completeness` (every non-`en` locale has
-exactly `en`'s key set on its side, plural suffixes aside) + `i18n keys` (every
+row covers `i18n:mn|en` + `i18n completeness` (every non-`en` locale has
+exactly `en`'s key set on **its own** side, plural suffixes aside) + `i18n keys` (every
 literal `t('…')` must resolve).
+
+**The two clients ship different locale sets** — the app has `mn en zh ru`, the
+web only `mn en`. So the cross-client contracts (shared keys, price-unit labels)
+compare `SHARED_LOCALES` = the overlap, while completeness runs per client over
+`CLIENT_LOCALES`. Adding a locale to one side means editing those constants at
+the top of `check-sync.js`, nothing else.
 
 | Contract | Copies |
 |---|---|
@@ -38,7 +44,7 @@ literal `t('…')` must resolve).
 | palette | `app/design/theme.js` · `web/src/index.css` (1:1 tokens only — the file names the deliberate exceptions) |
 | `Province` / `District` | engine `enums/province.ts` · `app/config/app.config.js` · `web/lib/utils.js` |
 | `PriceUnit` | engine `enums/priceunit.ts` · `web/lib/utils.js` · `app/config/app.config.js` |
-| shared i18n keys | `app/i18n/locales/{mn,en,zh,ru}.js` · `web/i18n/{mn,en,zh,ru}.js` — each tree keeps ~280 platform-specific keys, but a key present in **both** must have the same value |
+| shared i18n keys | `app/i18n/locales/{mn,en,zh,ru}.js` · `web/i18n/{mn,en}.js` — the web ships two locales, the app four, so only `mn`/`en` are compared. Each tree keeps ~280 platform-specific keys, but a key present in **both** must have the same value |
 | `getPostTitle` | `app/utils/postUtils.js` · `web/lib/utils.js` — checked *behaviourally*: both are lifted, stubbed and run over shared fixtures |
 | `postHealth` | `app/utils/postHealth.js` · `web/lib/postHealth.js` — behavioural; the same listing must score the same on both |
 | map clustering | `app/screens/customer/CustomerMapView.jsx` (`gridCluster`) · `web/lib/mapCluster.js` — behavioural, across four zoom levels |
@@ -74,7 +80,9 @@ only under `/engine` and does nothing for search or link previews.
 `eas.json`, `hooks/useOtaUpdates.js`), so a JavaScript-only fix ships with
 `eas update` instead of a store review. `runtimeVersion` must change **only when
 the native code does** — bumping it per release strands every installed build with
-no compatible update. The hook fetches in the background and applies on the next
+no compatible update. It is therefore a bare native-ABI counter (`"1"`), deliberately
+**not** shaped like `version` (`1.0.1`): the two used to be the same literal, which
+is exactly the coincidence that invites bumping them together. The hook fetches in the background and applies on the next
 return from background, never mid-form.
 
 ---
@@ -94,7 +102,9 @@ cd zuuchmap_engine && npm run dev
 ```
 
 **Tests.** All three apps have a suite now, and `.github/workflows/ci.yml` runs
-them on every push and PR (plus `check:sync` and a web build). Lint is
+them on every push and PR (plus `check:sync`, a web build, and a Metro bundle of
+the app — `expo export`, which is the only gate that resolves every import in a
+codebase whose screens mostly have no test). Lint is
 **advisory** in CI on purpose — both eslint configs carry findings that predate
 the workflow, and a gate nobody can pass is a gate everybody learns to ignore.
 
@@ -117,11 +127,12 @@ or the queries do not exist yet (`src/test/render.jsx` does this for you).
 ## Backend
 
 **Entry:** `src/main.ts` — port `8282`, prefix `/engine`  
-**Env:** `config/variables/<NODE_ENV>.env` — `PG_*` `JWT_SECRET` `ADMIN_PHONES` `R2_*` `PROG_PORT` `PUBLIC_ENGINE_URL`
+**Env:** `config/variables/<NODE_ENV>.env` (gitignored; the live one is on the server). **`zuuchmap_engine/.env.example` is the checked-in template and lists every variable the code reads** — it exists because the deployed file drifted behind several releases of features that read variables nothing in the repo named, so each was silently inert in production. Add a variable there in the same commit that reads it. Same for `zuuchmap_web/.env.example`.
+Required: `PG_*` `JWT_SECRET` `ADMIN_PHONES` `R2_*` `PROG_PORT` `PUBLIC_ENGINE_URL`
 - `ALLOWED_ORIGIN` — comma-separated browser origins. Gates **both** the HTTP CORS allowlist (`main.ts`) and the Socket.io one (`events.gateway.ts`). A request with no `Origin` (the app, curl, verify.mn's callback) is never affected. Add every host the web app is served from — a bare apex here blocks `www.`.
 - `VERIFY_MN_API_KEY` `VERIFY_MN_BASE_URL` `VERIFY_MN_TIMEOUT_MS` (default 10s) — verify.mn client.
 - `VERIFY_TTL_MS` (5m) how long a verification session lives · `VERIFY_RATE_LIMIT` (5) + `RATE_TTL_MS` (1h) per-phone cap on **paid** SMS verifications, 150₮ each. `OTP_RATE_LIMIT` is the retired name, still read as a fallback.
-- `THROTTLER_TTL` (60s) / `THROTTLER_LIMIT` (100) — global per-IP default. Routes that need to be stingier set their own `@Throttle`: `auth/verify/start` and the legacy `user/check` are 3/min.
+- `THROTTLER_TTL` (60s) / `THROTTLER_LIMIT` (100) — global per-IP default. Routes that need to be stingier set their own `@Throttle`: `auth/verify/start` is 3/min. (The legacy `POST /user/check` that shared that limit is **deleted** — it was a phone-number enumeration oracle kept for old builds, and no client had called it for some time.)
 - `ANALYTICS_RETENTION_DAYS` — pruned nightly by `AnalyticsService`.
 - `REDIS_URL` (or `REDIS_HOST`/`REDIS_PORT`/`REDIS_PASSWORD`) — optional; see the multi-instance row under Known issues.
 - `SENTRY_DSN` (+ `SENTRY_RELEASE`, `SENTRY_TRACES_SAMPLE_RATE`) — error reporting (`utils/observability.ts`). Unset ⇒ no-op; unhandled 5xx, uncaught exceptions and rejected promises stay in the pm2 log.
@@ -233,7 +244,11 @@ Web/app read `is_admin` from JWT response — they do not duplicate the list.
 **HTTP:** `src/lib/api.js` — Axios, auto-JWT, redirects `/login` on 401.  
 **State:** `useAuthStore` + `useThemeStore` + `useNotificationStore` (Zustand, `src/store.js`); everything else React Query.  
 **Realtime:** `hooks/useRealtimeSync.js` — Socket.io (JWT auth), invalidates queries on events.  
-**i18n:** `src/i18n/` — `mn en zh ru`, listed in `LANGUAGES` (`i18n/index.js`); the header switcher and `AdminCategories` label inputs both derive from that list. Adding a string means adding it to all four files — `check:sync` fails otherwise. Russian plurals need `_one/_few/_many/_other`; Chinese keeps `_one/_other` with the same text.
+**i18n:** `src/i18n/` — **`mn en` only** (the app ships `zh`/`ru` too; the web does not). Listed in `LANGUAGES` (`i18n/index.js`), which drives the header switcher. Adding a string means adding it to both files — `check:sync` fails otherwise. A visitor whose stored `zm_lang` names a retired locale falls back to `mn`.
+
+⚠ **`AdminCategories` label inputs derive from `SCHEMA_LOCALES`, not `LANGUAGES`** — deliberately. `CategorySchema.labels` stays `{mn,en,zh,ru}` because the **app** renders all four, and the web admin is the only place to edit them. Tie the two lists together again and zh/ru category names become unenterable and decay to the raw key on every app screen that shows one, with nothing to notice it.
+
+Page titles and meta descriptions come from `meta.title` / `meta.description` via `useDocumentMeta`; `index.html` still ships the Mongolian pair for first paint and for crawlers that run no JavaScript.
 
 **Key utilities** (`src/lib/utils.js`): `getPostCategory(post)`; `getCategoryLabel` / `getSubcategoryLabel` / `getFieldLabel` — resolve schema `labels[locale]` first, then client i18n, then raw label. Always use these for category-related display text.
 
@@ -248,7 +263,7 @@ Admin:    /admin /admin/posts /admin/posts/:id /admin/users /admin/users/:id
 Provider: /provider /provider/posts /provider/posts/new /provider/posts/:id
           /provider/posts/:id/edit /provider/profile /provider/company /provider/bookings
           /provider/billing
-Customer: /customer /customer/browse /customer/map /customer/saved /customer/profile
+Customer: /customer /customer/browse /customer/map /customer/saved /customer/saved-searches /customer/profile
           /customer/bookings
 ```
 
@@ -256,7 +271,9 @@ Customer: /customer /customer/browse /customer/map /customer/saved /customer/pro
 
 ## App (`zuuchmap_app/`)
 
-**Entry:** `App.js` → `Stack.Navigator`. Initial route: `src/utils/navigationUtils.js → getInitialRoute()`.
+**Entry:** `App.js` → `Stack.Navigator`. Initial route: `getInitialRoute()` in `App.js` (`navigationUtils.js` holds `getDashboardScreen`/`resetToLogin`, not this).
+
+**Guest mode.** An unauthenticated launch lands on `CustomerDashboard`, not the phone screen — verification bills the **user** 150₮, so gating the whole catalogue behind it charged people to discover whether the marketplace was worth joining. Reading is open (browse, map, listing detail, the public contact number); the four actions that write to an account — save, message, report, book — call `ensureAuth(navigation, reasonKey)` from `src/utils/requireAuth.js`, which prompts with a named reason and a route to `PhoneNumber`. `useIsGuest()` is the reactive form, riding `onAuthChanged`; it returns `null` until the token read resolves, so nothing paints the wrong state first.
 
 **Key configs:**
 - `src/config/api.config.js` — `API_BASE_URL`, `ENDPOINTS`, `STORAGE_KEYS`
@@ -273,7 +290,9 @@ Customer: /customer /customer/browse /customer/map /customer/saved /customer/pro
 
 **Category schemas:** `hooks/useCategorySchemas.js` → `useCategorySchemas()` / `useActiveCategorySchemas()`. Use these for any per-category affordance; `getPostTypeConfig(type, colors, schemas)` resolves icon+colour from the schema.
 
-**New surfaces:** `screens/shared/MessagesScreen.jsx` + `MessageThreadScreen.jsx` (inbox and thread; routes `Messages` / `MessageThread`), `screens/provider/BillingScreen.jsx` (route `Billing` — QPay QR, bank deep links, receipts). Services: `messageService` `paymentService` `reportService`. Reporting is a reason sheet on `PostDetailScreen` rather than a screen — the reasons come from `REPORT_REASONS`, mirrored from the engine's enum.
+**New surfaces:** `screens/shared/MessagesScreen.jsx` + `MessageThreadScreen.jsx` (inbox and thread; routes `Messages` / `MessageThread`), `screens/provider/BillingScreen.jsx` (route `Billing` — QPay QR, bank deep links, receipts). Services: `messageService` `paymentService` `reportService`. Reporting is a reason sheet on `PostDetailScreen` rather than a screen — the reasons come from `REPORT_REASONS`, mirrored from the engine's enum. `screens/auth/PhoneVerification.jsx` (route `PhoneVerification`) is the verify.mn MO screen — it was called `OtpVerification` long after the OTP flow was retired.
+
+**Admin surfaces:** tabs are `Browse` `Approval` `Reports` `Profile`; `AdminUsers` and `AdminAnalytics` are root-stack screens reached from `AdminProfile` (rows, not tabs — both are look-ups rather than queues, and a sixth tab does not fit a phone bar). They call `services/api/adminService.js`; post moderation stays in `postService`. **Category editing remains web-only** — a four-locale schema form does not survive 390px.
 
 **Admin detection:** `is_admin` from `userService.isAuthenticated()` — phone-based, not `userType`.  
 **LikeButton:** every call site gates admins itself (`!isProvider && !isAdmin`, `showLike={isCustomer}`, or a customer-only screen). The component's own `hidden` fallback lives in `initializeLikeData()`, which is skipped whenever `skip_check` and `is_authenticated` are both passed — i.e. in every list. Do not rely on it.  

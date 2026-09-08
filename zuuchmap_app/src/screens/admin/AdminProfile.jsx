@@ -122,6 +122,20 @@ const AdminProfile = ({ navigation }) => {
                             text={t('posts.savedTitle')}
                             onPress={() => navigation.navigate('CustomerLikeList')}
                         />
+                        {/* Account administration and the analytics summary.
+                            Rows rather than tabs: both are look-ups, not queues
+                            you return to, and a sixth tab would not fit a phone
+                            bar. Until now neither existed on mobile at all. */}
+                        <ProfileActionRow
+                            icon="people-outline"
+                            text={t('admin.users')}
+                            onPress={() => navigation.navigate('AdminUsers')}
+                        />
+                        <ProfileActionRow
+                            icon="bar-chart-outline"
+                            text={t('analytics.title')}
+                            onPress={() => navigation.navigate('AdminAnalytics')}
+                        />
                         <ProfileActionRow
                             icon="help-circle-outline"
                             text={t('profile.helpSupport')}

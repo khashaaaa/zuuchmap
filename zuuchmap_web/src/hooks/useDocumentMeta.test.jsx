@@ -1,6 +1,10 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, afterEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import useDocumentMeta from './useDocumentMeta'
+// Initialises the i18next singleton. The hook reads its defaults through
+// useTranslation(), which resolves to this instance when no provider is
+// mounted — without the import every default would render as the bare key.
+import i18n from '@/i18n'
 
 const content = (selector) => document.head.querySelector(selector)?.getAttribute('content')
 
@@ -50,4 +54,20 @@ describe('useDocumentMeta', () => {
     expect(document.title).toContain('ZuuchMap')
     expect(content('meta[name="description"]')).toContain('Монголын барилгын зах зээл')
   })
+
+  // The defaults used to be hardcoded Mongolian, so an English reader got a
+  // Mongolian tab title and a Mongolian link preview. They follow the UI
+  // language now; this is the assertion that would have caught the old shape.
+  it('renders the defaults in the active language', async () => {
+    await i18n.changeLanguage('en')
+    renderHook(() => useDocumentMeta())
+    expect(document.title).toContain('construction marketplace')
+    expect(content('meta[name="description"]')).toContain('Mongolia')
+    expect(content('meta[name="description"]')).not.toContain('Монголын')
+  })
+})
+
+// The instance is a singleton shared across every test file in this run.
+afterEach(async () => {
+  if (i18n.language !== 'mn') await i18n.changeLanguage('mn')
 })

@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 
 /**
  * Per-route title, description and social tags.
@@ -13,12 +14,14 @@ import { useEffect } from 'react'
  * Every tag it touches is restored on unmount, so navigating from a listing
  * back to browse does not leave the listing's description behind.
  */
-const DEFAULTS = {
-  title: 'ZuuchMap — Барилгын зах зээл | Машин механизм, материал, гүйцэтгэгч',
-  description:
-    'Монголын барилгын зах зээл. Машин механизм, тээврийн хэрэгсэл, багаж түрээслэх, барилгын материал, үйлдвэр, гүйцэтгэгч, ажлын байр, SOS үйлчилгээ — 21 аймагт.',
-  image: 'https://zuuchmap.com/og.png',
-}
+/**
+ * The share image is locale-independent; the words are not. `index.html` still
+ * ships the Mongolian pair for first paint — that is the right default for this
+ * market and it is what a crawler with no JavaScript reads — but once the app
+ * has mounted, the title and description must follow the UI language, or an
+ * English reader gets a Mongolian browser tab and a Mongolian link preview.
+ */
+const DEFAULT_IMAGE = 'https://zuuchmap.com/og.png'
 
 function setTag(selector, attr, value) {
   let el = document.head.querySelector(selector)
@@ -45,9 +48,10 @@ function setTag(selector, attr, value) {
  * (`/browse?category=…`) pass an explicit url.
  */
 export function useDocumentMeta({ title, description, image, url } = {}) {
-  const finalTitle = title ? `${title} — ZuuchMap` : DEFAULTS.title
-  const finalDescription = description || DEFAULTS.description
-  const finalImage = image || DEFAULTS.image
+  const { t } = useTranslation()
+  const finalTitle = title ? `${title} — ZuuchMap` : t('meta.title')
+  const finalDescription = description || t('meta.description')
+  const finalImage = image || DEFAULT_IMAGE
   const finalUrl = url || (typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname}` : '')
 
   useEffect(() => {

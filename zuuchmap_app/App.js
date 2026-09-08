@@ -104,8 +104,10 @@ try {
   // Expo Go does not support push notifications; silently skip
 }
 
+import AdminUsers from './src/screens/admin/AdminUsers';
+import AdminAnalytics from './src/screens/admin/AdminAnalytics';
 import PhoneNumber from './src/screens/auth/PhoneNumber';
-import OtpVerification from './src/screens/auth/OtpVerification';
+import PhoneVerification from './src/screens/auth/PhoneVerification';
 import UserRoleSelection from './src/screens/onboarding/UserRoleSelection';
 
 import ProviderDashboard from './src/screens/provider/ProviderDashboard';
@@ -312,7 +314,12 @@ const App = () => {
       return 'UserRoleSelection';
     }
 
-    return 'PhoneNumber';
+    // Guests land in the customer tabs, not on the phone screen. Verification
+    // bills the USER 150₮, so demanding it before showing a single listing
+    // charged people to discover whether the marketplace was worth joining.
+    // Browsing is open; the four actions that write to an account prompt for
+    // one when tapped (src/utils/requireAuth.js).
+    return 'CustomerDashboard';
   };
 
   if (!fontsLoaded && !fontError) return null;
@@ -398,8 +405,10 @@ const ThemedApp = ({ initialRoute }) => {
               gestureEnabled: true,
             }}
           >
+            <Stack.Screen name="AdminUsers" component={AdminUsers} />
+            <Stack.Screen name="AdminAnalytics" component={AdminAnalytics} />
             <Stack.Screen name="PhoneNumber" component={PhoneNumber} />
-            <Stack.Screen name="OtpVerification" component={OtpVerification} />
+            <Stack.Screen name="PhoneVerification" component={PhoneVerification} />
             <Stack.Screen name="UserRoleSelection" component={UserRoleSelection} />
 
             <Stack.Screen name="ProviderDashboard" component={ProviderDashboard} />

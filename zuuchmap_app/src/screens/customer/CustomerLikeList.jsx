@@ -207,10 +207,14 @@ const CustomerLikeList = ({ navigation }) => {
 
         if (!isAuthenticated) {
             return (
+                // Not "session expired" — a guest never had one, and telling
+                // them it lapsed reads as a bug they caused. This tab is now a
+                // normal destination for someone who has not signed up yet.
                 <EmptyState
-                    icon="person-outline"
-                    title={t('auth.sessionExpired')}
-                    subtitle={t('auth.loginRequired')}
+                    icon="heart-outline"
+                    variant="invitation"
+                    title={t('profile.guestTitle')}
+                    subtitle={t('auth.guestSave')}
                     actionButton={{ text: t('auth.title'), onPress: handleLogin }}
                 />
             );

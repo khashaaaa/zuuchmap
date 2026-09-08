@@ -24,6 +24,13 @@ export const API_CONFIG = {
       APPROVE: (id) => `/admin/posts/${id}/approve`,
       REJECT: (id) => `/admin/posts/${id}/reject`,
       STATS: '/admin/stats',
+      // Account administration. The list and detail live under the `user`
+      // prefix (UserAdminController), not `admin` — only the plan grant is an
+      // /admin route.
+      USERS: '/user',
+      USER: (id) => `/user/${id}`,
+      DELETE_USER: (id) => `/user/${id}`,
+      SET_PLAN: (id) => `/admin/users/${id}/plan`,
     },
 
     COMPANY: {
@@ -34,6 +41,7 @@ export const API_CONFIG = {
 
     ANALYTICS: {
       COLLECT: '/analytics/collect',
+      SUMMARY: '/analytics/summary',
     },
 
     POSTS: {

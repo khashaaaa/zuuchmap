@@ -11,6 +11,8 @@ import { User } from '../user/entities/user.entity';
 import { Booking } from '../booking/entities/booking.entity';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { BookingService } from '../booking/booking.service';
+import { Conversation } from '../messaging/entities/conversation.entity';
+import { Message } from '../messaging/entities/message.entity';
 
 const safeAuthor = (u: any) =>
   u && {
@@ -29,7 +31,42 @@ export class ReviewService {
     private readonly bookingService: BookingService,
     @InjectRepository(Booking)
     private readonly bookingRepository: Repository<Booking>,
+    @InjectRepository(Conversation)
+    private readonly conversationRepository: Repository<Conversation>,
   ) {}
+
+  /**
+   * Has this customer actually dealt with this provider?
+   *
+   * An accepted booking is the strongest answer, but only nine of the thirteen
+   * categories are bookable at all — material suppliers, used-equipment
+   * sellers, factories and job posters have no booking flow, so requiring one
+   * meant they could never accumulate a single review. The categories where a
+   * buyer most wants to see that somebody else went first were the ones with
+   * no way to say so.
+   *
+   * A conversation the provider *replied to* is the other answer: the customer
+   * asked, a human on the other side answered, and the two of them dealt with
+   * each other. A message sent into the void proves nothing and does not count
+   * — which also keeps this from becoming a way to review a stranger.
+   */
+  async canReview(authorId: string, providerId: string): Promise<boolean> {
+    if (await this.bookingService.hasAcceptedBooking(authorId, providerId))
+      return true;
+
+    const replied = await this.conversationRepository
+      .createQueryBuilder('c')
+      .innerJoin(
+        Message,
+        'm',
+        'm."conversationId" = c.id AND m."senderId" = :providerId',
+        { providerId },
+      )
+      .where('c."customerId" = :authorId', { authorId })
+      .andWhere('c."providerId" = :providerId', { providerId })
+      .getCount();
+    return replied > 0;
+  }
 
   // One review per author per provider — repeat submissions update the existing one
   async upsert(authorId: string, dto: CreateReviewDto) {
@@ -44,15 +81,12 @@ export class ReviewService {
     });
     if (!provider) throw new NotFoundException('Provider not found');
 
-    const eligible = await this.bookingService.hasAcceptedBooking(
-      authorId,
-      dto.provider_id,
-    );
+    const eligible = await this.canReview(authorId, dto.provider_id);
     if (!eligible) {
       throw new ForbiddenException({
         code: 'REVIEW_NEEDS_BOOKING',
         message:
-          'Only customers with an accepted booking can review this provider',
+          'Only customers who have dealt with this provider can review them',
       });
     }
 

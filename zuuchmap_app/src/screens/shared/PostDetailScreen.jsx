@@ -173,7 +173,7 @@ const PostDetailScreen = ({ route, navigation }) => {
 
     useEffect(() => { getUserId().then(setCurrentUserId); }, []);
 
-    const { data: post = null, isLoading, isError, error: postError, refetch: loadPost } = useQuery({
+    const { data: rawPost = null, isLoading, isError, error: postError, refetch: loadPost } = useQuery({
         queryKey: ['post', postId],
         queryFn: async () => {
             const response = await postService.getById(postId, false);
@@ -181,6 +181,30 @@ const PostDetailScreen = ({ route, navigation }) => {
         },
         staleTime: 30 * 1000,
     });
+
+    /**
+     * An edit waiting on this post, and which fields it touches.
+     *
+     * A live post whose owner has edited it keeps serving the approved version
+     * — that is what everyone browsing sees, and it is why the listing no
+     * longer disappears for a price correction. But the admin's job on this
+     * screen is to judge the *proposal*, so for them the screen shows the
+     * proposed content with a note saying what moved. Everybody else, owner
+     * included, sees exactly what is published.
+     */
+    const revision = isAdmin ? (rawPost?.pending_revision ?? null) : null;
+    const post = useMemo(
+        () => (revision ? processPostImages({ ...rawPost, ...revision }) : rawPost),
+        [rawPost, revision],
+    );
+    const revisionFields = useMemo(() => {
+        if (!revision || !rawPost) return [];
+        const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+        return ['title', 'details', 'price_amount', 'price_unit', 'subcategory',
+            'province', 'district', 'address', 'location', 'contact_phone',
+            'contact_email', 'website', 'attributes', 'images']
+            .filter((f) => !same(rawPost[f], revision[f]));
+    }, [rawPost, revision]);
 
     // Deep links (push taps, notification rows) may arrive without postType —
     // fall back to the fetched post's category so like stats and the category
@@ -637,6 +661,28 @@ const PostDetailScreen = ({ route, navigation }) => {
                     </SectionCard>
                 )}
 
+                {/* ── An edit awaiting a verdict (admin only) ─────────────── */}
+                {isAdmin && !!revision && (
+                    <SectionCard colors={colors} styles={styles}>
+                        <Text style={[styles.adminSectionTitle, { color: colors.text.tertiary }]}>
+                            {t('admin.revisionTitle')}
+                        </Text>
+                        <Text style={[styles.adminInfoValue, { color: colors.text.secondary }]}>
+                            {t('admin.revisionHint')}
+                        </Text>
+                        {revisionFields.length > 0 && (
+                            <View style={styles.adminInfoRow}>
+                                <Text style={[styles.adminInfoLabel, { color: colors.text.secondary }]}>
+                                    {t('admin.revisionChanged')}
+                                </Text>
+                                <Text style={[styles.adminInfoValue, { color: colors.text.primary }]}>
+                                    {revisionFields.map((f) => t(`posts.${f}`, { defaultValue: f })).join(', ')}
+                                </Text>
+                            </View>
+                        )}
+                    </SectionCard>
+                )}
+
                 {/* ── Poster info (admin only) ────────────────────────────── */}
                 {isAdmin && post.user && (
                     <SectionCard colors={colors} styles={styles}>
@@ -876,6 +922,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                         providerId={post.user.id}
                         canReview={!isProvider && !isAdmin && post.user.id !== currentUserId}
                         autoOpen={openReview}
+                        onRequireAuth={() => ensureAuth(navigation, 'auth.guestReview')}
                     />
                 )}
 
@@ -921,13 +968,15 @@ const PostDetailScreen = ({ route, navigation }) => {
                                 <>
                                     <Ionicons name="close-circle-outline" size={20} color={colors.danger} />
                                     <Text style={[styles.rejectBtnText, { color: colors.danger }]}>
-                                        {post.approval_status === 'PENDING' ? t('posts.reject') : t('admin.takeDown')}
+                                        {revision ? t('admin.rejectEdit')
+                                            : post.approval_status === 'PENDING' ? t('posts.reject')
+                                                : t('admin.takeDown')}
                                     </Text>
                                 </>
                             )}
                         </TouchableOpacity>
                         )}
-                        {post.approval_status !== 'APPROVED' && (
+                        {(post.approval_status !== 'APPROVED' || !!revision) && (
                         <TouchableOpacity
                             style={[styles.approveBtn, (approving || rejecting) && styles.btnDisabled, { backgroundColor: colors.success }]}
                             onPress={handleApprove}
@@ -940,9 +989,10 @@ const PostDetailScreen = ({ route, navigation }) => {
                                 <>
                                     <Ionicons name={hasEdits ? 'save-outline' : 'checkmark-circle-outline'} size={20} color={colors.text.onColor} />
                                     <Text style={[styles.approveBtnText, { color: colors.text.onColor }]}>
-                                        {hasEdits ? t('admin.saveAndApprove')
-                                            : post.approval_status === 'PENDING' ? t('posts.approve')
-                                                : t('admin.reinstate')}
+                                        {revision ? t('admin.approveEdit')
+                                            : hasEdits ? t('admin.saveAndApprove')
+                                                : post.approval_status === 'PENDING' ? t('posts.approve')
+                                                    : t('admin.reinstate')}
                                     </Text>
                                 </>
                             )}
@@ -1018,7 +1068,9 @@ const PostDetailScreen = ({ route, navigation }) => {
                         ) : canBook && !isBookable ? (
                             <Button
                                 icon="calendar-outline"
-                                title={t('errors.codes.BOOKING_POST_UNAVAILABLE')}
+                                // The full sentence is the error message, not a
+                                // button label — it does not fit one line here.
+                                title={t('booking.unavailableShort')}
                                 onPress={() => {}}
                                 disabled
                                 variant="primary"
@@ -1028,7 +1080,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                         ) : (bookingOpen || post.contact_phone) && (
                             <Button
                                 icon={bookingOpen ? 'calendar-outline' : 'call-outline'}
-                                title={bookingOpen ? t('booking.request') : t('posts.call')}
+                                title={bookingOpen ? t('booking.requestShort') : t('posts.call')}
                                 onPress={bookingOpen ? handleBook : handleCall}
                                 variant="primary"
                                 size="medium"
@@ -1417,17 +1469,21 @@ const createStyles = (colors, width) => StyleSheet.create({
     },
 
     // Footer
+    // Four icon buttons and a labelled CTA on a 411dp phone: at 52pt icons and
+    // md gaps the CTA was left ~130dp, which is not enough for "Захиалга хүсэх"
+    // on one line, let alone the Russian. 44 is the accessible-target floor, so
+    // the width comes off the gaps and the icon boxes rather than the label.
     footer: {
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: colors.surface,
         padding: spacing.md,
-        gap: spacing.md,
+        gap: spacing.sm,
     },
-    footerBtn: { flex: 1 },
+    footerBtn: { flex: 1, minWidth: 0 },
     iconAction: {
-        width: 52,
-        height: 52,
+        width: 44,
+        height: 44,
         borderRadius: radius.button,
         borderWidth: 1,
         justifyContent: 'center',

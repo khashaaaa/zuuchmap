@@ -76,6 +76,9 @@ export const postsApi = {
   create: (form, onProgress) => client.post('/posts', form, uploadCfg(onProgress)).then(data),
   update: (id, form, onProgress) => client.patch(`/posts/${id}`, form, uploadCfg(onProgress)).then(data),
   remove: (id) => client.delete(`/posts/${id}`),
+  // Reopens a lapsed post's window. No moderation — the content is exactly what
+  // was approved, so there is nothing for an admin to re-read.
+  renew: (id) => client.post(`/posts/${id}/renew`).then(data),
   view: (id) => client.put(`/posts/${id}/views`),
   // Same shape as /posts items: same category, nearest location and price first.
   similar: (id, limit = 6) => client.get(`/posts/${id}/similar`, { params: { limit } }).then(data),

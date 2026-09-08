@@ -20,13 +20,21 @@ const buildAttributes = (schema, existing = {}) =>
 const oneMonthAhead = () => new Date(new Date().setMonth(new Date().getMonth() + 1));
 
 // Behavior (status/price/dates) comes from schema flags, never from hardcoded category lists
-const applyBehaviorFields = (formData, schema, initialPost = null) => {
+/**
+ * `initialPost` is the row; `content` is what the owner should be editing.
+ *
+ * They differ only while an edit sits in moderation: the row keeps serving the
+ * approved version to everyone browsing, so the price it carries is the old
+ * one. Rental status and the availability window are never part of a revision —
+ * they apply live — so those always come from the row.
+ */
+const applyBehaviorFields = (formData, schema, initialPost = null, content = initialPost) => {
     if (schema?.has_rental_status) {
         formData.status = initialPost?.status || 'ACTIVE';
     }
     if (schema?.has_price) {
-        formData.price_amount = initialPost?.price_amount ? initialPost.price_amount.toString() : '';
-        formData.price_unit = initialPost?.price_unit || schema.default_price_unit || 'DAY';
+        formData.price_amount = content?.price_amount ? content.price_amount.toString() : '';
+        formData.price_unit = content?.price_unit || schema.default_price_unit || 'DAY';
     }
     if (schema?.has_availability_dates) {
         formData.available_from = initialPost?.available_from ? new Date(initialPost.available_from) : new Date();
@@ -60,19 +68,24 @@ export const getEditFormData = (schema, initialPost) => {
         });
     };
 
+    // An edit the owner has already submitted and is still waiting on. Loading
+    // the row instead would show them their own pre-edit wording back and read
+    // as "my change was lost".
+    const content = initialPost.pending_revision ?? initialPost;
+
     return applyBehaviorFields({
-        subcategory: initialPost.subcategory || '',
-        province: initialPost.province || 'ULAANBAATAR',
-        district: initialPost.district || 'BAYANZURKH',
-        title: initialPost.title || '',
-        details: initialPost.details || '',
-        contact_phone: initialPost.contact_phone || '',
-        latitude: initialPost.latitude || null,
-        longitude: initialPost.longitude || null,
-        location: initialPost.location || '',
-        images: processExistingImages(initialPost.images),
-        attributes: buildAttributes(schema, initialPost.attributes || {}),
-    }, schema, initialPost);
+        subcategory: content.subcategory || '',
+        province: content.province || 'ULAANBAATAR',
+        district: content.district || 'BAYANZURKH',
+        title: content.title || '',
+        details: content.details || '',
+        contact_phone: content.contact_phone || '',
+        latitude: content.latitude || null,
+        longitude: content.longitude || null,
+        location: content.location || '',
+        images: processExistingImages(content.images),
+        attributes: buildAttributes(schema, content.attributes || {}),
+    }, schema, initialPost, content);
 };
 
 // --- Title suggestion ---

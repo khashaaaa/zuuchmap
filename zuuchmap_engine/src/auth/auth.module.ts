@@ -10,6 +10,7 @@ import { User } from 'src/user/entities/user.entity';
 import { VerificationSession } from './entities/verification-session.entity';
 import { TrustedDevice } from './entities/trusted-device.entity';
 import { jwtSecret } from 'src/utils/jwt-secret';
+import { SESSION_EXPIRES_IN } from '../utils/session';
 
 @Module({
   imports: [
@@ -17,7 +18,7 @@ import { jwtSecret } from 'src/utils/jwt-secret';
     JwtModule.registerAsync({
       useFactory: () => ({
         secret: jwtSecret(),
-        signOptions: { expiresIn: '30d' },
+        signOptions: { expiresIn: SESSION_EXPIRES_IN },
       }),
     }),
     TypeOrmModule.forFeature([User, VerificationSession, TrustedDevice]),

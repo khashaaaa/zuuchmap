@@ -181,6 +181,34 @@ const _local = (path, name) =>
 export const getImageUrl = (v) =>
   !v ? null : v.startsWith('http') ? v : _local('posts', v)
 
+/**
+ * The card-sized copy of a post image.
+ *
+ * Every list, grid and map carousel used to render the 1920px original into a
+ * box a few hundred pixels wide — several megabytes for one screen of results
+ * over a mobile connection. The engine writes a `_thumb` alongside each upload
+ * (`utils/uploader.ts`, same rule); this builds that name.
+ *
+ * Photos uploaded before thumbnails existed have no `_thumb` object until
+ * `npm run backfill:thumbs` has run over them, so every call site pairs this
+ * with `fallbackToFullImage` on the element's `onError`.
+ *
+ * Mirrored in `zuuchmap_engine/src/utils/uploader.ts` and
+ * `zuuchmap_app/src/utils/imageUtils.js` — change all three together.
+ */
+export const getThumbUrl = (v) => {
+  const url = getImageUrl(v)
+  return url ? url.replace(/(\.[a-z0-9]+)(\?.*)?$/i, '_thumb$1$2') : url
+}
+
+/** `onError` partner for `getThumbUrl`: retry once at full size, then give up. */
+export const fallbackToFullImage = (full) => (e) => {
+  const img = e.currentTarget
+  if (img.dataset.fullTried) return hideBrokenImage(e)
+  img.dataset.fullTried = '1'
+  img.src = getImageUrl(full)
+}
+
 export const getProfileImageUrl = (v) =>
   !v ? null : v.startsWith('http') ? v : _local('profilepicture', v)
 

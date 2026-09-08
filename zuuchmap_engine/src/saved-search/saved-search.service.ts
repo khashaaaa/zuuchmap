@@ -9,7 +9,7 @@ import { In, Repository } from 'typeorm';
 import { SavedSearch } from './entities/saved-search.entity';
 import { CreateSavedSearchDto } from './dto/create-saved-search.dto';
 import { PostNotificationService } from '../post/post-notification.service';
-import { matchesSearchTerms, searchTerms } from '../utils/search-terms';
+import { matchesPost, searchTerms } from '../utils/search-terms';
 
 export const SAVED_SEARCH_LIMIT = 10;
 /** A search fires at most once per window, however many posts land in it. */
@@ -21,6 +21,11 @@ export interface MatchablePost {
   // Read by the `q` check: browse searches title AND details, so a matcher
   // that only saw the title under-fired on every search made from a details hit.
   details?: string | null;
+  // In the search vector alongside title and details since SearchVectorWidened,
+  // so the matcher has to read them or a saved search on a district name or a
+  // manufacturer matches in browse and never notifies.
+  location?: string | null;
+  address?: string | null;
   category?: string | null;
   subcategory?: string | null;
   province?: string | null;
@@ -50,12 +55,13 @@ export function matchesSavedSearch(
     if (!isBlank(want) && post[key] !== want) return false;
   }
 
-  // Mirrors browse exactly — prefix-match every term against title + details,
-  // via the shared tokeniser. It used to be a whole-phrase `includes` on the
-  // title alone, so `кран түрээс` matched in browse and never notified.
+  // Mirrors browse exactly — prefix-match every term against the same document
+  // the search vector is built from, via the shared tokeniser. It used to be a
+  // whole-phrase `includes` on the title alone, so `кран түрээс` matched in
+  // browse and never notified; it then covered title + details only, while the
+  // vector had already widened to location, address and attributes.
   if (!isBlank(search.q)) {
-    if (!matchesSearchTerms(searchTerms(search.q), post.title, post.details))
-      return false;
+    if (!matchesPost(searchTerms(search.q), post)) return false;
   }
 
   const attrs = search.attrs ?? {};

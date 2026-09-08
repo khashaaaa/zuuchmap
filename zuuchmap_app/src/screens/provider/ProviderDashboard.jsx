@@ -12,6 +12,13 @@ import { spacing, typography, radius } from '../../design/theme';
 
 import ProviderPostList from './ProviderPostList';
 import ProviderProfile from './ProviderProfile';
+// A provider is a customer too — for renting the machine they do not own, for
+// hiring the crew they do not employ. The bar used to be Posts/Create/Profile,
+// which left an account that had chosen "Зар нийтлэгч" with no route to any
+// listing but its own: no browse, so no thread, no booking, no saved search.
+// The web has always had `/browse` open to every signed-in user.
+import CustomerPostList from '../customer/CustomerPostList';
+import MessagesScreen from '../shared/MessagesScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -71,13 +78,20 @@ const ProviderDashboard = ({ navigation }) => {
             <StatusBar style={isDark ? 'light' : 'dark'} backgroundColor={colors.surface} translucent={false} />
 
             <Tab.Navigator
+                // Browse sits first so the FAB is the middle of five, but a provider
+                // opening the app still lands on their own listings.
+                initialRouteName="Posts"
                 screenOptions={({ route }) => ({
                     tabBarIcon: ({ focused, color, size }) => {
                         let iconName;
-                        if (route.name === 'Posts') {
+                        if (route.name === 'Browse') {
+                            iconName = focused ? 'search' : 'search-outline';
+                        } else if (route.name === 'Posts') {
                             iconName = focused ? 'list' : 'list-outline';
                         } else if (route.name === 'Create') {
                             return null;
+                        } else if (route.name === 'Messages') {
+                            iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
                         } else if (route.name === 'Profile') {
                             iconName = focused ? 'person' : 'person-outline';
                         }
@@ -99,16 +113,24 @@ const ProviderDashboard = ({ navigation }) => {
                         left: 0,
                         right: 0,
                     },
-                    tabBarItemStyle: { paddingVertical: spacing.xs, paddingHorizontal: spacing.sm },
+                    // Five slots, so the horizontal padding comes off the item
+                    // rather than the label: at spacing.sm "Миний зарууд"
+                    // ellipsised on a 6.5" phone.
+                    tabBarItemStyle: { paddingVertical: spacing.xs, paddingHorizontal: spacing.xxs },
                     tabBarLabelStyle: { ...typography.styles.micro, marginTop: spacing.xs },
                     tabBarHideOnKeyboard: Platform.OS === 'android',
                 })}
                 safeAreaInsets={{ bottom: Platform.OS === 'android' ? insets.bottom : 0 }}
             >
                 <Tab.Screen
+                    name="Browse"
+                    component={CustomerPostList}
+                    options={{ tabBarLabel: t('nav.browse') }}
+                />
+                <Tab.Screen
                     name="Posts"
                     component={PostsStack}
-                    options={{ tabBarLabel: t('nav.myPosts') }}
+                    options={{ tabBarLabel: t('nav.myPostsShort') }}
                 />
                 <Tab.Screen
                     name="Create"
@@ -119,6 +141,11 @@ const ProviderDashboard = ({ navigation }) => {
                             <CreatePostButton navigation={navigation} colors={colors} {...props} />
                         ),
                     }}
+                />
+                <Tab.Screen
+                    name="Messages"
+                    component={MessagesScreen}
+                    options={{ tabBarLabel: t('messages.title') }}
                 />
                 <Tab.Screen
                     name="Profile"

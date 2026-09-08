@@ -1,5 +1,5 @@
 import React, { useMemo, useCallback } from 'react';
-import { View, Text, FlatList, Image, StyleSheet, RefreshControl } from 'react-native';
+import { View, Text, FlatList, StyleSheet, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -8,6 +8,7 @@ import { useAppTheme } from '../../hooks/useAppTheme';
 import ScreenError from '../../components/ScreenError';
 import { ScreenLayout, EmptyState, SkeletonItem, PressableScale } from '../../components';
 import { SkeletonCrossfade } from '../../components/SkeletonItem';
+import ThumbImage from '../../components/ThumbImage';
 import messageService, { inboxCursor, CONVERSATIONS_KEY } from '../../services/api/messageService';
 import { getPostImageUrl } from '../../config/api.config';
 
@@ -24,7 +25,7 @@ const ThreadRow = ({ item, index, onPress, styles, colors, t }) => {
             <PressableScale style={styles.row} onPress={() => onPress(item)} accessibilityRole="button">
                 <View style={styles.thumb}>
                     {image ? (
-                        <Image source={{ uri: image }} style={styles.thumbImage} />
+                        <ThumbImage uri={image} style={styles.thumbImage} />
                     ) : (
                         <Ionicons name="chatbubble-outline" size={18} color={colors.text.tertiary} />
                     )}

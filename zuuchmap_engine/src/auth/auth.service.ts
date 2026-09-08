@@ -14,6 +14,7 @@ import { LessThan, Repository } from 'typeorm';
 import { incrAndCheckOverLimit } from 'src/utils/rate-counter';
 import { isAdmin } from 'src/admin/admin.guard';
 import { jwtSecret } from 'src/utils/jwt-secret';
+import { SESSION_EXPIRES_IN } from '../utils/session';
 import * as crypto from 'crypto';
 import { VerificationSession } from './entities/verification-session.entity';
 import { TrustedDevice } from './entities/trusted-device.entity';
@@ -359,7 +360,7 @@ export class AuthService {
   async generateToken(user: User): Promise<string> {
     return this.jwtService.sign(
       { sub: user.id, phone: user.phone_number, type: user.type },
-      { secret: jwtSecret(), expiresIn: '30d' },
+      { secret: jwtSecret(), expiresIn: SESSION_EXPIRES_IN },
     );
   }
 

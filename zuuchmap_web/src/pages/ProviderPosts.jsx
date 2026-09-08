@@ -2,10 +2,11 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Plus, Pencil, Trash2, FileText, Timer, Eye, Heart, CalendarRange } from 'lucide-react'
+import { Plus, Pencil, Trash2, FileText, Timer, Eye, Heart, CalendarRange, ArrowUpCircle, RotateCw, Clock } from 'lucide-react'
 import { postsApi } from '@/lib/api'
-import { getPostCategory, getPostTitle, getImageUrl, hideBrokenImage, formatDate } from '@/lib/utils'
+import { getPostCategory, getPostTitle, formatDate, getThumbUrl, fallbackToFullImage } from '@/lib/utils'
 import PageHeader from '@/components/PageHeader'
+import UnreachableBanner from '@/components/UnreachableBanner'
 import CategoryBadge from '@/components/CategoryBadge'
 import StatusBadge from '@/components/StatusBadge'
 import EmptyState from '@/components/EmptyState'
@@ -71,6 +72,20 @@ export default function ProviderPosts() {
     onSuccess: () => { invalidatePostQueries(qc); toast.success(t('posts.deleted')) },
   })
 
+  // A lapsed post used to need an admin: the only way back was to edit it,
+  // which put it in the moderation queue for a change the owner never wanted to
+  // make. The content is already approved, so renewing just reopens the window.
+  const renewMut = useApiMutation({
+    mutationFn: postsApi.renew,
+    onSuccess: () => { invalidatePostQueries(qc); toast.success(t('posts.renewed')) },
+  })
+
+  /** Renewable: published, and either lapsed already or about to. */
+  const canRenew = (post) => {
+    if (post.approval_status !== 'APPROVED' || !post.expires_at) return false
+    return (new Date(post.expires_at) - Date.now()) / 86400000 <= 7
+  }
+
   const counts = {
     ALL: posts.length,
     PENDING: posts.filter((p) => p.approval_status === 'PENDING').length,
@@ -86,11 +101,24 @@ export default function ProviderPosts() {
         title={t('posts.myPosts')}
         description={t('posts.total', { count: posts.length })}
         action={
-          <Button to="/provider/posts/new">
-            <Plus size={15} /> {t('posts.add')}
-          </Button>
+          /* At the limit the form can only end in a refusal — the engine rejects
+             the create after the whole wizard, the photos and the upload. Point
+             at the thing that resolves it instead. */
+          atQuota ? (
+            <Button to="/provider/billing" variant="outline" title={t('posts.quotaFull')}>
+              <ArrowUpCircle size={15} /> {t('posts.quotaUpgrade')}
+            </Button>
+          ) : (
+            <Button to="/provider/posts/new">
+              <Plus size={15} /> {t('posts.add')}
+            </Button>
+          )
         }
       />
+
+      {/* Before the plan bar: a provider whose enquiries reach nobody has a
+          bigger problem than how many posts are left on their tier. */}
+      <UnreachableBanner />
 
       {/* Plan and quota. The engine refuses the next post at the limit, so the
           provider needs to see the number before the form does. */}
@@ -121,7 +149,16 @@ export default function ProviderPosts() {
               style={{ width: `${quotaUsed * 100}%` }}
             />
           </div>
-          {atQuota && <p className="text-xs text-warning mt-1.5">{t('posts.quotaFull')}</p>}
+          {atQuota && (
+            <p className="text-xs text-warning mt-1.5">
+              {t('posts.quotaFull')}{' '}
+              {plan.name !== 'PROVIDER' && (
+                <Link to="/provider/billing" className="underline underline-offset-2 font-medium">
+                  {t('posts.quotaUpgrade')}
+                </Link>
+              )}
+            </p>
+          )}
         </div>
       )}
 
@@ -155,9 +192,13 @@ export default function ProviderPosts() {
           icon={FileText}
           title={t('posts.noMyPosts')}
           action={
-            <Button to="/provider/posts/new">
-              {t('posts.createFirst')}
-            </Button>
+            atQuota ? (
+              <Button to="/provider/billing" variant="outline">{t('posts.quotaUpgrade')}</Button>
+            ) : (
+              <Button to="/provider/posts/new">
+                {t('posts.createFirst')}
+              </Button>
+            )
           }
         />
       ) : filtered.length === 0 ? (
@@ -176,7 +217,7 @@ export default function ProviderPosts() {
               <div key={post.id} className="surface-card p-3">
                 <Link to={`/provider/posts/${post.id}`} className="flex items-start gap-3 group">
                   {post.images?.[0] ? (
-                    <img src={getImageUrl(post.images[0])} alt="" className="w-14 h-14 rounded-lg object-cover shrink-0" onError={hideBrokenImage} />
+                    <img src={getThumbUrl(post.images[0])} alt="" loading="lazy" className="w-14 h-14 rounded-lg object-cover shrink-0" onError={fallbackToFullImage(post.images[0])} />
                   ) : (
                     <div className="w-14 h-14 rounded-lg bg-surface2 shrink-0" />
                   )}
@@ -190,6 +231,18 @@ export default function ProviderPosts() {
                     </div>
                     {post.approval_status === 'REJECTED' && post.rejection_reason && (
                       <p className="text-xs text-danger mt-1.5 line-clamp-2">{post.rejection_reason}</p>
+                    )}
+                    {/* Live, with an edit waiting behind it. Without this the
+                        provider sees the old words and thinks the save failed. */}
+                    {post.pending_revision && (
+                      <p className="text-xs text-warning mt-1.5 flex items-center gap-1">
+                        <Clock size={11} /> {t('posts.editInReview')}
+                      </p>
+                    )}
+                    {post.approval_status === 'APPROVED' && post.rejection_reason && (
+                      <p className="text-xs text-danger mt-1.5 line-clamp-2">
+                        {t('posts.editRejected', { reason: post.rejection_reason })}
+                      </p>
                     )}
                   </div>
                 </Link>
@@ -212,6 +265,17 @@ export default function ProviderPosts() {
                     >
                       <Pencil size={15} />
                     </Link>
+                    {canRenew(post) && (
+                      <button
+                        onClick={() => renewMut.mutate(post.id)}
+                        disabled={renewMut.isPending}
+                        aria-label={t('posts.renew')}
+                        title={t('posts.renew')}
+                        className="min-w-touch min-h-touch flex items-center justify-center rounded-btn border border-border/50 text-muted hover:text-primary-text hover:bg-primary/10 transition-colors disabled:opacity-50"
+                      >
+                        <RotateCw size={15} />
+                      </button>
+                    )}
                     <button
                       onClick={() => setDeleteTarget(post)}
                       aria-label={t('common.delete')}
@@ -251,7 +315,7 @@ export default function ProviderPosts() {
                       <td className={cellPad}>
                         <Link to={`/provider/posts/${post.id}`} className="flex items-center gap-3 group">
                           {post.images?.[0] ? (
-                            <img src={getImageUrl(post.images[0])} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" onError={hideBrokenImage} />
+                            <img src={getThumbUrl(post.images[0])} alt="" loading="lazy" className="w-10 h-10 rounded-lg object-cover shrink-0" onError={fallbackToFullImage(post.images[0])} />
                           ) : (
                             <div className="w-10 h-10 rounded-lg bg-surface2 shrink-0" />
                           )}
@@ -261,6 +325,16 @@ export default function ProviderPosts() {
                             </p>
                             {post.approval_status === 'REJECTED' && post.rejection_reason && (
                               <p className="text-xs text-danger line-clamp-1">{post.rejection_reason}</p>
+                            )}
+                            {post.pending_revision && (
+                              <p className="text-xs text-warning flex items-center gap-1">
+                                <Clock size={11} /> {t('posts.editInReview')}
+                              </p>
+                            )}
+                            {post.approval_status === 'APPROVED' && post.rejection_reason && (
+                              <p className="text-xs text-danger line-clamp-1">
+                                {t('posts.editRejected', { reason: post.rejection_reason })}
+                              </p>
                             )}
                           </div>
                         </Link>
@@ -293,6 +367,17 @@ export default function ProviderPosts() {
                           >
                             <Pencil size={14} />
                           </Link>
+                          {canRenew(post) && (
+                            <button
+                              onClick={() => renewMut.mutate(post.id)}
+                              disabled={renewMut.isPending}
+                              title={t('posts.renew')}
+                              aria-label={t('posts.renew')}
+                              className="min-w-touch min-h-touch flex items-center justify-center rounded-btn text-muted hover:text-primary-text hover:bg-primary/10 transition-colors disabled:opacity-50"
+                            >
+                              <RotateCw size={14} />
+                            </button>
+                          )}
                           <button
                             onClick={() => setDeleteTarget(post)}
                             title={t('common.delete')}

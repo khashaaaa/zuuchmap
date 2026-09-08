@@ -45,6 +45,14 @@ const BillingScreen = ({ navigation }) => {
     const expiresAt = profile?.plan_expires_at ? new Date(profile.plan_expires_at) : null;
     const planActive = profile?.plan === 'PROVIDER' && expiresAt && expiresAt > new Date();
 
+    // The plan codes are enum values, not copy. `ProviderPostList` already
+    // renders them through these keys; this screen was showing the bare
+    // 'FREE'/'PROVIDER' in an otherwise Mongolian page.
+    const planLabel = (plan) =>
+        plan === 'PROVIDER' ? t('posts.planProvider')
+        : plan === 'FREE' ? t('posts.planFree')
+        : (plan ?? '');
+
     const create = useMutation({
         mutationFn: () => paymentService.createInvoice('PROVIDER', months),
         onSuccess: (data) => {
@@ -96,7 +104,7 @@ const BillingScreen = ({ navigation }) => {
             <ScrollView contentContainerStyle={styles.content}>
                 <View style={styles.card}>
                     <Text style={styles.overline}>{t('billing.currentPlan')}</Text>
-                    <Text style={styles.planName}>{profile?.plan ?? 'FREE'}</Text>
+                    <Text style={styles.planName}>{planLabel(profile?.plan ?? 'FREE')}</Text>
                     <Text style={styles.meta}>
                         {planActive
                             ? t('billing.expiresOn', { date: formatDate(expiresAt) })
@@ -161,7 +169,7 @@ const BillingScreen = ({ navigation }) => {
                     <View style={styles.card}>
                         <View style={styles.planHead}>
                             <View style={styles.flex}>
-                                <Text style={styles.planName}>PROVIDER</Text>
+                                <Text style={styles.planName}>{planLabel('PROVIDER')}</Text>
                                 <Text style={styles.meta}>{t('billing.postsLimit', { count: paidPlan?.posts ?? 25 })}</Text>
                             </View>
                             <Text style={styles.price}>{formatPrice(unitPrice)}</Text>
@@ -218,7 +226,7 @@ const BillingScreen = ({ navigation }) => {
                         <View key={p.id} style={styles.historyRow}>
                             <View style={styles.flex}>
                                 <Text style={styles.historyPlan}>
-                                    {p.plan} · {t('billing.monthsValue', { count: p.months })}
+                                    {planLabel(p.plan)} · {t('billing.monthsValue', { count: p.months })}
                                 </Text>
                                 <Text style={styles.meta}>
                                     {t('billing.reference')}: {p.reference ?? String(p.id).slice(0, 8)} · {formatDate(p.date_created)}

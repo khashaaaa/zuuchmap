@@ -194,7 +194,13 @@ const styles = StyleSheet.create({
     avatar: {
         width: 64,
         height: 64,
-        borderRadius: radius.xxxl,
+        // radius.avatar, not a mid-scale value: Android chamfers the *border*
+        // into straight 45° cuts when the radius sits between a rounded rect
+        // and half the box (24 on 64 was 37%), so the ring rendered as an
+        // octagon around a correctly-rounded fill. At >= half, it clamps to a
+        // circle and the border follows it — which is also what the customer
+        // and provider avatars already do.
+        borderRadius: radius.avatar,
         borderWidth: 2,
     },
     profileInfo: { flex: 1 },

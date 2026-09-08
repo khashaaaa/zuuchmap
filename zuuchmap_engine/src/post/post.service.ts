@@ -7,11 +7,20 @@ import {
   Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository, SelectQueryBuilder } from 'typeorm';
+import {
+  And,
+  Between,
+  EntityManager,
+  IsNull,
+  LessThanOrEqual,
+  Not,
+  Repository,
+  SelectQueryBuilder,
+} from 'typeorm';
 import { Cron } from '@nestjs/schedule';
 import { Status } from '../enums/status';
 import { Plan } from '../enums/plan';
-import { Post, PostSnapshot } from './entities/post.entity';
+import { Post, PostRevision, PostSnapshot } from './entities/post.entity';
 import { CategorySchema, FieldDef } from './entities/category-schema.entity';
 import { isPriceUnit } from '../enums/priceunit';
 import { User } from '../user/entities/user.entity';
@@ -27,6 +36,8 @@ import { PostNotificationService } from './post-notification.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { searchTerms } from '../utils/search-terms';
 import { APP_TIMEZONE } from '../utils/timezone';
+import { Report } from '../report/entities/report.entity';
+import { ReportStatus } from '../enums/report';
 
 const POST_EXPIRY_DAYS = 30;
 
@@ -153,6 +164,46 @@ const SNAPSHOT_STR_FIELDS = [
  * The content fields an admin diffs when a post comes back for re-approval.
  * `price` is `price_amount` under the name the clients use.
  */
+/** Every field an edit may touch — a revision, before it is timestamped. */
+export type PostContent = Omit<PostRevision, 'submitted_at'>;
+
+/** The post's current content, in the shape a revision is stored in. */
+export function contentOf(post: Post | PostContent): PostContent {
+  const out = {} as PostContent;
+  for (const f of CONTENT_FIELDS.str) (out as any)[f] = post[f] ?? null;
+  for (const f of CONTENT_FIELDS.num) (out as any)[f] = post[f] ?? null;
+  out.attributes = post.attributes ?? null;
+  out.images = [...(post.images ?? [])];
+  return out;
+}
+
+/** Writes a revision's content onto the row. Touches nothing operational. */
+export function applyContent(post: Post, content: PostContent): void {
+  for (const f of CONTENT_FIELDS.str) (post as any)[f] = content[f] ?? null;
+  for (const f of CONTENT_FIELDS.num) (post as any)[f] = content[f] ?? null;
+  post.attributes = content.attributes ?? {};
+  post.images = [...(content.images ?? [])];
+}
+
+/**
+ * Do two contents differ in anything a reader would see?
+ *
+ * String-compared through `${}` because `price_amount` arrives as a string from
+ * a decimal column and as a number from a multipart form, and a bare `!==`
+ * between the two reported an edit on every save.
+ */
+export function contentDiffers(a: PostContent, b: PostContent): boolean {
+  const same = (x: any, y: any) =>
+    x == null && y == null ? true : `${x ?? ''}` === `${y ?? ''}`;
+  for (const f of CONTENT_FIELDS.str) if (!same(a[f], b[f])) return true;
+  for (const f of CONTENT_FIELDS.num)
+    if (!((a[f] == null && b[f] == null) || Number(a[f]) === Number(b[f])))
+      return true;
+  if (JSON.stringify(a.attributes ?? {}) !== JSON.stringify(b.attributes ?? {}))
+    return true;
+  return JSON.stringify(a.images ?? []) !== JSON.stringify(b.images ?? []);
+}
+
 export function snapshotOf(post: Post): PostSnapshot {
   const snap = {
     price: post.price_amount == null ? null : Number(post.price_amount),
@@ -1054,6 +1105,60 @@ export class PostService {
     }
   }
 
+  /**
+   * How many posts a provider must have had approved before their *edits* stop
+   * queueing. Deliberately not applied to new listings: a first post from an
+   * unknown account is the one thing manual review exists for.
+   */
+  private static readonly PROVEN_APPROVED_POSTS = 3;
+
+  /**
+   * Whether this owner's edits can skip the queue.
+   *
+   * A track record, not a setting: several posts an admin has already approved,
+   * nothing ever rejected, and no report an admin agreed with. Any one
+   * rejection or upheld report drops them back to manual review permanently —
+   * the point is that the shortcut is only for accounts that have never given
+   * anyone a reason to look twice.
+   */
+  async isProvenProvider(userId: string): Promise<boolean> {
+    if (!userId) return false;
+    const [approved, rejected] = await Promise.all([
+      this.postRepository.count({
+        where: { user: { id: userId }, approval_status: 'APPROVED' },
+      }),
+      this.postRepository.count({
+        where: { user: { id: userId }, approval_status: 'REJECTED' },
+      }),
+    ]);
+    if (rejected > 0 || approved < PostService.PROVEN_APPROVED_POSTS)
+      return false;
+
+    // Read through the manager rather than injecting the repository: this is
+    // one COUNT, and the post module has no other reason to know about reports.
+    const upheld = await this.postRepository.manager
+      .getRepository(Report)
+      .createQueryBuilder('report')
+      .innerJoin('report.post', 'post')
+      .where('post.userId = :userId', { userId })
+      .andWhere('report.status = :status', { status: ReportStatus.RESOLVED })
+      .getCount();
+    return upheld === 0;
+  }
+
+  /**
+   * The content an owner is editing from: their pending proposal if they have
+   * one, otherwise the live row.
+   *
+   * Without this, a second edit made while a revision waits would be compared
+   * against the live version, and every field the owner had already changed
+   * would read as changed again — or, if they saved the form untouched, as not
+   * changed at all, silently discarding the revision.
+   */
+  private editBase(post: Post): PostContent {
+    return post.pending_revision ?? contentOf(post);
+  }
+
   async update(
     id: number,
     dto: UpdatePostDto,
@@ -1085,43 +1190,35 @@ export class PostService {
       }
     }
 
-    const existingImages: string[] = dto.existingImages || post.images || [];
     const wasApproved = post.approval_status === 'APPROVED';
-    const snapshot = snapshotOf(post);
-
-    // Only content edits go back to moderation. Operational fields (rental
-    // status toggle, availability dates) must not pull an approved post from
-    // browse until an admin re-approves it.
-    const strEq = (a: any, b: any) => `${a ?? ''}` === `${b ?? ''}`;
-    const numEq = (a: any, b: any) =>
-      (a == null && b == null) || Number(a) === Number(b);
-    const contentChanged =
-      CONTENT_FIELDS.str.some(
-        (f) => dto[f] !== undefined && !strEq(dto[f], post[f]),
-      ) ||
-      (dto.secondcategory !== undefined &&
-        !strEq(dto.secondcategory, post.subcategory)) ||
-      CONTENT_FIELDS.num.some(
-        (f) => dto[f] !== undefined && !numEq(dto[f], post[f]),
-      ) ||
-      (dto.attributes !== undefined &&
-        JSON.stringify(dto.attributes) !==
-          JSON.stringify(post.attributes ?? {})) ||
-      (files?.length ?? 0) > 0 ||
-      (dto.existingImages !== undefined &&
-        JSON.stringify(dto.existingImages) !==
-          JSON.stringify(post.images ?? []));
+    const base = this.editBase(post);
+    const live = contentOf(post);
 
     // Omitted content fields stay as they are. `secondcategory` is the legacy
     // alias older mobile builds still send for `subcategory`.
-    const merged: Partial<Post> = {};
-    for (const f of [...CONTENT_FIELDS.str, ...CONTENT_FIELDS.num])
-      (merged as any)[f] = dto[f] ?? post[f];
-    merged.subcategory =
-      dto.subcategory ?? dto.secondcategory ?? post.subcategory;
-    Object.assign(post, merged, {
-      // An omitted key means "unchanged"; an empty one means "clear it". Without
-      // that distinction an availability window, once set, could never be removed.
+    const proposed: PostContent = { ...base };
+    for (const f of CONTENT_FIELDS.str)
+      (proposed as any)[f] = dto[f] ?? base[f] ?? null;
+    for (const f of CONTENT_FIELDS.num)
+      (proposed as any)[f] = dto[f] ?? base[f] ?? null;
+    proposed.subcategory =
+      dto.subcategory ?? dto.secondcategory ?? base.subcategory ?? null;
+    proposed.attributes = dto.attributes ?? base.attributes ?? null;
+
+    // Photos the owner kept, plus whatever this request uploaded. While a
+    // revision is pending the live set is off limits to the reclaim — those
+    // objects are still being served to everyone browsing.
+    proposed.images = await this.resolveImages(
+      dto.existingImages ?? base.images ?? [],
+      files,
+      base.images ?? [],
+      wasApproved ? (post.images ?? []) : [],
+    );
+
+    const changed = contentDiffers(proposed, base);
+    // Operational fields never gate visibility: a rental status toggle or an
+    // availability window must not pull an approved post out of browse.
+    Object.assign(post, {
       available_from:
         dto.available_from === undefined
           ? post.available_from
@@ -1135,44 +1232,98 @@ export class PostService {
             ? new Date(dto.available_until)
             : null,
       status: dto.status ?? post.status,
-      attributes: dto.attributes ?? post.attributes,
     });
 
-    await this.replaceImages(post, existingImages, files);
+    if (!wasApproved) {
+      // Nothing live to protect. Write the edit straight onto the row; a
+      // content change puts it back at the front of its own moderation round.
+      applyContent(post, proposed);
+      if (changed) {
+        post.approval_status = 'PENDING';
+        post.rejection_reason = null as unknown as string;
+        post.rejection_field = null;
+      }
+      const saved = await this.postRepository.save(post);
+      invalidatePostReadCaches();
+      return saved;
+    }
 
-    if (contentChanged) {
-      // Keep the version the admin already approved so they can review a diff.
-      // First edit of a round wins: a second edit before re-approval must not
-      // overwrite the baseline with an intermediate draft.
-      if (wasApproved && post.previous_snapshot == null)
-        post.previous_snapshot = snapshot;
-      post.approval_status = 'PENDING';
+    if (!contentDiffers(proposed, live)) {
+      // The owner edited their way back to what is already published — there is
+      // nothing left to review, so drop the revision rather than queue a no-op.
+      post.pending_revision = null;
+      const saved = await this.postRepository.save(post);
+      invalidatePostReadCaches();
+      return saved;
+    }
+
+    if (await this.isProvenProvider(userId)) {
+      // Earned the shortcut: publish the edit now and reclaim what it dropped.
+      const orphaned = (post.images ?? []).filter(
+        (u) => !proposed.images.includes(u),
+      );
+      if (orphaned.length) await deleteMultipleImages(orphaned);
+      applyContent(post, proposed);
+      post.pending_revision = null;
       post.rejection_reason = null as unknown as string;
       post.rejection_field = null;
+      const saved = await this.postRepository.save(post);
+      invalidatePostReadCaches();
+      this.logger.log(`update: #${id} auto-approved (proven provider)`);
+      return saved;
     }
-    const updated = await this.postRepository.save(post);
+
+    // Park the proposal. The row keeps serving the approved version, so the
+    // listing stays in browse for however long the queue is.
+    //
+    // A reason left over from a previously refused edit goes with it: the owner
+    // has answered it by submitting again, and leaving it would put "your edit
+    // was refused" beside "your edit is in review" on the same listing.
+    post.rejection_reason = null as unknown as string;
+    post.rejection_field = null;
+    post.pending_revision = {
+      ...proposed,
+      // A resubmit of the same proposal — a form saved twice, an upload
+      // retried — keeps its place in the queue. Re-stamping it would send an
+      // owner to the back of the line for pressing save again.
+      submitted_at:
+        changed || !post.pending_revision
+          ? new Date().toISOString()
+          : post.pending_revision.submitted_at,
+    };
+    const saved = await this.postRepository.save(post);
     invalidatePostReadCaches();
-    return updated;
+    return saved;
   }
 
   /**
-   * Sets the post's photos to `keep` plus whatever `files` upload to, and
-   * reclaims every dropped object from R2. Reclaims whether or not the edit
-   * also adds photos: this used to sit inside the `files?.length` branch, so
-   * removing photos without adding any left them in R2 forever — reachable as
-   * soon as the app started sending `existingImages: []` for "delete every
-   * photo".
+   * The photo set an edit proposes: the ones the owner kept, plus whatever this
+   * request uploaded — reclaiming from R2 everything the edit dropped.
+   *
+   * `protect` is the set that must survive regardless, and it is what makes a
+   * pending revision safe: while the live post is still serving its approved
+   * photos, an edit that removes one must not delete the object out from under
+   * every reader. Those become reclaimable only when the revision is approved.
+   *
+   * Reclaims whether or not the edit also adds photos: this used to sit inside
+   * a `files?.length` branch, so removing photos without adding any left them in
+   * R2 forever — reachable as soon as the app started sending
+   * `existingImages: []` for "delete every photo".
    */
-  private async replaceImages(
-    post: Post,
+  private async resolveImages(
     keep: string[],
     files: Express.Multer.File[],
-  ): Promise<void> {
-    const removed = (post.images || []).filter((img) => !keep.includes(img));
-    if (removed.length) await deleteMultipleImages(removed);
-    post.images = files?.length
+    previous: string[],
+    protect: string[],
+  ): Promise<string[]> {
+    const next = files?.length
       ? [...keep, ...(await processAfterSave(files))]
-      : keep;
+      : [...keep];
+    const dropped = previous.filter(
+      (url) => !next.includes(url) && !protect.includes(url),
+    );
+    if (dropped.length) await deleteMultipleImages(dropped);
+    return next;
   }
 
   async remove(id: number, userId: string): Promise<void> {
@@ -1199,8 +1350,13 @@ export class PostService {
       });
     }
 
-    if (post.images?.length) {
-      await deleteMultipleImages(post.images);
+    // Photos uploaded for a revision that was never approved are referenced by
+    // nothing else, so they have to go with the post or they stay in R2 forever.
+    const orphans = Array.from(
+      new Set([...(post.images ?? []), ...(post.pending_revision?.images ?? [])]),
+    );
+    if (orphans.length) {
+      await deleteMultipleImages(orphans);
     }
     await this.postRepository.delete(id);
     invalidatePostReadCaches();
@@ -1242,26 +1398,161 @@ export class PostService {
   @Cron('0 0 * * *', { timeZone: APP_TIMEZONE })
   async expireOldPosts(): Promise<void> {
     try {
-      const result = await this.postRepository
+      // Read the rows before flipping them: once the UPDATE has run there is no
+      // way to tell which posts it was, and an expiry nobody is told about is
+      // indistinguishable from a listing that vanished for no reason. That is
+      // how a provider's entire catalogue could quietly leave the marketplace.
+      const due = await this.postRepository.find({
+        where: {
+          status: Not(Status.EXPIRED),
+          expires_at: And(Not(IsNull()), LessThanOrEqual(new Date())),
+        },
+        relations: ['user'],
+        select: { id: true, title: true, category: true, user: { id: true } },
+      });
+      if (!due.length) return;
+
+      await this.postRepository
         .createQueryBuilder()
         .update(Post)
         .set({ status: Status.EXPIRED })
-        .where(
-          'status != :expired AND expires_at IS NOT NULL AND expires_at <= NOW()',
-          {
-            expired: Status.EXPIRED,
-          },
-        )
+        .whereInIds(due.map((p) => p.id))
         .execute();
-      this.logger.log(
-        `expireOldPosts: marked ${result.affected ?? 0} post(s) as EXPIRED`,
+      this.logger.log(`expireOldPosts: marked ${due.length} post(s) as EXPIRED`);
+      invalidatePostReadCaches();
+
+      await this.notifyExpiry(
+        due,
+        'Таны зарын хугацаа дууслаа',
+        (post) => `"${post.title}" зар хугацаа дуусаж, жагсаалтаас хасагдлаа. Сунгах товч дарж эргүүлэн нийтэлнэ үү.`,
+        'post_expired',
       );
-      if ((result.affected ?? 0) > 0) {
-        invalidatePostReadCaches();
-      }
     } catch (err) {
       this.logger.error(`expireOldPosts failed: ${err?.message}`);
     }
+  }
+
+  /** How many days before a post lapses its owner is told. */
+  private static readonly EXPIRY_WARNING_DAYS = 3;
+
+  /**
+   * Warn owners whose posts lapse in three days.
+   *
+   * Runs an hour after the expiry sweep so the two can never race over the same
+   * post — anything the sweep took is already EXPIRED and out of this window.
+   */
+  @Cron('0 1 * * *', { timeZone: APP_TIMEZONE })
+  async warnExpiringPosts(): Promise<void> {
+    try {
+      const from = new Date();
+      const to = new Date();
+      to.setDate(to.getDate() + PostService.EXPIRY_WARNING_DAYS);
+      const due = await this.postRepository.find({
+        where: {
+          status: Not(Status.EXPIRED),
+          approval_status: 'APPROVED',
+          expires_at: Between(from, to),
+        },
+        relations: ['user'],
+        select: {
+          id: true,
+          title: true,
+          category: true,
+          expires_at: true,
+          user: { id: true },
+        },
+      });
+      if (!due.length) return;
+      this.logger.log(`warnExpiringPosts: ${due.length} post(s) lapse soon`);
+      await this.notifyExpiry(
+        due,
+        'Таны зарын хугацаа дуусах гэж байна',
+        (post) => {
+          const days = Math.max(
+            1,
+            Math.ceil(
+              (new Date(post.expires_at).getTime() - Date.now()) / 86400000,
+            ),
+          );
+          return `"${post.title}" зар ${days} хоногийн дараа жагсаалтаас хасагдана. Сунгах товч дарж хугацааг нь сунгаарай.`;
+        },
+        'post_expiring',
+      );
+    } catch (err) {
+      this.logger.error(`warnExpiringPosts failed: ${err?.message}`);
+    }
+  }
+
+  /** One push per lapsing post, batched into a single fan-out. */
+  private async notifyExpiry(
+    posts: Post[],
+    title: string,
+    body: (post: Post) => string,
+    notifType: string,
+  ): Promise<void> {
+    const items = posts
+      .filter((post) => post.user?.id)
+      .map((post) => ({
+        userId: post.user.id,
+        title,
+        body: body(post),
+        data: {
+          postId: post.id,
+          post_type: post.category,
+          notifType,
+          url: `/provider/posts/${post.id}`,
+        },
+      }));
+    if (!items.length) return;
+    await this.notifications
+      .notifyEach(items)
+      .catch((err) =>
+        this.logger.warn(`Expiry push failed (non-fatal): ${err?.message}`),
+      );
+  }
+
+  /**
+   * Give a lapsed or lapsing post a fresh window, on the owner's say-so.
+   *
+   * No moderation: the content is byte-for-byte what an admin already approved,
+   * so sending it back through the queue asks them to re-read something they
+   * have read. Before this the only way back from an expiry was to edit the
+   * post — which pulled it into the queue for a change the owner never wanted
+   * to make — so a lapsed listing needed an admin to exist again.
+   *
+   * A post that was never approved has nothing to renew: it is either still
+   * waiting or was refused, and both are answered by the queue, not by a date.
+   */
+  async renew(id: number, userId: string): Promise<Post> {
+    const post = await this.findOne(id);
+    if (!post.user || post.user.id !== userId) {
+      throw new ForbiddenException('You can only renew your own posts');
+    }
+    if (post.approval_status !== 'APPROVED') {
+      throw new BadRequestException({ message: 'POST_NOT_APPROVED' });
+    }
+
+    // Renewing brings a post back into browse, so it has to pass the same
+    // quota the create path enforces — otherwise letting three posts lapse and
+    // renewing them all is a way around the plan.
+    const owner = await this.userRepository.findOne({ where: { id: userId } });
+    const plan = this.effectivePlan(owner);
+    const lapsed =
+      post.status === Status.EXPIRED ||
+      (post.expires_at && new Date(post.expires_at).getTime() <= Date.now());
+    if (lapsed) await this.assertQuota(userId, plan);
+
+    const schema = await this.findCategory(post.category);
+    const days = expiryDaysFor(schema, plan);
+    const next = new Date();
+    next.setDate(next.getDate() + days);
+    post.expires_at = next;
+    if (post.status === Status.EXPIRED) post.status = Status.ACTIVE;
+
+    const saved = await this.postRepository.save(post);
+    invalidatePostReadCaches();
+    this.logger.log(`renew: #${id} → ${next.toISOString()} (${days}d)`);
+    return saved;
   }
 
   /**

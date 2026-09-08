@@ -1,5 +1,5 @@
 import React, { useMemo, useCallback } from 'react';
-import { View, Text, Image, FlatList, StyleSheet } from 'react-native';
+import { View, Text, FlatList, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -9,6 +9,7 @@ import { useCategorySchemas } from '../hooks/useCategorySchemas';
 import postService from '../services/api/postService';
 import { getPostTypeConfig, normalizePostType, getPostTitle, getPostPrice, getSchemaLabel } from '../utils/postUtils';
 import PressableScale from './PressableScale';
+import ThumbImage from './ThumbImage';
 import AvailabilityStrip from './AvailabilityStrip';
 
 export const H_CARD_WIDTH = isTablet ? 260 : 208;
@@ -47,7 +48,7 @@ export const HorizontalPostCard = React.memo(({ post, onPress, width = H_CARD_WI
         >
             <View style={styles.imageWrap}>
                 {image ? (
-                    <Image source={{ uri: image }} style={styles.image} resizeMode="cover" />
+                    <ThumbImage uri={image} style={styles.image} resizeMode="cover" />
                 ) : (
                     <View style={[styles.image, styles.placeholder, { backgroundColor: withAlpha(cfg.color, 0.13) }]}>
                         <Ionicons name={cfg.iconName} size={28} color={toneForTheme(cfg.color, isDark)} />

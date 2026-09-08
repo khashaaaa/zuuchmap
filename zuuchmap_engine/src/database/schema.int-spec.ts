@@ -27,6 +27,7 @@ dotenv.config({
 
 import { Post } from '../post/entities/post.entity';
 import { Status } from '../enums/status';
+import { AdminService } from '../admin/admin.service';
 import { BookingStatus } from '../enums/bookingstatus';
 
 const ds = new DataSource({
@@ -567,5 +568,59 @@ describe('sweeps', () => {
       `SELECT COUNT(*)::int AS c FROM post WHERE expires_at IS NULL AND status='ACTIVE'`,
     );
     expect(open.c).toBeGreaterThan(0);
+  });
+});
+
+describe('moderation queue', () => {
+  // `GET /admin/posts/pending` 500'd in production shape while the unit spec
+  // stayed green: it mocks the query builder, so it asserted that a COALESCE
+  // string was handed to `orderBy` and never found out that TypeORM reads that
+  // string as an entity alias ("COALESCE((post" alias was not found) once a
+  // real query is built. Nothing but a real database catches this, so this
+  // drives the actual service rather than a copy of its query — only the post
+  // repository is real because that is all `getPendingPosts` touches.
+  const service = () =>
+    new AdminService(
+      qr.manager.getRepository(Post) as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      undefined as any,
+    );
+
+  const queuedAt = (p: Post) =>
+    new Date(
+      (p.pending_revision as any)?.submitted_at ?? p.date_created,
+    ).getTime();
+
+  it('builds and runs, paged, without tripping the alias resolver', async () => {
+    const { items, total } = await service().getPendingPosts(undefined, 1, 5);
+    expect(items.length).toBeLessThanOrEqual(5);
+    expect(total).toBeGreaterThanOrEqual(items.length);
+  });
+
+  it('drains oldest first across both clocks', async () => {
+    const { items } = await service().getPendingPosts(undefined, 1, 25);
+    const stamps = items.map(queuedAt);
+    expect([...stamps].sort((a, b) => a - b)).toEqual(stamps);
+  });
+
+  it('pages forward rather than repeating the first page', async () => {
+    const first = await service().getPendingPosts(undefined, 1, 5);
+    const second = await service().getPendingPosts(undefined, 2, 5);
+    expect(second.total).toBe(first.total);
+    if (first.items.length === 5 && second.items.length > 0) {
+      const ids = new Set(first.items.map((p) => p.id));
+      expect(second.items.some((p) => ids.has(p.id))).toBe(false);
+    }
+  });
+
+  it('carries the owner each queue row is judged against', async () => {
+    const { items } = await service().getPendingPosts(undefined, 1, 5);
+    // The queue renders the provider beside the listing; a lost join turned
+    // that into a blank byline rather than an error.
+    expect(items.every((p) => 'user' in p)).toBe(true);
   });
 });

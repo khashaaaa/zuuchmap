@@ -20,6 +20,7 @@ import userService from '../../services/api/userService';
 import NotificationBell from '../../components/NotificationBell';
 import PostCard from '../../components/PostCard';
 import CategoryBadge from '../../components/CategoryBadge';
+import UnreachableBanner from '../../components/UnreachableBanner';
 import { ScreenLayout, SkeletonItem, EmptyState, StatusBadge } from '../../components';
 import { formatPrice, formatDate } from '../../utils/displayUtils';
 import { getPostTitle, getFixedImageUrl, getPostImage } from '../../utils/postUtils';
@@ -32,27 +33,40 @@ const PostItem = React.memo(({
     onPress,
     onEdit,
     onDelete,
+    onRenew,
     isLoading,
     getPostTitle,
     colors,
     t,
     stat,
+    // `memoKey` below is built from these. They live on the parent screen, so
+    // they have to arrive as props — this component sits at module scope and
+    // sees nothing of that closure.
+    locale,
+    isDark,
 }) => {
     const styles = useMemo(() => createStyles(colors), [colors]);
     const imageUri = getPostImage(item);
     const title = getPostTitle(item, item.postType);
+
+    // Renewable: published, and either already lapsed or within a week of it.
+    // Offered from the same sheet as edit, because editing was the only way back
+    // from an expiry before this and it cost a trip through moderation.
+    const canRenew = item.approval_status === 'APPROVED' && item.expires_at
+        && (new Date(item.expires_at) - Date.now()) / 86400000 <= 7;
 
     const handleMenuPress = useCallback(() => {
         showInfoModal(
             title,
             null,
             [
+                ...(canRenew ? [{ text: t('posts.renew'), onPress: () => onRenew(item) }] : []),
                 { text: t('common.edit'), onPress: () => onEdit(item) },
                 { text: t('common.delete'), style: 'destructive', onPress: () => onDelete(item) },
                 { text: t('common.cancel'), style: 'cancel' },
             ],
         );
-    }, [item, title, onEdit, onDelete, t]);
+    }, [item, title, canRenew, onEdit, onDelete, onRenew, t]);
 
     const expiry = item.expires_at ? (() => {
         const days = Math.ceil((new Date(item.expires_at) - Date.now()) / 86400000);
@@ -70,7 +84,7 @@ const PostItem = React.memo(({
             imageUri={imageUri ? getFixedImageUrl(imageUri) : null}
             title={title}
             price={item.price_amount ? formatPrice(item.price_amount, item.price_unit) : (item.price || null)}
-            memoKey={`${i18n.language}-${isDark}-${isLoading}-${item.approval_status}-${item.rejection_reason}-${item.expires_at}-${stat?.views}-${stat?.likes}-${stat?.bookings_pending}-${stat?.bookings_accepted}`}
+            memoKey={`${locale}-${isDark}-${isLoading}-${item.approval_status}-${item.rejection_reason}-${!!item.pending_revision}-${item.expires_at}-${stat?.views}-${stat?.likes}-${stat?.bookings_pending}-${stat?.bookings_accepted}`}
             badges={<>
                 <CategoryBadge postType={item.post_type || item.category || 'construction'} showIcon={true} />
                 {!!item.featured_until && new Date(item.featured_until) > new Date() && (
@@ -95,6 +109,22 @@ const PostItem = React.memo(({
                         {item.approval_status === 'REJECTED' && item.rejection_reason && (
                             <Text style={styles.rejectionReason} numberOfLines={2}>{item.rejection_reason}</Text>
                         )}
+                    </View>
+                )}
+                {/* Live, with an edit waiting behind it. Without this the owner
+                    reads their own old wording back and thinks the save failed. */}
+                {!!item.pending_revision && (
+                    <View style={styles.approvalBadgeRow}>
+                        <Text style={styles.editInReview} numberOfLines={1}>
+                            {t('posts.editInReview')}
+                        </Text>
+                    </View>
+                )}
+                {item.approval_status === 'APPROVED' && !item.pending_revision && !!item.rejection_reason && (
+                    <View style={styles.approvalBadgeRow}>
+                        <Text style={styles.rejectionReason} numberOfLines={2}>
+                            {t('posts.editRejected', { reason: item.rejection_reason })}
+                        </Text>
                     </View>
                 )}
             </>}
@@ -339,6 +369,36 @@ const ProviderPostList = ({ navigation }) => {
         );
     }, [refetch, handleAuthError, t]);
 
+    /**
+     * Reopen a lapsed post's window.
+     *
+     * The only route back from an expiry used to be an edit, which sent the
+     * post into the moderation queue for a change its owner never wanted to
+     * make — so a listing that lapsed needed an admin before it could exist
+     * again. The content is already approved; this just moves the date.
+     */
+    const handleRenewPost = useCallback(async (post) => {
+        try {
+            await postService.renew(post.id);
+            invalidatePostData();
+            showInfoModal(t('posts.renewed'), t('posts.renewedDesc'));
+        } catch (error) {
+            if (error.response?.status === 401 || error.response?.status === 403) {
+                await handleAuthError();
+                return;
+            }
+            // At the limit a renewal is a create in disguise — it puts a post
+            // back into browse — so the same quota answer applies.
+            const data = error.response?.data;
+            showErrorModal(
+                t('common.error'),
+                data?.message === 'POST_QUOTA_EXCEEDED'
+                    ? t('posts.quotaExceeded', { limit: data.limit })
+                    : t('posts.renewError'),
+            );
+        }
+    }, [handleAuthError, t]);
+
     // Plan and quota. The engine refuses the next post at the limit, so the
     // number belongs here — in front of the "add post" path — rather than in
     // the rejection the form would otherwise be the first to mention.
@@ -381,7 +441,14 @@ const ProviderPostList = ({ navigation }) => {
         );
     }, [plan, atQuota, styles, colors, t]);
 
-    const renderListHeader = useCallback(() => renderPlanBar(), [renderPlanBar]);
+    const renderListHeader = useCallback(() => (
+        <>
+            {/* Before the plan bar: a provider whose enquiries reach nobody has a
+                bigger problem than how many posts are left on their tier. */}
+            <UnreachableBanner />
+            {renderPlanBar()}
+        </>
+    ), [renderPlanBar]);
 
     const getPostTitleWrapped = useCallback(
         (item) => getPostTitle(item, item.postType),
@@ -403,14 +470,17 @@ const ProviderPostList = ({ navigation }) => {
             onPress={handlePostPress}
             onEdit={handleEditPost}
             onDelete={handleDeletePost}
+            onRenew={handleRenewPost}
             isLoading={isLoading || item.isDeleting}
             getPostTitle={getPostTitleWrapped}
             colors={colors}
             t={t}
             stat={statsById.get(item.id)}
+            locale={i18n.language}
+            isDark={isDark}
         />
         </View>
-    ), [handlePostPress, handleEditPost, handleDeletePost, isLoading, getPostTitleWrapped, colors, t, statsById]);
+    ), [handlePostPress, handleEditPost, handleDeletePost, handleRenewPost, isLoading, getPostTitleWrapped, colors, t, statsById, i18n.language, isDark]);
 
     if (queryError && posts.length === 0) {
         return (
@@ -452,7 +522,14 @@ const ProviderPostList = ({ navigation }) => {
                     eyebrow={t('nav.myPosts')}
                     title={t('posts.noPosts')}
                     subtitle={t('posts.noPostsDesc')}
-                    actionButton={{
+                    actionButton={atQuota ? {
+                        // At the limit the wizard can only end in a refusal, after
+                        // the whole form and the photo upload. Send them to the
+                        // screen that can actually resolve it.
+                        icon: "arrow-up-circle",
+                        text: t('posts.quotaUpgrade'),
+                        onPress: () => navigation.navigate('Billing'),
+                    } : {
                         icon: "add-circle",
                         text: t('posts.createNew'),
                         onPress: () => navigation.navigate('CategorySelectScreen', { role: 'provider' })
@@ -544,6 +621,13 @@ const createStyles = (colors) => StyleSheet.create({
     rejectionReason: {
         ...typography.styles.small,
         color: colors.danger,
+        marginTop: spacing.xs,
+    },
+    // Amber, not red: the listing is fine and still published — only the edit
+    // is waiting. Red here would read as "your post is in trouble".
+    editInReview: {
+        ...typography.styles.small,
+        color: colors.warning,
         marginTop: spacing.xs,
     },
     attentionRow: {

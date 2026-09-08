@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, Image, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import ThumbImage from './ThumbImage';
 import { Ionicons } from '@expo/vector-icons';
 import PressableScale from './PressableScale';
 import CategoryBadge from './CategoryBadge';
@@ -47,11 +48,11 @@ const PostCard = ({
         >
             <View style={styles.imageContainer}>
                 {imageUri && !imageError ? (
-                    <Image
-                        source={{ uri: imageUri }}
+                    <ThumbImage
+                        uri={imageUri}
                         style={styles.postImage}
                         resizeMode="cover"
-                        onError={handleImageError}
+                        onFail={handleImageError}
                         fadeDuration={200}
                     />
                 ) : (

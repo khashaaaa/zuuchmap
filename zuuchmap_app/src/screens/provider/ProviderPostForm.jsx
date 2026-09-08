@@ -30,6 +30,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusField } from '../../hooks/useFocusField';
 import categoryService from '../../services/api/categoryService';
 import { invalidatePostData } from '../../services/queryClient';
+import { maybeAskForPush } from '../../utils/pushPrompt';
 import { getInitialFormData, getEditFormData, formatFormDataForApi, suggestTitle } from '../../utils/formUtils';
 import { saveDraft, readDraft, clearDraft } from '../../utils/draftStorage';
 import { computePostHealth } from '../../utils/postHealth';
@@ -39,6 +40,7 @@ import { showErrorModal, showWarningModal } from '../../utils/errorManager';
 import { track } from '../../services/analytics';
 import SuccessSheet from '../../components/SuccessSheet';
 import { getSchemaLabel, getSubcategoryLabel } from '../../utils/postUtils';
+import { formatDate } from '../../utils/displayUtils';
 
 // Drafts live in `utils/draftStorage` — written as the provider types (see the
 // autosave effect), offered back through <DraftResumeBanner>, cleared on submit.
@@ -122,14 +124,20 @@ const ProviderPostForm = ({ route, navigation }) => {
     const wasApproved = useRef(false);
     // Which availability date the picker edits: 'from' | 'until' | null
     const [pickerFor, setPickerFor] = useState(null);
-    const [successState, setSuccessState] = useState({ visible: false, isEdit: false, backToReview: false });
+    const [successState, setSuccessState] = useState({ visible: false, isEdit: false, queued: false });
     // A draft found on disk, offered but not yet applied: { data, savedAt }.
     const [pendingDraft, setPendingDraft] = useState(null);
     // Once the provider has typed a title themselves the suggestion stops.
     const titleTouched = useRef(false);
 
     const handleSuccessDone = () => {
+        const created = !successState.isEdit;
         setSuccessState((prev) => ({ ...prev, visible: false }));
+        // After the sheet, never under it: two RN modals cannot be visible at
+        // once, and the push prompt is the second one here. A listing that has
+        // just gone into the queue is the one moment notifications obviously
+        // earn their keep — something specific is now going to happen to it.
+        if (created) maybeAskForPush('push.reasonPost');
         if (successState.isEdit) {
             if (navigation.canGoBack()) {
                 navigation.goBack();
@@ -202,10 +210,40 @@ const ProviderPostForm = ({ route, navigation }) => {
         setPendingDraft(null);
     }, [resolvedPostType]);
 
+    const isBlank = (v) =>
+        v == null
+        || (typeof v === 'string' && v.trim() === '')
+        || (Array.isArray(v) && v.length === 0);
+
     const updateFormData = (field, value) => {
         if (field === 'title') titleTouched.current = true;
         setFormData(prev => ({ ...prev, [field]: value }));
         setDirty(true);
+
+        // Drop the error the moment the field stops being empty. It used to
+        // survive until the next submit, so a provider who filled in exactly
+        // what was asked still read a red "бөглөнө үү" under their answer —
+        // on a form that had just scrolled them to that message. Format rules
+        // (the 8-digit phone) are still re-checked on submit.
+        setFormErrors(prev => {
+            const keys = Object.keys(prev);
+            if (keys.length === 0) return prev;
+            const next = { ...prev };
+            let changed = false;
+            if (field === 'attributes' && value && typeof value === 'object') {
+                for (const k of keys) {
+                    if (!k.startsWith('attributes.')) continue;
+                    if (!isBlank(value[k.slice('attributes.'.length)])) {
+                        delete next[k];
+                        changed = true;
+                    }
+                }
+            } else if (next[field] && !isBlank(value)) {
+                delete next[field];
+                changed = true;
+            }
+            return changed ? next : prev;
+        });
     };
 
     // Photo-first: the title is derived from what the provider has already
@@ -222,8 +260,16 @@ const ProviderPostForm = ({ route, navigation }) => {
     const health = useMemo(() => computePostHealth(formData, schema), [formData, schema]);
     const healthHint = health.missing ? t(HEALTH_HINT_KEYS[health.missing]) : t('provider.healthComplete');
 
+    // A reason attached to a post that is *still published* is about the edit
+    // that came back, not about the listing — the listing never left. Same card,
+    // different headline, because "your post was refused" on something a
+    // customer can still open is simply untrue.
     const rejection = isEdit && initialPost?.rejection_reason
-        ? { reason: initialPost.rejection_reason, field: initialPost.rejection_field || null }
+        ? {
+            reason: initialPost.rejection_reason,
+            field: initialPost.rejection_field || null,
+            editOnly: initialPost.approval_status === 'APPROVED',
+        }
         : null;
     const rejectedField = rejectedFieldLabel(rejection?.field, schema, t, i18n.language);
     const highlightKey = rejection?.field ?? null;
@@ -324,14 +370,13 @@ const ProviderPostForm = ({ route, navigation }) => {
                 const updated = await postService.update(postId, formattedData, onProgress);
                 invalidatePostData();
                 setDirty(false);
-                // A content edit sends an approved post back to moderation, so it
-                // leaves browse the moment it saves. Read that off the response
-                // rather than guessing which fields counted as content — "changes
-                // saved" on a listing that just vanished reads as a bug.
-                const backToReview = updated?.data?.approval_status === 'PENDING' && wasApproved.current;
+                // Three outcomes an edit can have, and the provider has to be
+                // able to tell them apart. Read them off the response rather
+                // than guessing which fields counted as content.
+                const queued = !!updated?.data?.pending_revision;
                 // Sheet first, navigate on dismiss — publishing deserves a staged
                 // moment, not a system dialog dropped over the next screen.
-                setSuccessState({ visible: true, isEdit: true, backToReview });
+                setSuccessState({ visible: true, isEdit: true, queued });
             } else {
                 const formattedData = formatFormDataForApi(formData);
                 const created = await postService.create(resolvedPostType, formattedData, onProgress);
@@ -395,14 +440,16 @@ const ProviderPostForm = ({ route, navigation }) => {
                     showsVerticalScrollIndicator={false}
                 >
                     <View style={isTablet ? styles.tabletContainer : undefined}>
-                    {/* Said before the edit, not only after it: a provider changing
-                        a price on a live listing is entitled to know it leaves
-                        browse until an admin looks at it again. */}
+                    {/* Why the last attempt came back, before they try again —
+                        with the field named, so they are not re-reading a form
+                        looking for what an admin objected to. */}
                     {rejection && (
                         <View style={styles.rejectCard} accessibilityRole="alert">
                             <View style={styles.rejectHead}>
                                 <Ionicons name="close-circle" size={20} color={colors.danger} />
-                                <Text style={styles.rejectTitle} maxFontSizeMultiplier={1.3}>{t('posts.rejectedFieldTitle')}</Text>
+                                <Text style={styles.rejectTitle} maxFontSizeMultiplier={1.3}>
+                                    {t(rejection.editOnly ? 'posts.editRejectedTitle' : 'posts.rejectedFieldTitle')}
+                                </Text>
                             </View>
                             <Text style={styles.rejectReason} maxFontSizeMultiplier={1.3}>{rejection.reason}</Text>
                             {!!rejectedField && (
@@ -417,8 +464,12 @@ const ProviderPostForm = ({ route, navigation }) => {
                     )}
                     {isEdit && wasApproved.current && (
                         <View style={styles.reviewNotice}>
-                            <Ionicons name="alert-circle-outline" size={18} color={colors.warning} />
-                            <Text style={styles.reviewNoticeText}>{t('posts.editNeedsApproval')}</Text>
+                            <Ionicons name="time-outline" size={18} color={colors.warning} />
+                            <Text style={styles.reviewNoticeText}>
+                                {initialPost?.pending_revision
+                                    ? t('posts.editPending')
+                                    : t('posts.editNeedsApproval')}
+                            </Text>
                         </View>
                     )}
                     <View style={[styles.headerInfo, isEdit ? styles.headerInfoEdit : styles.headerInfoCreate]}>
@@ -573,11 +624,11 @@ const ProviderPostForm = ({ route, navigation }) => {
                             <View style={styles.dateRow}>
                                 <PressableScale style={[styles.dateBox, { backgroundColor: colors.surface, borderColor: colors.border.light }]} onPress={() => setPickerFor('from')} accessibilityRole="button">
                                     <Text style={[styles.dateLabel, { color: colors.text.secondary }]}>{t('posts.availableFrom')}</Text>
-                                    <Text style={[styles.dateValue, { color: colors.text.primary }]}>{new Date(formData.available_from).toLocaleDateString()}</Text>
+                                    <Text style={[styles.dateValue, { color: colors.text.primary }]}>{formatDate(formData.available_from)}</Text>
                                 </PressableScale>
                                 <PressableScale style={[styles.dateBox, { backgroundColor: colors.surface, borderColor: colors.border.light }]} onPress={() => setPickerFor('until')} accessibilityRole="button">
                                     <Text style={[styles.dateLabel, { color: colors.text.secondary }]}>{t('posts.availableUntil')}</Text>
-                                    <Text style={[styles.dateValue, { color: colors.text.primary }]}>{new Date(formData.available_until).toLocaleDateString()}</Text>
+                                    <Text style={[styles.dateValue, { color: colors.text.primary }]}>{formatDate(formData.available_until)}</Text>
                                 </PressableScale>
                             </View>
                             {pickerFor && (
@@ -640,7 +691,7 @@ const ProviderPostForm = ({ route, navigation }) => {
                 onCta={handleSuccessDone}
                 title={t(successState.isEdit ? 'posts.updateSuccess' : 'posts.createSuccess')}
                 message={t(
-                    successState.backToReview ? 'posts.updatedPending'
+                    successState.queued ? 'posts.updateQueued'
                         : successState.isEdit ? 'posts.updateSuccessDesc'
                             : 'posts.createSuccessDesc',
                 )}

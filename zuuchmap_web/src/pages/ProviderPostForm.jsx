@@ -2,12 +2,12 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useParams, useBlocker } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Upload, X, MapPin, AlertTriangle, XCircle } from 'lucide-react'
+import { Upload, X, MapPin, XCircle, Clock, AlertCircle } from 'lucide-react'
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet'
 import { tileLayerProps } from '@/lib/mapTiles'
 import 'leaflet/dist/leaflet.css'
 import { postsApi } from '@/lib/api'
-import { getCategoryLabel, getSubcategoryLabel, getFieldLabel, getPostCategory, getCategoryColor, getImageUrl, goBack, PRICE_UNITS, PROVINCES, DISTRICTS, apiErrorMessage, hideBrokenImage, normalizeWebsiteUrl } from '@/lib/utils'
+import { getCategoryLabel, getSubcategoryLabel, getFieldLabel, getPostCategory, getCategoryColor, getImageUrl, goBack, PRICE_UNITS, PROVINCES, DISTRICTS, apiErrorMessage, hideBrokenImage, normalizeWebsiteUrl, getThumbUrl, fallbackToFullImage } from '@/lib/utils'
 import { categoryPin } from '@/lib/mapPin'
 import AlertBanner from '@/components/AlertBanner'
 import { useThemeStore } from '@/store'
@@ -17,6 +17,7 @@ import Input from '../components/Input'
 import CollapsibleSection from '../components/CollapsibleSection'
 import { DynamicField, FormSection } from '../components/PostFormFields'
 import Button from '../components/Button'
+import EmptyState from '@/components/EmptyState'
 import PageHeader from '../components/PageHeader'
 import ConfirmModal from '../components/ConfirmModal'
 import ErrorState from '../components/ErrorState'
@@ -142,6 +143,25 @@ export default function ProviderPostForm() {
 
   const { data: schemas = [] } = useCategories()
 
+  /**
+   * The quota, before the form rather than after it.
+   *
+   * The engine refuses the create, but it refuses it at the very end — after
+   * the category, the location, every field and a photo upload that can take a
+   * minute on mobile data. Someone who reached this page from a bookmark or a
+   * back button never saw the meter on the list screen, so the first they heard
+   * of the limit was a rejection with all that work behind it.
+   */
+  const { data: myStats } = useQuery({
+    queryKey: ['my-post-stats'],
+    queryFn: postsApi.getMyStats,
+    staleTime: 60_000,
+    enabled: !isEdit,
+  })
+  const atQuota = Boolean(
+    !isEdit && myStats?.plan && myStats.plan.posts_active >= myStats.plan.post_limit
+  )
+
   const [form, setForm] = useState({
     category: '',
     title: '',
@@ -190,29 +210,41 @@ export default function ProviderPostForm() {
     [schemas, form.category]
   )
 
+  /**
+   * What the form loads: the owner's pending edit if they have one, otherwise
+   * the published post.
+   *
+   * A parked revision means the row is still serving the approved version, so
+   * hydrating from the row would show the owner the old words and read as
+   * "my edit was lost". Operational fields (rental status, availability
+   * window) are never part of a revision — they apply live — so those always
+   * come from the row.
+   */
+  const draft = post?.pending_revision ?? post
+
   useEffect(() => {
     if (post) {
       setForm({
         category: getPostCategory(post) ?? '',
-        title: post.title ?? '',
-        details: post.details ?? '',
-        province: post.province ?? '',
-        district: post.district ?? '',
-        address: post.address ?? '',
-        price_amount: post.price_amount ?? '',
-        price_unit: post.price_unit ?? 'DAY',
-        contact_phone: post.contact_phone ?? '',
-        contact_email: post.contact_email ?? '',
-        website: post.website ?? '',
-        subcategory: post.subcategory ?? '',
-        latitude: post.latitude ?? '',
-        longitude: post.longitude ?? '',
+        title: draft.title ?? '',
+        details: draft.details ?? '',
+        province: draft.province ?? '',
+        district: draft.district ?? '',
+        address: draft.address ?? '',
+        price_amount: draft.price_amount ?? '',
+        price_unit: draft.price_unit ?? 'DAY',
+        contact_phone: draft.contact_phone ?? '',
+        contact_email: draft.contact_email ?? '',
+        website: draft.website ?? '',
+        subcategory: draft.subcategory ?? '',
+        latitude: draft.latitude ?? '',
+        longitude: draft.longitude ?? '',
         available_from: post.available_from ? post.available_from.slice(0, 10) : '',
         available_until: post.available_until ? post.available_until.slice(0, 10) : '',
         status: post.status ?? 'ACTIVE',
-        attributes: buildAttributes(schemas.find((s) => s.key === post.category), post.attributes ?? {}),
+        attributes: buildAttributes(schemas.find((s) => s.key === post.category), draft.attributes ?? {}),
       })
-      setExistingImages(post.images ?? [])
+      setExistingImages(draft.images ?? [])
       wasApproved.current = post.approval_status === 'APPROVED'
     }
   }, [post])
@@ -235,12 +267,12 @@ export default function ProviderPostForm() {
       qc.invalidateQueries({ queryKey: ['admin-pending'] })
       qc.invalidateQueries({ queryKey: ['admin-stats'] })
       if (isEdit) qc.invalidateQueries({ queryKey: ['post', String(id)] })
-      // A content edit sends an approved post back to moderation, so it leaves
-      // browse the moment it is saved. Read the outcome off the response rather
-      // than guessing which fields counted as content, and say so — "Post
-      // updated" on a listing that has just vanished reads as a bug.
-      if (isEdit && saved?.approval_status === 'PENDING' && wasApproved.current) {
-        toast.warning(t('posts.updatedPending'), { duration: 6000 })
+      // Three outcomes for an edit, and the provider needs to be able to tell
+      // them apart. Read them off the response rather than guessing which
+      // fields counted as content.
+      if (isEdit && saved?.pending_revision) {
+        // Parked: the listing is still live with what was approved.
+        toast.info(t('posts.updateQueued'), { duration: 6000 })
       } else {
         toast.success(t(isEdit ? 'posts.updated' : 'posts.created'))
       }
@@ -288,7 +320,11 @@ export default function ProviderPostForm() {
 
   // Rejection with a named field: bring the provider straight to it. Base
   // fields map to their own wrappers; anything else is a schema key.
-  const rejectedField = isEdit && post?.approval_status === 'REJECTED' ? (post.rejection_field ?? null) : null
+  // A reason on a post that is still APPROVED is a refused *edit*; the field it
+  // names is just as worth jumping to, and the post never went to REJECTED.
+  const rejectedField = isEdit && post?.rejection_reason && !post?.pending_revision
+    ? (post.rejection_field ?? null)
+    : null
   useEffect(() => {
     if (!rejectedField || !schema) return
     // Deferred a tick so the highlighted wrapper is in the DOM after the
@@ -431,6 +467,25 @@ export default function ProviderPostForm() {
     </div>
   )
 
+  // Say it before the work, not after. Every route into this form now passes
+  // through here, including a bookmark that skipped the list screen's meter.
+  if (atQuota) return (
+    <div className="max-w-3xl">
+      <PageHeader title={t('posts.create')} onBack={() => goBack(navigate, '/provider/posts')} />
+      <EmptyState
+        icon={AlertCircle}
+        title={t('posts.quotaFull')}
+        description={t('posts.quotaExceeded', { limit: myStats.plan.post_limit })}
+        action={
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button to="/provider/billing">{t('posts.quotaUpgrade')}</Button>
+            <Button to="/provider/posts" variant="outline">{t('posts.myPosts')}</Button>
+          </div>
+        }
+      />
+    </div>
+  )
+
   return (
     <div className="max-w-3xl">
       <PageHeader
@@ -451,8 +506,16 @@ export default function ProviderPostForm() {
           looks at it again. Operational fields (rental status, availability
           dates) do not trigger this, which is why the wording is about content. */}
       {isEdit && post?.approval_status === 'APPROVED' && (
-        <AlertBanner variant="warning" icon={AlertTriangle} className="mb-4">
-          {t('posts.editNeedsApproval')}
+        <AlertBanner variant="info" icon={Clock} className="mb-4">
+          {post.pending_revision ? t('posts.editPending') : t('posts.editNeedsApproval')}
+        </AlertBanner>
+      )}
+      {/* A refused edit. The listing itself is fine and still published — only
+          the change came back, which is a very different message from a post
+          being taken down. */}
+      {isEdit && post?.approval_status === 'APPROVED' && post.rejection_reason && !post.pending_revision && (
+        <AlertBanner variant="danger" icon={XCircle} title={t('posts.editRejectedTitle')} className="mb-4">
+          {post.rejection_reason}
         </AlertBanner>
       )}
       {/* Rejected: the reason, and — when the admin named a field — where to
@@ -530,7 +593,7 @@ export default function ProviderPostForm() {
             <div className="flex flex-wrap gap-2">
               {existingImages.map((img) => (
                 <div key={img} className="relative w-20 h-20 rounded-lg overflow-hidden">
-                  <img src={getImageUrl(img)} alt="" className="w-full h-full object-cover" onError={hideBrokenImage} />
+                  <img src={getThumbUrl(img)} alt="" loading="lazy" className="w-full h-full object-cover" onError={fallbackToFullImage(img)} />
                   <button type="button" onClick={() => removeExisting(img)} aria-label={t('common.delete')} className="absolute top-1 right-1 bg-black/60 text-white rounded-full min-w-[28px] min-h-[28px] flex items-center justify-center">
                     <X size={14} />
                   </button>

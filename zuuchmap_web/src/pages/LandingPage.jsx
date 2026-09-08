@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { useDocumentMeta } from '@/hooks/useDocumentMeta'
 import { ShieldCheck } from 'lucide-react'
 import { postsApi } from '@/lib/api'
-import { getCategoryLabel, getCategoryColor, getCategoryIcon, getImageUrl, getPostTitle, formatPrice, withAlpha, toneForTheme, hideBrokenImage } from '@/lib/utils'
+import { getCategoryLabel, getCategoryColor, getCategoryIcon, getThumbUrl, fallbackToFullImage, getPostTitle, formatPrice, withAlpha, toneForTheme } from '@/lib/utils'
 import { trackPageView } from '@/lib/analytics'
 import { useThemeStore } from '@/store'
 import PublicHeader from '@/components/PublicHeader'
@@ -21,19 +21,20 @@ import { useCategories } from '@/hooks/useCategories'
 function RibbonCard({ post, t }) {
   const title = getPostTitle(post, t)
   const price = formatPrice(post.price_amount, post.price_unit, t)
-  // bg-surface2 so a photo that 404s leaves a card, not a hole: hideBrokenImage
-  // only hides the <img>, and the scrim on top of it stays either way.
+  // bg-surface2 so a photo that 404s leaves a card, not a hole: the fallback
+  // retries at full size and then hides the <img>, and the scrim on top of it
+  // stays either way.
   return (
     <Link
       to={`/posts/${post.id}`}
       className="group relative block w-64 h-44 rounded-card overflow-hidden bg-surface2 shadow-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
     >
       <img
-        src={getImageUrl(post.images[0])}
+        src={getThumbUrl(post.images[0])}
         alt={title}
         loading="lazy"
         decoding="async"
-        className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.05]" onError={hideBrokenImage} />
+        className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.05]" onError={fallbackToFullImage(post.images[0])} />
       <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/75 to-transparent" aria-hidden="true" />
       <div className="absolute inset-x-0 bottom-0 p-3">
         <p className="text-sm font-semibold text-white line-clamp-1">{title}</p>

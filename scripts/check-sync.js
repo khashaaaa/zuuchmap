@@ -862,6 +862,78 @@ function agree(contract, sets) {
   }
 }
 
+// ── 16. Thumbnail naming ─────────────────────────────────────────────────────
+// The engine writes a card-sized copy of every post photo beside the original,
+// and both clients ask for it by name — `<key>.jpg` → `<key>_thumb.jpg`. It is
+// a convention rather than a column so `images` stays the `string[]` that three
+// clients and every cached response already agree on, which is exactly what
+// makes it drift-prone: nothing but this check connects the three regexes.
+//
+// Behavioural, because the rule is a regex and only the output matters. Each
+// implementation is lifted out and run over the same URLs, including the ones
+// that broke naive versions — a query string, an uppercase extension, a path
+// with dots in it.
+{
+  const C = 'thumbnail naming';
+  checks.push(C);
+
+  const SOURCES = [
+    ['engine', 'zuuchmap_engine/src/utils/uploader.ts', /export function thumbUrl\(url: string\): string \{([\s\S]*?)\n\}/],
+    ['web', 'zuuchmap_web/src/lib/utils.js', /export const getThumbUrl = \(v\) => \{([\s\S]*?)\n\}/],
+    ['app', 'zuuchmap_app/src/config/api.config.js', /export const getPostThumbUrl = \(filename\) => \{([\s\S]*?)\n\}/],
+  ];
+
+  const CASES = [
+    'https://img.zuuchmap.com/posts/abc.jpg',
+    'https://img.zuuchmap.com/posts/a.b.c.jpg',
+    'https://img.zuuchmap.com/posts/abc.JPG',
+    'https://img.zuuchmap.com/posts/abc.jpg?v=2',
+    'https://img.zuuchmap.com/posts/abc.webp',
+  ];
+
+  const lifted = [];
+  for (const [name, file, re] of SOURCES) {
+    const m = read(file).match(re);
+    if (!m) { fail(C, `${name}: could not find the thumbnail rule in ${file}`); continue; }
+    // Each body reduces to "take the URL, splice _thumb in before the
+    // extension" once its own url-resolving helper is stubbed to identity.
+    // Stub each file's own url-resolving helper to identity — they differ, and
+    // none of them is what this contract is about.
+    const body = m[1]
+      .replace(/getImageUrl\(v\)/g, 'v')
+      .replace(/getPostImageUrl\(filename\)/g, 'filename');
+    // The clients bind the URL to a local; the engine takes it as a parameter
+    // named `url`. Give the latter the same local so one lift covers both.
+    const preamble = /\b(?:const|let|var)\s+url\b/.test(body) ? '' : 'const url = v;\n';
+    try {
+      lifted.push([name, new Function('v', 'filename', 'THUMB_SUFFIX', preamble + body)]);
+    } catch (err) {
+      fail(C, `${name}: thumbnail rule could not be lifted — ${err.message}`);
+    }
+  }
+
+  // The suffix itself, read rather than assumed — the engine builds object keys
+  // from it, so a change there silently orphans every thumbnail the clients ask
+  // for.
+  const suffix = (read('zuuchmap_engine/src/utils/uploader.ts')
+    .match(/export const THUMB_SUFFIX = '([^']+)'/) ?? [])[1];
+  if (!suffix) fail(C, 'engine: THUMB_SUFFIX not found in utils/uploader.ts');
+
+  if (lifted.length === SOURCES.length && suffix) {
+    for (const input of CASES) {
+      const seen = lifted.map(([name, fn]) => {
+        try { return [name, fn(input, input, suffix)]; } catch (err) { return [name, `threw: ${err.message}`]; }
+      });
+      const values = [...new Set(seen.map(([, v]) => v))];
+      if (values.length > 1) {
+        fail(C, `${input} → ${seen.map(([n, v]) => `${n}: ${JSON.stringify(v)}`).join(', ')}`);
+      } else if (!String(values[0]).includes(suffix)) {
+        fail(C, `${input} → ${JSON.stringify(values[0])}, which does not carry ${suffix}`);
+      }
+    }
+  }
+}
+
 // ── Report ───────────────────────────────────────────────────────────────────
 const uniq = [...new Set(checks)];
 if (failures.length === 0) {

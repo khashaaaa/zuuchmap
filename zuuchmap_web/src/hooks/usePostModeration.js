@@ -94,7 +94,11 @@ export function usePostModeration({ post, id, isAdmin, cameFromQueue }) {
   })
 
   const busy = approveMut.isPending || rejectMut.isPending
-  const isPendingApproval = post?.approval_status === 'PENDING'
+  // An edit parked on a live post is queue work too — the post reads APPROVED
+  // because that is what browse is still serving, and the thing waiting for a
+  // verdict is the revision beside it.
+  const hasRevision = Boolean(post?.pending_revision)
+  const isPendingApproval = post?.approval_status === 'PENDING' || hasRevision
   // Same keys as the queue, so an admin who opened a post with Enter can decide
   // it without reaching for the mouse. Esc returns to the queue.
   const canModerate = Boolean(isAdmin && isPendingApproval)
@@ -109,5 +113,6 @@ export function usePostModeration({ post, id, isAdmin, cameFromQueue }) {
     editedTitle, setEditedTitle, editedDetails, setEditedDetails, hasEdits,
     approveOpen, setApproveOpen, rejectOpen, setRejectOpen,
     approveMut, rejectMut, featureMut, busy, canModerate, isPendingApproval,
+    hasRevision,
   }
 }

@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Phone, CalendarRange } from 'lucide-react'
 import { toast } from 'sonner'
 import { bookingsApi } from '@/lib/api'
-import { formatDate, getImageUrl, getPostTitle, apiErrorMessage, hideBrokenImage, telHref } from '@/lib/utils'
+import { formatDate, getImageUrl, getPostTitle, apiErrorMessage, hideBrokenImage, telHref, getThumbUrl, fallbackToFullImage } from '@/lib/utils'
 import PageHeader from '@/components/PageHeader'
 import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
@@ -36,7 +36,7 @@ function BookingCard({ booking, mode, onAccept, onDecline, onRequestCancel, busy
       <div className="flex items-start gap-3">
         {booking.post?.images?.[0] && (
           <Link to={`/posts/${booking.post.id}`} className="shrink-0">
-            <img src={getImageUrl(booking.post.images[0])} alt="" className="w-14 h-14 rounded-lg object-cover" onError={hideBrokenImage} />
+            <img src={getThumbUrl(booking.post.images[0])} alt="" loading="lazy" className="w-14 h-14 rounded-lg object-cover" onError={fallbackToFullImage(booking.post.images[0])} />
           </Link>
         )}
         <div className="flex-1 min-w-0">

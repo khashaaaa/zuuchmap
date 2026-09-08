@@ -12,6 +12,7 @@ import WizardSteps from '../../components/WizardSteps';
 import ScreenError from '../../components/ScreenError';
 import ScreenLoading from '../../components/ScreenLoading';
 import EmptyState from '../../components/EmptyState';
+import postService from '../../services/api/postService';
 import { getSchemaLabel } from '../../utils/postUtils';
 import PressableScale from '../../components/PressableScale';
 import categoryService from '../../services/api/categoryService';
@@ -62,6 +63,22 @@ const CategorySelectScreen = ({ route, navigation }) => {
         select: (data) => data.filter((s) => s.active !== false),
     });
 
+    /**
+     * The quota, at step one instead of at the end.
+     *
+     * The engine refuses the create — but only after four screens, every field
+     * and a photo upload that is a minute on mobile data. This is the first
+     * screen of the wizard and the cheapest place to say no.
+     */
+    const { data: myStats } = useQuery({
+        queryKey: ['posts', 'mine', 'stats'],
+        queryFn: () => postService.getMyStats(),
+        staleTime: 60_000,
+        enabled: role === 'provider',
+    });
+    const plan = myStats?.plan ?? null;
+    const atQuota = Boolean(role === 'provider' && plan && plan.posts_active >= plan.post_limit);
+
     const categories = useMemo(() => schemas.map((s) => ({
         id: s.key,
         name: s.key,
@@ -104,6 +121,18 @@ const CategorySelectScreen = ({ route, navigation }) => {
                     <ScreenLoading />
                 ) : isError ? (
                     <ScreenError onRetry={refetch} />
+                ) : atQuota ? (
+                    <EmptyState
+                        icon="alert-circle-outline"
+                        iconSize={56}
+                        title={t('posts.quotaFull')}
+                        subtitle={t('posts.quotaExceeded', { limit: plan.post_limit })}
+                        actionButton={{
+                            icon: 'arrow-up-circle',
+                            text: t('posts.quotaUpgrade'),
+                            onPress: () => navigation.navigate('Billing'),
+                        }}
+                    />
                 ) : (<>
                 <SearchInput
                     value={search}

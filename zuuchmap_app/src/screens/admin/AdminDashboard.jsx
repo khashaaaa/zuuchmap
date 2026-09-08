@@ -60,7 +60,9 @@ const AdminDashboard = () => {
                         left: 0,
                         right: 0,
                     },
-                    tabBarItemStyle: { paddingVertical: spacing.xs, paddingHorizontal: spacing.sm },
+                    // Same as the provider bar: the padding comes off the item so the
+                    // label keeps its width.
+                    tabBarItemStyle: { paddingVertical: spacing.xs, paddingHorizontal: spacing.xxs },
                     tabBarLabelStyle: { ...typography.styles.micro, marginTop: spacing.xs },
                     tabBarHideOnKeyboard: Platform.OS === 'android',
                 })}
@@ -74,7 +76,7 @@ const AdminDashboard = () => {
                 <Tab.Screen
                     name="Approval"
                     component={AdminApproval}
-                    options={{ tabBarLabel: t('admin.pendingPosts') }}
+                    options={{ tabBarLabel: t('admin.pendingPostsShort') }}
                 />
                 <Tab.Screen
                     name="Reports"

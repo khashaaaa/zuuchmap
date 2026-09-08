@@ -22,6 +22,37 @@ export interface PostSnapshot {
   district: string | null;
 }
 
+/**
+ * A content edit an owner has submitted for an APPROVED post, held aside while
+ * it waits for moderation.
+ *
+ * The post row itself keeps serving the version an admin already approved, so
+ * browse never loses a live listing because its owner corrected a price. On
+ * approve the revision is written onto the row; on reject it is discarded and
+ * the live version simply stays. Every field an edit may touch is carried here
+ * — anything omitted would silently revert on approval.
+ */
+export interface PostRevision {
+  title: string | null;
+  details: string | null;
+  subcategory: string | null;
+  province: string | null;
+  district: string | null;
+  address: string | null;
+  location: string | null;
+  price_unit: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  website: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  price_amount: number | null;
+  attributes: Record<string, any> | null;
+  images: string[];
+  /** ISO timestamp, so the moderation queue can order revisions FIFO too. */
+  submitted_at: string;
+}
+
 @Entity('post')
 // Single-column indexes on `category` and `approval_status` used to sit here.
 // Both were strict prefixes of the composites below, so they cost writes and
@@ -129,6 +160,20 @@ export class Post {
   // approve/reject.
   @Column({ type: 'jsonb', nullable: true })
   previous_snapshot: PostSnapshot | null;
+
+  /**
+   * A content edit awaiting moderation on a post that is still live.
+   *
+   * Non-null means "this post is APPROVED and visible with its current
+   * content, and its owner has proposed different content". The moderation
+   * queue picks these up alongside never-approved posts; approve applies it,
+   * reject discards it. Only ever set on an APPROVED post — a PENDING or
+   * REJECTED one has no live version to protect, so its edits are written
+   * straight to the row.
+   */
+  @Index('IDX_post_pending_revision', { where: '"pending_revision" IS NOT NULL' })
+  @Column({ type: 'jsonb', nullable: true })
+  pending_revision: PostRevision | null;
 
   // Derived, never stored: ISO dates (next 14 days) blocked by ACCEPTED
   // bookings. Attached by `PostService.attachBusyDates` for rental categories.

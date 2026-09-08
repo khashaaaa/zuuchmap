@@ -8,7 +8,7 @@ import { useThemeStore } from '../store'
 import CategoryBadge from './CategoryBadge'
 import StatusBadge from './StatusBadge'
 import AvailabilityStrip from './AvailabilityStrip'
-import { hideBrokenImage, getLocationLabel } from '@/lib/utils'
+import { getThumbUrl, fallbackToFullImage, getLocationLabel } from '@/lib/utils'
 import { useCategories } from '@/hooks/useCategories'
 
 function PostCard({ post, actions, to }) {
@@ -49,11 +49,11 @@ function PostCard({ post, actions, to }) {
         <div className="relative aspect-[4/3] bg-surface2 overflow-hidden">
           {img ? (
             <img
-              src={getImageUrl(img)}
+              src={getThumbUrl(img)}
               alt={title}
               loading="lazy"
               decoding="async"
-              className="w-full h-full object-cover object-[center_40%] transition-transform duration-300 group-hover:scale-[1.04]" onError={hideBrokenImage} />
+              className="w-full h-full object-cover object-[center_40%] transition-transform duration-300 group-hover:scale-[1.04]" onError={fallbackToFullImage(img)} />
           ) : (
             <div
               className="w-full h-full flex items-center justify-center text-sm"

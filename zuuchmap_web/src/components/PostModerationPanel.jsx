@@ -10,7 +10,7 @@ import KeyboardHints from './KeyboardHints'
 /** Sidebar sections: paid placement, then the verdict buttons, plus their dialogs. */
 export default function PostModerationPanel({ mod, post, schema }) {
   const { t } = useTranslation()
-  const { approveMut, rejectMut, featureMut, busy, hasEdits, editMode, isPendingApproval, canModerate } = mod
+  const { approveMut, rejectMut, featureMut, busy, hasEdits, editMode, isPendingApproval, canModerate, hasRevision } = mod
 
   // Only a window still open counts as featured — a past date is not a badge.
   const featuredUntil = post.featured_until && new Date(post.featured_until) > new Date()
@@ -65,21 +65,29 @@ export default function PostModerationPanel({ mod, post, schema }) {
           offers only the move that changes something. */}
       <div className="pt-4 border-t border-border/50 space-y-2">
         {isPendingApproval && <PostDiff post={post} schema={schema} />}
+        {/* The verdict is about the edit, not the listing: approving publishes
+            the proposal, rejecting drops it and the published version stays. */}
+        {hasRevision && (
+          <p className="text-xs text-warning">{t('admin.revisionHint')}</p>
+        )}
         {hasEdits && editMode && (
           <p className="text-xs text-muted italic">{t('admin.editHint')}</p>
         )}
-        {post.approval_status !== 'APPROVED' && (
+        {(post.approval_status !== 'APPROVED' || hasRevision) && (
           <Button className="w-full" onClick={() => mod.setApproveOpen(true)} disabled={busy}>
             <CheckCircle size={15} />
-            {hasEdits ? t('admin.saveAndApprove')
-              : isPendingApproval ? t('admin.approve')
-                : t('admin.reinstate')}
+            {hasRevision ? t('admin.approveEdit')
+              : hasEdits ? t('admin.saveAndApprove')
+                : isPendingApproval ? t('admin.approve')
+                  : t('admin.reinstate')}
           </Button>
         )}
         {post.approval_status !== 'REJECTED' && (
           <Button variant="danger" className="w-full" onClick={() => mod.setRejectOpen(true)} disabled={busy}>
             <XCircle size={15} />
-            {isPendingApproval ? t('admin.reject') : t('admin.takeDown')}
+            {hasRevision ? t('admin.rejectEdit')
+              : isPendingApproval ? t('admin.reject')
+                : t('admin.takeDown')}
           </Button>
         )}
         {!isPendingApproval && (

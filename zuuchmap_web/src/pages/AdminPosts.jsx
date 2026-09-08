@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { useTranslation } from 'react-i18next'
 import { CheckCircle, XCircle, Clock, Eye, ImageOff } from 'lucide-react'
 import { adminApi, postsApi } from '@/lib/api'
-import { formatDate, getPostCategory, getPostTitle, getImageUrl, hideBrokenImage, apiErrorMessage } from '@/lib/utils'
+import { formatDate, getPostCategory, getPostTitle, getThumbUrl, fallbackToFullImage, apiErrorMessage } from '@/lib/utils'
 import Button from '@/components/Button'
 import PageHeader from '@/components/PageHeader'
 import StatusBadge from '@/components/StatusBadge'
@@ -271,10 +271,10 @@ export default function AdminPosts() {
                       <div className="flex items-center gap-3 min-w-0">
                         {getImageUrl(post.images?.[0])
                           ? <img
-                              src={getImageUrl(post.images[0])}
+                              src={getThumbUrl(post.images[0])}
                               alt=""
                               loading="lazy"
-                              onError={hideBrokenImage}
+                              onError={fallbackToFullImage(post.images[0])}
                               className="w-11 h-11 rounded-lg object-cover shrink-0 bg-surface2"
                             />
                           : <div className="w-11 h-11 rounded-lg bg-surface2 shrink-0 flex items-center justify-center" aria-hidden="true">

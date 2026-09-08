@@ -137,13 +137,28 @@ export class PostController {
       throw new NotFoundException(`Post #${id} not found`);
     }
     await this.postService.attachBusyDates([post]);
-    // The pre-edit snapshot is moderation material — owner and admins only.
-    const { previous_snapshot, ...rest } = post;
+    // The pre-edit snapshot and any unapproved revision are moderation material
+    // — owner and admins only. A reader must see the approved version and only
+    // the approved version, which is the whole point of parking the edit.
+    const { previous_snapshot, pending_revision, ...rest } = post;
     return {
       ...rest,
-      ...(isOwner || requesterIsAdmin ? { previous_snapshot } : {}),
+      ...(isOwner || requesterIsAdmin
+        ? { previous_snapshot, pending_revision }
+        : {}),
       user: publicUser(post.user),
     };
+  }
+
+  /**
+   * Reopen a lapsed post's window without going back through moderation.
+   *
+   * The content is exactly what was approved, so there is nothing to re-read.
+   */
+  @Post(':id/renew')
+  @UseGuards(JwtAuthGuard)
+  async renew(@Param('id', ParseIntPipe) id: number, @Req() req) {
+    return this.postService.renew(id, req.user.id);
   }
 
   /** Public. Same item shape as `GET /posts`; 404 when `:id` itself is not live. */

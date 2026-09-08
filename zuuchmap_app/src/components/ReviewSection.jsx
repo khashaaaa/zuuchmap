@@ -66,7 +66,11 @@ const Stars = ({ value, size = 14, color, onSelect, t }) => (
 const REVIEW_PREVIEW = 5;
 
 // Provider rating summary + review list + submit form (customers only)
-const ReviewSection = ({ providerId, canReview, autoOpen = false }) => {
+// `onRequireAuth` is the same gate the other four write actions use: it resolves
+// false for a guest, after prompting them to sign in. Without it the composer
+// opened for anyone, and the only thing standing between a guest and a filled-in
+// review was the 401 the submit came back with.
+const ReviewSection = ({ providerId, canReview, autoOpen = false, onRequireAuth }) => {
     const { colors, styles: gStyles } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
     const { t } = useTranslation();
@@ -76,8 +80,14 @@ const ReviewSection = ({ providerId, canReview, autoOpen = false }) => {
     const [showAll, setShowAll] = useState(false);
     const [rating, setRating] = useState(0);
     const [comment, setComment] = useState('');
-    // Deep link from a review-prompt push lands with the form already open.
-    useEffect(() => { if (autoOpen && canReview) setShowForm(true); }, [autoOpen, canReview]);
+    const openForm = async () => {
+        if (onRequireAuth && !(await onRequireAuth())) return;
+        setShowForm(true);
+    };
+
+    // Deep link from a review-prompt push lands with the form already open —
+    // through the same gate, since a signed-out device can still be handed the link.
+    useEffect(() => { if (autoOpen && canReview) { openForm(); } }, [autoOpen, canReview]);
 
     const { data } = useQuery({
         queryKey: ['reviews', providerId],
@@ -126,7 +136,7 @@ const ReviewSection = ({ providerId, canReview, autoOpen = false }) => {
             {canReview && !showForm && (
                 <Button
                     title={data.own ? t('review.editRating', { defaultValue: t('review.yourRating') }) : t('review.submit')}
-                    onPress={() => setShowForm(true)}
+                    onPress={openForm}
                     variant="secondary"
                     size="small"
                 />

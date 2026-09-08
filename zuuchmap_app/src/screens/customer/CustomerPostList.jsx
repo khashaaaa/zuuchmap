@@ -25,6 +25,7 @@ import { ScreenLayout, CategoryBadge, SkeletonItem, EmptyState, LocationRow, Sel
 import ScreenError from '../../components/ScreenError';
 import SearchInput from '../../components/SearchInput';
 import { getFixedImageUrl, getPostPrice, getPostImage, getPostTitle as getPostTitleUtil, categoryToPostType, getSchemaLabel } from '../../utils/postUtils';
+import { formatDate } from '../../utils/displayUtils';
 import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useToggleLike, toggleLikedIdInCache, LIKED_IDS_KEY } from '../../hooks/useToggleLike';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -352,7 +353,7 @@ const CustomerPostList = ({ route, navigation }) => {
                             />
                             {item.date_created && (
                                 <Text style={styles.postDate}>
-                                    {new Date(item.date_created).toLocaleDateString('mn-MN')}
+                                    {formatDate(item.date_created)}
                                 </Text>
                             )}
                         </>

@@ -15,7 +15,14 @@ const StatTile = ({ label, value, icon, emphasis = false, ready = true, loading 
     const { colors } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
 
-    const isNumeric = typeof value === 'number' || (typeof value === 'string' && value !== '' && !Number.isNaN(Number(value)));
+    // A *string* only counts as numeric when it is plain digits. `Number()`
+    // happily parses a date like "2026.09" and then groups it into "2,026.09",
+    // which is how the member-since tile started reporting a thousands-separated
+    // year. Every string stat here is a count; anything with a separator in it
+    // is a date or a range, and the comment above already promised to leave
+    // those alone. Real numbers still take the numeric path.
+    const isNumeric = typeof value === 'number'
+        || (typeof value === 'string' && /^-?\d+$/.test(value.trim()));
     const display = isNumeric ? Number(value).toLocaleString() : (value ?? '—');
 
     return (

@@ -54,7 +54,42 @@ export const IMAGE_CONFIG = {
     maxWidth: 1920,
     maxHeight: 1080,
   },
+  /**
+   * The card-sized copy of a post photo.
+   *
+   * Every list, grid, map carousel and search result was rendering the 1920px
+   * original into a box a few hundred pixels wide. A screen of twenty cards
+   * was several megabytes over a Mongolian mobile connection, and on a cheap
+   * Android the decode cost more than the download — the list felt broken
+   * before it had done anything wrong. 640px covers a 2x card on the widest
+   * phone and is roughly a tenth of the bytes.
+   */
+  POST_THUMB: {
+    prefix: 'posts',
+    maxSize: 15 * 1024 * 1024,
+    quality: 70,
+    maxWidth: 640,
+    maxHeight: 640,
+  },
 } as const;
+
+/**
+ * The thumbnail that belongs to a full-size post image.
+ *
+ * A naming convention rather than a second column: `images` is a `string[]`
+ * that three clients and every cached response already agree on, and a
+ * thumbnail is derivable from a URL without asking anyone. Mirrored in
+ * `zuuchmap_web/src/lib/utils.js` and `zuuchmap_app/src/utils/imageUtils.js`,
+ * where the `<img>` falls back to the original if the thumb 404s — posts
+ * uploaded before this existed have no `_thumb` object until the backfill
+ * script has run over them.
+ */
+export const THUMB_SUFFIX = '_thumb';
+
+export function thumbUrl(url: string): string {
+  if (!url) return url;
+  return url.replace(/(\.[a-z0-9]+)(\?.*)?$/i, `${THUMB_SUFFIX}$1$2`);
+}
 
 // Magic-byte MIME validation — checks actual file bytes, not the client-supplied Content-Type.
 // Exported for its unit test: this is the boundary that decides what reaches
@@ -161,6 +196,11 @@ function makeKey(prefix: string): string {
   return `${prefix}/${crypto.randomUUID()}.jpg`;
 }
 
+/** The thumbnail's object key for a full-size key. Same rule as `thumbUrl`. */
+function thumbKey(key: string): string {
+  return key.replace(/(\.[a-z0-9]+)$/i, `${THUMB_SUFFIX}$1`);
+}
+
 // ─── Public API ─────────────────────────────────────────────────────────────
 
 export const createProfilePictureInterceptor = () =>
@@ -228,8 +268,19 @@ export async function processAfterSave(
       const i = next++;
       const file = usable[i];
       validateImageBytes(file.buffer);
-      const compressed = await compressToBuffer(file.buffer, config);
-      urls[i] = await uploadToR2(compressed, makeKey(config.prefix));
+      const key = makeKey(config.prefix);
+      // Both sizes from the one decode-and-upload pass. A thumbnail generated
+      // later would need the original pulled back out of R2, which is exactly
+      // what the backfill script has to do for everything already uploaded.
+      const [full] = await Promise.all([
+        compressToBuffer(file.buffer, config).then((buf) =>
+          uploadToR2(buf, key),
+        ),
+        compressToBuffer(file.buffer, IMAGE_CONFIG.POST_THUMB).then((buf) =>
+          uploadToR2(buf, thumbKey(key)),
+        ),
+      ]);
+      urls[i] = full;
     }
   };
   await Promise.all(
@@ -242,6 +293,14 @@ export async function processAfterSave(
 export const deleteSingleImage = async (keyOrUrl: string) =>
   deleteFromR2(keyOrUrl);
 
+/**
+ * Drops each image and the thumbnail that shares its name.
+ *
+ * `deleteFromR2` already swallows a miss, which is what makes this safe to call
+ * for an image uploaded before thumbnails existed — there is simply nothing at
+ * the `_thumb` key to remove.
+ */
 export const deleteMultipleImages = async (items: string[]) => {
-  await Promise.allSettled(items.map(deleteFromR2));
+  const keys = items.flatMap((item) => [item, thumbUrl(item)]);
+  await Promise.allSettled(keys.map(deleteFromR2));
 };

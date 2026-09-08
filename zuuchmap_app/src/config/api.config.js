@@ -53,6 +53,7 @@ export const API_CONFIG = {
       GET: (id) => `/posts/${id}`,
       UPDATE: (id) => `/posts/${id}`,
       DELETE: (id) => `/posts/${id}`,
+      RENEW: (id) => `/posts/${id}/renew`,
       INCREMENT_VIEWS: (id) => `/posts/${id}/views`,
       CATEGORIES: '/posts/categories/all',
     },
@@ -131,6 +132,10 @@ export const API_CONFIG = {
     ANON_ID: 'zm_anon_id',
     // In-progress new post, restored if the app dies mid-form
     POST_DRAFT: 'zm_post_draft',
+    // "We already offered push on this device." Device-scoped like the OS
+    // permission it guards, but cleared on logout: the next account on this
+    // phone is a different person and has not been asked anything.
+    PUSH_ASKED: 'zm_push_asked',
   },
 
   UPLOAD_PATHS: {
@@ -152,3 +157,18 @@ export const getUploadUrl = (path, filename) => {
 };
 
 export const getPostImageUrl = (filename) => getUploadUrl('posts', filename);
+
+/**
+ * The card-sized copy of a post image — the same URL with `_thumb` before the
+ * extension. Written beside every upload by the engine
+ * (`utils/uploader.ts`), and mirrored in `zuuchmap_web/src/lib/utils.js`;
+ * change all three together.
+ *
+ * Callers pair this with a fallback to the full-size URL, because an image
+ * uploaded before thumbnails existed has no `_thumb` object until the backfill
+ * script has run. `<ThumbImage>` does that for you.
+ */
+export const getPostThumbUrl = (filename) => {
+  const url = getPostImageUrl(filename);
+  return url ? url.replace(/(\.[a-z0-9]+)(\?.*)?$/i, '_thumb$1$2') : url;
+};

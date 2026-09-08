@@ -16,6 +16,8 @@ import { jwtSecret } from '../utils/jwt-secret';
 // Socket event contract. Mirrored in zuuchmap_web/src/lib/socket.js and
 // zuuchmap_app/src/services/socketService.js — change all three together.
 // Per-user payloads use { postId, category, title } — never `id`/`post_type`.
+// Approve/reject additionally carry `userId`: the owner the verdict is about,
+// so a client in the admin room can tell "someone's post" from "my post".
 export const SOCKET_EVENTS = {
   POST_CREATED: 'post.created',
   POST_APPROVED: 'post.approved',
@@ -142,7 +144,11 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     title?: string,
     category?: string,
   ) {
-    const payload = { postId, title, category };
+    // `userId` is the *owner* being told about their own listing. Admins get
+    // the same event so their queue drops the row, but only the owner should
+    // see "your listing was approved" — without this the admin who pressed
+    // approve was congratulated on someone else's post.
+    const payload = { postId, userId, title, category };
     this.emit(ROOM_ADMIN, SOCKET_EVENTS.POST_APPROVED, payload);
     this.emitToUser(userId, SOCKET_EVENTS.POST_APPROVED, payload);
   }
@@ -154,7 +160,8 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     title?: string,
     category?: string,
   ) {
-    const payload = { postId, reason, title, category };
+    // Same rule as approve — see the note there.
+    const payload = { postId, userId, reason, title, category };
     this.emit(ROOM_ADMIN, SOCKET_EVENTS.POST_REJECTED, payload);
     this.emitToUser(userId, SOCKET_EVENTS.POST_REJECTED, payload);
   }

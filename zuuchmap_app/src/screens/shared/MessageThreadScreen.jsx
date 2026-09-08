@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { spacing, typography, radius, isTablet, interactions } from '../../design/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import ScreenHeader from '../../components/ScreenHeader';
@@ -15,6 +16,7 @@ import messageService, {
     CONVERSATIONS_KEY, UNREAD_KEY, messagesKey, threadKey, flattenMessages, messageCursor,
 } from '../../services/api/messageService';
 import { showErrorModal } from '../../utils/errorManager';
+import { maybeAskForPush } from '../../utils/pushPrompt';
 
 const pad = (n) => String(n).padStart(2, '0');
 /** Built by hand — RN's JSC has no full ICU on Android, so Intl silently falls back to en-US there. */
@@ -41,6 +43,7 @@ const patchNewest = (old, fn) => {
 const MessageThreadScreen = ({ navigation, route }) => {
     const { id, title } = route.params ?? {};
     const { colors, isDark } = useAppTheme();
+    const insets = useSafeAreaInsets();
     const styles = useMemo(() => createStyles(colors), [colors]);
     const { t } = useTranslation();
     const qc = useQueryClient();
@@ -118,6 +121,9 @@ const MessageThreadScreen = ({ navigation, route }) => {
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: messagesKey(id) });
             qc.invalidateQueries({ queryKey: CONVERSATIONS_KEY });
+            // A reply is coming and it is worth nothing if it arrives unseen.
+            // Asks once, ever, and only if the OS will still show the dialog.
+            maybeAskForPush('push.reasonMessage');
         },
     });
 
@@ -214,7 +220,11 @@ const MessageThreadScreen = ({ navigation, route }) => {
                     />
                 )}
 
-                <View style={styles.composer}>
+                {/* `edgeToEdgeEnabled` puts the app behind the Android
+                    navigation bar, so a pinned footer has to hold its own
+                    inset — without this the composer sat *under* the nav
+                    buttons and the input could not be tapped at all. */}
+                <View style={[styles.composer, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
                     <View style={styles.composerInner}>
                     <TextInput
                         style={styles.input}

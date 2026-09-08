@@ -194,7 +194,7 @@ describe('PostService.attachBusyDates', () => {
   });
 });
 
-describe('PostService.update — previous_snapshot for re-approval', () => {
+describe('PostService.update — a live post keeps serving while an edit waits', () => {
   const makePost = (over: Record<string, unknown> = {}) => ({
     id: 1,
     category: 'vehiclerent',
@@ -210,13 +210,54 @@ describe('PostService.update — previous_snapshot for re-approval', () => {
     district: 'BZD',
     approval_status: 'APPROVED',
     previous_snapshot: null,
+    pending_revision: null,
     rejection_field: 'title',
     ...over,
   });
-  const makeService = (post: any) => {
+  /** The published content, in the shape a parked revision is stored in. */
+  const revision = {
+    title: 'Old title',
+    details: 'd',
+    subcategory: 'truck',
+    province: 'UB',
+    district: 'BZD',
+    address: null,
+    location: null,
+    price_unit: 'day',
+    contact_phone: null,
+    contact_email: null,
+    website: null,
+    latitude: null,
+    longitude: null,
+    price_amount: '100',
+    attributes: { a: 1 },
+    images: ['x.jpg'],
+  };
+
+  /**
+   * `proven` is what `isProvenProvider` should answer. The counts are the two
+   * it reads (approved, rejected) plus the upheld-report query builder.
+   */
+  const makeService = (post: any, proven = false) => {
     const postRepo = {
       findOne: jest.fn(async () => post),
       save: jest.fn(async (x: any) => x),
+      count: jest.fn(async ({ where }: any) =>
+        where.approval_status === 'APPROVED' ? (proven ? 3 : 0) : 0,
+      ),
+      manager: {
+        getRepository: () => ({
+          createQueryBuilder: () => {
+            const qb: any = {
+              innerJoin: () => qb,
+              where: () => qb,
+              andWhere: () => qb,
+              getCount: async () => 0,
+            };
+            return qb;
+          },
+        }),
+      },
     };
     const svc = new PostService(
       postRepo as any,
@@ -229,52 +270,86 @@ describe('PostService.update — previous_snapshot for re-approval', () => {
     return { svc, postRepo };
   };
 
-  it('snapshots the approved version and clears the rejection field on a content edit', async () => {
+  it('parks a content edit and leaves the published version untouched', async () => {
     const post = makePost();
     const { svc } = makeService(post);
     const updated = await svc.update(1, { title: 'New title' }, [], 'owner');
-    expect(updated.approval_status).toBe('PENDING');
-    expect(updated.previous_snapshot).toEqual({
-      title: 'Old title',
-      details: 'd',
-      price: 100,
-      price_unit: 'day',
-      attributes: { a: 1 },
-      images: ['x.jpg'],
-      subcategory: 'truck',
-      province: 'UB',
-      district: 'BZD',
-    });
-    expect(updated.rejection_field).toBeNull();
-    expect(updated.title).toBe('New title');
+    // Still live, still the approved words — this is the whole point.
+    expect(updated.approval_status).toBe('APPROVED');
+    expect(updated.title).toBe('Old title');
+    expect(updated.pending_revision).toMatchObject({ title: 'New title' });
+    expect(updated.pending_revision?.submitted_at).toEqual(expect.any(String));
   });
 
-  it('keeps the first snapshot across a second edit before re-approval', async () => {
-    const first = { title: 'Original' };
+  it('edits from the pending revision, not from what is published', async () => {
     const post = makePost({
-      approval_status: 'PENDING',
-      previous_snapshot: first,
-      title: 'Draft 1',
+      pending_revision: {
+        ...revision,
+        title: 'Draft 1',
+        submitted_at: '2025-01-01T00:00:00.000Z',
+      },
     });
     const { svc } = makeService(post);
-    const updated = await svc.update(1, { title: 'Draft 2' }, [], 'owner');
-    expect(updated.previous_snapshot).toBe(first);
+    const updated = await svc.update(1, { details: 'd2' }, [], 'owner');
+    // The title the owner typed last round survives an edit that never mentions it.
+    expect(updated.pending_revision).toMatchObject({
+      title: 'Draft 1',
+      details: 'd2',
+    });
+    expect(updated.title).toBe('Old title');
   });
 
-  it('does not snapshot a post that was never approved', async () => {
+  it('drops the revision when the owner edits back to what is published', async () => {
+    const post = makePost({
+      pending_revision: {
+        ...revision,
+        title: 'Draft 1',
+        submitted_at: '2025-01-01T00:00:00.000Z',
+      },
+    });
+    const { svc } = makeService(post);
+    const updated = await svc.update(1, { title: 'Old title' }, [], 'owner');
+    expect(updated.pending_revision).toBeNull();
+    expect(updated.approval_status).toBe('APPROVED');
+  });
+
+  it('publishes a proven provider\'s edit immediately', async () => {
+    const post = makePost();
+    const { svc } = makeService(post, true);
+    const updated = await svc.update(1, { title: 'New title' }, [], 'owner');
+    expect(updated.approval_status).toBe('APPROVED');
+    expect(updated.title).toBe('New title');
+    expect(updated.pending_revision).toBeNull();
+  });
+
+  it('clears a refused edit\'s reason when the owner submits again', async () => {
+    // Otherwise "your edit was refused" sits beside "your edit is in review" on
+    // the same listing, and neither line tells the owner where they stand.
+    const post = makePost({ rejection_reason: 'Photo is unclear', rejection_field: 'images' });
+    const { svc } = makeService(post);
+    const updated = await svc.update(1, { title: 'New title' }, [], 'owner');
+    expect(updated.pending_revision).toMatchObject({ title: 'New title' });
+    expect(updated.rejection_reason).toBeNull();
+    expect(updated.rejection_field).toBeNull();
+  });
+
+  it('writes straight to a post that was never approved', async () => {
     const post = makePost({ approval_status: 'REJECTED' });
     const { svc } = makeService(post);
     const updated = await svc.update(1, { title: 'Fixed' }, [], 'owner');
-    expect(updated.previous_snapshot).toBeNull();
+    expect(updated.title).toBe('Fixed');
+    expect(updated.pending_revision).toBeNull();
     expect(updated.approval_status).toBe('PENDING');
+    expect(updated.rejection_field).toBeNull();
   });
 
-  it('leaves an operational-only edit approved and unsnapshotted', async () => {
+  it('leaves an operational-only edit approved with nothing queued', async () => {
     const post = makePost();
     const { svc } = makeService(post);
     const updated = await svc.update(1, { status: 'RENTED' }, [], 'owner');
     expect(updated.approval_status).toBe('APPROVED');
-    expect(updated.previous_snapshot).toBeNull();
+    expect(updated.pending_revision).toBeNull();
+    expect(updated.status).toBe('RENTED');
   });
 
   it('snapshotOf coerces the decimal price to a number', () => {

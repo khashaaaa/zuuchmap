@@ -83,7 +83,16 @@ export default function Button({
             ) : (
                 <View style={styles.row}>
                     {renderIcon('left')}
-                    <Text style={[styles.label, sz.type, { color: fg }, textStyle]}>
+                    {/* A button label is one line by definition — the box has a
+                        fixed height and sits in a row of fixed-height siblings.
+                        Left to wrap, the longest locale (Russian is routinely
+                        twice the Mongolian) grew the button taller than the
+                        icon buttons beside it. `shrink` lets the text give way
+                        to the icon instead of pushing it out of the button. */}
+                    <Text
+                        style={[styles.label, sz.type, { color: fg, flexShrink: 1 }, textStyle]}
+                        numberOfLines={1}
+                    >
                         {title}
                     </Text>
                     {renderIcon('right')}

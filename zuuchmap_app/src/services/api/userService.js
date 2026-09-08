@@ -149,7 +149,14 @@ const userService = {
                     API_CONFIG.STORAGE_KEYS.USER_INFO,
                 ]);
             }
-            AsyncStorage.removeItem(API_CONFIG.STORAGE_KEYS.PUSH_TOKEN).catch(() => {});
+            // PUSH_ASKED goes too: it is device-scoped, but it gates the in-app
+            // rationale, and the next account on this phone is a different person
+            // who has been asked nothing. The OS prompt stays protected by
+            // `canAskAgain`, so clearing this cannot spend a permission twice.
+            AsyncStorage.multiRemove([
+                API_CONFIG.STORAGE_KEYS.PUSH_TOKEN,
+                API_CONFIG.STORAGE_KEYS.PUSH_ASKED,
+            ]).catch(() => {});
             // Post drafts are keyed by category, not by user, so nothing else
             // drops them — they would be offered to whoever signs in next.
             clearAllDrafts().catch(() => {});
@@ -227,7 +234,8 @@ const userService = {
                     const date = new Date(response.data.date_created);
                     const year = date.getFullYear();
                     const month = String(date.getMonth() + 1).padStart(2, '0');
-                    return `${year}-${month}`;
+                    // `.` is the app's date separator everywhere else (see displayUtils).
+                    return `${year}.${month}`;
                 })()
             };
         } catch (error) {

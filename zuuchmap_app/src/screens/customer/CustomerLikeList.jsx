@@ -26,6 +26,7 @@ import { useToggleLike } from '../../hooks/useToggleLike';
 import { showErrorModal, isPostLogoutStraggler } from '../../utils/errorManager';
 import { logger } from '../../utils/logger';
 import { getPostTitle, normalizePostType, getPostPrice, getSchemaLabel } from '../../utils/postUtils';
+import { formatDate } from '../../utils/displayUtils';
 import { useCategorySchemas } from '../../hooks/useCategorySchemas';
 
 const LIKED_POSTS_KEY = ['liked', 'posts'];
@@ -190,7 +191,7 @@ const CustomerLikeList = ({ navigation }) => {
                             </Text>
                         </View>
                         <Text style={[styles.likedAtText, { color: colors.text.tertiary }]}>
-                            {new Date(item.date_liked).toLocaleDateString()}
+                            {formatDate(item.date_liked)}
                         </Text>
                     </>
                 )}

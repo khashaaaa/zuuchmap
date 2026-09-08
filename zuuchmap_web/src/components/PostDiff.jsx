@@ -66,6 +66,19 @@ function Row({ name, before, after }) {
 
 const Dash = () => <span className="text-muted">—</span>
 
+/** The published post in snapshot shape, so both diff sources read alike. */
+const snapshotFields = (post) => ({
+  title: post.title,
+  details: post.details,
+  price: post.price_amount,
+  price_unit: post.price_unit,
+  subcategory: post.subcategory,
+  province: post.province,
+  district: post.district,
+  attributes: post.attributes,
+  images: post.images,
+})
+
 /**
  * "What changed" for a post that came back to the queue after an edit. Only
  * the fields that differ are listed, so the admin re-reads the delta instead
@@ -74,38 +87,49 @@ const Dash = () => <span className="text-muted">—</span>
  */
 export default function PostDiff({ post, schema }) {
   const { t } = useTranslation()
-  const snap = post?.previous_snapshot
+
+  /**
+   * Two shapes reach here, and the "before"/"after" sides swap between them.
+   *
+   * A parked revision: the row is the published version and the proposal sits
+   * beside it, so `post` is the before and `pending_revision` is the after.
+   * A never-approved post that was edited: the row already holds the new
+   * content and `previous_snapshot` is what it replaced.
+   */
+  const revision = post?.pending_revision
+  const snap = revision ? snapshotFields(post) : post?.previous_snapshot
+  const next = revision ?? post
 
   const rows = useMemo(() => {
     if (!snap) return []
     const out = []
     const val = (v) => isEmpty(v) ? <Dash /> : String(v)
 
-    if (!same(snap.title, post.title)) {
-      out.push({ key: 'title', name: t('posts.title'), before: val(snap.title), after: val(post.title) })
+    if (!same(snap.title, next.title)) {
+      out.push({ key: 'title', name: t('posts.title'), before: val(snap.title), after: val(next.title) })
     }
-    if (!same(snap.details, post.details)) {
-      const d = tokenDiff(snap.details ?? '', post.details ?? '')
+    if (!same(snap.details, next.details)) {
+      const d = tokenDiff(snap.details ?? '', next.details ?? '')
       out.push({
         key: 'details', name: t('posts.details'),
         before: d ? <Marked parts={d.before} /> : val(snap.details),
-        after: d ? <Marked parts={d.after} /> : val(post.details),
+        after: d ? <Marked parts={d.after} /> : val(next.details),
       })
     }
     const snapPrice = snap.price ?? snap.price_amount
     const snapUnit = snap.price_unit
-    if (!same(snapPrice, post.price_amount) || !same(snapUnit, post.price_unit)) {
+    if (!same(snapPrice, next.price_amount) || !same(snapUnit, next.price_unit)) {
       const fmt = (a, u) => { const p = formatPriceParts(a, u, t); return p ? [p.amount, p.unit].filter(Boolean).join(' / ') : <Dash /> }
-      out.push({ key: 'price', name: t('posts.priceAmount'), before: fmt(snapPrice, snapUnit), after: fmt(post.price_amount, post.price_unit) })
+      out.push({ key: 'price', name: t('posts.priceAmount'), before: fmt(snapPrice, snapUnit), after: fmt(next.price_amount, next.price_unit) })
     }
-    if (!same(snap.subcategory, post.subcategory)) {
+    if (!same(snap.subcategory, next.subcategory)) {
       out.push({
         key: 'subcategory', name: t('posts.subcategory'),
         before: isEmpty(snap.subcategory) ? <Dash /> : getSubcategoryLabel(snap.subcategory, t, schema),
-        after: isEmpty(post.subcategory) ? <Dash /> : getSubcategoryLabel(post.subcategory, t, schema),
+        after: isEmpty(next.subcategory) ? <Dash /> : getSubcategoryLabel(next.subcategory, t, schema),
       })
     }
-    if (!same(snap.province, post.province) || !same(snap.district, post.district)) {
+    if (!same(snap.province, next.province) || !same(snap.district, next.district)) {
       const loc = (p) => [
         p?.district && t(`district.${p.district}`, { defaultValue: p.district }),
         p?.province && t(`province.${p.province}`, { defaultValue: p.province }),
@@ -113,7 +137,7 @@ export default function PostDiff({ post, schema }) {
       out.push({ key: 'location', name: t('posts.location'), before: loc(snap), after: loc(post) })
     }
     const prevAttrs = snap.attributes ?? {}
-    const nextAttrs = post.attributes ?? {}
+    const nextAttrs = next.attributes ?? {}
     const keys = Array.from(new Set([...Object.keys(prevAttrs), ...Object.keys(nextAttrs)]))
     const show = (v) => {
       if (isEmpty(v)) return <Dash />
@@ -133,7 +157,7 @@ export default function PostDiff({ post, schema }) {
       })
     }
     return out
-  }, [snap, post, schema, t])
+  }, [snap, next, schema, t])
 
   const images = useMemo(() => {
     if (!snap) return null

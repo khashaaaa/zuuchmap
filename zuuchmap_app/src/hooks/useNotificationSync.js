@@ -16,6 +16,7 @@ import { CONVERSATIONS_KEY, UNREAD_KEY, messagesKey } from '../services/api/mess
 
 export const SOUND_PREF_KEY = 'zm_sound';
 const LOCAL_SOUND = 'notify.wav';
+const ANDROID_CHANNEL_ID = 'default';
 const DEDUPE_MS = 5000;
 
 // `${type}:${id}` of banners presented in the last few seconds. The server
@@ -59,7 +60,13 @@ async function presentLocal({ key, title, body, data, viewing }) {
         const sound = await isSoundEnabled();
         await Notifications.scheduleNotificationAsync({
             content: { title, body, data, sound: sound ? LOCAL_SOUND : false },
-            trigger: null,
+            // Android takes the sound and importance from the *channel*, not
+            // from the content, and a `null` trigger lands on Expo's fallback
+            // "Miscellaneous" channel. That is the one the user sees in system
+            // settings, and from the next EAS build it is the one that would
+            // not play `notify.wav`. `registerPushToken` creates 'default';
+            // naming it here is what puts foreground banners on it too.
+            trigger: Platform.OS === 'android' ? { channelId: ANDROID_CHANNEL_ID } : null,
         });
     } catch (err) {
         // Expo Go / no permission — the in-app bell row still exists.
@@ -73,25 +80,46 @@ const EAS_PROJECT_ID = '40d1a5b1-f537-4097-88f7-ffad9545f7d0';
 // every auth event (cold start with a stored session AND fresh login), so a
 // user who just verified gets pushes without restarting the app. Idempotent
 // server-side; each account switch re-binds the token to the new account.
-async function registerPushToken() {
+/**
+ * Android 8+ drops a notification whose channel does not exist, and the channel
+ * — not the notification — carries the sound and the importance. Expo's push
+ * service targets 'default' when the message names none, and `presentLocal`
+ * names it explicitly for foreground banners.
+ *
+ * Idempotent, and deliberately not gated on permission or login: a socket
+ * banner can be raised the moment a session restores, which is before
+ * `registerPushToken` has finished its round trip.
+ */
+export async function ensureAndroidChannel() {
+    if (Platform.OS !== 'android') return;
+    try {
+        await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
+            name: 'default',
+            importance: Notifications.AndroidImportance.MAX,
+            // Bundled via the expo-notifications plugin `sounds` array; present
+            // only from the next EAS build, system default sound until then.
+            sound: LOCAL_SOUND,
+        });
+    } catch {
+        // Expo Go quirks or a revoked channel — a banner on the fallback
+        // channel is still better than no banner.
+    }
+}
+
+export async function registerPushToken() {
     if (!Device.isDevice) return;
     try {
-        if (Platform.OS === 'android') {
-            // Android 8+ drops notifications without a channel; Expo's push
-            // service targets 'default' when the message names none.
-            await Notifications.setNotificationChannelAsync('default', {
-                name: 'default',
-                importance: Notifications.AndroidImportance.MAX,
-                // Bundled via the expo-notifications plugin `sounds` array;
-                // present only from the next EAS build, default sound until then.
-                sound: LOCAL_SOUND,
-            });
-        }
-        const { status: existing } = await Notifications.getPermissionsAsync();
-        let status = existing;
-        if (existing !== 'granted') {
-            ({ status } = await Notifications.requestPermissionsAsync());
-        }
+        await ensureAndroidChannel();
+        // Never asks. The OS dialog used to fire the instant verification
+        // finished — before the user had seen a single thing worth being
+        // notified about — and on iOS a "no" there is final short of a trip
+        // into Settings. A provider who declined then had no way to hear that
+        // their listing was approved, or that a customer had messaged them:
+        // there is no SMS transport, and signup is phone-based so most accounts
+        // carry no email either. `utils/pushPrompt.js` asks later, at a moment
+        // that explains itself. Here we only register a permission already
+        // given.
+        const { status } = await Notifications.getPermissionsAsync();
         if (status !== 'granted') return;
         const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId: EAS_PROJECT_ID });
         if (!token) return;
@@ -114,6 +142,10 @@ export function useNotificationSync() {
     useEffect(() => {
         let mounted = true;
         let teardown = null;
+
+        // Before any socket handler can raise one, and independent of whether
+        // this launch ends up authenticated.
+        ensureAndroidChannel();
 
         const setup = async () => {
             const token = await getAuthToken();
@@ -168,9 +200,19 @@ export function useNotificationSync() {
                 });
             };
 
-            const onPostApproved = ({ postId, title, category } = {}) => {
+            // Approve/reject reach the admin room as well as the owner, because
+            // an admin's queue has to drop the row. Only the owner is *told* —
+            // `userId` is who the verdict is about. An older server sends no
+            // `userId`, and then the owner-room delivery is still the only one
+            // that matters to a non-admin, so fall back to presenting.
+            const isMine = (ownerId) =>
+                ownerId ? String(ownerId) === String(userId) : !isAdmin;
+
+            const onPostApproved = ({ postId, userId: ownerId, title, category } = {}) => {
                 if (!mounted) return;
                 invalidatePostData();
+                queryClient.invalidateQueries({ queryKey: ['admin'] });
+                if (!isMine(ownerId)) return;
                 addNotification({
                     title: t('notifications.postApproved'),
                     message: title
@@ -189,8 +231,10 @@ export function useNotificationSync() {
                 });
             };
 
-            const onPostRejected = ({ postId, reason, category } = {}) => {
+            const onPostRejected = ({ postId, userId: ownerId, reason, category } = {}) => {
                 if (!mounted) return;
+                queryClient.invalidateQueries({ queryKey: ['admin'] });
+                if (!isMine(ownerId)) { invalidatePostData(); return; }
                 invalidatePostData();
                 addNotification({
                     title: t('notifications.postRejected'),

@@ -16,7 +16,8 @@
     "migration:revert": "cross-env NODE_ENV=development npx typeorm-ts-node-commonjs migration:revert -d src/database/data-source.ts",
     "migration:show": "cross-env NODE_ENV=development npx typeorm-ts-node-commonjs migration:show -d src/database/data-source.ts",
     "test:int": "cross-env NODE_ENV=development jest --testRegex '.*\\\\.int-spec\\\\.ts$' --runInBand",
-    "test": "jest"
+    "test": "jest",
+    "backfill:thumbs": "cross-env NODE_ENV=production npx ts-node src/database/backfill-thumbs.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1041.0",

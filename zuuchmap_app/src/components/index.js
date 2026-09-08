@@ -24,6 +24,8 @@ export { default as DraftResumeBanner } from './DraftResumeBanner';
 // Buttons
 export { default as Button } from './Button';
 export { default as PressableScale } from './PressableScale';
+export { default as ThumbImage } from './ThumbImage';
+export { default as UnreachableBanner } from './UnreachableBanner';
 export { default as WizardSteps } from './WizardSteps';
 
 // Headers

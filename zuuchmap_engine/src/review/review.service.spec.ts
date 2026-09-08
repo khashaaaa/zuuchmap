@@ -1,5 +1,23 @@
 import { ReviewService } from './review.service';
 
+/**
+ * Conversation repository whose query builder counts `replies` — the number of
+ * threads with this provider that the provider has actually answered. Zero is
+ * "the customer messaged into the void", which must not earn a review.
+ */
+const conversations = (replies: number) => ({
+  createQueryBuilder: () => {
+    const qb: any = {
+      innerJoin: () => qb,
+      where: () => qb,
+      andWhere: () => qb,
+      getCount: async () => replies,
+    };
+    return qb;
+  },
+});
+
+
 describe('ReviewService.upsert — comment lifecycle', () => {
   const makeService = (existing: any) => {
     const reviewRepo = {
@@ -13,6 +31,9 @@ describe('ReviewService.upsert — comment lifecycle', () => {
       reviewRepo as any,
       userRepo as any,
       bookings as any,
+      {} as any,
+      // Conversation repository: never reached while `hasAcceptedBooking` says
+      // yes, which is the path every case here exercises.
       {} as any,
     );
     return { svc, reviewRepo };
@@ -73,11 +94,32 @@ describe('ReviewService.upsert — comment lifecycle', () => {
       { findOne: jest.fn(async () => ({ id: 'provider-1' })) } as any,
       { hasAcceptedBooking: jest.fn(async () => false) } as any,
       {} as any,
+      conversations(0) as any,
     );
     await expect(svc.upsert('author-1', dto())).rejects.toMatchObject({
       response: { code: 'REVIEW_NEEDS_BOOKING' },
     });
     expect(reviewRepo.save).not.toHaveBeenCalled();
+  });
+
+  // The four non-bookable categories (material store, job vacancy, factory,
+  // used equipment) have no booking flow at all, so an answered conversation is
+  // the only proof of dealing that can ever exist for them.
+  it('accepts an author the provider has replied to, with no booking', async () => {
+    const reviewRepo = {
+      findOne: jest.fn(async () => null),
+      create: jest.fn((x: any) => x),
+      save: jest.fn(async (x: any) => x),
+    };
+    const svc = new ReviewService(
+      reviewRepo as any,
+      { findOne: jest.fn(async () => ({ id: 'provider-1' })) } as any,
+      { hasAcceptedBooking: jest.fn(async () => false) } as any,
+      {} as any,
+      conversations(1) as any,
+    );
+    await svc.upsert('author-1', dto({ rating: 5 }));
+    expect(reviewRepo.save).toHaveBeenCalled();
   });
 });
 
@@ -103,6 +145,7 @@ describe('ReviewService.providerStats', () => {
       userRepo as any,
       {} as any,
       bookingRepo as any,
+      conversations(0) as any,
     );
     return { svc, bookingRepo, userRepo, builders, respBuilder };
   };

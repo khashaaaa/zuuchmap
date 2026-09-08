@@ -108,14 +108,28 @@ const ProviderLocationSelection = ({ route, navigation }) => {
         locate();
     }, []);
 
+    /**
+     * The platform geocoder answers in the *device's* locale, not the app's —
+     * expo-location exposes no locale option — so on an English phone this
+     * comes back Latin. That much we cannot choose. What we can do is not
+     * repeat ourselves: `city` and `region` are both "Ulaanbaatar" for the
+     * capital, and `country` is always Mongolia in a Mongolia-only
+     * marketplace, which is how a picked point read as
+     * "1, BGD - 2 khoroo, Ulaanbaatar, Ulaanbaatar, Mongolia".
+     *
+     * The province/district enums are stored separately and are localised, so
+     * this string only has to carry the part they cannot: the street address.
+     */
     const formatAddress = (address) => {
-        const parts = [];
-        if (address.name) parts.push(address.name);
-        if (address.street) parts.push(address.street);
-        if (address.district) parts.push(address.district);
-        if (address.city) parts.push(address.city);
-        if (address.region) parts.push(address.region);
-        if (address.country) parts.push(address.country);
+        const seen = new Set();
+        const parts = [address.name, address.street, address.district, address.city, address.region]
+            .filter((p) => {
+                if (!p) return false;
+                const key = String(p).trim().toLowerCase();
+                if (!key || seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
         return parts.join(', ') || t('provider.locationSelected');
     };
 

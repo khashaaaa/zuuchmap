@@ -53,6 +53,7 @@ the top of `check-sync.js`, nothing else.
 | price unit labels | `app/i18n/locales/*.js` (`priceUnit.HOUR`) · `web/i18n/*.js` (`priceUnit.hour`) — the casing differs, so the shared-i18n contract above cannot see these; compared case-insensitively instead |
 | typeface | `app/design/theme.js` (bundled Commissioner TTFs) · `web/src/index.css` (`@font-face`, self-hosted). **Never load it from Google Fonts** — that serves Commissioner as four `unicode-range` subsets, stranding Ө/Ү in `cyrillic-ext` and ₮ in `latin-ext`, so those glyphs render in the fallback face until a second request lands |
 | `REPORT_REASONS` | engine `enums/report.ts` · `web/lib/api.js` · `app/services/api/reportService.js` — the engine is the authority (`GET /reports/reasons`); the client copies are only the first-paint fallback |
+| thumbnail naming | engine `utils/uploader.ts` (`thumbUrl`) · `web/lib/utils.js` (`getThumbUrl`) · `app/config/api.config.js` (`getPostThumbUrl`) — `<name>.jpg` → `<name>_thumb.jpg`, a convention rather than a second column so `images` stays a `string[]` all three clients already agree on. Every call site pairs it with a fallback to the full-size URL, because a photo uploaded before thumbnails existed has no `_thumb` object until `npm run backfill:thumbs` has run |
 | form validation | `app/utils/formUtils.js` · `web/lib/utils.js` — `validateEmail` `validatePhone` `validateRequired` `normalizeWebsiteUrl`, behavioural. The company DTOs have no server-side decorators, so these are the only gate; no call site may hand-roll the `https://` prefix rule |
 
 ---
@@ -143,7 +144,7 @@ Required: `PG_*` `JWT_SECRET` `ADMIN_PHONES` `R2_*` `PROG_PORT` `PUBLIC_ENGINE_U
 - `PUBLIC_WEB_URL` (default `https://zuuchmap.com`) — the origin the sitemap and OG tags are built from.  
 **DB:** `synchronize: false` — TypeORM migrations (`src/migrations/`, `data-source.ts`).  
 **⚠ `migrationsRun: true`** — the dev server auto-runs any pending migration file on (re)start, including watch-mode restarts. Never leave a broken/experimental migration file on disk while `npm run dev` is running.  
-**Uploads:** Cloudflare R2 via S3 client (`src/utils/uploader.ts`), magic-byte validation, Sharp compression.
+**Uploads:** Cloudflare R2 via S3 client (`src/utils/uploader.ts`), magic-byte validation, Sharp compression. Every post photo is written twice — the 1920×1080 original and a 640px `_thumb` — from the one decode. Lists, grids, map carousels and thread rows request the thumb; a screen of twenty cards used to be several megabytes of full-resolution JPEG over a mobile connection, and on cheap Android the decode cost more than the download. Photos predating this have no thumb until `npm run backfill:thumbs` (`src/database/backfill-thumbs.ts`, re-runnable and interruptible) has been run against production.
 
 **Modules:** `auth` `user` `post` `company` `likedpost` `admin` `events` `booking` `review` `analytics` `saved-search` `payment` `messaging` `report` `seo` `health`  
 **Post module services:** `PostService` (posts, expiry cron, cache) · `CategoryService` (`post/category.service.ts` — schemas, validation, seeding; unit-tested in `category.service.spec.ts`, run `npx jest`) · `PostNotificationService` (`post/post-notification.service.ts` — push fan-out to admins/users; injected by `BookingService` too) · `ViewedpostService` (`post/viewedpost.service.ts` — view dedupe, no routes)  
@@ -168,13 +169,20 @@ GET  /posts/mine/stats            JWT   per-post views/saves/booking counts + to
 GET  /posts/:id/similar           ?limit  same category, nearest location/price (cached 5m)
                                   list/map/detail items carry busy_dates[] (next 14d) for has_rental_status categories
 POST /posts                       multipart JWT
+PATCH /posts/:id                  multipart JWT — see "Editing a live post" below
+POST /posts/:id/renew             JWT   reopens a lapsed window, no moderation
 GET  /posts/stats                 public landing counters (cached 5m)
 GET  /posts/categories/all
 POST /like  DELETE /like/:type/:id  GET /like/ids
 GET  /admin/posts/pending
 POST /admin/broadcast             JWT+AdminGuard  {title,body,user_type?,category?} push campaign
 PUT  /admin/posts/:id/approve|reject   JWT+AdminGuard   reject {reason,field_key?} → post.rejection_field;
-                                  approve clears it + post.previous_snapshot (set when an APPROVED post is edited)
+                                  approve clears it + post.previous_snapshot.
+                                  On a post carrying `pending_revision`, the verdict is about the *edit*:
+                                  approve writes it onto the row, reject discards it and the published
+                                  version stays. Either way `approval_status` stays APPROVED.
+GET  /admin/posts/pending         JWT+AdminGuard  approval_status=PENDING **or** pending_revision IS NOT NULL,
+                                  FIFO on COALESCE(revision submitted_at, date_created)
 POST /bookings                    JWT   {post_id,start_date,end_date,message?}
 GET  /bookings/mine|received      JWT
 PUT  /bookings/:id/accept|decline|cancel  JWT
@@ -211,7 +219,36 @@ GET  /seo/sitemap.xml             sitemap index; -static and -posts-N pages bene
 GET  /seo/post/:id                server-rendered OG tags for crawlers (nginx routes bot UAs here)
 ```
 
-**Bookings/reviews rules (enforced server-side):** only `has_rental_status` categories are bookable; no self-booking; one PENDING request per customer per post; accept refuses date overlap with an ACCEPTED booking; contact phone shared only after ACCEPTED; reviews require ≥1 ACCEPTED booking with the provider, one per author (upsert).
+**Bookings/reviews rules (enforced server-side):** only `has_rental_status` categories are bookable; no self-booking; one PENDING request per customer per post; accept refuses date overlap with an ACCEPTED booking; contact phone shared only after ACCEPTED; one review per author (upsert). Review eligibility is `ReviewService.canReview`: an ACCEPTED booking **or** a conversation the provider actually replied to. The second clause exists because four of the thirteen categories (`materialstore` `jobvacancy` `factory` `usedequipment`) have no booking flow at all, so requiring one meant a used-equipment seller could never accumulate a single review — the transactions where a buyer most wants to see somebody went first were the ones with no way to say so. A message sent into the void proves nothing and does not count.
+
+**Editing a live post (`pending_revision`).** An APPROVED post never leaves
+browse because its owner edited it. The row keeps serving the approved content
+and the proposal is parked in `post.pending_revision`; the moderation queue picks
+it up beside never-approved posts, approve writes it onto the row, reject drops
+it. This exists because `price_amount` and `contact_phone` are content fields, so
+the most routine correction a provider makes used to take their listing off the
+market for as long as the queue was — and providers learned to leave stale prices
+alone. A PENDING or REJECTED post has no live version to protect, so its edits
+are written straight to the row as before.
+
+Consequences to keep in mind: the owner's form must hydrate from
+`pending_revision ?? post` or they read their own pre-edit wording back; photos
+uploaded for a revision are referenced only by the revision, so reclaim on
+approve/reject/delete has to account for both sets; and `rejection_reason` on a
+post that is still APPROVED means *the edit* was refused, not the listing.
+
+**Auto-approved edits.** `PostService.isProvenProvider` — 3+ approved posts, zero
+rejections, zero upheld (RESOLVED) reports — lets an owner's edit to an
+already-approved post publish immediately. Deliberately never applied to a new
+listing: a first post from an unknown account is what manual review is for.
+
+**Expiry.** Nightly at 00:00 `expireOldPosts` marks lapsed posts EXPIRED and
+pushes each owner (`post_expired`); at 01:00 `warnExpiringPosts` pushes
+`post_expiring` three days out. `POST /posts/:id/renew` reopens the window
+without moderation — the content is byte-for-byte what was approved — and is
+quota-checked, since a renewal puts a post back into browse. Before this the only
+route back from an expiry was to edit the post, which queued it for a change the
+owner never wanted to make.
 
 **Category system (data-driven — never hardcode category behavior in clients):**
 - `CategorySchema` holds fields (`FieldDef[]`), subcategories, behavior flags
@@ -221,10 +258,27 @@ GET  /seo/post/:id                server-rendered OG tags for crawlers (nginx ro
   and localized `labels` (`{mn,en,zh,ru}`) on category/subcategory/field level.
 - Clients derive form sections, status toggles, filter lists, map markers, badges and labels from the schema — `icon` is an Ionicons name, `color` a hex, both admin-editable. Adding a vertical is an admin-UI operation: no deploy, no app release. Do not reintroduce a hardcoded category list anywhere.
 - `FieldDef.filterable` exposes an attribute as a browse filter (`attr.<key>` query param).
-- `q` is Postgres full-text (prefix-matching tsvector over title+details). Both the browse query and the saved-search matcher tokenize through `utils/search-terms.ts` — the matcher has to answer the same question in JS, and when it had its own rule (whole-phrase `includes` on the title) a multi-word saved search matched in browse and never notified. Change the two together, or better, only change the shared helper.
+- `q` is Postgres full-text: a prefix-matching tsvector over title + details + location + address + `attributes::text` (SearchVectorWidened). Attributes are in it because the form collects manufacturer/model as structured fields, and searching "Komatsu" used to find nothing unless the provider had also typed it into the title. Both the browse query and the saved-search matcher tokenize through `utils/search-terms.ts` — the matcher has to answer the same question in JS, and when it had its own rule (whole-phrase `includes` on the title) a multi-word saved search matched in browse and never notified. Change the two together, or better, only change the shared helper.
+- **Query terms are stemmed, documents are not** (`stripMongolianSuffix`). Prefix matching only reaches forward: "экскаватор" finds "экскаваторын", the reverse finds nothing, and since terms are ANDed one inflected word emptied the whole page. Stripping the ending off the *query* fixes both directions. The suffix list errs long on purpose — cutting a stem short only widens a prefix match, cutting too little returns nothing — and skips any term that is not Cyrillic so model numbers stay literal. **The list is linguistic data and is worth a native reading.**
 - Post has `category` + `subcategory` only; legacy `secondcategory` still accepted as DTO input alias.
 
 **Phone verification (verify.mn, Mobile-Originated):** we never send an SMS. `verify/start` registers a code; the *user* texts it to shortcode `144773` from the number they claim, and possession is proven by the message arriving from that number — so the code is not a secret and is rendered in the UI. Costs the end user 150₮ per verification, so it runs only at signup and on a new device: `TrustedDevice` stores `sha256(device_id)` and a match short-circuits to a token. The token is then held in AsyncStorage, unencrypted and behind no device-side unlock — `expo-local-authentication` was a declared-but-never-imported dependency, dropped in the dead-code sweep, so there is no biometric gate. The server never accepts a biometric claim: `user.biometric` and the OTP endpoint that trusted it are both gone.
+
+**Sessions** last `SESSION_EXPIRES_IN` (`utils/session.ts`, one year, imported by
+both `auth.module.ts` and `generateToken` so the two cannot drift). A user stays
+signed in until they sign out: thirty days meant an account that went quiet over
+a slow winter came back to a login screen, and signing in again costs the *user*
+150₮.
+
+**Push permission is never requested at login.** `useNotificationSync` only
+registers a token that is already granted; `utils/pushPrompt.js` asks later, at a
+moment that explains itself (a listing just submitted, a message just sent),
+behind an in-app rationale so a "no" never spends the OS prompt. This matters
+more than it looks: there is no SMS transport, signup is phone-based so most
+accounts have no email, and the email fallback only fires for an account with no
+device at all — so a provider who declined push once was simply unreachable, and
+their customers' messages went nowhere. `UnreachableBanner` (both clients) says
+so on the screen a provider actually opens.
 
 **Realtime:** `events/events.gateway.ts` — Socket.io rooms `admin` + `user:<id>`. `MESSAGE_CREATED` goes to the recipient only (echoing to the sender races their optimistic row); `REPORT_CREATED` is admin-only. (legacy `provider:<id>` joins/emits kept for pre-rename app builds; drop when those are gone). Event names + payload shapes (`{postId, category, …}`) are exported as `SOCKET_EVENTS` and mirrored in `zuuchmap_web/src/lib/socket.js` and `zuuchmap_app/src/services/socketService.js` — change all three together. In the app, only `useNotificationSync` subscribes to the socket; screens never do.
 

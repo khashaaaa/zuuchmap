@@ -11,7 +11,8 @@ import { User } from '../user/entities/user.entity';
 import { Company } from '../company/entities/company.entity';
 import { UserType } from '../enums/usertype';
 import { PostNotificationService } from '../post/post-notification.service';
-import { PostService } from '../post/post.service';
+import { applyContent, PostService } from '../post/post.service';
+import { deleteMultipleImages } from '../utils/uploader';
 import { SavedSearchService } from '../saved-search/saved-search.service';
 import { EventsGateway } from '../events/events.gateway';
 import { sharedCache, invalidatePostReadCaches } from '../utils/cache';
@@ -117,13 +118,31 @@ export class AdminService {
   async getPendingPosts(category?: string, page = 1, limit = 50) {
     const take = Math.min(Math.max(Math.floor(limit || 50) || 50, 1), 200);
     const safePage = Math.max(Math.floor(page || 1) || 1, 1);
+    // Two things wait in this queue: a post nobody has approved yet, and an
+    // edit to one that is live while it waits. Both are moderation work and
+    // both go stale, so they share the ordering — a revision by when it was
+    // submitted, a new post by when it was created.
     const qb = this.postRepository
       .createQueryBuilder('post')
       .leftJoinAndSelect('post.user', 'user')
-      .where('post.approval_status = :s', { s: 'PENDING' })
-      .orderBy('post.date_created', 'ASC')
-      .take(take)
-      .skip((safePage - 1) * take);
+      .where(
+        '(post.approval_status = :s OR post.pending_revision IS NOT NULL)',
+        { s: 'PENDING' },
+      )
+      // Selected under an alias and ordered by that alias, not by the raw
+      // expression: `orderBy` on a bare COALESCE(...) makes TypeORM read
+      // "COALESCE((post" as an entity alias and throw. `limit`/`offset` rather
+      // than `take`/`skip` for the same reason — those two page by a DISTINCT
+      // subquery over the primary key, which the ordering expression is not
+      // part of. That is safe here only because `post.user` is a ManyToOne, so
+      // the join cannot multiply rows; a to-many join would need take/skip back.
+      .addSelect(
+        `COALESCE((post.pending_revision->>'submitted_at')::timestamptz, post.date_created)`,
+        'queued_at',
+      )
+      .orderBy('queued_at', 'ASC')
+      .limit(take)
+      .offset((safePage - 1) * take);
 
     if (category) qb.andWhere('post.category = :category', { category });
 
@@ -147,6 +166,18 @@ export class AdminService {
   async approvePost(postId: number) {
     const post = await this.findPostWithUser(postId);
 
+    // An edit to a live post: publish the proposal, and only now reclaim the
+    // photos it dropped — until this moment they were still being served.
+    const revision = post.pending_revision;
+    if (revision) {
+      const dropped = (post.images ?? []).filter(
+        (url) => !(revision.images ?? []).includes(url),
+      );
+      if (dropped.length) await deleteMultipleImages(dropped);
+      applyContent(post, revision);
+      post.pending_revision = null;
+    }
+
     post.approval_status = 'APPROVED';
     post.rejection_reason = null as unknown as string;
     post.rejection_field = null;
@@ -161,8 +192,10 @@ export class AdminService {
     if (userId) {
       await this.notifications.notifyUsers(
         [userId],
-        'Зар зөвшөөрөгдлөө',
-        `"${post.title}" нийтлэгдлээ. Та одоо харагдаж байна.`,
+        revision ? 'Засвар зөвшөөрөгдлөө' : 'Зар зөвшөөрөгдлөө',
+        revision
+          ? `"${post.title}" зарын засвар нийтлэгдлээ.`
+          : `"${post.title}" нийтлэгдлээ. Та одоо харагдаж байна.`,
         {
           postId,
           post_type: post.category,
@@ -224,7 +257,21 @@ export class AdminService {
       throw new BadRequestException('INVALID_FIELD_KEY');
     const post = await this.findPostWithUser(postId);
 
-    post.approval_status = 'REJECTED';
+    // Rejecting an *edit* refuses the proposal, not the listing. The approved
+    // version is untouched and stays in browse; only the photos that were
+    // uploaded for the proposal are now unreachable and get reclaimed.
+    // `rejection_reason` on a post that is still APPROVED is what tells the
+    // owner their edit came back rather than their listing coming down.
+    const revision = post.pending_revision;
+    if (revision) {
+      const orphaned = (revision.images ?? []).filter(
+        (url) => !(post.images ?? []).includes(url),
+      );
+      if (orphaned.length) await deleteMultipleImages(orphaned);
+      post.pending_revision = null;
+    } else {
+      post.approval_status = 'REJECTED';
+    }
     post.rejection_reason = reason.trim();
     post.rejection_field = field;
     post.previous_snapshot = null;
@@ -234,8 +281,12 @@ export class AdminService {
     if (userId) {
       await this.notifications.notifyUsers(
         [userId],
-        `"${post.title}" зөвшөөрөгдсөнгүй`,
-        `Шалтгаан: ${reason.trim()}`,
+        revision
+          ? `"${post.title}" зарын засвар зөвшөөрөгдсөнгүй`
+          : `"${post.title}" зөвшөөрөгдсөнгүй`,
+        revision
+          ? `Шалтгаан: ${reason.trim()}\n\nӨмнөх хувилбар хэвээр нийтлэгдэж байна.`
+          : `Шалтгаан: ${reason.trim()}`,
         {
           postId,
           post_type: post.category,

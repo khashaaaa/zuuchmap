@@ -77,7 +77,16 @@ export const storeAuthData = async (responseData, phoneNumber) => {
         // Persist is_admin flag so useNotificationSync and profile screens can read it
         // without recomputing from a hardcoded phone list.
         const existingInfo = await AsyncStorage.getItem(API_CONFIG.STORAGE_KEYS.USER_INFO);
-        const existing = existingInfo ? JSON.parse(existingInfo) : {};
+        const stored = existingInfo ? JSON.parse(existingInfo) : {};
+        // Same guard as saveUserInfo below, and for the same reason: logout keeps
+        // the outgoing user's name and avatar for the welcome-back block, and a
+        // different number is a different person. It matters more here than it
+        // looks — this writes the new phoneNumber into the object, so a merge
+        // left behind makes saveUserInfo's own check see a match and keep going.
+        const samePerson = !phoneNumber
+            || !stored.phoneNumber
+            || stored.phoneNumber === phoneNumber;
+        const existing = samePerson ? stored : {};
         const updated = {
             // `phoneNumber`, matching saveUserInfo — the two writers used to put
             // the number into the same object under different keys.

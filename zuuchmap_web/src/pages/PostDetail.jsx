@@ -10,7 +10,7 @@ import { MapContainer, TileLayer, Marker } from 'react-leaflet'
 import { tileLayerProps } from '@/lib/mapTiles'
 import 'leaflet/dist/leaflet.css'
 import { postsApi, likesApi } from '@/lib/api'
-import { formatDate, formatPriceParts, getImageUrl, getCompanyLogoUrl, getPostTitle, getPostCategory, getCategoryColor, getFieldLabel, getOptionLabel, getSubcategoryLabel, goBack, normalizeWebsiteUrl, withAlpha, toneForTheme, hideBrokenImage, getLocationLabel, telHref } from '@/lib/utils'
+import { formatDate, formatPriceParts, getImageUrl, getCompanyLogoUrl, getPostTitle, getPostCategory, getCategoryColor, getFieldLabel, getOptionLabel, getSubcategoryLabel, goBack, normalizeWebsiteUrl, withAlpha, toneForTheme, hideBrokenImage, getLocationLabel, telHref, getThumbUrl, fallbackToFullImage } from '@/lib/utils'
 import { categoryPin } from '@/lib/mapPin'
 import UserAvatar from '@/components/UserAvatar'
 import AlertBanner from '@/components/AlertBanner'
@@ -334,7 +334,7 @@ export default function PostDetail() {
                     className={`shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-surface2 border-2 transition-colors ${i === activeImg ? '' : 'border-transparent'}`}
                     style={i === activeImg ? { borderColor: catColor || 'var(--color-primary)' } : undefined}
                   >
-                    <img src={getImageUrl(img)} alt="" className="w-full h-full object-cover" onError={hideBrokenImage} />
+                    <img src={getThumbUrl(img)} alt="" loading="lazy" className="w-full h-full object-cover" onError={fallbackToFullImage(img)} />
                   </button>
                 ))}
               </div>

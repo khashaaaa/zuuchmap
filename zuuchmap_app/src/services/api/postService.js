@@ -39,13 +39,15 @@ const buildFormData = async (postData, { isEdit = false } = {}) => {
   const formData = new FormData();
   const { images, ...rawData } = postData;
 
+  // Read only to fail fast — and in the caller's language — when there is no
+  // signed-in user. The owner is bound from the JWT server-side and is NOT a
+  // body field: neither DTO whitelists `user`, so sending it is a 400.
   const userId = await getUserId();
   if (!userId) {
     const error = new Error('User ID missing from storage');
     error.code = 'USER_ID_MISSING';
     throw error;
   }
-  formData.append('user', userId);
 
   for (const [key, val] of Object.entries(rawData)) {
     if (val === null || val === undefined) continue;
@@ -252,6 +254,12 @@ const postService = {
 
   deletePost: async (postId) => {
     return apiClient.delete(API_CONFIG.ENDPOINTS.POSTS.DELETE(postId));
+  },
+
+  // Reopens a lapsed post's window. No moderation: the content is exactly what
+  // an admin already approved, so there is nothing for them to re-read.
+  renew: async (postId) => {
+    return apiClient.post(API_CONFIG.ENDPOINTS.POSTS.RENEW(postId));
   },
 
   // Admin methods

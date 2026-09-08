@@ -16,10 +16,9 @@ import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 import userService from '../../services/api/userService';
 import { useProfile } from '../../hooks/useProfile';
-import { ScreenLayout, SettingsSection, PressableScale, StatTile, FadeSlideIn } from '../../components';
+import { ScreenLayout, SettingsSection, PressableScale, StatTile, FadeSlideIn, Avatar } from '../../components';
 import { ProfileSection, ProfileActionRow } from '../../components';
 import { ProfileBadge } from '../../components';
-import { DEFAULT_AVATAR_URL } from '../../config/app.config';
 import { showErrorModal, isPostLogoutStraggler } from '../../utils/errorManager';
 import { confirmLogout } from '../../utils/navigationUtils';
 import { logger } from '../../utils/logger';
@@ -28,7 +27,6 @@ const ProviderProfile = ({ navigation }) => {
     const insets = useSafeAreaInsets();
     const { colors, styles: gStyles } = useAppTheme();
     const { t } = useTranslation();
-    const [imageError, setImageError] = useState(false);
     const [companyImageError, setCompanyImageError] = useState(false);
 
     const { data: profileData = null, isLoading, isRefetching, refetch: refetchProfile, error: profileError } = useProfile();
@@ -52,13 +50,12 @@ const ProviderProfile = ({ navigation }) => {
         }
     }, [profileError]);
 
-    useEffect(() => { setImageError(false); setCompanyImageError(false); }, [profileData?.profilePicture, profileData?.companyLogo]);
+    useEffect(() => { setCompanyImageError(false); }, [profileData?.companyLogo]);
 
     const loadProfile = () => { refetchProfile(); refetchPosts(); };
     const refreshing = isRefetching || isRefetchingPosts;
     const handleRefresh = loadProfile;
 
-    const handleImageError = () => setImageError(true);
     const handleCompanyImageError = () => setCompanyImageError(true);
 
     const handleEditProfile = () => navigation.navigate('ProviderEditProfile', { profile });
@@ -118,14 +115,10 @@ const ProviderProfile = ({ navigation }) => {
                 <View style={styles.profileHeader}>
                     <View style={[styles.profileCard, colors.elevation.md, { backgroundColor: colors.surface }]}>
                         <View style={styles.profileImageContainer}>
-                            <Image
-                                source={{
-                                    uri: imageError
-                                        ? DEFAULT_AVATAR_URL
-                                        : (profile.profilePicture || DEFAULT_AVATAR_URL)
-                                }}
-                                style={[styles.profileImage, { backgroundColor: colors.border.light, borderColor: colors.surface }]}
-                                onError={handleImageError}
+                            <Avatar
+                                uri={profile.profilePicture}
+                                size={isTablet ? 110 : 80}
+                                style={[styles.profileImage, { borderColor: colors.surface }]}
                             />
                         </View>
 
@@ -258,7 +251,7 @@ const ProviderProfile = ({ navigation }) => {
                         onPress={() => navigation.navigate('Terms')}
                     />
                     <ProfileActionRow
-                        icon="information-circle-outline"
+                        icon="person-remove-outline"
                         text={t('accountDeletion.title')}
                         onPress={() => navigation.navigate('AccountDeletion')}
                         isLast

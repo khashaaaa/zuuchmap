@@ -20,6 +20,11 @@ const ErrorModal = ({ visible, title, message, onClose, buttons, type = 'error' 
                     color: colors.info,
                     bgColor: colors.opacity.background.info,
                 };
+            // A list of choices, not a verdict. Skipping the icon keeps the
+            // one blue in an amber app out of a plain action sheet, and stops a
+            // destructive option arriving under an "information" badge.
+            case 'menu':
+                return { name: null, color: null, bgColor: null };
             case 'success':
                 return {
                     name: 'checkmark-circle',

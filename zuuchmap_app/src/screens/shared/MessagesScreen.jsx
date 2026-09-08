@@ -97,8 +97,17 @@ const MessagesScreen = ({ navigation }) => {
 
     const showSkeleton = isLoading;
 
+    // This screen is both a tab root (all three dashboards) and a pushed stack
+    // route (the "Мессеж" row on the profile). Only the pushed one has anywhere
+    // to go back to — as a tab root the arrow silently switched tabs, and the
+    // sibling tabs show no arrow at all.
+    const isPushed = navigation.getState?.()?.type === 'stack';
+
     return (
-        <ScreenLayout title={t('messages.title')} onBack={() => navigation.goBack()}>
+        <ScreenLayout
+            title={t('messages.title')}
+            onBack={isPushed ? () => navigation.goBack() : undefined}
+        >
             <SkeletonCrossfade
                 loading={showSkeleton}
                 skeleton={(

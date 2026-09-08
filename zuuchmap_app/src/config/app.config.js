@@ -1,7 +1,6 @@
 // Mirrors zuuchmap_engine/src/enums/priceunit.ts — keep in sync.
 export const PRICE_UNITS = ['HOUR', 'MOTO_HOUR', 'DAY', 'WEEK', 'MONTH', 'PROJECT', 'UNIT', 'PIECE', 'SQM', 'TRIP', 'TOTAL'];
 
-export const DEFAULT_AVATAR_URL = 'https://ui-avatars.com/api/?background=F5A623&color=1A1200&size=150&name=U';
 
 export const APP_CONFIG = {
   IMAGE: {

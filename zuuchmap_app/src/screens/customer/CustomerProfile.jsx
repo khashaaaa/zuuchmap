@@ -17,10 +17,9 @@ import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 import { useProfile } from '../../hooks/useProfile';
 import likeService from '../../services/api/likeService';
-import { ScreenLayout, SettingsSection, PressableScale, FadeSlideIn } from '../../components';
+import { ScreenLayout, SettingsSection, PressableScale, FadeSlideIn, Avatar } from '../../components';
 import { ProfileSection, ProfileActionRow } from '../../components';
 import { ProfileBadge } from '../../components';
-import { DEFAULT_AVATAR_URL } from '../../config/app.config';
 import { showErrorModal, isPostLogoutStraggler } from '../../utils/errorManager';
 import { confirmLogout } from '../../utils/navigationUtils';
 import { useIsGuest } from '../../utils/requireAuth';
@@ -30,7 +29,6 @@ const CustomerProfile = ({ navigation }) => {
     const insets = useSafeAreaInsets();
     const { colors, styles: gStyles } = useAppTheme();
     const { t } = useTranslation();
-    const [imageError, setImageError] = useState(false);
     // Guests reach this tab now. `null` while the token read is in flight — the
     // member view must not paint first and then swap, and neither must the
     // guest card.
@@ -55,13 +53,6 @@ const CustomerProfile = ({ navigation }) => {
             showErrorModal(t('common.error'), t('profile.loadError'));
         }
     }, [profileError]);
-
-    // A fresh avatar URL deserves a fresh load attempt.
-    useEffect(() => { setImageError(false); }, [user?.profilePicture]);
-
-    const handleImageError = () => {
-        setImageError(true);
-    };
 
     const handleLogout = () => confirmLogout({
         t, navigation,
@@ -214,12 +205,10 @@ const CustomerProfile = ({ navigation }) => {
                 <View style={styles.profileHeader}>
                     <View style={[styles.profileCard, colors.elevation.md, { backgroundColor: colors.surface }]}>
                         <View style={styles.avatarContainer}>
-                            <Image
-                                source={{
-                                    uri: imageError ? DEFAULT_AVATAR_URL : (user?.profilePicture || DEFAULT_AVATAR_URL)
-                                }}
-                                style={[styles.avatar, { backgroundColor: colors.border.light, borderColor: colors.surface }]}
-                                onError={handleImageError}
+                            <Avatar
+                                uri={user?.profilePicture}
+                                size={isTablet ? 110 : 80}
+                                style={[styles.avatar, { borderColor: colors.surface }]}
                             />
                         </View>
 
@@ -309,7 +298,7 @@ const CustomerProfile = ({ navigation }) => {
                         onPress={() => navigation.navigate('Terms')}
                     />
                     <ProfileActionRow
-                        icon="information-circle-outline"
+                        icon="person-remove-outline"
                         text={t('accountDeletion.title')}
                         onPress={() => navigation.navigate('AccountDeletion')}
                         isLast

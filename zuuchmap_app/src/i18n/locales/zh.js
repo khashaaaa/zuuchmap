@@ -419,7 +419,7 @@ export default {
     hoursText: '周一至周五：09:00–18:00',
     faqTitle: '常见问题',
     faq1Q: '如何发布信息？',
-    faq1A: '在控制台点击“发布信息”，选择分类，填写详情并提交。管理员会审核并通过。',
+    faq1A: '在控制台点击“+”，选择分类，填写详情并提交。管理员会审核并通过。',
     faq2Q: '审核需要多长时间？',
     faq2A: '通常在1–2个工作日内。信息通过后您会收到通知。',
     faq3Q: '手机验证是如何进行的？',
@@ -518,6 +518,7 @@ export default {
     notEligible: '只有预订被接受的客户才能发表评价',
     statsVerified: '认证公司', statsResponse: '{{time}}内回复',
     statsCompleted: '已完成 {{count}} 单', statsMemberSince: '{{year}} 年加入',
+    statsNoResponse: '暂无回复', statsUnderHour: '1 小时内', statsHours: '约 {{count}} 小时', statsDays: '约 {{count}} 天',
   },
   messages: {
     title: '消息',

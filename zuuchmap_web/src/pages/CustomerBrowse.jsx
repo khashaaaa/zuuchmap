@@ -6,7 +6,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 import { X, Heart, BellPlus, WifiOff, SlidersHorizontal, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { postsApi, likesApi, savedSearchApi } from '@/lib/api'
-import { debounce, PROVINCES, DISTRICTS, getPostCategory, getCategoryLabel, getSubcategoryLabel, getFieldLabel, getOptionLabel, getCategoryColor, apiErrorMessage } from '@/lib/utils'
+import { debounce, PROVINCES, DISTRICTS, getPostCategory, getCategoryLabel, getSubcategoryLabel, getFieldLabel, getOptionLabel, getCategoryColor, apiErrorMessage, sortByLabel } from '@/lib/utils'
 import Button from '@/components/Button'
 import Input from '@/components/Input'
 import SearchBar from '@/components/SearchBar'
@@ -373,12 +373,12 @@ export default function CustomerBrowse() {
             <p className={overline}>{t('filter.location')}</p>
             <Input as="select" value={province} onChange={(e) => handleProvince(e.target.value)}>
               <option value="">{t('common.province')}</option>
-              {PROVINCES.map((p) => <option key={p} value={p}>{t(`province.${p}`, { defaultValue: p })}</option>)}
+              {sortByLabel(PROVINCES, (p) => t(`province.${p}`, { defaultValue: p }), ['ULAANBAATAR']).map((p) => <option key={p} value={p}>{t(`province.${p}`, { defaultValue: p })}</option>)}
             </Input>
             {province === 'ULAANBAATAR' && (
               <Input as="select" value={district} onChange={(e) => setParams({ district: e.target.value })}>
                 <option value="">{t('common.district')}</option>
-                {DISTRICTS.map((d) => <option key={d} value={d}>{t(`district.${d}`, { defaultValue: d })}</option>)}
+                {sortByLabel(DISTRICTS, (d) => t(`district.${d}`, { defaultValue: d })).map((d) => <option key={d} value={d}>{t(`district.${d}`, { defaultValue: d })}</option>)}
               </Input>
             )}
           </div>

@@ -7,7 +7,7 @@ import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet'
 import { tileLayerProps } from '@/lib/mapTiles'
 import 'leaflet/dist/leaflet.css'
 import { postsApi } from '@/lib/api'
-import { getCategoryLabel, getSubcategoryLabel, getFieldLabel, getPostCategory, getCategoryColor, getImageUrl, goBack, PRICE_UNITS, PROVINCES, DISTRICTS, apiErrorMessage, hideBrokenImage, normalizeWebsiteUrl, getThumbUrl, fallbackToFullImage } from '@/lib/utils'
+import { getCategoryLabel, getSubcategoryLabel, getFieldLabel, getPostCategory, getCategoryColor, getImageUrl, goBack, PRICE_UNITS, PROVINCES, DISTRICTS, apiErrorMessage, hideBrokenImage, normalizeWebsiteUrl, getThumbUrl, fallbackToFullImage, sortByLabel } from '@/lib/utils'
 import { categoryPin } from '@/lib/mapPin'
 import AlertBanner from '@/components/AlertBanner'
 import { useThemeStore } from '@/store'
@@ -231,7 +231,12 @@ export default function ProviderPostForm() {
         province: draft.province ?? '',
         district: draft.district ?? '',
         address: draft.address ?? '',
-        price_amount: draft.price_amount ?? '',
+        // Postgres hands back a decimal string ("4100000.00") and the currency
+        // input strips it to digits, so the cents became two extra zeros and
+        // the field opened at 100x the real price. Whole tögrög only.
+        price_amount: draft.price_amount == null || draft.price_amount === ''
+          ? ''
+          : String(Math.round(Number(draft.price_amount))),
         price_unit: draft.price_unit ?? 'DAY',
         contact_phone: draft.contact_phone ?? '',
         contact_email: draft.contact_email ?? '',
@@ -633,7 +638,7 @@ export default function ProviderPostForm() {
               <Input as="select" value={form.province}
                 onChange={(e) => { set('province', e.target.value); set('district', '') }}>
                 <option value="">{t('common.select')}</option>
-                {PROVINCES.map((p) => <option key={p} value={p}>{t(`province.${p}`, { defaultValue: p })}</option>)}
+                {sortByLabel(PROVINCES, (p) => t(`province.${p}`, { defaultValue: p }), ['ULAANBAATAR']).map((p) => <option key={p} value={p}>{t(`province.${p}`, { defaultValue: p })}</option>)}
               </Input>
             </div>
             {form.province === 'ULAANBAATAR' ? (
@@ -641,7 +646,7 @@ export default function ProviderPostForm() {
                 <label className="field-label">{t('common.district')}</label>
                 <Input as="select" value={form.district} onChange={(e) => set('district', e.target.value)}>
                   <option value="">{t('common.select')}</option>
-                  {DISTRICTS.map((d) => <option key={d} value={d}>{t(`district.${d}`, { defaultValue: d })}</option>)}
+                  {sortByLabel(DISTRICTS, (d) => t(`district.${d}`, { defaultValue: d })).map((d) => <option key={d} value={d}>{t(`district.${d}`, { defaultValue: d })}</option>)}
                 </Input>
               </div>
             ) : <div />}

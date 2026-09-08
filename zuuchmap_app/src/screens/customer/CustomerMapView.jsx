@@ -56,6 +56,18 @@ function uiReducer(state, action) {
     }
 }
 
+// Google's own POI layer draws hospital, restaurant and transit pins in the
+// same visual language as ours, and there are far more of them — on a first
+// open the only pins on screen were Google's. `showsPointsOfInterest` covers
+// iOS; Android needs the style array.
+const FIRST_FIX_RADIUS_KM = 25;
+
+const MAP_STYLE_NO_POI = [
+    { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+    { featureType: 'poi.business', stylers: [{ visibility: 'off' }] },
+    { featureType: 'transit', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+];
+
 const DEFAULT_REGION = {
     latitude: 47.9184,
     longitude: 106.9177,
@@ -186,13 +198,10 @@ const CustomerMapView = ({ navigation, route }) => {
             };
 
             setUserLocation(userCoords);
-            if (!firstFixDoneRef.current && mapRef.current) {
-                firstFixDoneRef.current = true;
-                mapRef.current.animateToRegion(
-                    { ...userCoords, latitudeDelta: 0.02, longitudeDelta: 0.02 },
-                    animations.duration.camera,
-                );
-            }
+            // The camera move is decided once posts have loaded — see the
+            // first-fix effect below. Jumping here unconditionally put a user
+            // standing in a listing-free district on a 2km blank map beside a
+            // "112 зар" badge.
             return userCoords;
         } catch (error) {
             logger.error('Error getting location:', error);
@@ -275,6 +284,13 @@ const CustomerMapView = ({ navigation, route }) => {
         return baseFilteredPosts;
     }, [baseFilteredPosts, activeFilters.locationFilter, locationFilter, userLocation]);
 
+    // react-native-maps rasterises a custom marker child once and then stops
+    // watching it. Mounting with tracksViewChanges={false} means that snapshot
+    // is taken before the child has laid out, so on Android every pin came out
+    // empty — 112 listings and a map with nothing on it. Track for one beat
+    // after the marker set changes, then stop, which is what the flag is for.
+    const [tracksMarkers, setTracksMarkers] = useState(true);
+
     const clusters = useMemo(() => {
         if (!mapPreferences.clusterMarkers || filteredPosts.length === 0) {
             return filteredPosts.map(post => ({
@@ -287,6 +303,31 @@ const CustomerMapView = ({ navigation, route }) => {
         }
         return gridCluster(filteredPosts, region);
     }, [filteredPosts, mapPreferences.clusterMarkers, region]);
+
+    useEffect(() => {
+        if (clusters.length === 0) return;
+        setTracksMarkers(true);
+        const timer = setTimeout(() => setTracksMarkers(false), 900);
+        return () => clearTimeout(timer);
+    }, [clusters]);
+
+    // First GPS fix: recentre on the user only if there is anything to see
+    // there. Otherwise the default region (Ulaanbaatar, where the listings are)
+    // is a better first frame than the user's own empty neighbourhood.
+    useEffect(() => {
+        if (firstFixDoneRef.current) return;
+        if (!mapReady || !userLocation || !mapRef.current) return;
+        if (loading) return;
+        firstFixDoneRef.current = true;
+        const nearby = mapService.filterByLocationRadius(
+            filteredPosts, userLocation, FIRST_FIX_RADIUS_KM,
+        );
+        if (nearby.length === 0) return;
+        mapRef.current.animateToRegion(
+            { ...userLocation, latitudeDelta: 0.02, longitudeDelta: 0.02 },
+            animations.duration.camera,
+        );
+    }, [mapReady, userLocation, loading, filteredPosts]);
 
     // Camera flight to a tapped pin. The target sits in the upper part of the
     // viewport so the carousel pinned at the bottom does not cover it; a
@@ -396,7 +437,7 @@ const CustomerMapView = ({ navigation, route }) => {
                     key={id}
                     coordinate={coordinate}
                     onPress={() => handleClusterPress(cluster)}
-                    tracksViewChanges={false}
+                    tracksViewChanges={tracksMarkers}
                 >
                     <View style={[
                         styles.singleMarkerContainer,
@@ -422,7 +463,7 @@ const CustomerMapView = ({ navigation, route }) => {
                 key={id}
                 coordinate={coordinate}
                 onPress={() => handleClusterPress(cluster)}
-                tracksViewChanges={false}
+                tracksViewChanges={tracksMarkers}
                 accessibilityLabel={t('map.clusterLabel', { count })}
             >
                 <View style={[styles.clusterMarkerContainer, { backgroundColor: tint, minWidth: count > 99 ? 52 : count > 9 ? 44 : 40 }]}>
@@ -432,7 +473,7 @@ const CustomerMapView = ({ navigation, route }) => {
                 </View>
             </Marker>
         );
-    }, [handleClusterPress, getMarkerColor, getMarkerIcon, colors, t]);
+    }, [handleClusterPress, getMarkerColor, getMarkerIcon, colors, t, tracksMarkers, styles]);
 
     const activeFilterCount = useMemo(() => {
         return Object.values(activeFilters).filter(value =>
@@ -516,6 +557,8 @@ const CustomerMapView = ({ navigation, route }) => {
                     showsMyLocationButton={false}
                     showsCompass={true}
                     showsTraffic={mapPreferences.showTraffic}
+                    showsPointsOfInterest={false}
+                    customMapStyle={MAP_STYLE_NO_POI}
                     mapType={mapPreferences.mapType}
                     toolbarEnabled={false}
                     pitchEnabled={true}

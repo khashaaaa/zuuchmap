@@ -24,7 +24,7 @@ import UnreachableBanner from '../../components/UnreachableBanner';
 import { ScreenLayout, SkeletonItem, EmptyState, StatusBadge } from '../../components';
 import { formatPrice, formatDate } from '../../utils/displayUtils';
 import { getPostTitle, getFixedImageUrl, getPostImage } from '../../utils/postUtils';
-import { showErrorModal, showInfoModal } from '../../utils/errorManager';
+import { showErrorModal, showInfoModal, showActionSheet } from '../../utils/errorManager';
 import { logger } from '../../utils/logger';
 import { invalidatePostData } from '../../services/queryClient';
 
@@ -56,16 +56,14 @@ const PostItem = React.memo(({
         && (new Date(item.expires_at) - Date.now()) / 86400000 <= 7;
 
     const handleMenuPress = useCallback(() => {
-        showInfoModal(
-            title,
-            null,
-            [
-                ...(canRenew ? [{ text: t('posts.renew'), onPress: () => onRenew(item) }] : []),
-                { text: t('common.edit'), onPress: () => onEdit(item) },
-                { text: t('common.delete'), style: 'destructive', onPress: () => onDelete(item) },
-                { text: t('common.cancel'), style: 'cancel' },
-            ],
-        );
+        showActionSheet(title, [
+            ...(canRenew ? [{ text: t('posts.renew'), onPress: () => onRenew(item) }] : []),
+            { text: t('common.edit'), onPress: () => onEdit(item) },
+            { text: t('common.cancel'), style: 'cancel' },
+            // Destructive last: it used to sit second, a full-width red button
+            // with the same weight as Edit and directly under the thumb.
+            { text: t('common.delete'), style: 'destructive', onPress: () => onDelete(item) },
+        ]);
     }, [item, title, canRenew, onEdit, onDelete, onRenew, t]);
 
     const expiry = item.expires_at ? (() => {

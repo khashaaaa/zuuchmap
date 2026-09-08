@@ -155,7 +155,10 @@ const BooleanField = ({ field, value, onChange, error }) => {
             value={value === true}
             onValueChange={onChange}
             trackColor={{ false: colors.border.light, true: colors.primary }}
-            thumbColor={colors.onPrimary}
+            // Light in both states, like every other Switch in the app.
+            // `onPrimary` is a near-black foreground meant for text on amber;
+            // as a thumb it read as a dark blob on the pale off-track.
+            thumbColor={colors.surface}
           />
         </View>
       }

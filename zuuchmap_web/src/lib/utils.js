@@ -458,3 +458,46 @@ export const lockScroll = () => {
     }
   }
 }
+
+// --- Localized sorting ---
+
+// Mongolian Cyrillic collation order. Ө sits after О and Ү after У, which no
+// byte order and no ASCII transliteration gets right: the province codes are
+// Latin (`UMNUGOVI`, `KHENTII`, `ZAVKHAN`), so rendering them in declaration
+// order put Хэнтий · Ховд · Хөвсгөл ahead of Өмнөговь and left Завхан last —
+// 22 chips in no order a reader can scan.
+//
+// Deliberately NOT Intl/localeCompare: RN's JSC ships no full ICU on Android,
+// so a locale-driven comparator silently degrades to code-point order there —
+// the same reason formatDate is hand-rolled.
+//
+// Non-Cyrillic characters (Latin, digits, Han) rank after the alphabet by code
+// point, so en/zh labels still come out in a stable, sensible order.
+const MN_ALPHABET = 'абвгдеёжзийклмноөпрстуүфхцчшщъыьэюя';
+const MN_RANK = new Map([...MN_ALPHABET].map((ch, i) => [ch, i]));
+// Separators sort ahead of every letter, so Баян-Өлгий precedes Баянхонгор.
+const SEPARATORS = { '-': -3, '\u2013': -3, ' ': -2, "'": -1 };
+const rank = (ch) =>
+  SEPARATORS[ch] ?? MN_RANK.get(ch) ?? MN_ALPHABET.length + ch.codePointAt(0);
+
+export const compareLocalized = (a, b) => {
+  const x = String(a ?? '').toLowerCase();
+  const y = String(b ?? '').toLowerCase();
+  const n = Math.min(x.length, y.length);
+  for (let i = 0; i < n; i += 1) {
+    const d = rank(x[i]) - rank(y[i]);
+    if (d !== 0) return d;
+  }
+  return x.length - y.length;
+};
+
+/**
+ * Codes ordered by how their labels actually read in the active locale.
+ * `pinned` keeps a few codes at the head regardless — Ulaanbaatar carries most
+ * of the listings and belongs at the top of a province list, not filed under У.
+ */
+export const sortByLabel = (codes, label, pinned = []) => {
+  const head = pinned.filter((c) => codes.includes(c));
+  const tail = codes.filter((c) => !head.includes(c));
+  return [...head, ...tail.sort((a, b) => compareLocalized(label(a), label(b)))];
+};

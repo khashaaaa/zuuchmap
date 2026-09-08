@@ -9,7 +9,7 @@
       "ios",
       "android"
     ],
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -41,6 +41,10 @@
     },
     "android": {
       "softwareKeyboardLayoutMode": "pan",
+      "navigationBar": {
+        "backgroundColor": "#1F2124",
+        "barStyle": "light-content"
+      },
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"

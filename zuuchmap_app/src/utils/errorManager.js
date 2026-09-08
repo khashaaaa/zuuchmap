@@ -16,6 +16,10 @@ export const hideErrorModal = () => {
 export const showInfoModal = (title, message, buttons) =>
     showErrorModal(title, message, buttons || [{ text: i18n.t('common.ok') }], 'info');
 
+/** A titled list of choices — no status icon, because nothing has happened. */
+export const showActionSheet = (title, buttons) =>
+    showErrorModal(title, null, buttons, 'menu');
+
 export const showWarningModal = (title, message, buttons) =>
     showErrorModal(title, message, buttons || [{ text: i18n.t('common.ok') }], 'warning');
 

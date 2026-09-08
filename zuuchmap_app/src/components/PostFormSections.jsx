@@ -3,6 +3,7 @@ import { View, Text, TextInput } from 'react-native';
 import FormField from './FormField';
 import PickerField from './PickerField';
 import { provinces, districts } from '../config/app.config';
+import { sortByLabel } from '../utils/displayUtils';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 
@@ -20,7 +21,7 @@ export const ContactSection = ({
     return (
         <>
             <View style={gStyles.sectionHeader}>
-                <Text style={[gStyles.sectionSubtitle, { color: colors.text.secondary }]}>{t('form.contactInfo')}</Text>
+                <Text style={gStyles.sectionSubtitle}>{t('form.contactInfo')}</Text>
             </View>
 
             <FormField
@@ -57,13 +58,19 @@ export const LocationSection = ({
     const { colors, styles: gStyles } = useAppTheme();
     const { t } = useTranslation();
 
-    const provinceOptions = provinces.map((value) => ({ value, label: t(`province.${value}`, { defaultValue: value }) }));
-    const districtOptions = districts.map((value) => ({ value, label: t(`district.${value}`, { defaultValue: value }) }));
+    // The code arrays are a cross-repo contract and stay in their declared
+    // order; the *reading* order is decided here, from the localized labels.
+    const provinceLabel = (v) => t(`province.${v}`, { defaultValue: v });
+    const districtLabel = (v) => t(`district.${v}`, { defaultValue: v });
+    const provinceOptions = sortByLabel(provinces, provinceLabel, ['ULAANBAATAR'])
+        .map((value) => ({ value, label: provinceLabel(value) }));
+    const districtOptions = sortByLabel(districts, districtLabel)
+        .map((value) => ({ value, label: districtLabel(value) }));
 
     return (
         <>
             <View style={gStyles.sectionHeader}>
-                <Text style={[gStyles.sectionSubtitle, { color: colors.text.secondary }]}>{t('form.locationInfo')}</Text>
+                <Text style={gStyles.sectionSubtitle}>{t('form.locationInfo')}</Text>
             </View>
 
             <FormField
@@ -114,8 +121,8 @@ export const StatusSection = ({ status, onStatusChange, error }) => {
     return (
         <>
             <View style={gStyles.sectionHeader}>
-                <Text style={[gStyles.sectionTitle, { color: colors.text.primary }]}>{t('posts.status')}</Text>
-                <Text style={[gStyles.sectionSubtitle, { color: colors.text.secondary }]}>{t('form.postStatus')}</Text>
+                <Text style={gStyles.sectionSubtitle}>{t('posts.status')}</Text>
+                <Text style={[gStyles.sectionHint, { color: colors.text.secondary }]}>{t('form.postStatus')}</Text>
             </View>
 
             <FormField

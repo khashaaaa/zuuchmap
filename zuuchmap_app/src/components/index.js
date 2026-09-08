@@ -18,6 +18,7 @@ export { default as OfflineBanner } from './OfflineBanner';
 export { default as ProviderCredentials } from './ProviderCredentials';
 export { default as SimilarPostsDrawer, HorizontalPostCard } from './SimilarPostsDrawer';
 export { default as MapClusterCarousel } from './MapClusterCarousel';
+export { default as Avatar } from './Avatar';
 export { default as PostHealthRing } from './PostHealthRing';
 export { default as DraftResumeBanner } from './DraftResumeBanner';
 

@@ -25,8 +25,8 @@ Construction marketplace for Mongolia. Providers post rentals/services/jobs acro
 
 These values are duplicated across the three apps by design. `npm run check:sync`
 (`scripts/check-sync.js`, zero deps) verifies them and **gates deploy.sh as step
-0/6** — run it after touching any of them. It reports **19 contracts** against the
-15 rows below: the locations row covers `provinces` + `districts`, and the i18n
+0/6** — run it after touching any of them. It reports **20 contracts** against the
+16 rows below: the locations row covers `provinces` + `districts`, and the i18n
 row covers `i18n:mn|en` + `i18n completeness` (every non-`en` locale has
 exactly `en`'s key set on **its own** side, plural suffixes aside) + `i18n keys` (every
 literal `t('…')` must resolve).
@@ -361,12 +361,11 @@ Customer: /customer /customer/browse /customer/map /customer/saved /customer/sav
 | Priority | Issue | Location |
 |---|---|---|
 | 🟡 | Google Maps key ships in `app.json` (unavoidable for the Maps SDK); it must be restricted by package name + SHA-1 in Google Cloud Console — the app id is now `com.khashaa.zuuchmap` (Android package + iOS bundle, set 2026-08; do not change after store release) | `zuuchmap_app/app.json` |
-| 🟡 | Prod Postgres SSL uses `rejectUnauthorized: false` (no CA validation) | `app.module.ts:50` |
+| 🟡 | Prod Postgres SSL uses `rejectUnauthorized: false` (no CA validation) | `app.module.ts:71` |
 | 🟢 | Multi-instance is Redis-gated. With `REDIS_URL` set: throttler storage → Redis (`@nest-lab/throttler-storage-redis`), cache invalidation → Redis pub/sub (`utils/cache-coordinator.ts`, per-process L1 + cross-instance clear), Socket.io → Redis adapter (`utils/redis-io.adapter.ts`). Then raise `PM2_INSTANCES`. **Unset `REDIS_URL` ⇒ single instance only** — each worker would otherwise split rate limits/cache/broadcasts. Localhost dev runs Redis-free (in-memory). | `utils/redis.ts`, `app.module.ts`, `ecosystem.config.js` |
 | 🟡 | Web admin role is client-side routing only — backend endpoints are guarded, but the UI trusts `is_admin` from the JWT response | `web/src/App.jsx` |
 | 🔴 | `PLAN_PRICE_PROVIDER_MNT` has a **placeholder default** (49,900₮). Set the real price before QPay credentials go in, or the first invoice charges a number nobody chose | `engine/payment/payment.service.ts` |
 | 🟡 | The SEO routes do nothing until the nginx `location` blocks are added by hand (see the deploy skill). Until then the live sitemap is still the 5-URL static file and shared listings still show the generic card | `.claude/skills/deploy/SKILL.md` (the live conf is only in the `~/zuuchmap-vps-bundle/` snapshot, not this repo) |
 | 🟡 | `@sentry/react-native`, `expo-updates` and `expo-screen-orientation` are native modules — the installed build has none of them until the next **EAS rebuild**. Error reporting, OTA and tablet rotation all start working only from that build onward | `app/app.json` |
-
 | 🟢 | Anonymous view dedupe falls back to a hashed IP+user-agent when a client sends no `X-Visitor-Id`. Under CGNAT that undercounts — deliberately the safe direction, but it is not exact | `engine/utils/visitor.ts` |
-| 🟢 | Both eslint configs carry pre-existing findings (~1,460 engine, ~23 web), so lint is advisory in CI. `npm run lint` in the engine **fixes in place** — use `npx eslint src --no-fix` to look without rewriting 147 files | `.github/workflows/ci.yml` |
+| 🟢 | Both eslint configs carry pre-existing findings (2,111 engine, 39 web — counted 2026-09-08), so lint is advisory in CI. `npm run lint` in the engine **fixes in place** — use `npx eslint src --no-fix` to look without rewriting 147 files | `.github/workflows/ci.yml` |

@@ -119,7 +119,21 @@ export default function ProviderBilling() {
       </section>
 
       {catalogue?.enabled === false ? (
-        <p className="text-sm text-muted rounded-card bg-surface p-4">{t('billing.notConfigured')}</p>
+        /* The ladder is public data — /payments/catalogue returns it whether or
+           not QPay is wired up. Hiding it left a provider unable to find out
+           what the paid tier costs, under a notice telling them to get in touch
+           with no way to do so. */
+        <section className="rounded-card bg-surface p-4 mb-6">
+          <div className="flex items-baseline justify-between gap-3">
+            <div>
+              <p className="font-semibold text-text">PROVIDER</p>
+              <p className="text-sm text-muted">{t('billing.postsLimit', { count: paidPlan?.posts ?? 25 })}</p>
+            </div>
+            <p className="text-lg font-bold text-primary-text">{formatPrice(unitPrice)}</p>
+          </div>
+          <p className="text-sm text-muted mt-4">{t('billing.notConfigured')}</p>
+          <Button to="/help" variant="secondary" className="mt-3">{t('profile.helpSupport')}</Button>
+        </section>
       ) : (
         <section className="rounded-card bg-surface p-4 mb-6">
           <div className="flex items-baseline justify-between gap-3">

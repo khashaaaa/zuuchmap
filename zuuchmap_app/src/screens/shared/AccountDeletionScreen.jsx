@@ -86,10 +86,11 @@ const AccountDeletionScreen = ({ navigation }) => {
           <Text style={[styles.sectionText, { color: colors.text.secondary }]}>{t('accountDeletion.what')}</Text>
         </View>
 
-        <View style={[styles.card, colors.elevation.sm, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text.primary }]}>{t('accountDeletion.howTitle')}</Text>
-          <Text style={[styles.sectionText, { color: colors.text.secondary }]}>{t('accountDeletion.how')}</Text>
-        </View>
+        {/* `accountDeletion.how` ("go to Profile and press Delete account") is
+            the store-listing disclosure. It belongs on the web's public
+            /account-deletion URL, which someone can reach without an account —
+            here it told the reader to navigate to the screen they are already
+            on, with the button directly beneath it. */}
 
         <Button
           title={t('accountDeletion.confirmBtn')}

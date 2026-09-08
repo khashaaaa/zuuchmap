@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import { Post } from '../post/entities/post.entity';
+import { countActivePosts } from '../post/active-posts';
 import { PushDevice } from './entities/push-device.entity';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { deleteSingleImage } from '../utils/uploader';
@@ -55,13 +56,8 @@ export class UserService {
         take: 200,
       }),
       this.postRepository.count({ where: { user: { id: userId } } }),
-      this.postRepository.count({
-        where: {
-          user: { id: userId },
-          approval_status: 'APPROVED',
-          status: 'ACTIVE' as any,
-        },
-      }),
+      // Same definition the quota card enforces — see active-posts.ts.
+      countActivePosts(this.postRepository, userId),
     ]);
     return { totalPosts, activePosts, posts };
   }

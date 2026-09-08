@@ -537,7 +537,7 @@ const CustomerPostList = ({ route, navigation }) => {
                                         { color: colors.text.primary },
                                         isActive && { ...typography.styles.labelStrong, color: colors.onPrimary },
                                     ]}>
-                                        {t(`category.${cat.key}`, { defaultValue: cat.label || cat.key })}
+                                        {getSchemaLabel(cat)}
                                     </Text>
                                 </TouchableOpacity>
                             </SelectionPop>
@@ -546,7 +546,9 @@ const CustomerPostList = ({ route, navigation }) => {
                 </ScrollView>
             </View>
         );
-    }, [isFilterMode, categorySchemas, filters.category, colors, t]);
+    // i18n.language: getSchemaLabel reads it directly, so the chips have to
+    // rebuild on a locale switch even though `t` is not called here.
+    }, [isFilterMode, categorySchemas, filters.category, colors, t, i18n.language]);
 
     // --- Header + search row (shared by the skeleton and the list) ---
 

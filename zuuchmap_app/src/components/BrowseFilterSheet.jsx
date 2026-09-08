@@ -7,6 +7,7 @@ import { spacing, typography, radius, interactions } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 import { provinces as PROVINCE_CODES, districts as DISTRICT_CODES } from '../config/app.config';
+import { sortByLabel } from '../utils/displayUtils';
 
 const SORT_OPTIONS = [
     { value: '' },
@@ -31,7 +32,18 @@ const STATUS_OPTIONS = [
 const BrowseFilterSheet = ({ visible, onClose, onClear, filters, setFilters, categoryOptions }) => {
     const { colors } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
+
+    // Chips read in Mongolian dictionary order, not in the order the Latin enum
+    // codes happen to fall in. Ulaanbaatar stays pinned first.
+    const provinceCodes = useMemo(
+        () => sortByLabel(PROVINCE_CODES, (c) => t(`province.${c}`, { defaultValue: c }), ['ULAANBAATAR']),
+        [t, i18n.language],
+    );
+    const districtCodes = useMemo(
+        () => sortByLabel(DISTRICT_CODES, (c) => t(`district.${c}`, { defaultValue: c })),
+        [t, i18n.language],
+    );
 
     return (
     <BottomSheetModal
@@ -168,7 +180,7 @@ const BrowseFilterSheet = ({ visible, onClose, onClear, filters, setFilters, cat
         <View style={styles.filterSection}>
             <Text style={[styles.filterLabel, { color: colors.text.secondary }]}>{t('common.province')}</Text>
             <View style={styles.filterOptionsContainer}>
-                {[''].concat(PROVINCE_CODES).map((code) => {
+                {[''].concat(provinceCodes).map((code) => {
                     const isActive = filters.province === code;
                     return (
                         <SelectionPop key={code || 'all'} selected={isActive}>
@@ -197,7 +209,7 @@ const BrowseFilterSheet = ({ visible, onClose, onClear, filters, setFilters, cat
             <View style={styles.filterSection}>
                 <Text style={[styles.filterLabel, { color: colors.text.secondary }]}>{t('common.district')}</Text>
                 <View style={styles.filterOptionsContainer}>
-                    {[''].concat(DISTRICT_CODES).map((code) => {
+                    {[''].concat(districtCodes).map((code) => {
                         const isActive = filters.district === code;
                         return (
                             <SelectionPop key={code || 'all'} selected={isActive}>

@@ -21,6 +21,7 @@ import { Cron } from '@nestjs/schedule';
 import { Status } from '../enums/status';
 import { Plan } from '../enums/plan';
 import { Post, PostRevision, PostSnapshot } from './entities/post.entity';
+import { countActivePosts } from './active-posts';
 import { CategorySchema, FieldDef } from './entities/category-schema.entity';
 import { isPriceUnit } from '../enums/priceunit';
 import { User } from '../user/entities/user.entity';
@@ -475,13 +476,7 @@ export class PostService {
     ownerId: string,
     em?: EntityManager,
   ): Promise<number> {
-    return (em ? em.getRepository(Post) : this.postRepository)
-      .createQueryBuilder('post')
-      .where('post.userId = :ownerId', { ownerId })
-      .andWhere('post.approval_status != :rejected', { rejected: 'REJECTED' })
-      .andWhere('post.status != :expired', { expired: Status.EXPIRED })
-      .andWhere('(post.expires_at IS NULL OR post.expires_at > NOW())')
-      .getCount();
+    return countActivePosts(this.postRepository, ownerId, em);
   }
 
   private async assertQuota(

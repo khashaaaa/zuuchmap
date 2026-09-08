@@ -624,7 +624,19 @@ export const createGlobalStyles = (colors) => {
             marginTop: spacing.xl,
         },
 
+        // Form section eyebrow, matching the detail screen's SectionCard label.
+        // As `caption` in sentence case it was simply a smaller, lighter version
+        // of the field labels underneath it — a header quieter than its own
+        // contents. An overline in caps is deliberately quiet *and* distinct.
         sectionSubtitle: {
+            ...typography.styles.overline,
+            textTransform: 'uppercase',
+            color: colors.text.tertiary,
+        },
+
+        // The explanatory line under a section eyebrow — body copy, not a
+        // second header.
+        sectionHint: {
             ...typography.styles.caption,
             color: colors.text.secondary,
         },
@@ -633,12 +645,16 @@ export const createGlobalStyles = (colors) => {
             color: colors.danger,
         },
 
+        // A field-level validation message, matching TextInput's own `error`
+        // so the built-in fields and the schema-driven ones read alike. It used
+        // to be centred, body-sized and grey — an empty-state style wearing an
+        // error's name, which made "Загвар бөглөнө үү" indistinguishable from
+        // the hint two fields below it.
         errorText: {
-            fontSize: typography.md,
-            color: colors.text.secondary,
-            textAlign: 'center',
-            lineHeight: 22,
-            marginBottom: spacing.xxl,
+            ...typography.styles.micro,
+            color: colors.danger,
+            marginTop: spacing.xs,
+            marginLeft: spacing.xs,
         },
         modalOverlay: {
             flex: 1,

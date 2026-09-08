@@ -8,12 +8,17 @@ import { useAppTheme } from '../hooks/useAppTheme';
 import bookingService from '../services/api/bookingService';
 
 /** "<1h", "3h", "2d" — the shape a reader compares providers by. */
-export const humanizeResponse = (hours) => {
+// Returns null when there is nothing to say, so the caller drops the chip.
+// MIRRORS zuuchmap_web/src/components/ProviderCredentials.jsx — including the
+// 48-hour cutover: the two used to disagree (24h here), so the same provider
+// read "~36 цагт" on the web and "2d" in the app. The strings were hardcoded
+// English abbreviations, which rendered "18h дотор хариулдаг" in Mongolian.
+export const humanizeResponse = (hours, t) => {
     if (hours === null || hours === undefined || Number.isNaN(Number(hours))) return null;
     const h = Number(hours);
-    if (h < 1) return '<1h';
-    if (h < 24) return `${Math.round(h)}h`;
-    return `${Math.round(h / 24)}d`;
+    if (h < 1) return t('review.statsUnderHour');
+    if (h < 48) return t('review.statsHours', { count: Math.round(h) });
+    return t('review.statsDays', { count: Math.round(h / 24) });
 };
 
 const Chip = ({ icon, text, tone, styles, colors }) => (
@@ -46,11 +51,13 @@ const ProviderCredentials = ({ providerId, style }) => {
     const stats = data?.stats;
     if (!data || !stats) return null;
 
-    const response = humanizeResponse(stats.avg_response_hours);
+    const response = humanizeResponse(stats.avg_response_hours, t);
     const year = stats.member_since ? new Date(stats.member_since).getFullYear() : null;
+    // No rating chip: the reviews block directly below owns that number, and
+    // printing "4.4 · 8 үнэлгээ" twice on one screen said nothing the second
+    // time. This strip carries the signals reviews do not.
     const chips = [];
     if (stats.company_verified) chips.push({ icon: 'shield-checkmark', text: t('review.statsVerified'), tone: 'success' });
-    if (data.count > 0) chips.push({ icon: 'star', text: `${Number(data.average).toFixed(1)} · ${t('review.count', { count: data.count })}` });
     if (response) chips.push({ icon: 'flash-outline', text: t('review.statsResponse', { time: response }) });
     if (stats.completed_bookings > 0) chips.push({ icon: 'checkmark-done-outline', text: t('review.statsCompleted', { count: stats.completed_bookings }) });
     if (year && !Number.isNaN(year)) chips.push({ icon: 'calendar-outline', text: t('review.statsMemberSince', { year }) });

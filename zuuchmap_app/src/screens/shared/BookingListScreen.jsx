@@ -14,6 +14,8 @@ import { successHaptic } from '../../utils/haptics';
 import bookingService from '../../services/api/bookingService';
 import { showErrorModal, showWarningModal, getErrorMessage } from '../../utils/errorManager';
 import { formatDate } from '../../utils/displayUtils';
+import { getPostTitle } from '../../utils/postUtils';
+import { useCategorySchemas } from '../../hooks/useCategorySchemas';
 
 // `fill` tints the chip and paints the card's left rule; `text` is the label.
 // They differ because the fill hue set as its own label on a 10% tint of itself
@@ -39,6 +41,14 @@ const BookingListScreen = ({ route, navigation }) => {
     const { t } = useTranslation();
     const qc = useQueryClient();
     const [busy, setBusy] = useState(null); // `${id}:${action}` while in flight
+
+    // An untitled post falls back through getPostTitle, which needs the schema
+    // to reach the subcategory/category label rung.
+    const categorySchemas = useCategorySchemas();
+    const schemaByKey = useMemo(
+        () => Object.fromEntries(categorySchemas.map((c) => [c.key, c])),
+        [categorySchemas],
+    );
 
     const { data: bookings = [], isLoading, isRefetching, isError, refetch } = useQuery({
         queryKey: ['bookings', role],
@@ -102,7 +112,7 @@ const BookingListScreen = ({ route, navigation }) => {
                     <Text style={styles.cardTitle} numberOfLines={1}>
                         {!item.post
                             ? t('booking.postRemoved')
-                            : item.post.title || t(`category.${item.post.category}`, { defaultValue: item.post.category })}
+                            : getPostTitle(item.post, item.post.category, schemaByKey[item.post.category])}
                     </Text>
                     {isPending && (
                         <View style={[styles.statusChip, { borderColor: withAlpha(statusColor, 0.33), backgroundColor: withAlpha(statusColor, 0.1) }]}>

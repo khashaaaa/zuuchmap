@@ -19,6 +19,11 @@ import WizardSteps from '../../components/WizardSteps';
 import ScreenLoading from '../../components/ScreenLoading';
 import { showErrorModal } from '../../utils/errorManager';
 
+// An Open Location Code ("plus code"): 4-8 chars from the 20-symbol base, a
+// "+", then 2-3 more. The alphabet deliberately excludes vowels, so a real
+// street name cannot collide with it.
+const PLUS_CODE = /^[23456789CFGHJMPQRVWX]{4,8}\+[23456789CFGHJMPQRVWX]{2,3}$/i;
+
 const LATITUDE_DELTA = 0.0922;
 // Longitude span has to match the window's aspect ratio or the initial region
 // comes out stretched. Derived per render rather than once at module load,
@@ -125,7 +130,16 @@ const ProviderLocationSelection = ({ route, navigation }) => {
         const parts = [address.name, address.street, address.district, address.city, address.region]
             .filter((p) => {
                 if (!p) return false;
-                const key = String(p).trim().toLowerCase();
+                // Android's geocoder hands back an Open Location Code as the
+                // feature name whenever the pin is not on a numbered address,
+                // so a listing dropped on open ground was published as
+                // "WV8Q+3HC, BGD - 2 khoroo, Ulaanbaatar". The code is precise
+                // and completely unreadable; the rest of the address is not.
+                // A bare house number ("1, BGD - 2 khoroo") is the same kind of
+                // fragment — it names nothing without the street it belongs to.
+                const part = String(p).trim();
+                if (PLUS_CODE.test(part) || !/\p{L}/u.test(part)) return false;
+                const key = part.toLowerCase();
                 if (!key || seen.has(key)) return false;
                 seen.add(key);
                 return true;

@@ -33,7 +33,15 @@ const applyBehaviorFields = (formData, schema, initialPost = null, content = ini
         formData.status = initialPost?.status || 'ACTIVE';
     }
     if (schema?.has_price) {
-        formData.price_amount = content?.price_amount ? content.price_amount.toString() : '';
+        // price_amount arrives as a Postgres decimal string ("4100000.00").
+        // The currency input strips it to digits, so the ".00" became two more
+        // zeros and every existing listing opened for edit showing 100x its
+        // price — which the owner would then "correct". Prices are whole
+        // tögrög, so round to an integer here, at the one place the row
+        // becomes form state.
+        formData.price_amount = content?.price_amount
+            ? String(Math.round(Number(content.price_amount)))
+            : '';
         formData.price_unit = content?.price_unit || schema.default_price_unit || 'DAY';
     }
     if (schema?.has_availability_dates) {

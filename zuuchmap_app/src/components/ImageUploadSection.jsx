@@ -175,8 +175,10 @@ const ImageUploadSection = ({
 
     return (
         <>
+            {/* Same eyebrow as every other section of this form — it used to
+                be an h3, twice the size of the field labels around it. */}
             <View style={gStyles.sectionHeader}>
-                <Text style={styles.sectionTitle}>
+                <Text style={gStyles.sectionSubtitle}>
                     {t('upload.images')} <Text style={gStyles.requiredStar}>*</Text>
                 </Text>
                 <Text style={styles.sectionSubtitle}>
@@ -315,11 +317,6 @@ const createStyles = (colors) => StyleSheet.create({
     heroSecondaryText: {
         ...typography.styles.labelStrong,
         color: colors.text.link,
-    },
-    sectionTitle: {
-        ...typography.styles.h3,
-        color: colors.text.primary,
-        marginBottom: spacing.xs,
     },
     sectionSubtitle: {
         ...typography.styles.caption,

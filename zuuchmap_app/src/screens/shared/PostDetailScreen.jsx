@@ -62,12 +62,48 @@ const ATTR_I18N_KEYS = {
     main_products: 'attrs.mainProducts',
     employment_type: 'attrs.employmentType', salary_range: 'attrs.salaryRange',
 };
+// Per-attribute glyphs. The previous map named nine keys, four of which
+// (manufactured_date, imported_date, main_products, salary_range) exist in no
+// schema — so 33 of the 38 live field keys fell through to one generic ⓘ and a
+// vehicle listing showed the same circled "i" five times in a row.
 const ATTR_ICONS = {
-    manufacturer: 'build-outline', model: 'cube-outline',
-    manufactured_date: 'calendar-outline', imported_date: 'airplane-outline',
-    capacity: 'cube-outline', operating_hours: 'time-outline',
-    main_products: 'list-outline',
-    employment_type: 'briefcase-outline', salary_range: 'cash-outline',
+    accommodation_provided: 'home-outline', capacity: 'cube-outline',
+    condition: 'ribbon-outline', coverage: 'map-outline',
+    crew_size: 'people-outline', delivery_available: 'car-outline',
+    delivery_days: 'time-outline', employment_type: 'briefcase-outline',
+    equipment_owned: 'construct-outline', experience_years: 'trophy-outline',
+    fuel_type: 'flame-outline', license_no: 'card-outline',
+    loading_included: 'arrow-up-circle-outline', maintenance_included: 'build-outline',
+    manufacturer: 'business-outline', mileage_km: 'speedometer-outline',
+    min_moto_hours_per_day: 'timer-outline', min_order: 'cart-outline',
+    min_rental_days: 'calendar-number-outline', model: 'cube-outline',
+    moto_hours: 'timer-outline', negotiable: 'chatbubbles-outline',
+    operating_hours: 'time-outline', positions: 'people-outline',
+    project_count: 'layers-outline', quantity_available: 'layers-outline',
+    rent_to_buy: 'swap-horizontal-outline', response_time_min: 'flash-outline',
+    salary_max: 'cash-outline', salary_min: 'cash-outline',
+    sale_type: 'pricetag-outline', seats: 'people-outline',
+    team_size: 'people-outline', vehicle_count: 'car-outline',
+    warranty_months: 'shield-checkmark-outline', with_materials: 'cube-outline',
+    with_operator: 'person-outline', year: 'calendar-outline',
+};
+
+// Categories are admin-editable, so a field key added after this build has to
+// land somewhere sensible: fall back on the field's declared *type*. A boolean
+// resolves to its own answer, which turns the weakest row on the screen into
+// the one you can read without looking at the value.
+const ATTR_TYPE_ICONS = {
+    number: 'calculator-outline',
+    select: 'list-outline',
+    text: 'document-text-outline',
+};
+
+const attrIcon = (key, fieldDef, value) => {
+    if (ATTR_ICONS[key]) return ATTR_ICONS[key];
+    if (fieldDef?.type === 'boolean' || typeof value === 'boolean') {
+        return value === true ? 'checkmark-circle-outline' : 'close-circle-outline';
+    }
+    return ATTR_TYPE_ICONS[fieldDef?.type] || 'information-circle-outline';
 };
 
 // Carousel pagination dot — grows and tints toward the active colour instead of
@@ -794,7 +830,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                                 const fieldDef = schema?.fields?.find((f) => f.key === key);
                                 const label = fieldDef?.labels?.[i18n.language]
                                     ?? (ATTR_I18N_KEYS[key] ? t(ATTR_I18N_KEYS[key]) : (fieldDef?.label || key));
-                                const icon = ATTR_ICONS[key] || 'information-circle-outline';
+                                const icon = attrIcon(key, fieldDef, value);
                                 // Select values are enum tokens (GOOD, FULL_TIME…) —
                                 // translate them the same way the form's picker does.
                                 const display = typeof value === 'boolean' || fieldDef?.type === 'boolean'
@@ -865,8 +901,23 @@ const PostDetailScreen = ({ route, navigation }) => {
                 )}
 
                 {/* ── Contact info ───────────────────────────────────────── */}
-                {(post.contact_phone || post.contact_email || post.website) && (
+                {(canContact || post.contact_phone || post.contact_email || post.website) && (
                     <SectionCard label={t('posts.sectionContact')} colors={colors} styles={styles}>
+                        {/* The footer's message action is icon-only by design, so
+                            this is the only place the channel is named. Without
+                            it the empty inbox told the reader to press a
+                            "Мессеж бичих" button that appears nowhere in the app
+                            — the web shows that label on the button itself. */}
+                        {canContact && (
+                            <ContactRow
+                                icon="chatbubble-outline"
+                                label={t('messages.title')}
+                                value={t('messages.messageProvider')}
+                                onPress={handleMessage}
+                                colors={colors}
+                                styles={styles}
+                            />
+                        )}
                         {post.contact_phone && (
                             <ContactRow
                                 icon="call-outline"

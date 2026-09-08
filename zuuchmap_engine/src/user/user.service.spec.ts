@@ -19,9 +19,17 @@ const make = (over: any = {}) => {
     delete: jest.fn(async () => ({ affected: 1 })),
     ...over.userRepository,
   };
+  // `activePosts` runs through countActivePosts(), which is a query builder —
+  // the same one the quota is enforced with.
+  const activeCount = jest.fn(async () => 0);
   const postRepository = {
     find: jest.fn(async () => over.posts ?? []),
     count: jest.fn(async () => 0),
+    createQueryBuilder: jest.fn(() => ({
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getCount: activeCount,
+    })),
     ...over.postRepository,
   };
   const pushDeviceRepository = {
@@ -34,7 +42,7 @@ const make = (over: any = {}) => {
     postRepository as any,
     pushDeviceRepository as any,
   );
-  return { svc, userRepository, postRepository, pushDeviceRepository };
+  return { svc, userRepository, postRepository, pushDeviceRepository, activeCount };
 };
 
 describe('UserService — push devices', () => {
@@ -119,10 +127,9 @@ describe('UserService — lookups and updates', () => {
   });
 
   it('counts posts with COUNT, not by measuring a loaded array', async () => {
-    const { svc, postRepository } = make();
-    postRepository.count
-      .mockResolvedValueOnce(340)   // total
-      .mockResolvedValueOnce(12);   // active
+    const { svc, postRepository, activeCount } = make();
+    postRepository.count.mockResolvedValueOnce(340); // total
+    activeCount.mockResolvedValueOnce(12);           // active
     postRepository.find.mockResolvedValueOnce([{ id: 1 }]);
 
     const result = await svc.getUserPosts('u1');

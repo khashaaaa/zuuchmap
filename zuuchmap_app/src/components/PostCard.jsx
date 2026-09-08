@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import ThumbImage from './ThumbImage';
 import { Ionicons } from '@expo/vector-icons';
@@ -38,6 +38,10 @@ const PostCard = ({
     const styles = useMemo(() => createStyles(colors), [colors]);
     const [imageError, setImageError] = useState(false);
     const handleImageError = useCallback(() => setImageError(true), []);
+    // A card that once failed kept showing the placeholder for the rest of its
+    // life, even after a refetch handed it a working URL — the flag has to
+    // follow the source it describes.
+    useEffect(() => { setImageError(false); }, [imageUri]);
     const handlePress = useCallback(() => onPress?.(item), [item, onPress]);
 
     return (

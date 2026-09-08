@@ -153,7 +153,7 @@ const MapFilterModal = ({
                     styles.categoryLabel,
                     isSelected && styles.categoryLabelSelected
                 ]} numberOfLines={2}>
-                    {category.label || t(`category.${category.key}`, { defaultValue: category.key })}
+                    {category.label || category.key}
                 </Text>
                 {isSelected && (
                     <Ionicons

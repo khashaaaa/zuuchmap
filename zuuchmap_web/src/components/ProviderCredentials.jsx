@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { BadgeCheck, Clock, CalendarCheck, CalendarDays, Star } from 'lucide-react'
+import { BadgeCheck, Clock, CalendarCheck, CalendarDays } from 'lucide-react'
 import { reviewsApi } from '@/lib/api'
 
 /** Mean first-response as "~2h" / "~3d" / "<1h"; null when the provider has never replied. */
@@ -33,7 +33,6 @@ export default function ProviderCredentials({ providerId, className = '' }) {
     stats.avg_response_hours != null && { icon: Clock, label: t('review.statsResponse', { time: humanizeResponse(stats.avg_response_hours, t) }) },
     { icon: CalendarCheck, label: t('review.statsCompleted', { count: stats.completed_bookings ?? 0 }) },
     since && { icon: CalendarDays, label: t('review.statsMemberSince', { year: since }) },
-    data.count > 0 && { icon: Star, label: t('review.statsRating'), value: `${Number(data.average).toFixed(1)} (${data.count})` },
   ].filter(Boolean)
 
   return (

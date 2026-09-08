@@ -2,7 +2,6 @@ import axios from 'axios';
 import { InteractionManager } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG, getUploadUrl } from '../../config/api.config';
-import { DEFAULT_AVATAR_URL } from '../../config/app.config';
 import { getAuthToken, getUserId, getUserType, storeAuthData, emitAuthChanged } from './authHelpers';
 import { socketService } from '../socketService';
 import { queryClient } from '../queryClient';
@@ -205,9 +204,13 @@ const userService = {
                 parent_name: response.data.parent_name || '',
                 phoneNumber: response.data.phone_number,
                 email: response.data.email,
+                // null, not a placeholder URL: <Avatar> draws the fallback
+                // locally. Substituting a remote "U" image here meant every
+                // caller saw a truthy profilePicture and no screen could tell
+                // "has a photo" from "has none".
                 profilePicture: response.data.profile_picture
                     ? getUploadUrl(API_CONFIG.UPLOAD_PATHS.PROFILE_PICTURE, response.data.profile_picture)
-                    : DEFAULT_AVATAR_URL,
+                    : null,
                 userType: response.data.type,
                 is_admin: response.data.is_admin === true,
                 companyId: response.data.company ? response.data.company.id : null,

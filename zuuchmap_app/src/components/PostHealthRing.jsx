@@ -27,11 +27,15 @@ const PostHealthRing = ({ score = 0, size = 36, stroke = 3, showLabel = true, st
 
     const styles = useMemo(() => createStyles(size, stroke), [size, stroke]);
 
-    // Coloured half sits on the right for the right clip (−45°), on the left for
-    // the left clip (135°); each is then wound back by however much of its half
-    // is still unfilled.
-    const rightDeg = -225 + Math.min(p, 0.5) * 360;
-    const leftDeg = -45 + Math.max(p - 0.5, 0) * 360;
+    // The painted half (top + right borders) spans 315°→135° clockwise from 12,
+    // so putting its leading edge at angle `a` paints `a−180°→a`. Feed each clip
+    // the angle its own half should reach — the right clip saturates at 180°
+    // (50%), the left one starts there — and the unfilled arc falls outside the
+    // clip window on its own. Both offsets are the same expression on purpose:
+    // when they were not, an empty ring and a full ring both rendered as half a
+    // ring, and 8/100 painted more of the circle than 79/100 did.
+    const rightDeg = Math.min(p, 0.5) * 360 - 135;
+    const leftDeg = Math.max(p, 0.5) * 360 - 135;
 
     const arc = (deg) => [
         styles.arc,

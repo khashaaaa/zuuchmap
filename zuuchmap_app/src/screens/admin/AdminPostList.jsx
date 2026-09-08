@@ -121,7 +121,9 @@ const AdminPostList = ({ navigation, route }) => {
                                 { color: colors.text.secondary },
                                 activeFilter === type && { color: colors.text.link },
                             ]}>
-                                {type === 'all' ? t('filter.all') : t(`category.${type}`)}
+                                {type === 'all'
+                                    ? t('filter.all')
+                                    : getSchemaLabel(categories.find(c => c.key === type))}
                             </Text>
                         </TouchableOpacity>
                     </SelectionPop>

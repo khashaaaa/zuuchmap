@@ -160,9 +160,16 @@ const CustomerLikeList = ({ navigation }) => {
         navigation.navigate('PhoneNumber');
     };
 
+    // The bare filename first, resolved against THIS client's base URL, exactly
+    // like every other list. `image_url` is an absolute URL the engine builds
+    // from PUBLIC_ENGINE_URL, so preferring it made the saved tab the one
+    // screen that breaks whenever the server's idea of its own host differs
+    // from the client's — every card fell back to the placeholder. It also
+    // points at the full-size image, so this list was the only one bypassing
+    // the `_thumb` convention PostCard's ThumbImage applies.
     const getImageUrl = (item) => {
-        const raw = item.imageUrl || item.image_url ||
-            (Array.isArray(item.images) && item.images.length > 0 ? item.images[0] : null);
+        const raw = (Array.isArray(item.images) && item.images.length > 0 ? item.images[0] : null)
+            ?? item.imageUrl ?? item.image_url;
         return getPostImageUrl(raw);
     };
 
@@ -254,7 +261,9 @@ const CustomerLikeList = ({ navigation }) => {
         <ScreenLayout
             title={`${t('posts.savedTitle')}${!pending && posts.length > 0 ? ` (${posts.length})` : ''}`}
             showBack={canGoBack}
-            onBack={() => navigation.goBack()}
+            // Tab root here, pushed route from the profile — only the pushed
+            // one has anywhere to go back to. See MessagesScreen.
+            onBack={navigation.getState?.()?.type === 'stack' ? () => navigation.goBack() : undefined}
         >
 
             <SkeletonCrossfade

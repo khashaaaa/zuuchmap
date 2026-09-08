@@ -532,7 +532,7 @@ const ProviderPostForm = ({ route, navigation }) => {
                     {/* Base listing info — title feeds search + every list card;
                         these are Post columns, not schema attributes. */}
                     <View style={gStyles.sectionHeader}>
-                        <Text style={[gStyles.sectionSubtitle, { color: colors.text.secondary }]}>{t('form.basicInfo')}</Text>
+                        <Text style={gStyles.sectionSubtitle}>{t('form.basicInfo')}</Text>
                     </View>
                     <FieldHighlight active={highlightKey === 'title'} scrollViewRef={scrollViewRef}>
                     <FormField
@@ -619,7 +619,7 @@ const ProviderPostForm = ({ route, navigation }) => {
                     {schema?.has_availability_dates && (
                         <View>
                             <View style={gStyles.sectionHeader}>
-                                <Text style={[gStyles.sectionSubtitle, { color: colors.text.secondary }]}>{t('form.availabilitySection')}</Text>
+                                <Text style={gStyles.sectionSubtitle}>{t('form.availabilitySection')}</Text>
                             </View>
                             <View style={styles.dateRow}>
                                 <PressableScale style={[styles.dateBox, { backgroundColor: colors.surface, borderColor: colors.border.light }]} onPress={() => setPickerFor('from')} accessibilityRole="button">

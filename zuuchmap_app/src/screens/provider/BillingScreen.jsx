@@ -113,8 +113,28 @@ const BillingScreen = ({ navigation }) => {
                 </View>
 
                 {catalogue?.enabled === false ? (
+                    /* The ladder is public data — /payments/catalogue returns it
+                       whether or not QPay is wired up. Hiding it left a provider
+                       unable to find out what the paid tier even costs, under a
+                       notice telling them to get in touch with no way to do so. */
                     <View style={styles.card}>
+                        <View style={styles.planHead}>
+                            <View style={styles.flex}>
+                                <Text style={styles.planName}>{planLabel('PROVIDER')}</Text>
+                                <Text style={styles.meta}>{t('billing.postsLimit', { count: paidPlan?.posts ?? 25 })}</Text>
+                            </View>
+                            <Text style={styles.price}>{formatPrice(unitPrice)}</Text>
+                        </View>
                         <Text style={styles.meta}>{t('billing.notConfigured')}</Text>
+                        <PressableScale
+                            style={[styles.cta, { backgroundColor: colors.surfaceElevated }]}
+                            onPress={() => navigation.navigate('HelpSupport')}
+                            accessibilityRole="button"
+                        >
+                            <Text style={[styles.ctaText, { color: colors.text.link }]}>
+                                {t('profile.helpSupport')}
+                            </Text>
+                        </PressableScale>
                     </View>
                 ) : invoice ? (
                     <View style={styles.card}>

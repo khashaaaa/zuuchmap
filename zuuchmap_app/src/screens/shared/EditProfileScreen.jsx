@@ -22,7 +22,6 @@ import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import ScreenHeader from '../../components/ScreenHeader';
 import { ScreenLayout, TextInput } from '../../components';
 import Button from '../../components/Button';
-import { DEFAULT_AVATAR_URL } from '../../config/app.config';
 import { validateEmail, validatePhone, validateRequired } from '../../utils/formUtils';
 import { showErrorModal, showInfoModal, showWarningModal } from '../../utils/errorManager';
 import { logger } from '../../utils/logger';
@@ -316,10 +315,7 @@ const EditProfileScreen = ({ route, navigation }) => {
                                 accessibilityRole="button"
                                 accessibilityLabel={t('profile.changePicture')}
                             >
-                                <Image
-                                    source={{ uri: profileImage || DEFAULT_AVATAR_URL }}
-                                    style={styles.profileImage}
-                                />
+                                <Avatar uri={profileImage} size={80} style={styles.profileImage} />
                                 <View style={styles.imageOverlay} pointerEvents="none">
                                     <Ionicons name="camera-outline" size={16} color={colors.onPrimary} />
                                 </View>
@@ -358,10 +354,7 @@ const EditProfileScreen = ({ route, navigation }) => {
                                         accessibilityRole="button"
                                         accessibilityLabel={t('company.logoChange')}
                                     >
-                                        <Image
-                                            source={{ uri: companyLogo || DEFAULT_AVATAR_URL }}
-                                            style={styles.companyLogo}
-                                        />
+                                        <Avatar uri={companyLogo} size={80} icon="business-outline" style={styles.companyLogo} />
                                         <View style={styles.imageOverlay} pointerEvents="none">
                                             <Ionicons name="camera-outline" size={16} color={colors.onPrimary} />
                                         </View>

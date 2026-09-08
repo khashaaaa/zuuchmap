@@ -420,7 +420,7 @@ export default {
     hoursText: 'Monday–Friday: 09:00–18:00',
     faqTitle: 'Frequently asked questions',
     faq1Q: 'How do I add a post?',
-    faq1A: 'Tap "Add post" on the dashboard, choose a category, fill in the details and submit. An admin will review and approve it.',
+    faq1A: 'Tap "+" on the dashboard, choose a category, fill in the details and submit. An admin will review and approve it.',
     faq2Q: 'How long does approval take?',
     faq2A: 'Usually within 1–2 business days. You will receive a notification once your post is approved.',
     faq3Q: 'How does phone verification work?',
@@ -519,6 +519,7 @@ export default {
     notEligible: 'Only customers with an accepted booking can leave a review',
     statsVerified: 'Verified company', statsResponse: 'Responds in {{time}}',
     statsCompleted: '{{count}} completed', statsMemberSince: 'Since {{year}}',
+    statsNoResponse: 'No replies yet', statsUnderHour: 'under an hour', statsHours: '~{{count}}h', statsDays: '~{{count}}d',
   },
   messages: {
     title: 'Messages',

@@ -8,7 +8,7 @@ import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
 import Button from '@/components/Button'
 import { messagesApi } from '@/lib/api'
-import { goBack, formatTime, formatDate, getThumbUrl, fallbackToFullImage } from '@/lib/utils'
+import { goBack, formatInboxStamp, getThumbUrl, fallbackToFullImage } from '@/lib/utils'
 
 /**
  * The inbox.
@@ -34,16 +34,6 @@ export default function MessagesPage() {
         : { before: page[page.length - 1].last_message_at || page[page.length - 1].date_created, before_id: page[page.length - 1].id },
   })
   const threads = useMemo(() => (data?.pages ?? []).flat(), [data])
-
-  const stamp = (value) => {
-    if (!value) return ''
-    const d = new Date(value)
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    // Time for today, date for anything older — an inbox full of "14:32" tells
-    // you nothing about which conversations have gone cold.
-    return d >= today ? formatTime(d) : formatDate(d)
-  }
 
   return (
     <div className="max-w-3xl">
@@ -101,7 +91,7 @@ export default function MessagesPage() {
                     <span className="font-semibold text-text truncate">
                       {thread.other_party?.given_name || '—'}
                     </span>
-                    <span className="text-xs text-muted shrink-0">{stamp(thread.last_message_at)}</span>
+                    <span className="text-xs text-muted shrink-0">{formatInboxStamp(thread.last_message_at)}</span>
                   </div>
                   <p className="text-xs text-muted truncate">
                     {thread.post?.title || t('messages.deletedListing')}

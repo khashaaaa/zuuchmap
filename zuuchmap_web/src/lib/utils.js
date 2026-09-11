@@ -26,8 +26,6 @@ export const apiErrorMessage = (error, t, fallback) => {
   return error?.response?.data?.message || fallback
 }
 
-const PRICE_UNIT_KEYS = { HOUR: 'priceUnit.hour', MOTO_HOUR: 'priceUnit.moto_hour', DAY: 'priceUnit.day', WEEK: 'priceUnit.week', MONTH: 'priceUnit.month', PROJECT: 'priceUnit.project', UNIT: 'priceUnit.unit', PIECE: 'priceUnit.piece', SQM: 'priceUnit.sqm', TRIP: 'priceUnit.trip', TOTAL: 'priceUnit.total' }
-
 /**
  * Thousand separators, built by hand.
  *
@@ -68,7 +66,7 @@ export const formatPrice = (amount, unit, t) => {
   const formatted = wholeTugriks(value)
   // A total (sale) price is the whole amount — a "/unit" suffix would misread as recurring
   if (unit === 'TOTAL') return `${formatted}₮`
-  const unitLabel = t ? t(PRICE_UNIT_KEYS[unit] ?? '', { defaultValue: unit ?? '' }) : (unit ?? '')
+  const unitLabel = t ? t(`priceUnit.${unit}`, { defaultValue: unit ?? '' }) : (unit ?? '')
   return unitLabel ? `${formatted}₮/${unitLabel}` : `${formatted}₮`
 }
 
@@ -83,7 +81,7 @@ export const formatPriceParts = (amount, unit, t) => {
   if (value === null) return null
   const formatted = `${wholeTugriks(value)}₮`
   if (unit === 'TOTAL') return { amount: formatted, unit: null }
-  const unitLabel = t ? t(PRICE_UNIT_KEYS[unit] ?? '', { defaultValue: unit ?? '' }) : (unit ?? '')
+  const unitLabel = t ? t(`priceUnit.${unit}`, { defaultValue: unit ?? '' }) : (unit ?? '')
   return { amount: formatted, unit: unitLabel || null }
 }
 
@@ -134,6 +132,34 @@ export const formatDateTime = (value) => {
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return i18n.t('common.invalidDate')
   return `${formatDate(d)} ${formatTime(d)}`
+}
+
+/**
+ * An inbox row's timestamp: the time for today, the date for anything older.
+ *
+ * An inbox where every row reads "14:32" tells you nothing about which
+ * conversations have gone cold, which is why the branch exists — and the branch
+ * is why this is a helper. Both clients had written it out, comment and all.
+ */
+export const formatInboxStamp = (value) => {
+  if (!value) return ''
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return i18n.t('common.invalidDate')
+  const startOfToday = new Date()
+  startOfToday.setHours(0, 0, 0, 0)
+  return d >= startOfToday ? formatTime(d) : formatDate(d)
+}
+
+/**
+ * A notification row's timestamp: time first, then the day.
+ *
+ * Trivial to inline, and it was inlined on both clients — which put the
+ * separator, the order and the choice of "both halves, always" in two places
+ * with nothing to hold them together.
+ */
+export const formatNotificationStamp = (value) => {
+  if (!value) return ''
+  return `${formatTime(value)} · ${formatDate(value)}`
 }
 
 /**

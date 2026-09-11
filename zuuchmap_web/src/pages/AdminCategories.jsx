@@ -200,7 +200,7 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
                     <label className="field-label">{t('admin.defaultPriceUnit')}</label>
                     <Input as="select" value={form.default_price_unit ?? ''} onChange={(e) => setF('default_price_unit', e.target.value)} className="w-auto">
                       <option value="">—</option>
-                      {PRICE_UNITS.map((u) => <option key={u} value={u}>{t(`priceUnit.${u.toLowerCase()}`, { defaultValue: u })}</option>)}
+                      {PRICE_UNITS.map((u) => <option key={u} value={u}>{t(`priceUnit.${u}`, { defaultValue: u })}</option>)}
                     </Input>
                   </div>
                 )}

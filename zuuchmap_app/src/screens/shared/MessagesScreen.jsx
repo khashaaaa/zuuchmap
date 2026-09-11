@@ -11,7 +11,7 @@ import { SkeletonCrossfade } from '../../components/SkeletonItem';
 import ThumbImage from '../../components/ThumbImage';
 import messageService, { inboxCursor, CONVERSATIONS_KEY } from '../../services/api/messageService';
 import { getPostImageUrl } from '../../config/api.config';
-import { formatTime, formatDate } from '../../utils/displayUtils';
+import { formatInboxStamp } from '../../utils/displayUtils';
 
 /**
  * The inbox.
@@ -37,7 +37,7 @@ const ThreadRow = ({ item, index, onPress, styles, colors, t }) => {
                         <Text style={styles.name} numberOfLines={1}>
                             {item.other_party?.given_name || '—'}
                         </Text>
-                        <Text style={styles.time}>{stamp(item.last_message_at)}</Text>
+                        <Text style={styles.time}>{formatInboxStamp(item.last_message_at)}</Text>
                     </View>
                     <Text style={styles.listing} numberOfLines={1}>
                         {item.post?.title || t('messages.deletedListing')}
@@ -57,23 +57,6 @@ const ThreadRow = ({ item, index, onPress, styles, colors, t }) => {
             </PressableScale>
     );
 };
-
-/**
- * Time for today, date for anything older — an inbox full of "14:32" says
- * nothing about which conversations have gone cold.
- *
- * Both halves come from the shared helpers rather than being rebuilt here: the
- * web's copy of this row went through Intl and rendered `08:47 PM` / `Aug 16`
- * against this file's `20:47` / `2026.08.16`, which is the drift the helpers
- * and their `check:sync` contract exist to make impossible.
- */
-function stamp(value) {
-    if (!value) return '';
-    const d = new Date(value);
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-    return d >= startOfToday ? formatTime(d) : formatDate(d);
-}
 
 const MessagesScreen = ({ navigation }) => {
     const { colors } = useAppTheme();

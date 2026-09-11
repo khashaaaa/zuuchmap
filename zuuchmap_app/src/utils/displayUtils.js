@@ -105,6 +105,35 @@ export const formatRelativeAge = (savedAt, t) => {
     return t('provider.draftDaysAgo', { count: Math.round(hours / 24) });
 };
 
+/**
+ * An inbox row's timestamp: the time for today, the date for anything older.
+ *
+ * An inbox where every row reads "14:32" tells you nothing about which
+ * conversations have gone cold, which is why the branch exists — and the branch
+ * is why this is a helper. Both clients had written it out, comment and all,
+ * and two copies of a rule is how the last four timestamp bugs started.
+ */
+export const formatInboxStamp = (value) => {
+    if (!value) return '';
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return i18n.t('common.invalidDate');
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    return d >= startOfToday ? formatTime(d) : formatDate(d);
+};
+
+/**
+ * A notification row's timestamp: time first, then the day.
+ *
+ * Trivial to inline, and it was inlined on both clients — which put the
+ * separator, the order and the choice of "both halves, always" in two places
+ * with nothing to hold them together.
+ */
+export const formatNotificationStamp = (value) => {
+    if (!value) return '';
+    return `${formatTime(value)} · ${formatDate(value)}`;
+};
+
 // --- Price formatting ---
 
 export const getPriceUnitLabel = (priceUnit) => {

@@ -8,7 +8,7 @@ import { spacing, typography, radius, withAlpha, interactions, isTablet } from '
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useAppContext } from '../../context/AppContext';
 import { SOUND_PREF_KEY, isSoundEnabled } from '../../hooks/useNotificationSync';
-import { formatTime, formatDate } from '../../utils/displayUtils';
+import { formatNotificationStamp } from '../../utils/displayUtils';
 
 const TYPE_ICON = {
     success: 'checkmark-circle',
@@ -25,9 +25,10 @@ const TYPE_COLOR = (colors) => ({
 function NotifItem({ item, colors, onPress }) {
     const iconName = TYPE_ICON[item.type] || TYPE_ICON.info;
     const iconColor = TYPE_COLOR(colors)[item.type] || colors.primary;
-    // Through the shared helpers, not the device locale: a notification and the
-    // message it is about were reading two different times on the same phone.
-    const ts = useMemo(() => `${formatTime(item.ts)} · ${formatDate(item.ts)}`, [item.ts]);
+    // Through the shared helper, not the device locale and not an inline
+    // template: a notification and the message it is about were reading two
+    // different times on the same phone.
+    const ts = useMemo(() => formatNotificationStamp(item.ts), [item.ts]);
 
     const content = (
         <>

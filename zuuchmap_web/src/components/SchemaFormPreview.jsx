@@ -90,7 +90,7 @@ export default function SchemaFormPreview({ schema }) {
                       <label className="field-label">{t('posts.priceUnit')}</label>
                       <Input as="select" value={schema.default_price_unit || ''} onChange={noop} disabled>
                         {!schema.default_price_unit && <option value="">—</option>}
-                        {PRICE_UNITS.map((u) => <option key={u} value={u}>{t(`priceUnit.${u.toLowerCase()}`, { defaultValue: u })}</option>)}
+                        {PRICE_UNITS.map((u) => <option key={u} value={u}>{t(`priceUnit.${u}`, { defaultValue: u })}</option>)}
                       </Input>
                     </div>
                   </div>

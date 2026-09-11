@@ -418,7 +418,7 @@ export default {
     confirmBtn: 'Бүртгэл устгах',
     loginToDelete: 'Бүртгэлээ устгахын тулд нэвтэрнэ үү',
   },
-  priceUnit: { hour: 'цагаар', moto_hour: 'мото цагаар', day: 'өдрөөр', week: 'долоо хоногоор', month: 'сараар', project: 'төслөөр', unit: 'ширхэгээр', piece: 'ширхэгээр', sqm: 'м²-аар', trip: 'рейсээр', total: 'нийт үнэ' },
+  priceUnit: { HOUR: 'цагаар', MOTO_HOUR: 'мото цагаар', DAY: 'өдрөөр', WEEK: 'долоо хоногоор', MONTH: 'сараар', PROJECT: 'төслөөр', UNIT: 'ширхэгээр', PIECE: 'ширхэгээр', SQM: 'м²-аар', TRIP: 'рейсээр', TOTAL: 'нийт үнэ' },
   attrs: {
     h24: '24 цаг',
     weekdayDay: 'Ажлын өдөр 09:00–18:00',

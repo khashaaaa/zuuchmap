@@ -5,7 +5,7 @@ import { BellOff, CheckCircle, XCircle, Info } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
 import EmptyState from '@/components/EmptyState'
 import { useAuthStore, useNotificationStore } from '@/store'
-import { goBack, formatTime, formatDate } from '@/lib/utils'
+import { goBack, formatNotificationStamp } from '@/lib/utils'
 import { targetFor as resolveTarget } from '@/lib/notificationTarget'
 
 const KIND_ICON = { success: CheckCircle, error: XCircle, info: Info }
@@ -56,8 +56,6 @@ export default function NotificationsPage() {
   // list on the recipient's side.
   const targetFor = (n) => resolveTarget(n, { isAdmin })
 
-  const stamp = (ts) => `${formatTime(ts)} · ${formatDate(ts)}`
-
   const home = isAdmin ? '/admin' : user?.type === 'PROVIDER' ? '/provider' : '/customer'
 
   return (
@@ -96,7 +94,7 @@ export default function NotificationsPage() {
                     <Icon size={20} className={`shrink-0 mt-0.5 ${KIND_CLASS[n.kind] ?? KIND_CLASS.info}`} aria-hidden="true" />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm text-text break-words">{n.message}</p>
-                      <p className="text-xs text-muted mt-0.5">{stamp(n.ts)}</p>
+                      <p className="text-xs text-muted mt-0.5">{formatNotificationStamp(n.ts)}</p>
                     </div>
                   </div>
                 )

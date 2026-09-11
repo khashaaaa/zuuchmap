@@ -288,10 +288,12 @@ function agree(contract, sets) {
 {
   const eng = read('zuuchmap_engine/src/enums/priceunit.ts');
   const engVals = [...eng.matchAll(/=\s*'([A-Z_]+)'/g)].map((m) => m[1]);
-  const webKeys = (() => {
-    const m = read('zuuchmap_web/src/lib/utils.js').match(/PRICE_UNIT_KEYS\s*=\s*\{([\s\S]*?)\n\}/);
-    return m ? [...m[1].matchAll(/([A-Z_]+):/g)].map((x) => x[1]) : null;
-  })();
+  // Read from `PRICE_UNITS`, the array that mirrors the engine enum. This used
+  // to scrape the keys of `PRICE_UNIT_KEYS`, a lookup table whose only job was
+  // to lowercase a code into an i18n key — so the codes were a side effect of a
+  // translation detail. Both clients now key `priceUnit.<CODE>` directly and
+  // that table is gone.
+  const webKeys = objectLiteral(read('zuuchmap_web/src/lib/utils.js'), 'PRICE_UNITS');
   agree('price units', [
     { name: 'engine', value: engVals },
     { name: 'web',    value: webKeys },
@@ -920,7 +922,75 @@ function agree(contract, sets) {
   }
 }
 
-// ── 11e. The Intl ban ────────────────────────────────────────────────────────
+// ── 11e. Inbox and notification stamps ───────────────────────────────────────
+// Two compositions *of* the contracted helpers, which is the gap the ban above
+// cannot see: every half was already shared and correct, and the assembly was
+// still written out twice. The inbox one carries a real rule — the time for
+// today, the date for anything older, so a list of "14:32" rows still tells you
+// which conversations have gone cold — and that rule lived in two files, with
+// the same comment copied into both.
+{
+  const C = 'inbox/notification stamps';
+  checks.push(C);
+
+  const i18nStub = { t: (k) => `I18N:${k}` };
+  const appSrc = read('zuuchmap_app/src/utils/displayUtils.js');
+  const webSrc = read('zuuchmap_web/src/lib/utils.js');
+  const sep = appSrc.match(/const DATE_SEPARATOR = '([^']*)'/);
+
+  const appBase = {
+    i18n: i18nStub,
+    logger: { error: () => {} },
+    parts: liftArrow(C, appSrc, 'parts', {}, 'app/displayUtils.js'),
+    DATE_SEPARATOR: sep ? sep[1] : '.',
+  };
+  appBase.formatDate = liftArrow(C, appSrc, 'formatDate', appBase, 'app/displayUtils.js');
+  appBase.formatTime = liftArrow(C, appSrc, 'formatTime', appBase, 'app/displayUtils.js');
+
+  const webBase = { i18n: i18nStub };
+  webBase.formatDate = liftArrow(C, webSrc, 'formatDate', webBase, 'web/utils.js');
+  webBase.formatTime = liftArrow(C, webSrc, 'formatTime', webBase, 'web/utils.js');
+
+  const now = new Date();
+  const todayAt = (h, m) => new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m).toISOString();
+  const FIXTURES = [
+    ['this morning', todayAt(9, 5)],
+    ['this evening', todayAt(20, 47)],
+    ['midnight today', todayAt(0, 0)],
+    ['yesterday', new Date(now.getTime() - 24 * 3600 * 1000).toISOString()],
+    ['last month', '2026-01-05T09:05:00'],
+    ['epoch millis', 1787758591848],
+    ['null', null],
+    ['undefined', undefined],
+    ['empty string', ''],
+    ['zero', 0],
+    ['unparseable', 'garbage'],
+  ];
+
+  for (const name of ['formatInboxStamp', 'formatNotificationStamp']) {
+    const appFn = liftArrow(C, appSrc, name, appBase, 'app/displayUtils.js');
+    const webFn = liftArrow(C, webSrc, name, webBase, 'web/utils.js');
+    if (!appFn || !webFn) continue;
+    for (const [label, value] of FIXTURES) {
+      let a, w;
+      try { a = appFn(value); } catch (e) { a = `THREW: ${e.message}`; }
+      try { w = webFn(value); } catch (e) { w = `THREW: ${e.message}`; }
+      if (a !== w) fail(C, `${name} fixture "${label}" — app returned ${JSON.stringify(a)}, web returned ${JSON.stringify(w)}`);
+    }
+  }
+
+  // The rule the branch exists for, asserted rather than left to the fixtures:
+  // a fixture only proves the two agree, not that they agree on the right thing.
+  const appInbox = liftArrow(C, appSrc, 'formatInboxStamp', appBase, 'app/displayUtils.js');
+  if (appInbox) {
+    const today = appInbox(todayAt(14, 32));
+    const older = appInbox('2026-01-05T14:32:00');
+    if (!/^\d{2}:\d{2}$/.test(today)) fail(C, `an inbox row from today must read as a time, got ${JSON.stringify(today)}`);
+    if (!/^\d{4}\.\d{2}\.\d{2}$/.test(older)) fail(C, `an older inbox row must read as a date, got ${JSON.stringify(older)}`);
+  }
+}
+
+// ── 11f. The Intl ban ────────────────────────────────────────────────────────
 // Nothing outside the two helper modules may format a date, a time or a number
 // through Intl.
 //
@@ -951,29 +1021,40 @@ function agree(contract, sets) {
   }
 }
 
-// ── 12. Price unit labels ────────────────────────────────────────────────────
-// These sit in a blind spot the i18n contract cannot see: the app keys them
-// `priceUnit.HOUR` and the web `priceUnit.hour`, so no key is present in both
-// trees and contract 6 compares nothing. All 22 values happened to agree when
-// this was written, entirely by luck — edit one side and nothing would notice.
+// ── 12. Price unit label coverage ────────────────────────────────────────────
+// The *values* used to be checked here, because the app keyed them
+// `priceUnit.HOUR` and the web `priceUnit.hour`, so no key was present in both
+// trees and the shared-i18n contract compared nothing. Both clients now key
+// `priceUnit.<CODE>`, so that contract compares them directly and exactly,
+// which is stronger than the case-insensitive special case this was.
+//
+// What it cannot do is notice a *missing* one: it compares the keys the two
+// trees have in common, so a unit labelled on neither side, or on only one, is
+// simply outside it. An unlabelled code renders as "MOTO_HOUR" on a price. So
+// this is now a coverage check against the enum itself, which is also more than
+// the old version did — it only ever compared the union of what happened to
+// exist.
 {
   const C = 'price unit labels';
   checks.push(C);
 
-  const units = (o) => Object.fromEntries(
-    Object.entries(o)
-      .filter(([k]) => k.startsWith('priceUnit.'))
-      .map(([k, v]) => [k.slice('priceUnit.'.length).toUpperCase(), v]));
+  const CODES = objectLiteral(read('zuuchmap_web/src/lib/utils.js'), 'PRICE_UNITS') || [];
+  if (!CODES.length) fail(C, 'could not read PRICE_UNITS from web/utils.js');
 
-  for (const locale of SHARED_LOCALES) {
-    const a = units(loadLocale(`zuuchmap_app/src/i18n/locales/${locale}.js`));
-    const w = units(loadLocale(`zuuchmap_web/src/i18n/${locale}.js`));
-    const codes = [...new Set([...Object.keys(a), ...Object.keys(w)])].sort();
-    if (!codes.length) { fail(C, `${locale}: no priceUnit.* labels found on either side`); continue; }
-    for (const code of codes) {
-      if (!(code in a)) fail(C, `${locale}: web has priceUnit ${code} (${JSON.stringify(w[code])}), the app has no such unit`);
-      else if (!(code in w)) fail(C, `${locale}: app has priceUnit ${code} (${JSON.stringify(a[code])}), the web has no such unit`);
-      else if (a[code] !== w[code]) fail(C, `${locale}: priceUnit ${code} — app says ${JSON.stringify(a[code])}, web says ${JSON.stringify(w[code])}`);
+  const TREES = {
+    app: (l) => `zuuchmap_app/src/i18n/locales/${l}.js`,
+    web: (l) => `zuuchmap_web/src/i18n/${l}.js`,
+  };
+
+  for (const [client, pathFor] of Object.entries(TREES)) {
+    for (const locale of CLIENT_LOCALES[client]) {
+      const tree = loadLocale(pathFor(locale));
+      for (const code of CODES) {
+        const label = tree[`priceUnit.${code}`];
+        if (!label) {
+          fail(C, `${client}/${locale}: no label for priceUnit.${code} — a price would render the raw code`);
+        }
+      }
     }
   }
 }

@@ -708,7 +708,7 @@ export default function ProviderPostForm() {
                 <div>
                   <label className="field-label">{t('posts.priceUnit')}</label>
                   <Input as="select" value={form.price_unit} onChange={(e) => set('price_unit', e.target.value)}>
-                    {PRICE_UNITS.map((u) => <option key={u} value={u}>{t(`priceUnit.${u.toLowerCase()}`, { defaultValue: u })}</option>)}
+                    {PRICE_UNITS.map((u) => <option key={u} value={u}>{t(`priceUnit.${u}`, { defaultValue: u })}</option>)}
                   </Input>
                 </div>
               </div>

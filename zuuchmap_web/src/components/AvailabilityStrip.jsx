@@ -28,7 +28,6 @@ export default function AvailabilityStrip({ busyDates, size = 'sm', className = 
   // through `toLocaleDateString(…, { month: 'short' })`, which prints an English
   // "Sep" on the en branch and, on the mn one, whatever month abbreviation the
   // browser happens to carry for a language most of them have no data for.
-  const fmt = (d) => formatDate(d)
 
   const summary = t('posts.availabilityFree', { free: freeCount, total: DAYS })
 
@@ -50,7 +49,7 @@ export default function AvailabilityStrip({ busyDates, size = 'sm', className = 
           return (
             <span
               key={d.key}
-              title={`${fmt(d.date)} — ${t(isBusy ? 'posts.availabilityBusy' : 'posts.availabilityAvailable')}`}
+              title={`${formatDate(d.date)} — ${t(isBusy ? 'posts.availabilityBusy' : 'posts.availabilityAvailable')}`}
               className={`${dot} shrink-0 rounded-full transition-colors ${
                 isBusy ? 'bg-danger/70' : 'bg-success/80'
               } ${i === 0 ? 'ring-2 ring-primary/40' : ''}`}

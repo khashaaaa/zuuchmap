@@ -418,7 +418,7 @@ export default {
     confirmBtn: 'Delete account',
     loginToDelete: 'Log in to delete your account',
   },
-  priceUnit: { hour: 'per hour', moto_hour: 'per engine hour', day: 'per day', week: 'per week', month: 'per month', project: 'per project', unit: 'per unit', piece: 'per piece', sqm: 'per m²', trip: 'per trip', total: 'total price' },
+  priceUnit: { HOUR: 'per hour', MOTO_HOUR: 'per engine hour', DAY: 'per day', WEEK: 'per week', MONTH: 'per month', PROJECT: 'per project', UNIT: 'per unit', PIECE: 'per piece', SQM: 'per m²', TRIP: 'per trip', TOTAL: 'total price' },
   attrs: {
     h24: '24 hours',
     weekdayDay: 'Weekdays 09:00–18:00',

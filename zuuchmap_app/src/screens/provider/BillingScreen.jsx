@@ -382,7 +382,7 @@ const BillingScreen = ({ navigation, route }) => {
                             </View>
                             <View>
                                 <Text style={styles.historyAmount}>{formatPrice(p.amount)}</Text>
-                                <Text style={[styles.meta, p.status === 'PAID' && { color: colors.success }]}>{p.status}</Text>
+                                <Text style={[styles.meta, p.status === 'PAID' && { color: colors.success }]}>{t(`status.${p.status.toLowerCase()}`, { defaultValue: p.status })}</Text>
                             </View>
                         </View>
                     ))

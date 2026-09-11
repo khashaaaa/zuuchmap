@@ -116,7 +116,7 @@ export default {
     searchPlaceholder: '搜索信息...', searchNoResults: '未找到结果',
     searchNoResultsDesc: '试试调整筛选条件', searchClear: '清除搜索',
   },
-  status: { active: '在线', inactive: '停用', pending: '待审核', approved: '已通过', rejected: '已拒绝', paused: '已暂停', rented: '已出租', expired: '已过期' },
+  status: { active: '在线', inactive: '停用', pending: '待审核', approved: '已通过', rejected: '已拒绝', paused: '已暂停', rented: '已出租', expired: '已过期', paid: '已支付', cancelled: '已取消' },
   errors: { badRequest: '请求无效', unauthorized: '需要登录', notFound: '未找到', tooManyRequests: '请求过于频繁，请稍后再试。', payloadTooLarge: '上传内容过大，请减少照片数量或使用更小的照片。', serverError: '服务器错误', unknown: '发生未知错误', authTokenMissing: '需要登录', network: '没有网络连接。', timeout: '请求超时。', loadFailed: '加载失败，请检查网络连接。', unexpected: '发生了意外情况',
     codes: {
       TOO_MANY_VERIFICATIONS: '验证次数过多，请一小时后再试。',

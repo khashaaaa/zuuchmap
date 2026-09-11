@@ -34,12 +34,18 @@ const CustomerProfile = ({ navigation }) => {
     // guest card.
     const guest = useIsGuest();
 
-    const { data: user = null, isLoading: loading, isRefetching: refreshingProfile, refetch: refetchProfile, error: profileError } = useProfile();
+    // Both reads need a session. `guest` is null until the token read resolves
+    // and true for a signed-out visitor; either way there is nothing to fetch,
+    // and fetching anyway sent two tokenless requests per visit to this tab
+    // that the engine answered 401 and this screen then swallowed.
+    const signedIn = guest === false;
+    const { data: user = null, isLoading: loading, isRefetching: refreshingProfile, refetch: refetchProfile, error: profileError } = useProfile({ enabled: signedIn });
 
     const { data: liked_posts_count = 0, isLoading: loading_liked_count, refetch: refetchLikedCount } = useQuery({
         queryKey: ['liked', 'count'],
         queryFn: () => likeService.getLikedPostsCountSilently(),
         staleTime: 30 * 1000,
+        enabled: signedIn,
     });
 
     const likedCountDisplay = Number(liked_posts_count) || 0;

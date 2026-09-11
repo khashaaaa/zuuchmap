@@ -92,7 +92,7 @@ export default {
     all: 'All',
     active: 'Active', inactive: 'Inactive', pending: 'Pending',
     approved: 'Approved', rejected: 'Rejected',
-    rented: 'Rented', expired: 'Expired',
+    rented: 'Rented', expired: 'Expired', paid: 'Paid',
     accepted: 'Accepted', declined: 'Declined', cancelled: 'Cancelled',
   },
   admin: {

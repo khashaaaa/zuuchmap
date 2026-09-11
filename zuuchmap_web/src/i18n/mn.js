@@ -92,7 +92,7 @@ export default {
     all: 'Бүгд',
     active: 'Идэвхтэй', inactive: 'Идэвхгүй', pending: 'Хүлээгдэж байна',
     approved: 'Зөвшөөрсөн', rejected: 'Татгалзсан',
-    rented: 'Түрээслэгдсэн', expired: 'Дууссан',
+    rented: 'Түрээслэгдсэн', expired: 'Дууссан', paid: 'Төлөгдсөн',
     accepted: 'Зөвшөөрсөн', declined: 'Татгалзсан', cancelled: 'Цуцалсан',
   },
   admin: {

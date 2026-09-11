@@ -14,7 +14,7 @@ import SavedSearches from '@/components/SavedSearches'
  */
 export default function ProfilePage() {
   const { t } = useTranslation()
-  const { isAdmin, user } = useAuthStore()
+  const { isAdmin, user, token } = useAuthStore()
   const isProvider = !isAdmin && user?.type === 'PROVIDER'
   const isCustomer = !isAdmin && user?.type === 'CUSTOMER'
 
@@ -31,7 +31,10 @@ export default function ProfilePage() {
   const { data: likedCount = 0 } = useQuery({
     queryKey: ['liked-count'],
     queryFn: likesApi.count,
-    enabled: !isProvider,
+    // Gated on the token as well as the role: a JWT-only endpoint must never
+    // be asked for on behalf of a visitor with no session — the answer is a
+    // 401 that the response interceptor reads as a session ending.
+    enabled: Boolean(token) && !isProvider,
   })
 
   const totalPosts = myPosts?.length ?? 0

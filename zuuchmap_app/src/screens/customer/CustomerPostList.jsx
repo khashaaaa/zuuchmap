@@ -82,7 +82,11 @@ const CustomerPostList = ({ route, navigation }) => {
         sort: '',
         province: routeProvince || '',
         district: routeDistrict || '',
-        status: isFilterMode ? '' : 'active',
+        // No default status: the web browse shows every approved listing and
+        // marks the rented ones, so the app does too. Defaulting to 'active'
+        // here hid the RENTED rows and put "131 listings" on the phone against
+        // "145" on the laptop for the same marketplace.
+        status: '',
     });
     // Price inputs are debounced: every keystroke would otherwise start a new
     // server query and reset paging.
@@ -274,7 +278,6 @@ const CustomerPostList = ({ route, navigation }) => {
         const nonDefaultFilters = {
             ...filters,
             sort: '', // an ordering, not a filter — the badge counts narrowing only
-            status: filters.status === 'active' ? '' : filters.status,
         };
         return Object.values(nonDefaultFilters).filter(v => v && v !== '').length + (searchQuery ? 1 : 0);
     }, [isFilterMode, filters, searchQuery]);
@@ -325,7 +328,7 @@ const CustomerPostList = ({ route, navigation }) => {
                     price={getPostPrice(item)}
                     emphasized={!!emphasisLabel}
                     statusOverlay
-                    memoKey={`${liked}-${pending}-${isCustomer}-${isGuest}-${item.status}-${item.busy_dates}-${emphasisLabel}-${i18n.language}-${isDark}`}
+                    memoKey={`${liked}-${pending}-${isCustomer}-${isGuest}-${item.status}-${item.busy_dates}-${emphasisLabel}-${!!rentalByKey[item.post_type]}-${i18n.language}-${isDark}`}
                     actions={(isCustomer || isGuest) ? (
                         <LikeButton liked={liked} size="small" disabled={pending} onToggle={() => handleToggleLike(item, liked)} />
                     ) : null}

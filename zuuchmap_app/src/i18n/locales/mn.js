@@ -154,6 +154,8 @@ export default {
     paused: 'Зогсоосон',
     rented: 'Түрээслэгдсэн',
     expired: 'Дууссан',
+    paid: 'Төлөгдсөн',
+    cancelled: 'Цуцалсан',
   },
   filter: {
     title: 'Шүүлтүүр',

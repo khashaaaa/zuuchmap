@@ -358,15 +358,14 @@ const App = () => {
 const ThemedApp = ({ initialRoute }) => {
   const { colors, isDark } = useAppTheme();
   // The Android navigation bar is not part of the React tree, so nothing in the
-  // theme reaches it: a dark app used to sit on a bright white button bar.
-  // Verified working in Expo Go; the calls are wrapped because
-  // setBackgroundColorAsync is a no-op under edge-to-edge on Android 15+,
-  // where setButtonStyleAsync still carries the theme on its own.
+  // theme reaches it: a dark app used to sit on a bright white button bar. With
+  // edge-to-edge on (app.json) the bar is transparent over our own background,
+  // so only the button glyphs need the theme — setBackgroundColorAsync is
+  // unsupported there and only logged a warning on every theme change.
   useEffect(() => {
     if (Platform.OS !== 'android') return;
-    NavigationBar.setBackgroundColorAsync(colors.surface).catch(() => {});
     NavigationBar.setButtonStyleAsync(isDark ? 'light' : 'dark').catch(() => {});
-  }, [colors.surface, isDark]);
+  }, [isDark]);
   const reducedMotion = useReducedMotion();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();

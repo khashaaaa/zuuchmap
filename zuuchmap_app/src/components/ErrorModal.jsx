@@ -43,12 +43,18 @@ const ErrorModal = ({ visible, title, message, onClose, buttons, type = 'error' 
     const iconConfig = getIconConfig();
     // An empty array is truthy — without the length check a caller passing `[]`
     // renders a dialog with no way out but the backdrop.
-    const mappedButtons = buttons?.length ? buttons.map(btn => ({
-        text: btn.text,
-        onPress: btn.onPress,
-        variant: btn.style === 'destructive' ? 'danger' : btn.style === 'cancel' ? 'outline' : 'primary',
-        closeOnPress: btn.closeOnPress !== false,
-    })) : [{ text: t('common.confirm'), onPress: onClose, variant: 'primary' }];
+    // A button with nothing to do but close is a dismiss whether or not the
+    // caller wrote `style: 'cancel'` — seven callers did not, and the guest
+    // prompt showed two identical amber fills with no visible primary action.
+    const mappedButtons = buttons?.length ? buttons.map(btn => {
+        const dismiss = btn.style === 'cancel' || (!btn.onPress && buttons.length > 1);
+        return {
+            text: btn.text,
+            onPress: btn.onPress,
+            variant: btn.style === 'destructive' ? 'danger' : dismiss ? 'outline' : 'primary',
+            closeOnPress: btn.closeOnPress !== false,
+        };
+    }) : [{ text: t('common.confirm'), onPress: onClose, variant: 'primary' }];
 
     return (
         <DialogModal

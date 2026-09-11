@@ -116,7 +116,7 @@ export default {
     searchPlaceholder: 'Поиск объявлений...', searchNoResults: 'Ничего не найдено',
     searchNoResultsDesc: 'Попробуйте изменить фильтры', searchClear: 'Очистить поиск',
   },
-  status: { active: 'Активно', inactive: 'Неактивно', pending: 'На проверке', approved: 'Одобрено', rejected: 'Отклонено', paused: 'Приостановлено', rented: 'Сдано', expired: 'Истекло' },
+  status: { active: 'Активно', inactive: 'Неактивно', pending: 'На проверке', approved: 'Одобрено', rejected: 'Отклонено', paused: 'Приостановлено', rented: 'Сдано', expired: 'Истекло', paid: 'Оплачено', cancelled: 'Отменено' },
   errors: { badRequest: 'Неверный запрос', unauthorized: 'Требуется вход', notFound: 'Не найдено', tooManyRequests: 'Слишком много запросов. Подождите немного.', payloadTooLarge: 'Слишком большой объём загрузки. Используйте меньше фото или уменьшите их размер.', serverError: 'Ошибка сервера', unknown: 'Произошла неизвестная ошибка', authTokenMissing: 'Требуется вход', network: 'Нет подключения к интернету.', timeout: 'Запрос выполнялся слишком долго.', loadFailed: 'Не удалось загрузить. Проверьте подключение.', unexpected: 'Произошло что-то непредвиденное',
     codes: {
       TOO_MANY_VERIFICATIONS: 'Слишком много попыток подтверждения. Попробуйте через час.',

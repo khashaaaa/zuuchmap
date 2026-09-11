@@ -325,7 +325,7 @@ export default function ProviderBilling() {
                 </div>
                 <div className="text-right shrink-0">
                   <p className="text-sm font-semibold text-text">{formatPrice(p.amount)}</p>
-                  <p className={`text-xs ${p.status === 'PAID' ? 'text-success' : 'text-muted'}`}>{p.status}</p>
+                  <p className={`text-xs ${p.status === 'PAID' ? 'text-success' : 'text-muted'}`}>{t(`status.${p.status.toLowerCase()}`, { defaultValue: p.status })}</p>
                 </div>
               </li>
             ))}

@@ -67,11 +67,13 @@ function PostCard({ post, actions, to }) {
               what a provider acts on), then a lapsed window: browse filters
               EXPIRED out, so the saved list is the one place a customer meets a
               listing that is no longer on the market, and it used to look
-              identical to a live one. */}
-          {(post.approval_status && post.approval_status !== 'APPROVED') || post.status === 'EXPIRED' ? (
+              identical to a live one. RENTED does stay in browse — it is still
+              bookable for later dates — and the app marks it, so browse here
+              must too or the two clients show the same row differently. */}
+          {(post.approval_status && post.approval_status !== 'APPROVED') || post.status === 'EXPIRED' || post.status === 'RENTED' ? (
             <div className="absolute top-2 right-2">
               <StatusBadge status={
-                post.approval_status && post.approval_status !== 'APPROVED' ? post.approval_status : 'EXPIRED'
+                post.approval_status && post.approval_status !== 'APPROVED' ? post.approval_status : post.status
               } />
             </div>
           ) : null}

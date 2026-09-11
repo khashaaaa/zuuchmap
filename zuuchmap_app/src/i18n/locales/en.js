@@ -117,7 +117,7 @@ export default {
     searchPlaceholder: 'Search posts...', searchNoResults: 'No results found',
     searchNoResultsDesc: 'Try adjusting your filters', searchClear: 'Clear search',
   },
-  status: { active: 'Active', inactive: 'Inactive', pending: 'Pending', approved: 'Approved', rejected: 'Rejected', paused: 'Paused', rented: 'Rented', expired: 'Expired' },
+  status: { active: 'Active', inactive: 'Inactive', pending: 'Pending', approved: 'Approved', rejected: 'Rejected', paused: 'Paused', rented: 'Rented', expired: 'Expired', paid: 'Paid', cancelled: 'Cancelled' },
   errors: { badRequest: 'Bad request', unauthorized: 'Authentication required', notFound: 'Not found', tooManyRequests: 'Too many requests. Wait a moment.', payloadTooLarge: 'The upload is too large. Use fewer or smaller photos.', serverError: 'Server error', unknown: 'An unknown error occurred', authTokenMissing: 'Authentication required', network: 'No internet connection.', timeout: 'The request took too long.', loadFailed: "Couldn't load this. Check your connection.", unexpected: 'Something unexpected happened',
     codes: {
       TOO_MANY_VERIFICATIONS: 'Too many verification attempts. Try again in an hour.',

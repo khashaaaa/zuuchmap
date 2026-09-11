@@ -1,13 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, LayoutAnimation, Platform, UIManager } from 'react-native';
+import { View, Text, StyleSheet, LayoutAnimation } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import PressableScale from './PressableScale';
 import { spacing, typography } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
-
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-    UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 // Optional-detail disclosure. Web's equivalent is
 // zuuchmap_web/src/components/CollapsibleSection.jsx — keep the behaviour aligned.

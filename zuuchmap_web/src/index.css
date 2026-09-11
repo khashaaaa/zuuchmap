@@ -288,6 +288,8 @@ table { font-variant-numeric: tabular-nums; }
 
 /* Leaflet theme */
 .leaflet-container { background: var(--color-surface); border-radius: 0.5rem; }
+/* OSM has no dark style; its light tiles are inverted under the dark theme (lib/mapTiles.js). */
+.map-tiles-dark { filter: invert(1) hue-rotate(180deg) brightness(0.82) contrast(0.9) saturate(0.6); }
 .leaflet-popup-content-wrapper {
   background: var(--color-surface2);
   color: var(--color-text);

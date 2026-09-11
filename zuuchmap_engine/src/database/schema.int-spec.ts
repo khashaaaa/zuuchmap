@@ -26,6 +26,7 @@ dotenv.config({
 });
 
 import { Post } from '../post/entities/post.entity';
+import { Payment } from '../payment/entities/payment.entity';
 import { Status } from '../enums/status';
 import { AdminService } from '../admin/admin.service';
 import { BookingStatus } from '../enums/bookingstatus';
@@ -63,6 +64,49 @@ beforeEach(async () => {
 afterEach(async () => {
   await qr.rollbackTransaction();
   await qr.release();
+});
+
+/**
+ * Settlement locks the payment row and nothing else.
+ *
+ * `PaymentService.settle` takes a `FOR UPDATE` on the invoice so a replayed
+ * callback and the client's poll cannot both grant. When placement was added,
+ * the obvious move was to load `post` under that same lock — and Postgres
+ * refuses `FOR UPDATE` across the nullable side of an outer join, so every
+ * settlement 500'd instead of granting. The mocked unit suite could not see it:
+ * its repository never builds SQL. This pins the shape that works.
+ */
+describe('payment settlement lock', () => {
+  it('can lock a payment row for update', async () => {
+    await expect(
+      qr.manager.findOne(Payment, {
+        where: { id: '00000000-0000-0000-0000-000000000000' },
+        lock: { mode: 'pessimistic_write' },
+      }),
+    ).resolves.toBeNull();
+  });
+
+  it('cannot lock it through the nullable post relation', async () => {
+    // The failing shape, kept as the reason the one above is written that way.
+    await expect(
+      qr.manager.findOne(Payment, {
+        where: { id: '00000000-0000-0000-0000-000000000000' },
+        relations: ['post'],
+        lock: { mode: 'pessimistic_write' },
+      }),
+    ).rejects.toThrow(/FOR UPDATE/i);
+  });
+
+  it('keeps a receipt when the listing it was for is deleted', async () => {
+    const [fk] = await qr.query(
+      `SELECT rc.delete_rule
+         FROM information_schema.referential_constraints rc
+         JOIN information_schema.table_constraints tc
+           ON tc.constraint_name = rc.constraint_name
+        WHERE tc.table_name = 'payment' AND tc.constraint_name = 'FK_payment_post'`,
+    );
+    expect(fk?.delete_rule).toBe('SET NULL');
+  });
 });
 
 describe('schema shape', () => {
@@ -346,7 +390,7 @@ describe('read paths TypeORM builds', () => {
          FROM "post" p
          LEFT JOIN LATERAL (
            SELECT COUNT(*)::int AS likes FROM "likedpost" lp
-            WHERE lp.post_id = p.id AND lp.post_type = p.category
+            WHERE lp.post_id = p.id
          ) l ON TRUE
          LEFT JOIN LATERAL (
            SELECT COUNT(*) FILTER (WHERE bk.status='PENDING')::int AS pending

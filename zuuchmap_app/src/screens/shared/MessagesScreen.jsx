@@ -11,6 +11,7 @@ import { SkeletonCrossfade } from '../../components/SkeletonItem';
 import ThumbImage from '../../components/ThumbImage';
 import messageService, { inboxCursor, CONVERSATIONS_KEY } from '../../services/api/messageService';
 import { getPostImageUrl } from '../../config/api.config';
+import { formatTime, formatDate } from '../../utils/displayUtils';
 
 /**
  * The inbox.
@@ -59,19 +60,19 @@ const ThreadRow = ({ item, index, onPress, styles, colors, t }) => {
 
 /**
  * Time for today, date for anything older — an inbox full of "14:32" says
- * nothing about which conversations have gone cold. Built by hand, not through
- * Intl: RN's JSC has no full ICU on Android and a locale format silently falls
- * back to en-US there (the same rule `formatDate` follows).
+ * nothing about which conversations have gone cold.
+ *
+ * Both halves come from the shared helpers rather than being rebuilt here: the
+ * web's copy of this row went through Intl and rendered `08:47 PM` / `Aug 16`
+ * against this file's `20:47` / `2026.08.16`, which is the drift the helpers
+ * and their `check:sync` contract exist to make impossible.
  */
 function stamp(value) {
     if (!value) return '';
     const d = new Date(value);
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
-    const pad = (n) => String(n).padStart(2, '0');
-    return d >= startOfToday
-        ? `${pad(d.getHours())}:${pad(d.getMinutes())}`
-        : `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}`;
+    return d >= startOfToday ? formatTime(d) : formatDate(d);
 }
 
 const MessagesScreen = ({ navigation }) => {

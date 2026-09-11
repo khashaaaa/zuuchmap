@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { formatDate } from '@/lib/utils'
 
 const DAYS = 14
 const toKey = (d) => d.toISOString().slice(0, 10)
@@ -10,7 +11,7 @@ const toKey = (d) => d.toISOString().slice(0, 10)
  * `has_rental_status`); `busyDates` comes from the engine, ISO YYYY-MM-DD.
  */
 export default function AvailabilityStrip({ busyDates, size = 'sm', className = '' }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const busy = useMemo(() => new Set(busyDates ?? []), [busyDates])
   const days = useMemo(() => {
     const start = new Date(); start.setHours(12, 0, 0, 0)
@@ -21,7 +22,13 @@ export default function AvailabilityStrip({ busyDates, size = 'sm', className = 
   }, [])
   const freeCount = days.filter((d) => !busy.has(d.key)).length
   const dot = size === 'md' ? 'w-3 h-3' : 'w-2 h-2'
-  const fmt = (d) => d.toLocaleDateString(i18n.language === 'mn' ? 'mn-MN' : 'en-GB', { month: 'short', day: 'numeric' })
+  // The hover tooltip is a web-only affordance (the app's strip is dots and an
+  // accessibility summary, because a touch screen has no hover) — but the date
+  // inside it is the same date, so it is written the same way. It used to go
+  // through `toLocaleDateString(…, { month: 'short' })`, which prints an English
+  // "Sep" on the en branch and, on the mn one, whatever month abbreviation the
+  // browser happens to carry for a language most of them have no data for.
+  const fmt = (d) => formatDate(d)
 
   const summary = t('posts.availabilityFree', { free: freeCount, total: DAYS })
 

@@ -5,7 +5,7 @@ import { BellOff, CheckCircle, XCircle, Info } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
 import EmptyState from '@/components/EmptyState'
 import { useAuthStore, useNotificationStore } from '@/store'
-import { goBack } from '@/lib/utils'
+import { goBack, formatTime, formatDate } from '@/lib/utils'
 import { targetFor as resolveTarget } from '@/lib/notificationTarget'
 
 const KIND_ICON = { success: CheckCircle, error: XCircle, info: Info }
@@ -56,11 +56,7 @@ export default function NotificationsPage() {
   // list on the recipient's side.
   const targetFor = (n) => resolveTarget(n, { isAdmin })
 
-  const stamp = (ts) => {
-    const d = new Date(ts)
-    const locale = i18n.language === 'mn' ? 'mn-MN' : 'en-GB'
-    return `${d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })} · ${d.toLocaleDateString(locale, { month: 'short', day: 'numeric' })}`
-  }
+  const stamp = (ts) => `${formatTime(ts)} · ${formatDate(ts)}`
 
   const home = isAdmin ? '/admin' : user?.type === 'PROVIDER' ? '/provider' : '/customer'
 

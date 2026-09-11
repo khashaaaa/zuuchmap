@@ -19,6 +19,7 @@ import { spacing, typography, radius, interactions, toneForTheme } from '../desi
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useActiveCategorySchemas } from '../hooks/useCategorySchemas';
 import { getSchemaLabel } from '../utils/postUtils';
+import { groupThousands } from '../utils/displayUtils';
 import { useTranslation } from 'react-i18next';
 
 const MapFilterModal = ({
@@ -253,7 +254,7 @@ const MapFilterModal = ({
                                 <Text style={styles.priceLabel}>{t('filter.minPrice')}</Text>
                                 <TextInput
                                     style={[styles.priceInput, { backgroundColor: colors.background, color: colors.text.primary, borderColor: colors.border.medium }]}
-                                    value={priceRange.min != null ? priceRange.min.toLocaleString() : ''}
+                                    value={priceRange.min != null ? groupThousands(priceRange.min) : ''}
                                     onChangeText={(text) => {
                                         const cleaned = text.replace(/,/g, '');
                                         const value = cleaned === '' ? null : (parseInt(cleaned, 10) || 0);
@@ -268,21 +269,21 @@ const MapFilterModal = ({
                                 <Text style={styles.priceLabel}>{t('filter.maxPrice')}</Text>
                                 <TextInput
                                     style={[styles.priceInput, { backgroundColor: colors.background, color: colors.text.primary, borderColor: colors.border.medium }]}
-                                    value={priceRange.max != null ? priceRange.max.toLocaleString() : ''}
+                                    value={priceRange.max != null ? groupThousands(priceRange.max) : ''}
                                     onChangeText={(text) => {
                                         const cleaned = text.replace(/,/g, '');
                                         const value = cleaned === '' ? null : (parseInt(cleaned, 10) || 0);
                                         setPriceRange(prev => ({ ...prev, max: value }));
                                     }}
                                     keyboardType="numeric"
-                                    placeholder={sliderMax.toLocaleString()}
+                                    placeholder={groupThousands(sliderMax)}
                                 />
                             </View>
                         </View>
 
                         <View style={styles.sliderContainer}>
                             <Text style={[styles.sliderLabel, { color: colors.text.primary }]}>
-                                {(priceRange.min ?? 0).toLocaleString()} ₮ - {priceRange.max != null ? `${priceRange.max.toLocaleString()} ₮` : '∞'}
+                                {groupThousands(priceRange.min ?? 0)} ₮ - {priceRange.max != null ? `${groupThousands(priceRange.max)} ₮` : '∞'}
                             </Text>
                             <Slider
                                 style={styles.slider}

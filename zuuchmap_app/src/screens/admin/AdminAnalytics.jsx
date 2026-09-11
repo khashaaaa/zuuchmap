@@ -10,6 +10,7 @@ import { ScreenLayout, StatTile, SkeletonItem, SelectionPop } from '../../compon
 import adminService from '../../services/api/adminService';
 import { useCategorySchemas } from '../../hooks/useCategorySchemas';
 import { getSchemaLabel } from '../../utils/postUtils';
+import { groupThousands } from '../../utils/displayUtils';
 
 export const ADMIN_ANALYTICS_KEY = ['admin', 'analytics'];
 
@@ -125,7 +126,7 @@ const AdminAnalytics = () => {
                                     <View style={styles.barTrack}>
                                         <View style={[styles.barFill, { width: `${Math.max(share, value > 0 ? 2 : 0)}%` }]} />
                                     </View>
-                                    <Text style={styles.barValue}>{value.toLocaleString()}</Text>
+                                    <Text style={styles.barValue}>{groupThousands(value)}</Text>
                                 </View>
                             );
                         })}
@@ -140,7 +141,7 @@ const AdminAnalytics = () => {
                                 <View style={styles.barTrack}>
                                     <View style={[styles.barFill, { width: `${Math.round((row.posts / maxCategoryPosts) * 100)}%` }]} />
                                 </View>
-                                <Text style={styles.barValue}>{Number(row.posts).toLocaleString()}</Text>
+                                <Text style={styles.barValue}>{groupThousands(Number(row.posts))}</Text>
                             </View>
                         ))}
                     </Section>

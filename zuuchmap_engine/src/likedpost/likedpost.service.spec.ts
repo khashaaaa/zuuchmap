@@ -21,7 +21,9 @@ const make = (over: any = {}) => {
     findOne: jest.fn(async () => ('user' in over ? over.user : { id: 'user-1' })),
   };
   const postRepository = {
-    findOne: jest.fn(async () => over.post ?? { id: 7, user: { id: 'someone-else' } }),
+    findOne: jest.fn(async () =>
+      'post' in over ? over.post : { id: 7, category: 'vehiclerent', user: { id: 'someone-else' } },
+    ),
   };
   const svc = new LikedpostService(
     likedPostRepository as any,
@@ -49,6 +51,24 @@ describe('LikedpostService.likePost', () => {
   it('rejects an unknown user', async () => {
     const { svc } = make({ user: null });
     await expect(svc.likePost('ghost', 'vehiclerent', 7)).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects a listing that no longer exists', async () => {
+    // There is a foreign key on post_id now, so saving a deleted listing was a
+    // 23503 surfacing as a 500. It is a bad request, and it says so.
+    const { svc } = make({ post: null });
+    await expect(svc.likePost('user-1', 'vehiclerent', 999)).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('stores the listing\'s own category, not the one the client sent', async () => {
+    // post_id is a primary key, so the post is the authority on its category.
+    // A row whose post_type disagreed dropped out of the provider's saves count
+    // and out of the liked-ids map the browse hearts read from.
+    const { svc, likedPostRepository } = make();
+    await svc.likePost('user-1', 'construction', 7);
+    expect(likedPostRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ post_type: 'vehiclerent', post_id: 7 }),
+    );
   });
 
   it('treats an already-saved listing as a no-op, not a failure', async () => {
@@ -89,7 +109,18 @@ describe('LikedpostService.unlikePost', () => {
     await svc.unlikePost('user-1', 'vehiclerent', 7);
     // Dropping user_id here would clear everyone's save of that listing.
     expect(likedPostRepository.delete).toHaveBeenCalledWith({
-      user_id: 'user-1', post_type: 'vehiclerent', post_id: 7,
+      user_id: 'user-1', post_id: 7,
+    });
+  });
+
+  it('removes the save whatever post_type the caller names', async () => {
+    // The web saved list sends post.category and the app sends the saved row's
+    // post_type. When those disagreed the delete matched nothing and the client
+    // was still answered 200 — the card stayed and the toast said "unsaved".
+    const { svc, likedPostRepository } = make();
+    await svc.unlikePost('user-1', 'wrong-category', 7);
+    expect(likedPostRepository.delete).toHaveBeenCalledWith({
+      user_id: 'user-1', post_id: 7,
     });
   });
 });

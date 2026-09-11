@@ -119,6 +119,15 @@ export default function PostDetail() {
     enabled: Boolean(token && post),
     staleTime: 30_000,
   })
+  // Save count. Guarded endpoint, so signed-out visitors simply don't get it —
+  // the row degrades to views alone rather than showing a zero that isn't true.
+  const { data: likeStats } = useQuery({
+    queryKey: ['post', post?.id, 'likeStats'],
+    queryFn: () => likesApi.stats(getPostCategory(post), post.id),
+    enabled: Boolean(token && post?.id && !isAdmin),
+    staleTime: 60_000,
+  })
+
 
   const deleteMut = useMutation({
     mutationFn: () => postsApi.remove(id),
@@ -379,6 +388,9 @@ export default function PostDetail() {
             <div className="flex flex-wrap gap-3 text-sm text-muted">
               {location && <span className="flex items-center gap-1"><MapPin size={13} /> {location}</span>}
               <span className="flex items-center gap-1 tabular-nums"><Eye size={13} /> {t('posts.viewCountValue', { count: post.views ?? 0 })}</span>
+              {likeStats && (
+                <span className="flex items-center gap-1 tabular-nums"><Heart size={13} /> {likeStats.total_likes ?? 0}</span>
+              )}
               <span className="text-xs">{formatDate(post.date_created)}</span>
             </div>
 
@@ -644,6 +656,31 @@ export default function PostDetail() {
               </div>
             )}
 
+            {/* Same reasoning as save and booking above, and the last two of the
+                four write actions still missing it: a signed-out visitor got no
+                way to ask "is this still available" and no way to flag a listing
+                that is obviously wrong — the two things a stranger arriving from
+                search is most likely to want. Offer the account instead of
+                withholding the feature silently. */}
+            {!token && post.user && (
+              <div className="pt-4 border-t border-border/50 flex flex-wrap gap-2">
+                <Button
+                  variant="secondary"
+                  className="flex-1"
+                  onClick={() => navigate('/login', { state: { from: `/posts/${id}` } })}
+                >
+                  <MessageSquare size={14} /> {t('messages.messageProvider')}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => navigate('/login', { state: { from: `/posts/${id}` } })}
+                  aria-label={t('report.action')}
+                >
+                  <Flag size={14} /> {t('report.action')}
+                </Button>
+              </div>
+            )}
+
             {/* The same reasoning as the save button above: a signed-out visitor
                 on a bookable rental got no booking affordance and no reason why,
                 even though "sign in to save" sat right beside it. Arriving from
@@ -701,25 +738,38 @@ function LikeButton({ post, liked }) {
   // rolled back on error; a local useState seeded before the query resolved
   // never showed the saved state at all.
   const key = ['like-check', String(post.id)] // same shape as the page query above
+  // The save count shown a few rows up. It has a 60s staleTime and nothing used
+  // to touch it, so saving a listing left the number it is a count of sitting
+  // still — the app has moved it on the tap all along.
+  const statsKey = ['post', post.id, 'likeStats']
   const { mutate, isPending } = useMutation({
     mutationFn: (next) =>
       next ? likesApi.toggle(post.id, getPostCategory(post)) : likesApi.unlike(getPostCategory(post), post.id),
     onMutate: async (next) => {
       await qc.cancelQueries({ queryKey: key })
-      const previous = qc.getQueryData(key)
+      const previous = { liked: qc.getQueryData(key), stats: qc.getQueryData(statsKey) }
       qc.setQueryData(key, (old) => ({ ...(old ?? {}), is_liked: next }))
+      qc.setQueryData(statsKey, (old) => old && ({
+        ...old,
+        total_likes: Math.max(0, (old.total_likes || 0) + (next ? 1 : -1)),
+      }))
       return previous
     },
     onSuccess: (_, next) => {
       qc.invalidateQueries({ queryKey: ['liked-posts'] })
       qc.invalidateQueries({ queryKey: ['liked-ids'] })
+      qc.invalidateQueries({ queryKey: ['liked-count'] })
       toast.success(t(next ? 'posts.saved' : 'posts.unsaved'))
     },
     onError: (_, __, previous) => {
-      qc.setQueryData(key, previous)
+      qc.setQueryData(key, previous?.liked)
+      qc.setQueryData(statsKey, previous?.stats)
       toast.error(t('common.error'))
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: key }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: key })
+      qc.invalidateQueries({ queryKey: statsKey })
+    },
   })
   const optimistic = Boolean(liked)
   return (

@@ -2,15 +2,17 @@ import React, { useState, forwardRef } from 'react';
 import { TextInput as RNTextInput, View, Text, StyleSheet } from 'react-native';
 import { spacing, typography, radius } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
+import { groupThousands } from '../utils/displayUtils';
 
 // Dynamic type cap for form chrome: labels, inputs and helper lines still
 // scale, but stop before a 200% setting wraps a single-line input onto three.
 export const MAX_FONT_SCALE = 1.3;
 
-// Thousand separators for the currency variant. Hand-rolled rather than
-// toLocaleString: Hermes on Android ships without full ICU, so 'mn-MN' would
-// silently fall back and the grouping would differ from iOS.
-export const groupThousands = (digits) => String(digits ?? '').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+// Thousand separators for the currency variant. The canonical copy now lives in
+// displayUtils beside `formatPrice`, which had been going through
+// toLocaleString('mn-MN') all this time — the exact thing the rule here exists
+// to avoid. Re-exported so this stays the obvious import for a form field.
+export { groupThousands } from '../utils/displayUtils';
 
 // Keep only ASCII digits. A Cyrillic keyboard can hand back full-width or
 // locale digits and separators; the raw value in form state is always plain.

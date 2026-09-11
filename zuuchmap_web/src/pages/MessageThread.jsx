@@ -8,6 +8,7 @@ import ErrorState from '@/components/ErrorState'
 import Button from '@/components/Button'
 import { messagesApi } from '@/lib/api'
 import { useAuthStore } from '@/store'
+import { formatTime } from '@/lib/utils'
 
 const PAGE_SIZE = 30
 
@@ -123,10 +124,6 @@ export default function MessageThread() {
   }
   const retry = (m) => sendMut.mutate({ body: m.body, tempId: m.id })
 
-  const stamp = (value) => {
-    const locale = i18n.language === 'mn' ? 'mn-MN' : 'en-GB'
-    return new Date(value).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
-  }
 
   return (
     <div className="max-w-2xl flex flex-col h-[calc(100vh-8rem)]">
@@ -179,7 +176,7 @@ export default function MessageThread() {
               >
                 <p className="text-sm whitespace-pre-wrap break-words">{m.body}</p>
                 <p className={`text-[10px] mt-1 ${m.mine ? 'text-on-primary/70' : 'text-muted'}`}>
-                  {m.failed ? t('messages.retry') : m.pending ? t('messages.sending') : stamp(m.date_created)}
+                  {m.failed ? t('messages.retry') : m.pending ? t('messages.sending') : formatTime(m.date_created)}
                 </p>
               </div>
             </div>

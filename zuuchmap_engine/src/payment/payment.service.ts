@@ -10,9 +10,12 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { DataSource, LessThan, Repository } from 'typeorm';
 import { Payment } from './entities/payment.entity';
 import { User } from '../user/entities/user.entity';
+import { Post } from '../post/entities/post.entity';
 import { PlanService } from '../user/plan.service';
 import { Plan } from '../enums/plan';
-import { PaymentProvider, PaymentStatus } from '../enums/payment';
+import { PaymentKind, PaymentProvider, PaymentStatus } from '../enums/payment';
+import { openFeaturedWindow, MAX_FEATURED_DAYS } from '../post/featured';
+import { Status } from '../enums/status';
 import {
   checkQPayInvoice,
   createQPayInvoice,
@@ -40,6 +43,42 @@ export function monthlyPriceMnt(plan: string): number {
   return 0;
 }
 
+/**
+ * The tögrög price of one day of featured placement.
+ *
+ * Deliberately has **no default**. The plan price ships with a placeholder and
+ * that is a known hazard — the first invoice would charge a number nobody
+ * chose. Repeating it here would be repeating it knowingly, so an unset
+ * variable means placement is simply not for sale: the catalogue says so and
+ * the invoice endpoint refuses, which is a state someone will notice.
+ */
+export function featuredPricePerDayMnt(): number {
+  const raw = process.env.FEATURED_PRICE_PER_DAY_MNT;
+  const value = Number(raw);
+  return raw && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+}
+
+/** Day counts the clients offer as one-tap choices. */
+export const FEATURED_PACKS = [7, 14, 30] as const;
+
+/** What a settled (or already-settled) invoice reports back. */
+type SettlementResult = {
+  status: string;
+  plan?: string;
+  plan_expires_at?: Date | null;
+  post_id?: number | null;
+  featured_until?: Date | null;
+};
+
+/** What one invoice is for. */
+type InvoiceRequest = {
+  kind?: string;
+  plan?: string;
+  months?: number;
+  post_id?: number;
+  days?: number;
+};
+
 @Injectable()
 export class PaymentService {
   private readonly logger = new Logger(PaymentService.name);
@@ -49,12 +88,15 @@ export class PaymentService {
     private readonly payments: Repository<Payment>,
     @InjectRepository(User)
     private readonly users: Repository<User>,
+    @InjectRepository(Post)
+    private readonly posts: Repository<Post>,
     private readonly plans: PlanService,
     private readonly dataSource: DataSource,
   ) {}
 
   /** What a client renders on the upgrade screen. Safe to call anonymously. */
   catalogue() {
+    const perDay = featuredPricePerDayMnt();
     return {
       currency: 'MNT',
       enabled: qpayConfigured(),
@@ -66,11 +108,23 @@ export class PaymentService {
           posts: 25,
         },
       ],
+      /**
+       * Placement is priced and sold separately from the plan ladder: it buys
+       * attention on one listing, not entitlement on the account, and a FREE
+       * provider is as welcome to buy it as a paid one.
+       */
+      featured: {
+        enabled: qpayConfigured() && perDay > 0,
+        price_per_day: perDay,
+        min_days: 1,
+        max_days: MAX_FEATURED_DAYS,
+        packs: [...FEATURED_PACKS],
+      },
     };
   }
 
   /**
-   * Open an invoice for `months` of `plan`.
+   * Open an invoice.
    *
    * The row is written before QPay is called, so a request that dies between
    * "invoice created upstream" and "response reached us" leaves a PENDING row
@@ -78,50 +132,56 @@ export class PaymentService {
    */
   async createInvoice(
     userId: string,
-    plan: string,
-    months: number,
+    req: InvoiceRequest,
   ): Promise<{
     payment_id: string;
+    kind: string;
     amount: number;
     currency: string;
     months: number;
-    plan: string;
+    plan: string | null;
+    post_id: number | null;
+    days: number | null;
     qr_text: string;
     qr_image: string;
     urls: QPayInvoice['urls'];
   }> {
     if (!qpayConfigured())
       throw new ServiceUnavailableException('PAYMENTS_NOT_CONFIGURED');
-    if (plan !== Plan.PROVIDER)
-      throw new BadRequestException('PLAN_NOT_PURCHASABLE');
-
-    const clampedMonths = Math.min(
-      Math.max(Math.floor(months) || 1, 1),
-      MAX_MONTHS,
-    );
-    const unit = monthlyPriceMnt(plan);
-    if (unit <= 0) throw new ServiceUnavailableException('PLAN_PRICE_NOT_SET');
 
     const user = await this.users.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
 
+    const kind =
+      req.kind === PaymentKind.FEATURED ? PaymentKind.FEATURED : PaymentKind.PLAN;
+    const line =
+      kind === PaymentKind.FEATURED
+        ? await this.featuredLine(userId, req)
+        : this.planLine(req);
+
     // Abandoning a QR and opening another is normal behaviour; leaving the old
-    // one settleable is not — it would grant a second month for one payment.
+    // one settleable is not — it would grant a second window for one payment.
+    //
+    // Scoped to the same kind: a provider who opens a placement invoice while
+    // a plan invoice is still on another tab has not abandoned the plan one,
+    // and cancelling it would strand a payment they are about to make.
     await this.payments.update(
-      { user: { id: userId }, status: PaymentStatus.PENDING },
+      { user: { id: userId }, kind, status: PaymentStatus.PENDING },
       {
         status: PaymentStatus.CANCELLED,
         note: 'superseded by a newer invoice',
       },
     );
 
-    const amount = unit * clampedMonths;
     const payment = await this.payments.save(
       this.payments.create({
         user,
-        plan,
-        months: clampedMonths,
-        amount,
+        kind,
+        plan: line.plan,
+        months: line.months,
+        post: line.post,
+        days: line.days,
+        amount: line.amount,
         currency: 'MNT',
         provider: PaymentProvider.QPAY,
         status: PaymentStatus.PENDING,
@@ -136,8 +196,8 @@ export class PaymentService {
       const invoice = await createQPayInvoice({
         reference,
         receiverCode: user.phone_number ?? userId,
-        description: `Zuuchmap ${plan} — ${clampedMonths} сар`,
-        amount,
+        description: line.description,
+        amount: line.amount,
         callbackUrl: `${this.publicEngineUrl()}/engine/payments/callback/${payment.id}`,
       });
 
@@ -147,10 +207,13 @@ export class PaymentService {
 
       return {
         payment_id: payment.id,
-        amount,
+        kind,
+        amount: line.amount,
         currency: 'MNT',
-        months: clampedMonths,
-        plan,
+        months: line.months,
+        plan: line.plan,
+        post_id: line.post?.id ?? null,
+        days: line.days,
         qr_text: invoice.qr_text,
         qr_image: invoice.qr_image,
         urls: invoice.urls ?? [],
@@ -165,6 +228,78 @@ export class PaymentService {
     }
   }
 
+  /** Months of a plan: what the till sold before placement existed. */
+  private planLine(req: InvoiceRequest) {
+    const plan = req.plan ?? Plan.PROVIDER;
+    if (plan !== Plan.PROVIDER)
+      throw new BadRequestException('PLAN_NOT_PURCHASABLE');
+    const unit = monthlyPriceMnt(plan);
+    if (unit <= 0) throw new ServiceUnavailableException('PLAN_PRICE_NOT_SET');
+    const months = Math.min(
+      Math.max(Math.floor(req.months ?? 1) || 1, 1),
+      MAX_MONTHS,
+    );
+    return {
+      plan,
+      months,
+      post: null as Post | null,
+      days: null as number | null,
+      amount: unit * months,
+      description: `Zuuchmap ${plan} — ${months} сар`,
+    };
+  }
+
+  /**
+   * Days of placement on one post.
+   *
+   * Three things have to be true before this is a sale rather than a donation:
+   * the post has to be the caller's, it has to be *in* browse (placement sorts
+   * listings that are already there — a window on a PENDING or EXPIRED post
+   * buys nothing at all), and the window must not outlast the listing. The
+   * last one is why `days` is clamped rather than taken on trust: selling
+   * thirty days of prominence to a post that lapses on Thursday is taking
+   * money for nothing, and the provider would have no way to see it happen.
+   */
+  private async featuredLine(userId: string, req: InvoiceRequest) {
+    const perDay = featuredPricePerDayMnt();
+    if (perDay <= 0)
+      throw new ServiceUnavailableException('FEATURED_PRICE_NOT_SET');
+
+    const postId = Number(req.post_id);
+    if (!Number.isInteger(postId) || postId <= 0)
+      throw new BadRequestException('POST_REQUIRED');
+
+    const post = await this.posts.findOne({
+      where: { id: postId },
+      relations: ['user'],
+    });
+    if (!post) throw new NotFoundException('Post not found');
+    if (post.user?.id !== userId) throw new BadRequestException('NOT_POST_OWNER');
+    if (post.approval_status !== 'APPROVED' || post.status !== Status.ACTIVE)
+      throw new BadRequestException('POST_NOT_FEATURABLE');
+
+    let days = Math.min(
+      Math.max(Math.floor(req.days ?? 7) || 7, 1),
+      MAX_FEATURED_DAYS,
+    );
+
+    if (post.expires_at) {
+      const msLeft = new Date(post.expires_at).getTime() - Date.now();
+      const daysLeft = Math.floor(msLeft / 86_400_000);
+      if (daysLeft < 1) throw new BadRequestException('POST_EXPIRES_TOO_SOON');
+      days = Math.min(days, daysLeft);
+    }
+
+    return {
+      plan: null as string | null,
+      months: 1,
+      post,
+      days,
+      amount: perDay * days,
+      description: `Zuuchmap онцлох байршуулалт — ${days} хоног`,
+    };
+  }
+
   /**
    * Ask the provider whether an invoice settled, and grant the plan if it did.
    *
@@ -172,25 +307,17 @@ export class PaymentService {
    * the only function that talks to QPay about money. `userId`, when given,
    * scopes the lookup so one provider cannot poll another's invoice.
    */
-  async check(
-    paymentId: string,
-    userId?: string,
-  ): Promise<{ status: string; plan?: string; plan_expires_at?: Date | null }> {
+  async check(paymentId: string, userId?: string): Promise<SettlementResult> {
     const where: Record<string, unknown> = { id: paymentId };
     if (userId) where.user = { id: userId };
     const payment = await this.payments.findOne({
       where: where,
-      relations: ['user'],
+      relations: ['user', 'post'],
     });
     if (!payment) throw new NotFoundException('Payment not found');
 
     if (payment.status === PaymentStatus.PAID) {
-      const user = await this.users.findOne({ where: { id: payment.user.id } });
-      return {
-        status: PaymentStatus.PAID,
-        plan: user?.plan,
-        plan_expires_at: user?.plan_expires_at ?? null,
-      };
+      return this.settledShape(payment);
     }
     if (
       payment.status !== PaymentStatus.PENDING ||
@@ -223,55 +350,102 @@ export class PaymentService {
    * the second caller through finds the work already done rather than adding a
    * second month.
    */
-  private async settle(
-    paymentId: string,
-  ): Promise<{ status: string; plan?: string; plan_expires_at?: Date | null }> {
+  private async settle(paymentId: string): Promise<SettlementResult> {
+    // The lock exists to guard one boolean: whether `granted_at` was already
+    // stamped. Everything else on the row — which product, which post, how
+    // many days, how much — is written once when the invoice is opened and
+    // never changes, so it is read outside the lock rather than joined into
+    // it. That is not only simpler: Postgres refuses `FOR UPDATE` across the
+    // nullable side of an outer join, and `post` is nullable, so loading it
+    // here would make every settlement 500 instead of granting.
     const granted = await this.dataSource.transaction(async (em) => {
       const row = await em.findOne(Payment, {
         where: { id: paymentId },
-        relations: ['user'],
         lock: { mode: 'pessimistic_write' },
       });
       if (!row) throw new NotFoundException('Payment not found');
-      if (row.granted_at) return null; // already settled by the other caller
+      if (row.granted_at) return false; // already settled by the other caller
 
       row.status = PaymentStatus.PAID;
       row.paid_at = row.paid_at ?? new Date();
       row.granted_at = new Date();
       await em.save(row);
-      return { userId: row.user.id, plan: row.plan, months: row.months };
+      return true;
     });
 
-    const userId =
-      granted?.userId ??
-      (
-        await this.payments.findOne({
-          where: { id: paymentId },
-          relations: ['user'],
-        })
-      )?.user.id;
+    const row = await this.payments.findOne({
+      where: { id: paymentId },
+      relations: ['user', 'post'],
+    });
+    if (!row) return { status: PaymentStatus.PAID };
 
-    if (granted) {
-      const result = await this.plans.setPlan(
-        granted.userId,
-        granted.plan,
-        granted.months,
+    // Whoever loses the race still has to be told what the winner granted.
+    if (!granted) return this.settledShape(row);
+
+    // Fire-and-forget: a receipt that fails to send must never unwind
+    // something the provider has already paid for.
+    const receipt = () =>
+      void this.emailReceipt(paymentId).catch(() => undefined);
+
+    if (row.kind === PaymentKind.FEATURED) {
+      if (!row.post?.id) {
+        // The listing was deleted between paying and settling. The row stays
+        // PAID — the money moved — and says so loudly rather than silently
+        // granting a window on nothing.
+        this.logger.warn(
+          `Payment ${paymentId} settled but its post is gone; no window opened`,
+        );
+        receipt();
+        return {
+          status: PaymentStatus.PAID,
+          post_id: null,
+          featured_until: null,
+        };
+      }
+      const { featured_until } = await openFeaturedWindow(
+        this.posts,
+        row.post.id,
+        row.days ?? 0,
       );
       this.logger.log(
-        `Payment ${paymentId} settled → ${granted.plan} x${granted.months} for ${granted.userId}`,
+        `Payment ${paymentId} settled → featured #${row.post.id} for ${row.days}d until ${featured_until?.toISOString() ?? 'n/a'}`,
       );
-      // Fire-and-forget: a receipt that fails to send must never unwind a plan
-      // the provider has already paid for.
-      void this.emailReceipt(paymentId).catch(() => undefined);
-      return { status: PaymentStatus.PAID, ...result };
+      receipt();
+      return {
+        status: PaymentStatus.PAID,
+        post_id: row.post.id,
+        featured_until,
+      };
     }
 
-    const user = userId
-      ? await this.users.findOne({ where: { id: userId } })
-      : null;
+    const result = await this.plans.setPlan(
+      row.user.id,
+      row.plan ?? Plan.PROVIDER,
+      row.months,
+    );
+    this.logger.log(
+      `Payment ${paymentId} settled → ${row.plan} x${row.months} for ${row.user.id}`,
+    );
+    receipt();
+    return { status: PaymentStatus.PAID, ...result };
+  }
+
+  /** What an already-settled invoice reports back, by product. */
+  private async settledShape(payment: Payment): Promise<SettlementResult> {
+    if (payment.kind === PaymentKind.FEATURED) {
+      const post = payment.post
+        ? await this.posts.findOne({ where: { id: payment.post.id } })
+        : null;
+      return {
+        status: PaymentStatus.PAID,
+        post_id: post?.id ?? null,
+        featured_until: post?.featured_until ?? null,
+      };
+    }
+    const user = await this.users.findOne({ where: { id: payment.user.id } });
     return {
       status: PaymentStatus.PAID,
-      plan: user?.plan,
+      plan: user?.plan ?? undefined,
       plan_expires_at: user?.plan_expires_at ?? null,
     };
   }
@@ -299,12 +473,19 @@ export class PaymentService {
     const rows = await this.payments.find({
       where: { user: { id: userId } },
       order: { date_created: 'DESC' },
+      relations: ['post'],
       take: 50,
     });
     return rows.map((p) => ({
       id: p.id,
+      kind: p.kind,
       plan: p.plan,
       months: p.months,
+      days: p.days,
+      // The title is carried so a receipt list can name the listing without a
+      // request per row — and stays readable as `null` once the post is gone,
+      // which is the whole reason the relation is `SET NULL`.
+      post: p.post ? { id: p.post.id, title: p.post.title ?? null } : null,
       amount: p.amount,
       currency: p.currency,
       status: p.status,
@@ -363,11 +544,16 @@ export class PaymentService {
     if (!mailerConfigured()) return;
     const payment = await this.payments.findOne({
       where: { id: paymentId },
-      relations: ['user'],
+      relations: ['user', 'post'],
     });
     if (!payment?.user?.id) return;
     const user = await this.users.findOne({ where: { id: payment.user.id } });
     if (!user?.email) return;
+
+    const featured = payment.kind === PaymentKind.FEATURED;
+    const post = featured && payment.post
+      ? await this.posts.findOne({ where: { id: payment.post.id } })
+      : null;
 
     await sendMail({
       to: user.email,
@@ -375,13 +561,22 @@ export class PaymentService {
       text: [
         'Төлбөр амжилттай хийгдлээ.',
         '',
-        `Багц:     ${payment.plan}`,
-        `Хугацаа:  ${payment.months} сар`,
+        featured ? 'Үйлчилгээ: Онцлох байршуулалт' : `Багц:     ${payment.plan}`,
+        featured
+          ? `Зар:      ${post?.title ?? `#${payment.post?.id ?? ''}`}`
+          : '',
+        featured
+          ? `Хугацаа:  ${payment.days} хоног`
+          : `Хугацаа:  ${payment.months} сар`,
         `Дүн:      ${payment.amount.toLocaleString('mn-MN')}₮`,
         `Лавлагаа: ${payment.reference ?? payment.id}`,
-        user.plan_expires_at
-          ? `Дуусах:   ${new Date(user.plan_expires_at).toISOString().slice(0, 10)}`
-          : '',
+        featured
+          ? post?.featured_until
+            ? `Дуусах:   ${new Date(post.featured_until).toISOString().slice(0, 10)}`
+            : ''
+          : user.plan_expires_at
+            ? `Дуусах:   ${new Date(user.plan_expires_at).toISOString().slice(0, 10)}`
+            : '',
         '',
         'zuuchmap.com',
       ]

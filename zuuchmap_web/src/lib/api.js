@@ -123,7 +123,19 @@ export const usersApi = {
 
 // Likes
 export const likesApi = {
-  getLiked: () => client.get('/like').then(r => r.data?.posts ?? []),
+  // How many people saved this listing. Behind the JWT guard, so never fired
+  // signed out — the app has shown this on a listing all along and the web
+  // showed views only, so the same listing reported different engagement
+  // depending on which client you opened it in.
+  stats: (post_type, post_id) => client.get(`/like/stats/${post_type}/${post_id}`).then(data),
+  // One page of the saved list. This used to take no arguments at all, so it
+  // silently rode the engine's default limit of 20 and the page rendered those
+  // twenty as the whole shelf — while the app paged through all of them.
+  getLiked: (page = 1, limit = 20) =>
+    client.get('/like', { params: { page, limit } })
+      .then(r => ({ posts: r.data?.posts ?? [], total: r.data?.total ?? 0, page, total_pages: r.data?.total_pages ?? 0 })),
+  // The honest count, without pulling a page of listings to measure it.
+  count: () => client.get('/like', { params: { page: 1, limit: 1 } }).then(r => r.data?.total ?? 0),
   // Without ?post_type= the engine answers { liked_by_type: { [type]: ids[] } };
   // post ids are unique across types, so flatten to one set for the grid.
   getIds: () => client.get('/like/ids').then(r => Object.values(r.data?.liked_by_type ?? {}).flat()),
@@ -164,12 +176,18 @@ export const reviewsApi = {
   forProvider: (providerId) => client.get(`/reviews/provider/${providerId}`).then(data),
 }
 
-// Payments — QPay invoices for a provider plan. `catalogue` is public so the
-// upgrade screen can price itself before anyone signs in.
+// Payments — QPay invoices. Two products go through one endpoint: months of a
+// provider plan, and days of featured placement on one listing. `catalogue` is
+// public so the upgrade screen can price itself before anyone signs in.
 export const paymentsApi = {
   catalogue: () => client.get('/payments/catalogue').then(data),
   createInvoice: (plan, months = 1) =>
-    client.post('/payments/invoice', { plan, months }).then(data),
+    client.post('/payments/invoice', { kind: 'PLAN', plan, months }).then(data),
+  // Days are clamped server-side to what the listing has left, so the reply is
+  // the authority on what was actually bought — render `days` from it, not the
+  // number that was asked for.
+  createFeaturedInvoice: (postId, days) =>
+    client.post('/payments/invoice', { kind: 'FEATURED', post_id: postId, days }).then(data),
   // Polled while the QR is on screen; scoped server-side to the caller's own
   // invoices, so an id on its own reveals nothing.
   check: (id) => client.get(`/payments/${id}/check`).then(data),

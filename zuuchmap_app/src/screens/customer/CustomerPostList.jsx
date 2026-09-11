@@ -283,7 +283,7 @@ const CustomerPostList = ({ route, navigation }) => {
 
     const handleToggleLike = useCallback(async (item, liked) => {
         if (!(await ensureAuth(navigation, 'auth.guestSave'))) return;
-        toggleLike.mutate({ post_type: item.post_type || 'construction', post_id: item.id, liked });
+        toggleLike.mutate({ post_type: item.post_type, post_id: item.id, liked });
     }, [toggleLike.mutate, navigation]);
 
     // Emphasis is an admin-set schema flag (CategorySchema.emphasized) — no hardcoded category keys
@@ -304,7 +304,11 @@ const CustomerPostList = ({ route, navigation }) => {
     }, [categorySchemas]);
 
     const renderPostItem = useCallback(({ item, index }) => {
-        const post_key = `${item.post_type || 'construction'}-${item.id}`;
+        // Every item carries post_type — the query function copies it from
+        // `category` above. The `|| 'construction'` that used to stand in here
+        // was a hardcoded category key that, had it ever fired, would have filed
+        // the save under the wrong category and left the heart dark.
+        const post_key = `${item.post_type}-${item.id}`;
         const liked = likedPostsStatus[post_key] || false;
         const emphasisLabel = emphasisByKey[item.post_type] || '';
         const featured = !!item.featured_until && new Date(item.featured_until) > new Date();
@@ -332,7 +336,7 @@ const CustomerPostList = ({ route, navigation }) => {
                                     <Text style={styles.badgeText} numberOfLines={1}>{emphasisLabel}</Text>
                                 </View>
                             ) : (
-                                <CategoryBadge postType={item.post_type || 'construction'} showIcon={true} />
+                                <CategoryBadge postType={item.post_type} showIcon={true} />
                             )}
                             {featured && (
                                 <View style={styles.featuredBadge}>

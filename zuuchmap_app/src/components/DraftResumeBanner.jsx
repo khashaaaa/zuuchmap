@@ -5,18 +5,9 @@ import { useTranslation } from 'react-i18next';
 import { spacing, typography, radius } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
 import PressableScale from './PressableScale';
+import { formatRelativeAge } from '../utils/displayUtils';
 
 const MAX_FONT_SCALE = 1.3;
-
-// "saved 5 min ago" — coarse buckets are enough; nobody needs seconds here.
-const relativeAge = (savedAt, t) => {
-    const mins = Math.max(0, Math.round((Date.now() - savedAt) / 60000));
-    if (mins < 1) return t('provider.draftJustNow');
-    if (mins < 60) return t('provider.draftMinutesAgo', { count: mins });
-    const hours = Math.round(mins / 60);
-    if (hours < 24) return t('provider.draftHoursAgo', { count: hours });
-    return t('provider.draftDaysAgo', { count: Math.round(hours / 24) });
-};
 
 /**
  * Offered at the top of a fresh create form when a draft for this category is
@@ -38,7 +29,7 @@ const DraftResumeBanner = ({ savedAt, onResume, onDiscard }) => {
                     {t('provider.draftResumeTitle')}
                 </Text>
                 <Text style={styles.meta} maxFontSizeMultiplier={MAX_FONT_SCALE}>
-                    {t('provider.draftSavedAgo', { time: relativeAge(savedAt, t) })}
+                    {t('provider.draftSavedAgo', { time: formatRelativeAge(savedAt, t) })}
                 </Text>
                 <View style={styles.actions}>
                     <PressableScale style={styles.primary} onPress={onResume} accessibilityRole="button">

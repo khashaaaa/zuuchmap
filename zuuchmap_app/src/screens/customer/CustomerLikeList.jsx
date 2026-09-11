@@ -160,16 +160,16 @@ const CustomerLikeList = ({ navigation }) => {
         navigation.navigate('PhoneNumber');
     };
 
-    // The bare filename first, resolved against THIS client's base URL, exactly
-    // like every other list. `image_url` is an absolute URL the engine builds
-    // from PUBLIC_ENGINE_URL, so preferring it made the saved tab the one
-    // screen that breaks whenever the server's idea of its own host differs
-    // from the client's — every card fell back to the placeholder. It also
-    // points at the full-size image, so this list was the only one bypassing
-    // the `_thumb` convention PostCard's ThumbImage applies.
+    // The bare filename, resolved against THIS client's base URL, exactly like
+    // every other list. The engine used to send an absolute `image_url` built
+    // from PUBLIC_ENGINE_URL alongside it, which made the saved tab the one
+    // screen that broke whenever the server's idea of its own host differed
+    // from the client's — and it pointed at the full-size original, bypassing
+    // the `_thumb` convention PostCard's ThumbImage applies. That field is gone
+    // from the payload now; nothing here ever preferred it.
     const getImageUrl = (item) => {
         const raw = (Array.isArray(item.images) && item.images.length > 0 ? item.images[0] : null)
-            ?? item.imageUrl ?? item.image_url;
+            ?? item.imageUrl;
         return getPostImageUrl(raw);
     };
 
@@ -182,7 +182,13 @@ const CustomerLikeList = ({ navigation }) => {
                 imageUri={getImageUrl(item)}
                 title={getPostTitle(item, item.post_type || item.category)}
                 price={getPostPrice(item)}
-                memoKey={`${i18n.language}-${isDark}-${categoryLabel(item.post_type || item.category)}`}
+                // Browse filters out expired listings and only ever carries
+                // approved ones, so this list is the only place a customer meets
+                // a saved listing that has lapsed or been refused since — and it
+                // used to look exactly like one still on the market. The web
+                // card has badged the moderation state all along.
+                statusOverlay
+                memoKey={`${i18n.language}-${isDark}-${item.status}-${item.approval_status}-${categoryLabel(item.post_type || item.category)}`}
                 actions={<LikeButton liked size="small" onToggle={() => handleUnlike(item)} />}
                 badges={
                     <Text style={[styles.categoryText, { color: colors.text.secondary }]}>

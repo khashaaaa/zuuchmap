@@ -8,6 +8,7 @@ import { spacing, typography, radius, withAlpha, interactions, isTablet } from '
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useAppContext } from '../../context/AppContext';
 import { SOUND_PREF_KEY, isSoundEnabled } from '../../hooks/useNotificationSync';
+import { formatTime, formatDate } from '../../utils/displayUtils';
 
 const TYPE_ICON = {
     success: 'checkmark-circle',
@@ -24,11 +25,9 @@ const TYPE_COLOR = (colors) => ({
 function NotifItem({ item, colors, onPress }) {
     const iconName = TYPE_ICON[item.type] || TYPE_ICON.info;
     const iconColor = TYPE_COLOR(colors)[item.type] || colors.primary;
-    const ts = useMemo(() => {
-        const d = new Date(item.ts);
-        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) +
-            ' · ' + d.toLocaleDateString([], { month: 'short', day: 'numeric' });
-    }, [item.ts]);
+    // Through the shared helpers, not the device locale: a notification and the
+    // message it is about were reading two different times on the same phone.
+    const ts = useMemo(() => `${formatTime(item.ts)} · ${formatDate(item.ts)}`, [item.ts]);
 
     const content = (
         <>

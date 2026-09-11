@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Plus, Pencil, Trash2, FileText, Timer, Eye, Heart, CalendarRange, ArrowUpCircle, RotateCw, Clock } from 'lucide-react'
+import { Plus, Pencil, Trash2, FileText, Timer, Eye, Heart, CalendarRange, ArrowUpCircle, RotateCw, Clock, Star } from 'lucide-react'
 import { postsApi } from '@/lib/api'
 import { getPostCategory, getPostTitle, formatDate, getThumbUrl, fallbackToFullImage } from '@/lib/utils'
 import PageHeader from '@/components/PageHeader'
@@ -79,6 +79,16 @@ export default function ProviderPosts() {
     mutationFn: postsApi.renew,
     onSuccess: () => { invalidatePostQueries(qc); toast.success(t('posts.renewed')) },
   })
+
+  /**
+   * Featurable: published, live, and with time left. The server refuses the
+   * rest, but offering a button that always errors is worse than not offering
+   * it — placement only sorts listings that are already in browse.
+   */
+  const canFeature = (post) =>
+    post.approval_status === 'APPROVED' &&
+    post.status === 'ACTIVE' &&
+    (!post.expires_at || new Date(post.expires_at) - Date.now() > 86400000)
 
   /** Renewable: published, and either lapsed already or about to. */
   const canRenew = (post) => {
@@ -276,6 +286,22 @@ export default function ProviderPosts() {
                         <RotateCw size={15} />
                       </button>
                     )}
+                    {canFeature(post) && (
+                      <Link
+                        to={`/provider/billing?post=${post.id}`}
+                        aria-label={t('billing.featured.action')}
+                        title={post.is_featured
+                          ? t('billing.featured.active', { date: formatDate(post.featured_until) })
+                          : t('billing.featured.action')}
+                        className={`min-w-touch min-h-touch flex items-center justify-center rounded-btn border transition-colors ${
+                          post.is_featured
+                            ? 'border-primary/50 text-primary-text bg-primary/10'
+                            : 'border-border/50 text-muted hover:text-primary-text hover:bg-primary/10'
+                        }`}
+                      >
+                        <Star size={15} fill={post.is_featured ? 'currentColor' : 'none'} />
+                      </Link>
+                    )}
                     <button
                       onClick={() => setDeleteTarget(post)}
                       aria-label={t('common.delete')}
@@ -377,6 +403,22 @@ export default function ProviderPosts() {
                             >
                               <RotateCw size={14} />
                             </button>
+                          )}
+                          {canFeature(post) && (
+                            <Link
+                              to={`/provider/billing?post=${post.id}`}
+                              title={post.is_featured
+                                ? t('billing.featured.active', { date: formatDate(post.featured_until) })
+                                : t('billing.featured.action')}
+                              aria-label={t('billing.featured.action')}
+                              className={`min-w-touch min-h-touch flex items-center justify-center rounded-btn transition-colors ${
+                                post.is_featured
+                                  ? 'text-primary-text bg-primary/10'
+                                  : 'text-muted hover:text-primary-text hover:bg-primary/10'
+                              }`}
+                            >
+                              <Star size={14} fill={post.is_featured ? 'currentColor' : 'none'} />
+                            </Link>
                           )}
                           <button
                             onClick={() => setDeleteTarget(post)}

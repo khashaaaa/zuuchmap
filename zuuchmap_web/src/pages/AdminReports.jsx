@@ -19,7 +19,7 @@ const TABS = ['OPEN', 'RESOLVED', 'DISMISSED']
  * newest-first queue starves whatever nobody got to.
  */
 export default function AdminReports() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const qc = useQueryClient()
   const [tab, setTab] = useState('OPEN')
   const [resolution, setResolution] = useState({})
@@ -39,11 +39,6 @@ export default function AdminReports() {
   })
 
   const items = data?.items ?? []
-  const dateStr = (value) =>
-    new Date(value).toLocaleDateString(i18n.language === 'mn' ? 'mn-MN' : 'en-GB', {
-      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-    })
-
   return (
     <div className="max-w-3xl">
       <PageHeader
@@ -95,7 +90,7 @@ export default function AdminReports() {
                     <p className="text-sm text-muted">—</p>
                   )}
                 </div>
-                <span className="text-xs text-muted shrink-0">{dateStr(report.date_created)}</span>
+                <span className="text-xs text-muted shrink-0">{formatDateTime(report.date_created)}</span>
               </div>
 
               {report.detail && (

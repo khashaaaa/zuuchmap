@@ -937,6 +937,11 @@ export class PostService {
    * booking requests for every post the user owns, plus rolled-up totals.
    * Likes join on (post_id, post_type) because the app likes by category key.
    *
+   * The like count keys on `post_id` alone. `likedpost.post_type` is a
+   * denormalised copy of `post.category`; joining on both meant any row whose
+   * copy had drifted was simply missing from the provider's saves number, with
+   * nothing to notice it.
+   *
    * The like/booking counts are correlated subqueries rather than grouped
    * derived tables: a derived table has no reference to the caller, so Postgres
    * aggregated the whole of `likedpost` and `booking` to answer for one
@@ -970,7 +975,7 @@ export class PostService {
          LEFT JOIN LATERAL (
            SELECT COUNT(*)::int AS likes
              FROM "likedpost" lp
-            WHERE lp.post_id = p.id AND lp.post_type = p.category
+            WHERE lp.post_id = p.id
          ) l ON TRUE
          LEFT JOIN LATERAL (
            SELECT COUNT(*) FILTER (WHERE bk.status = 'PENDING')::int AS pending,

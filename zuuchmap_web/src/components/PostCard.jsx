@@ -62,13 +62,19 @@ function PostCard({ post, actions, to }) {
               <span className={catBase ? 'opacity-80' : 'text-muted'}>{t('posts.noImage')}</span>
             </div>
           )}
-          {/* Approved is the norm on every public/customer card — only surface
-              the exceptional states (pending/rejected) that a provider acts on. */}
-          {post.approval_status && post.approval_status !== 'APPROVED' && (
+          {/* Approved and live is the norm on every public/customer card — only
+              surface the exceptional states. Moderation first (pending/rejected,
+              what a provider acts on), then a lapsed window: browse filters
+              EXPIRED out, so the saved list is the one place a customer meets a
+              listing that is no longer on the market, and it used to look
+              identical to a live one. */}
+          {(post.approval_status && post.approval_status !== 'APPROVED') || post.status === 'EXPIRED' ? (
             <div className="absolute top-2 right-2">
-              <StatusBadge status={post.approval_status} />
+              <StatusBadge status={
+                post.approval_status && post.approval_status !== 'APPROVED' ? post.approval_status : 'EXPIRED'
+              } />
             </div>
-          )}
+          ) : null}
           {/* Paid placement marker. Sits top-LEFT because top-right is the
               StatusBadge slot. Bounded width — the label is translated. */}
           {featured && (

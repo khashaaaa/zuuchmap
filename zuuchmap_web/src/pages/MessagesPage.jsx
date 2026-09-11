@@ -8,7 +8,7 @@ import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
 import Button from '@/components/Button'
 import { messagesApi } from '@/lib/api'
-import { goBack } from '@/lib/utils'
+import { goBack, formatTime, formatDate, getThumbUrl, fallbackToFullImage } from '@/lib/utils'
 
 /**
  * The inbox.
@@ -38,14 +38,11 @@ export default function MessagesPage() {
   const stamp = (value) => {
     if (!value) return ''
     const d = new Date(value)
-    const locale = i18n.language === 'mn' ? 'mn-MN' : 'en-GB'
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     // Time for today, date for anything older — an inbox full of "14:32" tells
     // you nothing about which conversations have gone cold.
-    return d >= today
-      ? d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
-      : d.toLocaleDateString(locale, { month: 'short', day: 'numeric' })
+    return d >= today ? formatTime(d) : formatDate(d)
   }
 
   return (
@@ -81,11 +78,16 @@ export default function MessagesPage() {
               >
                 <div className="w-12 h-12 rounded-btn bg-surface2 overflow-hidden shrink-0">
                   {thread.post?.images?.[0] ? (
+                    /* Through the thumb helper like every other list: the raw
+                       value is a bare filename, so setting it as `src` resolved
+                       against the page URL and 404'd on every row that had a
+                       photo. */
                     <img
-                      src={thread.post.images[0]}
+                      src={getThumbUrl(thread.post.images[0])}
                       alt=""
                       className="w-full h-full object-cover"
                       loading="lazy"
+                      onError={fallbackToFullImage(thread.post.images[0])}
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">

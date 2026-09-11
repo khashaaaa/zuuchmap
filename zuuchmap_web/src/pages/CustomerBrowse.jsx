@@ -2,11 +2,11 @@ import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import useOnline from '@/hooks/useOnline'
-import { useSearchParams, useNavigate } from 'react-router-dom'
+import { useSearchParams, useNavigate, useLocation } from 'react-router-dom'
 import { X, Heart, BellPlus, WifiOff, SlidersHorizontal, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { postsApi, likesApi, savedSearchApi } from '@/lib/api'
-import { debounce, PROVINCES, DISTRICTS, getPostCategory, getCategoryLabel, getSubcategoryLabel, getFieldLabel, getOptionLabel, getCategoryColor, apiErrorMessage, sortByLabel } from '@/lib/utils'
+import { debounce, PROVINCES, DISTRICTS, getPostCategory, getCategoryLabel, getSubcategoryLabel, getFieldLabel, getOptionLabel, getCategoryColor, apiErrorMessage, sortByLabel, formatTime } from '@/lib/utils'
 import Button from '@/components/Button'
 import Input from '@/components/Input'
 import SearchBar from '@/components/SearchBar'
@@ -36,6 +36,18 @@ export default function CustomerBrowse() {
   const [searchParams, setSearchParams] = useSearchParams()
   // Reachable signed-out from /browse — saving is the only gated affordance.
   const isAuthed = useAuthStore((s) => Boolean(s.token))
+  // Saving belongs to customers. A signed-in provider reaches /browse too (only
+  // customers are redirected into the app shell), and the engine happily accepts
+  // their like — but no provider screen ever shows a saved list, so every heart
+  // they tapped went somewhere they could not look. The app has gated this all
+  // along with `(isCustomer || isGuest)`.
+  const user = useAuthStore((s) => s.user)
+  const isAdmin = useAuthStore((s) => s.isAdmin)
+  const canSave = !isAuthed || (!isAdmin && user?.type === 'CUSTOMER')
+  // Where to come back to after signing in — filters included, since a guest
+  // who filtered their way to a listing should not be handed a bare grid.
+  const { pathname: browsePath, search: browseSearch } = useLocation()
+  const returnTo = `${browsePath}${browseSearch}`
 
   // Every filter lives in the query string, not in component state. Opening a
   // listing unmounts this page, so anything held in state was gone by the time
@@ -202,6 +214,7 @@ export default function CustomerBrowse() {
     onSuccess: (_, { isLiked }) => {
       qc.invalidateQueries({ queryKey: ['liked-ids'] })
       qc.invalidateQueries({ queryKey: ['liked-posts'] })
+      qc.invalidateQueries({ queryKey: ['liked-count'] })
       qc.invalidateQueries({ queryKey: ['like-check'] })
       toast.success(t(isLiked ? 'posts.unsaved' : 'posts.saved'))
     },
@@ -389,7 +402,7 @@ export default function CustomerBrowse() {
                 <button
                   type="button"
                   onClick={() => {
-                    if (!isAuthed) return navigate('/login')
+                    if (!isAuthed) return navigate('/login', { state: { from: returnTo } })
                     setSaveName(defaultSaveName()); setSaveOpen(true)
                   }}
                   className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-primary-text bg-primary/10 hover:bg-primary/15 border border-primary/20 rounded-btn w-full justify-center transition-colors"
@@ -412,7 +425,7 @@ export default function CustomerBrowse() {
           <div role="status" className="mb-4 flex items-center gap-2.5 p-3 rounded-card border bg-warning/10 border-warning/20 text-warning-text text-sm">
             <WifiOff size={16} className="shrink-0" aria-hidden="true" />
             {data && dataUpdatedAt
-              ? t('offline.showingSaved', { time: new Date(dataUpdatedAt).toLocaleTimeString('mn-MN', { hour: '2-digit', minute: '2-digit' }) })
+              ? t('offline.showingSaved', { time: formatTime(dataUpdatedAt) })
               : t('offline.noConnection')}
           </div>
         )}
@@ -486,10 +499,16 @@ export default function CustomerBrowse() {
               <PostCard
                 key={post.id}
                 post={post}
-                actions={
+                actions={canSave ? (
                   <button
                     onClick={() => {
-                      if (!isAuthed) return navigate('/login')
+                      // A bare redirect told a guest nothing and lost their
+                      // place. Name the reason, the way the app's ensureAuth
+                      // does, and come back here afterwards.
+                      if (!isAuthed) {
+                        toast.info(t('auth.guestSave'))
+                        return navigate('/login', { state: { from: returnTo } })
+                      }
                       likeMut.mutate({ postId: post.id, postType, isLiked: saved })
                     }}
                     disabled={isPendingThis}
@@ -502,7 +521,7 @@ export default function CustomerBrowse() {
                     <Heart size={12} className={isPendingThis ? 'animate-pulse' : ''} fill={saved ? 'currentColor' : 'none'} />
                     {saved ? t('nav.saved') : t('common.save')}
                   </button>
-                }
+                ) : null}
               />
             )
           })}

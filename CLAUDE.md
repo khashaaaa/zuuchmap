@@ -25,11 +25,11 @@ Construction marketplace for Mongolia. Providers post rentals/services/jobs acro
 
 These values are duplicated across the three apps by design. `npm run check:sync`
 (`scripts/check-sync.js`, zero deps) verifies them and **gates deploy.sh as step
-0/6** — run it after touching any of them. It reports **20 contracts** against the
-16 rows below: the locations row covers `provinces` + `districts`, and the i18n
+0/6** — run it after touching any of them. It reports **25 contracts** against the
+21 rows below: the locations row covers `provinces` + `districts`, and the i18n
 row covers `i18n:mn|en` + `i18n completeness` (every non-`en` locale has
 exactly `en`'s key set on **its own** side, plural suffixes aside) + `i18n keys` (every
-literal `t('…')` must resolve).
+literal `t('…')` must resolve). Every other row is one contract.
 
 **The two clients ship different locale sets** — the app has `mn en zh ru`, the
 web only `mn en`. So the cross-client contracts (shared keys, price-unit labels)
@@ -48,13 +48,54 @@ the top of `check-sync.js`, nothing else.
 | `getPostTitle` | `app/utils/postUtils.js` · `web/lib/utils.js` — checked *behaviourally*: both are lifted, stubbed and run over shared fixtures |
 | `postHealth` | `app/utils/postHealth.js` · `web/lib/postHealth.js` — behavioural; the same listing must score the same on both |
 | map clustering | `app/screens/customer/CustomerMapView.jsx` (`gridCluster`) · `web/lib/mapCluster.js` — behavioural, across four zoom levels |
-| `formatPrice` | `app/utils/displayUtils.js` · `web/lib/utils.js` — behavioural; mn-MN grouping, no decimal tail, and never a `/unit` suffix on `TOTAL` |
+| `formatPrice` | `app/utils/displayUtils.js` · `web/lib/utils.js` — behavioural; thousands grouping, no decimal tail, and never a `/unit` suffix on `TOTAL`. Grouping is hand-rolled (`groupThousands`), not `toLocaleString('mn-MN')` — see the `Intl ban` row |
+| `formatPriceParts` | same two files — behavioural; the same price split into `{amount, unit}` so a screen can set the number large and the unit quiet. Carries the rule a caller forgets: a `TOTAL` price has `unit: null`. The app's listing detail built this split inline and labelled a sale price with its unit where the web suppressed it |
 | `formatDate` | `app/utils/displayUtils.js` · `web/lib/utils.js` — behavioural; `YYYY.MM.DD` built by hand on both. **Neither side may use `Intl`** — RN's JSC has no full ICU on Android, so a locale-driven format silently falls back to en-US there |
+| `formatTime` | `app/utils/displayUtils.js` · `web/lib/utils.js` — behavioural; `HH:MM`, 24-hour, built by hand on both, same `Intl` ban. Added after the messaging and notification screens each grew their own inline clock: the web's went through `toLocaleTimeString` and showed `08:47 PM` where the app showed `20:47`, with `toLocaleDateString(…, {month:'short'})` beside it printing the English "Aug" into a Mongolian inbox. The contract also **greps the six messaging/notification screens** so none of them can quietly grow a private clock again |
+| `formatDateTime` | same two files — behavioural; `formatDate` + `formatTime` in one string, for a queue that needs the clock beside the day. The admin report queue had grown its own on each client: `11 Sep, 14:32` on the web against `2026.09.11 14:32` in the app, for the same report row |
+| `formatRelativeAge` | same two files — behavioural; "just now" · "5 min ago" · "3 h ago" · "2 d ago" for the draft-resume banner, compared by the i18n key and count each side picks. The app said "5 минутын өмнө" where the web said "09/11, 14:32" for the same draft |
+| `Intl ban` | **greps both client trees whole** — no file outside `app/utils/displayUtils.js` and `web/lib/utils.js` may name `toLocaleString` `toLocaleDateString` `toLocaleTimeString` `localeCompare` or `Intl.*`. Not a style rule: RN's JSC has no full ICU on Android, so `toLocaleString('mn-MN')` silently resolves to en-US there, while every behavioural fixture in `check-sync.js` runs under Node's **full** ICU — so two sides that both call Intl agree in the checker and can still disagree on a phone. An Intl call is invisible to every other contract here, which is why it is banned rather than checked. This replaced a list of the six screens the first bug was found in, which missed the billing pages, the report queue, the availability strip, the draft banner, the landing counters and the map filter |
 | price unit labels | `app/i18n/locales/*.js` (`priceUnit.HOUR`) · `web/i18n/*.js` (`priceUnit.hour`) — the casing differs, so the shared-i18n contract above cannot see these; compared case-insensitively instead |
 | typeface | `app/design/theme.js` (bundled Commissioner TTFs) · `web/src/index.css` (`@font-face`, self-hosted). **Never load it from Google Fonts** — that serves Commissioner as four `unicode-range` subsets, stranding Ө/Ү in `cyrillic-ext` and ₮ in `latin-ext`, so those glyphs render in the fallback face until a second request lands |
 | `REPORT_REASONS` | engine `enums/report.ts` · `web/lib/api.js` · `app/services/api/reportService.js` — the engine is the authority (`GET /reports/reasons`); the client copies are only the first-paint fallback |
 | thumbnail naming | engine `utils/uploader.ts` (`thumbUrl`) · `web/lib/utils.js` (`getThumbUrl`) · `app/config/api.config.js` (`getPostThumbUrl`) — `<name>.jpg` → `<name>_thumb.jpg`, a convention rather than a second column so `images` stays a `string[]` all three clients already agree on. Every call site pairs it with a fallback to the full-size URL, because a photo uploaded before thumbnails existed has no `_thumb` object until `npm run backfill:thumbs` has run |
 | form validation | `app/utils/formUtils.js` · `web/lib/utils.js` — `validateEmail` `validatePhone` `validateRequired` `normalizeWebsiteUrl`, behavioural. The company DTOs have no server-side decorators, so these are the only gate; no call site may hand-roll the `https://` prefix rule |
+
+
+### What must match between web and app, and what may differ
+
+Three tiers. When in doubt, ask which one a change lands in.
+
+**1 — Identical: the same fact rendered twice.** Any value that comes from one
+row of the database and appears on both clients — a price, a date, a time, a
+phone number, a status label, a category name, a count. A user who sees `20:47`
+on the phone and `08:47 PM` on the laptop for the same message is being told the
+product is careless, and they are not wrong. Anything in this tier belongs in a
+shared-named helper on both sides with a `check:sync` contract; if you cannot
+contract it, that is the reason to extract it, not the reason to skip it.
+
+**2 — Equally available: anything a customer or provider does in a
+transaction.** Browse, save, message, report, book, renew, pay, review, saved
+searches. People switch devices mid-deal — a site visit on the phone, the
+paperwork on a desktop — so a capability that exists on one client and not the
+other is a dead end for whoever is holding the wrong one. **Guest affordances
+count**: if a signed-out visitor gets a named sign-in prompt for an action on
+one client, they get it on the other. (Both clients failed this for *message*
+and *report* until it was fixed; each had rendered nothing at all rather than
+offering the account.)
+
+**3 — Free to differ: how a capability is reached.** Navigation shape (bottom
+tabs vs sidebar, action sheet vs a row of icon buttons), density (a card list vs
+a table), input modality (camera vs file picker), and platform transports (Expo
+push vs VAPID web push). This is the platform doing its job; making these match
+would make both worse.
+
+**The deliberate exception is admin.** Admin capability is *not* at parity and
+should not be brought to it. The app carries the **queues** — approval, reports:
+things that need answering promptly from wherever the admin is standing. The web
+carries **configuration and look-ups** — category schemas, user detail, company
+verification, broadcast, featured grants. A four-locale schema form does not
+survive 390px and a sixth tab does not fit a phone bar.
 
 ---
 
@@ -139,6 +180,7 @@ Required: `PG_*` `JWT_SECRET` `ADMIN_PHONES` `R2_*` `PROG_PORT` `PUBLIC_ENGINE_U
 - `SENTRY_DSN` (+ `SENTRY_RELEASE`, `SENTRY_TRACES_SAMPLE_RATE`) — error reporting (`utils/observability.ts`). Unset ⇒ no-op; unhandled 5xx, uncaught exceptions and rejected promises stay in the pm2 log.
 - `QPAY_USERNAME` `QPAY_PASSWORD` `QPAY_INVOICE_CODE` (+ `QPAY_BASE_URL`, `QPAY_TIMEOUT_MS`) — payments. Unset ⇒ `qpayConfigured()` is false and `/payments/invoice` answers 503 rather than half-working.
 - `PLAN_PRICE_PROVIDER_MNT` — monthly price of the PROVIDER plan. **The built-in default is a placeholder**; set the real number before taking money.
+- `FEATURED_PRICE_PER_DAY_MNT` — price of one day of featured placement on one listing. **Deliberately has no default**, unlike the line above: unset ⇒ `catalogue().featured.enabled` is false and `/payments/invoice` answers 503, so placement is simply not for sale rather than sold at a number nobody chose.
 - `VAPID_PUBLIC_KEY` `VAPID_PRIVATE_KEY` `VAPID_SUBJECT` — browser push (`utils/webPush.ts`). Generate once with `npx web-push generate-vapid-keys`; the public half is served by `GET /user/push/vapid-key` so the two sides cannot drift.
 - `SMTP_HOST` (+ `SMTP_PORT` `SMTP_USER` `SMTP_PASSWORD` `SMTP_FROM`) — email (`utils/mailer.ts`). Only ever a payment receipt or a fallback for an account with no push device at all; signup is phone-based, so most accounts have no address and get nothing here.
 - `PUBLIC_WEB_URL` (default `https://zuuchmap.com`) — the origin the sitemap and OG tags are built from.  
@@ -173,7 +215,18 @@ PATCH /posts/:id                  multipart JWT — see "Editing a live post" be
 POST /posts/:id/renew             JWT   reopens a lapsed window, no moderation
 GET  /posts/stats                 public landing counters (cached 5m)
 GET  /posts/categories/all
-POST /like  DELETE /like/:type/:id  GET /like/ids
+POST /like                        JWT   {post_type,post_id}
+DELETE /like/:type/:id            JWT
+GET  /like                        JWT   ?page&limit → { posts, total, page, total_pages } (default 20)
+GET  /like/check/:type/:id        JWT   → { is_liked }
+GET  /like/stats/:type/:id        JWT   → { total_likes, recent_likes } (7-day window)
+GET  /like/ids                    JWT   ?post_type → flat ids; without it, { liked_by_type }
+                                  ⚠ `:type` is accepted for URL compatibility but **ignored**:
+                                  `likedpost.post_type` is a denormalised copy of `post.category`
+                                  and the service keys on `post_id` alone. A row whose copy had
+                                  drifted used to vanish from the saved list, the provider's saves
+                                  count and the unlike — which answered 200 having deleted nothing.
+                                  On insert the post is the authority: `post_type: post.category`.
 GET  /admin/posts/pending
 POST /admin/broadcast             JWT+AdminGuard  {title,body,user_type?,category?} push campaign
 PUT  /admin/posts/:id/approve|reject   JWT+AdminGuard   reject {reason,field_key?} → post.rejection_field;
@@ -197,7 +250,13 @@ GET  /health                      liveness — touches nothing external, never 5
 GET  /health/ready                readiness — DB (+Redis when configured); 503 when degraded
 
 GET  /payments/catalogue          public plan ladder + `enabled` (false ⇒ QPay unconfigured)
-POST /payments/invoice            JWT   {plan:'PROVIDER',months?} → {payment_id,qr_text,qr_image,urls[]}
+                                  + `featured:{enabled,price_per_day,min_days,max_days,packs[]}`
+POST /payments/invoice            JWT   two products, one till:
+                                  {kind:'PLAN',plan:'PROVIDER',months?}  → months of plan
+                                  {kind:'FEATURED',post_id,days?}        → days of placement
+                                  → {payment_id,kind,amount,days,post_id,qr_text,qr_image,urls[]}
+                                  `kind` defaults to PLAN, so a client that predates placement
+                                  and posts {plan,months} still means what it always did
 GET  /payments/:id/check          JWT   polls QPay server-to-server; settles + grants the plan
 GET  /payments/mine               JWT   receipts
 GET  /payments/callback/:id       QPay nudge — unauthenticated, never trusted alone (same rule as verify.mn)
@@ -365,6 +424,7 @@ Customer: /customer /customer/browse /customer/map /customer/saved /customer/sav
 | 🟢 | Multi-instance is Redis-gated. With `REDIS_URL` set: throttler storage → Redis (`@nest-lab/throttler-storage-redis`), cache invalidation → Redis pub/sub (`utils/cache-coordinator.ts`, per-process L1 + cross-instance clear), Socket.io → Redis adapter (`utils/redis-io.adapter.ts`). Then raise `PM2_INSTANCES`. **Unset `REDIS_URL` ⇒ single instance only** — each worker would otherwise split rate limits/cache/broadcasts. Localhost dev runs Redis-free (in-memory). | `utils/redis.ts`, `app.module.ts`, `ecosystem.config.js` |
 | 🟡 | Web admin role is client-side routing only — backend endpoints are guarded, but the UI trusts `is_admin` from the JWT response | `web/src/App.jsx` |
 | 🔴 | `PLAN_PRICE_PROVIDER_MNT` has a **placeholder default** (49,900₮). Set the real price before QPay credentials go in, or the first invoice charges a number nobody chose | `engine/payment/payment.service.ts` |
+| 🟡 | Featured placement is built and sellable but **priced at nothing until `FEATURED_PRICE_PER_DAY_MNT` is set** — the catalogue reports `featured.enabled:false` and the clients hide the buy button. This is the deliberate opposite of the row above; decide the per-day number before QPay goes live | `engine/payment/payment.service.ts` |
 | 🟡 | The SEO routes do nothing until the nginx `location` blocks are added by hand (see the deploy skill). Until then the live sitemap is still the 5-URL static file and shared listings still show the generic card | `.claude/skills/deploy/SKILL.md` (the live conf is only in the `~/zuuchmap-vps-bundle/` snapshot, not this repo) |
 | 🟡 | `@sentry/react-native`, `expo-updates` and `expo-screen-orientation` are native modules — the installed build has none of them until the next **EAS rebuild**. Error reporting, OTA and tablet rotation all start working only from that build onward | `app/app.json` |
 | 🟢 | Anonymous view dedupe falls back to a hashed IP+user-agent when a client sends no `X-Visitor-Id`. Under CGNAT that undercounts — deliberately the safe direction, but it is not exact | `engine/utils/visitor.ts` |

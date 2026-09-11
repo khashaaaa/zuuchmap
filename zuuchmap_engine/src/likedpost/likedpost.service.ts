@@ -33,12 +33,13 @@ export class LikedpostService {
       }),
     ]);
     if (!user) throw new BadRequestException('User not found');
-    if (post?.user?.id === user_id) {
+    if (!post) throw new BadRequestException('Post not found');
+    if (post.user?.id === user_id) {
       throw new BadRequestException('Өөрийн зарт таалагдсан болгох боломжгүй');
     }
 
     const existing = await this.likedPostRepository.findOne({
-      where: { user_id, post_type, post_id },
+      where: { user_id, post_id },
     });
     if (existing) return { success: false, message: 'Post already liked' };
 
@@ -46,7 +47,10 @@ export class LikedpostService {
       const liked_post = await this.likedPostRepository.save(
         this.likedPostRepository.create({
           user_id,
-          post_type,
+          // The caller's `post_type` is only a hint. `post_id` is a primary key,
+          // so the post itself is the authority on its category, and a row whose
+          // copy disagreed silently dropped out of every query that joined on it.
+          post_type: post.category ?? post_type,
           post_id,
           date_liked: new Date(),
         }),
@@ -67,11 +71,11 @@ export class LikedpostService {
     success: boolean;
     message: string;
   }> {
-    const result = await this.likedPostRepository.delete({
-      user_id,
-      post_type,
-      post_id,
-    });
+    // Keyed on the post alone: `post_type` is a denormalised copy of
+    // `post.category`, and a caller that sent the other one — the web saved list
+    // reads `post.category`, the app reads the saved row's `post_type` — used to
+    // delete nothing and still be answered 200.
+    const result = await this.likedPostRepository.delete({ user_id, post_id });
     return (result?.affected ?? 0) > 0
       ? { success: true, message: 'Post unliked successfully' }
       : { success: false, message: 'Post was not liked' };
@@ -83,7 +87,7 @@ export class LikedpostService {
     post_id: number,
   ): Promise<boolean> {
     const like = await this.likedPostRepository.findOne({
-      where: { user_id, post_type, post_id },
+      where: { user_id, post_id },
     });
     return !!like;
   }
@@ -105,18 +109,16 @@ export class LikedpostService {
       .map((lp) => {
         const post = (lp as any).post;
         if (!post) return null;
+        // `price` and `image_url` used to be built here too. Both were dead —
+        // each client formats the price with its own `formatPrice` and resolves
+        // the image against its own base URL — and both were wrong: the price
+        // string used the *server's* locale for grouping and appended `/TOTAL`
+        // to a total, and `image_url` pointed at the full-size original,
+        // bypassing the `_thumb` convention every other list follows.
         return {
           ...post,
           post_type: lp.post_type,
           date_liked: lp.date_liked,
-          image_url: post.images?.[0]
-            ? post.images[0].startsWith('http')
-              ? post.images[0]
-              : `${process.env.PUBLIC_ENGINE_URL || 'https://zuuchmap.com/engine'}/uploads/posts/${post.images[0]}`
-            : null,
-          price: post.price_amount
-            ? `${Number(post.price_amount).toLocaleString()} ₮${post.price_unit ? `/${post.price_unit}` : ''}`
-            : null,
           location:
             post.location ||
             post.address ||
@@ -139,9 +141,9 @@ export class LikedpostService {
     const seven_days_ago = new Date();
     seven_days_ago.setDate(seven_days_ago.getDate() - 7);
     const [total_likes, recent_likes] = await Promise.all([
-      this.likedPostRepository.count({ where: { post_type, post_id } }),
+      this.likedPostRepository.count({ where: { post_id } }),
       this.likedPostRepository.count({
-        where: { post_type, post_id, date_liked: MoreThan(seven_days_ago) },
+        where: { post_id, date_liked: MoreThan(seven_days_ago) },
       }),
     ]);
     return { total_likes, recent_likes };

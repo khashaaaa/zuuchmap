@@ -43,6 +43,8 @@ const PostCard = ({
     // follow the source it describes.
     useEffect(() => { setImageError(false); }, [imageUri]);
     const handlePress = useCallback(() => onPress?.(item), [item, onPress]);
+    const statusFlag =
+        item.approval_status && item.approval_status !== 'APPROVED' ? item.approval_status : null;
 
     return (
         <PressableScale
@@ -65,9 +67,15 @@ const PostCard = ({
                     </View>
                 )}
                 {/* The thumbnail holds exactly one overlay: status belongs on
-                    the photo, everything else lives in the content column. */}
-                {statusOverlay && item.status ? (
-                    <StatusBadge status={item.status} variant="overlay" position="absolute" showIndicator={false} />
+                    the photo, everything else lives in the content column.
+                    Moderation outranks the lifecycle state — a listing that was
+                    rejected or is still in review says so, and only then does
+                    the card fall back to ACTIVE/RENTED/EXPIRED. Browse only ever
+                    carries APPROVED posts, so this changes nothing there; it is
+                    the saved list, where a customer keeps a listing the seller
+                    may since have had refused, that had no way to say so. */}
+                {statusOverlay && (statusFlag || item.status) ? (
+                    <StatusBadge status={statusFlag || item.status} variant="overlay" position="absolute" showIndicator={false} />
                 ) : null}
             </View>
 

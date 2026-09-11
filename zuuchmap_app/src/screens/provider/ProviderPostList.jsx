@@ -34,6 +34,7 @@ const PostItem = React.memo(({
     onEdit,
     onDelete,
     onRenew,
+    onFeature,
     isLoading,
     getPostTitle,
     colors,
@@ -55,16 +56,29 @@ const PostItem = React.memo(({
     const canRenew = item.approval_status === 'APPROVED' && item.expires_at
         && (new Date(item.expires_at) - Date.now()) / 86400000 <= 7;
 
+    // Featurable: published, live, and with more than a day left. Placement
+    // only sorts listings that are already in browse, and the engine refuses
+    // the rest — offering a row that always errors would be worse than not
+    // offering it.
+    const canFeature = item.approval_status === 'APPROVED'
+        && (item.status ?? 'ACTIVE') === 'ACTIVE'
+        && (!item.expires_at || new Date(item.expires_at) - Date.now() > 86400000);
+    const isFeatured = !!item.featured_until && new Date(item.featured_until) > new Date();
+
     const handleMenuPress = useCallback(() => {
         showActionSheet(title, [
             ...(canRenew ? [{ text: t('posts.renew'), onPress: () => onRenew(item) }] : []),
+            ...(canFeature ? [{
+                text: isFeatured ? t('billing.featured.extend') : t('billing.featured.action'),
+                onPress: () => onFeature(item),
+            }] : []),
             { text: t('common.edit'), onPress: () => onEdit(item) },
             { text: t('common.cancel'), style: 'cancel' },
             // Destructive last: it used to sit second, a full-width red button
             // with the same weight as Edit and directly under the thumb.
             { text: t('common.delete'), style: 'destructive', onPress: () => onDelete(item) },
         ]);
-    }, [item, title, canRenew, onEdit, onDelete, onRenew, t]);
+    }, [item, title, canRenew, canFeature, isFeatured, onEdit, onDelete, onRenew, onFeature, t]);
 
     const expiry = item.expires_at ? (() => {
         const days = Math.ceil((new Date(item.expires_at) - Date.now()) / 86400000);
@@ -397,6 +411,19 @@ const ProviderPostList = ({ navigation }) => {
         }
     }, [handleAuthError, t]);
 
+    /**
+     * Hand one listing to the till. The billing screen owns the QR and the
+     * poll — there is one place in the app that talks to QPay, and adding a
+     * second would be a second copy of the settlement dance.
+     */
+    const handleFeaturePost = useCallback((post) => {
+        navigation.navigate('Billing', {
+            postId: post.id,
+            postTitle: getPostTitle(post, post.postType),
+            expiresAt: post.expires_at ?? null,
+        });
+    }, [navigation]);
+
     // Plan and quota. The engine refuses the next post at the limit, so the
     // number belongs here — in front of the "add post" path — rather than in
     // the rejection the form would otherwise be the first to mention.
@@ -469,6 +496,7 @@ const ProviderPostList = ({ navigation }) => {
             onEdit={handleEditPost}
             onDelete={handleDeletePost}
             onRenew={handleRenewPost}
+            onFeature={handleFeaturePost}
             isLoading={isLoading || item.isDeleting}
             getPostTitle={getPostTitleWrapped}
             colors={colors}
@@ -478,7 +506,7 @@ const ProviderPostList = ({ navigation }) => {
             isDark={isDark}
         />
         </View>
-    ), [handlePostPress, handleEditPost, handleDeletePost, handleRenewPost, isLoading, getPostTitleWrapped, colors, t, statsById, i18n.language, isDark]);
+    ), [handlePostPress, handleEditPost, handleDeletePost, handleRenewPost, handleFeaturePost, isLoading, getPostTitleWrapped, colors, t, statsById, i18n.language, isDark]);
 
     if (queryError && posts.length === 0) {
         return (

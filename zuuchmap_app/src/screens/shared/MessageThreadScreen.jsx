@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     View, Text, FlatList, TextInput, TouchableOpacity,
     KeyboardAvoidingView, Platform, StyleSheet,
@@ -48,7 +48,6 @@ const MessageThreadScreen = ({ navigation, route }) => {
     const { t } = useTranslation();
     const qc = useQueryClient();
     const [draft, setDraft] = useState('');
-    const listRef = useRef(null);
 
     const { data: thread } = useQuery({
         queryKey: threadKey(id),
@@ -86,16 +85,20 @@ const MessageThreadScreen = ({ navigation, route }) => {
             .catch(() => { });
     }, [id, latestTheirs, qc]);
 
-    // Scroll to the tail only when the tail changes — loading older history
-    // prepends, and must not yank the reader back to the bottom.
-    const lastId = messages[messages.length - 1]?.id;
-    const lastSeenTail = useRef(null);
-    const onContentSizeChange = useCallback(() => {
-        if (lastId && lastId !== lastSeenTail.current) {
-            lastSeenTail.current = lastId;
-            listRef.current?.scrollToEnd({ animated: false });
-        }
-    }, [lastId]);
+    // Newest first, rendered into an inverted list.
+    //
+    // A chat list has to open at its newest message, and a normal FlatList
+    // cannot be made to do that reliably: it reports its content size several
+    // times while it measures rows in batches, so a `scrollToEnd` lands
+    // wherever the measurement happened to be, and `maintainVisibleContentPosition`
+    // — needed so prepending older history does not jump — actively undoes the
+    // scroll by anchoring the top row. Both together left a 34-message thread
+    // parked near its top: you opened a conversation and saw its oldest page,
+    // and sending a message scrolled nowhere near the bubble you had just
+    // added. Inverting turns "scroll to the bottom" into "render index 0",
+    // which needs no scrolling and cannot drift, and turns loading older
+    // history into an append that never moves the viewport.
+    const ordered = useMemo(() => [...messages].reverse(), [messages]);
 
     const send = useMutation({
         mutationFn: ({ body }) => messageService.send(id, body),
@@ -205,16 +208,14 @@ const MessageThreadScreen = ({ navigation, route }) => {
                     <ScreenError onRetry={refetch} />
                 ) : (
                     <FlatList
-                        ref={listRef}
-                        data={messages}
+                        inverted
+                        data={ordered}
                         renderItem={renderItem}
                         keyExtractor={(item) => String(item.id)}
                         contentContainerStyle={styles.list}
-                        ListHeaderComponent={loadOlder}
-                        // Keeps the visible message in place while older ones
-                        // are prepended above it.
-                        maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
-                        onContentSizeChange={onContentSizeChange}
+                        // Inverted, so the footer is what the reader sees at
+                        // the top of the thread.
+                        ListFooterComponent={loadOlder}
                         refreshing={isLoading}
                         onRefresh={refetch}
                     />

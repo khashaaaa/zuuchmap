@@ -10,8 +10,10 @@ import paymentService, { CATALOGUE_KEY, PAYMENTS_KEY } from '../../services/api/
 import { useProfile, PROFILE_KEY } from '../../hooks/useProfile';
 import { formatPrice, formatDate } from '../../utils/displayUtils';
 import { showErrorModal } from '../../utils/errorManager';
+import { invalidatePostData } from '../../services/queryClient';
 
 const MONTH_CHOICES = [1, 3, 6, 12];
+const DAY_CHOICES_FALLBACK = [7, 14, 30];
 /** QPay settles in seconds, but a bank app can sit on it — poll for two minutes. */
 const POLL_INTERVAL_MS = 3000;
 const POLL_TIMEOUT_MS = 120000;
@@ -26,14 +28,22 @@ const POLL_TIMEOUT_MS = 120000;
  * Nothing here decides whether money moved: the poll reads an answer the engine
  * has already verified with QPay server-to-server.
  */
-const BillingScreen = ({ navigation }) => {
+const BillingScreen = ({ navigation, route }) => {
     const { colors } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
     const { t } = useTranslation();
     const qc = useQueryClient();
     const [months, setMonths] = useState(1);
+    const [days, setDays] = useState(7);
     const [invoice, setInvoice] = useState(null);
     const [paid, setPaid] = useState(false);
+
+    // The posts list hands one listing to the till through route params.
+    // Placement is bought for a specific listing, so the section only appears
+    // when there is one — a picker on a screen about plans would be noise.
+    const featuredPostId = route?.params?.postId ?? null;
+    const featuredPostTitle = route?.params?.postTitle ?? null;
+    const featuredExpiresAt = route?.params?.expiresAt ?? null;
 
     const { data: catalogue } = useQuery({ queryKey: CATALOGUE_KEY, queryFn: paymentService.catalogue });
     const { data: history = [] } = useQuery({ queryKey: PAYMENTS_KEY, queryFn: paymentService.mine });
@@ -45,6 +55,16 @@ const BillingScreen = ({ navigation }) => {
     const expiresAt = profile?.plan_expires_at ? new Date(profile.plan_expires_at) : null;
     const planActive = profile?.plan === 'PROVIDER' && expiresAt && expiresAt > new Date();
 
+    const featuredCat = catalogue?.featured;
+    const dayChoices = featuredCat?.packs?.length ? featuredCat.packs : DAY_CHOICES_FALLBACK;
+    const perDay = featuredCat?.price_per_day ?? 0;
+    // What the engine will actually sell: never more days than the listing has
+    // left, so the total on screen is the total on the invoice.
+    const daysLeft = featuredExpiresAt
+        ? Math.floor((new Date(featuredExpiresAt) - Date.now()) / 86400000)
+        : null;
+    const sellableDays = daysLeft == null ? days : Math.max(0, Math.min(days, daysLeft));
+
     // The plan codes are enum values, not copy. `ProviderPostList` already
     // renders them through these keys; this screen was showing the bare
     // 'FREE'/'PROVIDER' in an otherwise Mongolian page.
@@ -52,6 +72,24 @@ const BillingScreen = ({ navigation }) => {
         plan === 'PROVIDER' ? t('posts.planProvider')
         : plan === 'FREE' ? t('posts.planFree')
         : (plan ?? '');
+
+    const createFeatured = useMutation({
+        mutationFn: () => paymentService.createFeaturedInvoice(featuredPostId, days),
+        onSuccess: (data) => {
+            setPaid(false);
+            setInvoice(data);
+        },
+        onError: (error) => {
+            const code = error?.response?.data?.message;
+            showErrorModal(
+                t('common.error'),
+                paymentService.isNotConfigured(error) ? t('billing.notConfigured')
+                    : code === 'POST_EXPIRES_TOO_SOON' ? t('billing.featured.expiresTooSoon')
+                    : code === 'POST_NOT_FEATURABLE' ? t('billing.featured.notLive')
+                    : t('billing.failed'),
+            );
+        },
+    });
 
     const create = useMutation({
         mutationFn: () => paymentService.createInvoice('PROVIDER', months),
@@ -85,6 +123,10 @@ const BillingScreen = ({ navigation }) => {
                     setPaid(true);
                     qc.invalidateQueries({ queryKey: PROFILE_KEY });
                     qc.invalidateQueries({ queryKey: PAYMENTS_KEY });
+                    // Placement reorders browse, so every cached list of posts
+                    // — and the owner's own list, which draws the star — is
+                    // now out of date.
+                    invalidatePostData();
                 }
             } catch {
                 // A failed poll is not a failed payment — the engine's hourly
@@ -142,7 +184,14 @@ const BillingScreen = ({ navigation }) => {
                             <View style={styles.centered}>
                                 <Ionicons name="checkmark-circle" size={40} color={colors.success} />
                                 <Text style={styles.planName}>{t('billing.paid')}</Text>
-                                <Text style={styles.meta}>{t('billing.paidHint')}</Text>
+                                {/* Two products settle through this screen, and
+                                    "you can now post more listings" is only true
+                                    of one of them. */}
+                                <Text style={styles.meta}>
+                                    {invoice?.kind === 'FEATURED'
+                                        ? t('billing.featured.paidHint')
+                                        : t('billing.paidHint')}
+                                </Text>
                                 <PressableScale
                                     style={[styles.cta, { backgroundColor: colors.primary }]}
                                     onPress={() => { setInvoice(null); setPaid(false); }}
@@ -183,6 +232,77 @@ const BillingScreen = ({ navigation }) => {
                                     <Text style={styles.cancelText}>{t('billing.cancel')}</Text>
                                 </TouchableOpacity>
                             </View>
+                        )}
+                    </View>
+                ) : featuredPostId ? (
+                    /* Placement. Sold per listing per day, priced separately
+                       from the plan ladder — it buys position in browse, not
+                       entitlement on the account, so a FREE provider is as
+                       welcome to it as a paid one. */
+                    <View style={styles.card}>
+                        <View style={styles.planHead}>
+                            <View style={styles.flex}>
+                                <Text style={styles.planName}>{t('billing.featured.title')}</Text>
+                                <Text style={styles.meta} numberOfLines={2}>
+                                    {featuredPostTitle ?? t('billing.featured.listing', { id: featuredPostId })}
+                                </Text>
+                            </View>
+                            <Text style={styles.price}>{formatPrice(perDay)}</Text>
+                        </View>
+
+                        <Text style={styles.meta}>{t('billing.featured.lead')}</Text>
+
+                        {featuredCat?.enabled === false ? (
+                            <Text style={[styles.meta, { marginTop: spacing.md }]}>{t('billing.notConfigured')}</Text>
+                        ) : (
+                            <>
+                                <Text style={styles.overline}>{t('billing.featured.days')}</Text>
+                                <View style={styles.monthRow}>
+                                    {dayChoices.map((d) => (
+                                        <TouchableOpacity
+                                            key={d}
+                                            onPress={() => setDays(d)}
+                                            accessibilityRole="button"
+                                            accessibilityState={{ selected: days === d }}
+                                            activeOpacity={interactions.activeOpacityLight}
+                                            style={[styles.monthChip, days === d && { backgroundColor: colors.primary }]}
+                                        >
+                                            <Text style={[styles.monthChipText, days === d && { color: colors.onPrimary }]}>
+                                                {t('billing.featured.daysValue', { count: d })}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+
+                                {/* The engine clamps the window to what the
+                                    listing has left. Saying so here is the
+                                    difference between a clear price and a total
+                                    that changes at the QR. */}
+                                {daysLeft != null && sellableDays < days && (
+                                    <Text style={[styles.meta, { color: colors.warning }]}>
+                                        {t('billing.featured.clamped', { count: sellableDays })}
+                                    </Text>
+                                )}
+
+                                <View style={styles.totalRow}>
+                                    <Text style={styles.meta}>{t('billing.total')}</Text>
+                                    <Text style={styles.total}>{formatPrice(perDay * sellableDays)}</Text>
+                                </View>
+
+                                <PressableScale
+                                    style={[
+                                        styles.cta,
+                                        { backgroundColor: colors.primary },
+                                        (createFeatured.isPending || perDay <= 0 || sellableDays < 1) && { opacity: 0.5 },
+                                    ]}
+                                    onPress={() => !createFeatured.isPending && perDay > 0 && sellableDays >= 1 && createFeatured.mutate()}
+                                    accessibilityRole="button"
+                                >
+                                    <Text style={[styles.ctaText, { color: colors.onPrimary }]}>
+                                        {createFeatured.isPending ? t('billing.creating') : t('billing.payWithQpay')}
+                                    </Text>
+                                </PressableScale>
+                            </>
                         )}
                     </View>
                 ) : (
@@ -246,8 +366,16 @@ const BillingScreen = ({ navigation }) => {
                         <View key={p.id} style={styles.historyRow}>
                             <View style={styles.flex}>
                                 <Text style={styles.historyPlan}>
-                                    {planLabel(p.plan)} · {t('billing.monthsValue', { count: p.months })}
+                                    {p.kind === 'FEATURED'
+                                        ? `${t('billing.featured.title')} · ${t('billing.featured.daysValue', { count: p.days })}`
+                                        : `${planLabel(p.plan)} · ${t('billing.monthsValue', { count: p.months })}`}
                                 </Text>
+                                {p.kind === 'FEATURED' && (
+                                    /* Null once the listing is deleted — the receipt outlives it. */
+                                    <Text style={styles.meta} numberOfLines={1}>
+                                        {p.post?.title ?? t('billing.featured.listingGone')}
+                                    </Text>
+                                )}
                                 <Text style={styles.meta}>
                                     {t('billing.reference')}: {p.reference ?? String(p.id).slice(0, 8)} · {formatDate(p.date_created)}
                                 </Text>

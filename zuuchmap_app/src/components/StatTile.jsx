@@ -3,6 +3,7 @@ import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { spacing, typography } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
+import { groupThousands } from '../utils/displayUtils';
 
 /**
  * The one way a stat is rendered: overline eyebrow above a tabular number.
@@ -23,7 +24,7 @@ const StatTile = ({ label, value, icon, emphasis = false, ready = true, loading 
     // those alone. Real numbers still take the numeric path.
     const isNumeric = typeof value === 'number'
         || (typeof value === 'string' && /^-?\d+$/.test(value.trim()));
-    const display = isNumeric ? Number(value).toLocaleString() : (value ?? '—');
+    const display = isNumeric ? groupThousands(Number(value)) : (value ?? '—');
 
     return (
         <View style={[styles.tile, style]}>

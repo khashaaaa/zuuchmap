@@ -16,6 +16,7 @@ import { deleteMultipleImages } from '../utils/uploader';
 import { SavedSearchService } from '../saved-search/saved-search.service';
 import { EventsGateway } from '../events/events.gateway';
 import { sharedCache, invalidatePostReadCaches } from '../utils/cache';
+import { openFeaturedWindow } from '../post/featured';
 
 const STATS_TTL = 30_000; // 30 s
 
@@ -61,35 +62,23 @@ export class AdminService {
     return { is_verified: company.is_verified };
   }
 
-  /** Opens a paid placement window on one post. `days` of 0 clears it. */
+  /**
+   * Opens a paid placement window on one post. `days` of 0 clears it.
+   *
+   * The window arithmetic lives in `openFeaturedWindow` because a settled QPay
+   * invoice opens the same window, and the two must not drift.
+   */
   async featurePost(
     postId: number,
     days: number,
   ): Promise<{ featured_until: Date | null }> {
-    const clamped = Math.min(Math.max(Math.floor(days) || 0, 0), 90);
     const post = await this.postRepository.findOne({ where: { id: postId } });
     if (!post) throw new BadRequestException(`Post #${postId} not found`);
-    if (clamped === 0) {
-      post.featured_until = null;
-    } else {
-      const base =
-        post.featured_until && new Date(post.featured_until) > new Date()
-          ? new Date(post.featured_until)
-          : new Date();
-      base.setDate(base.getDate() + clamped);
-      post.featured_until = base;
-    }
-    // Kept in step with the window it mirrors. The hourly sweep only has to
-    // catch windows that *lapse*; every deliberate change lands here first, so
-    // an admin never sees their own action take an hour to show.
-    post.is_featured =
-      !!post.featured_until && new Date(post.featured_until) > new Date();
-    await this.postRepository.save(post);
-    invalidatePostReadCaches();
+    const result = await openFeaturedWindow(this.postRepository, postId, days);
     this.logger.log(
-      `featurePost: #${postId} featured_until=${post.featured_until?.toISOString() ?? 'cleared'}`,
+      `featurePost: #${postId} featured_until=${result.featured_until?.toISOString() ?? 'cleared'}`,
     );
-    return { featured_until: post.featured_until };
+    return result;
   }
 
   async editPost(

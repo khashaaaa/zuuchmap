@@ -56,6 +56,9 @@ export default function VerifyPage() {
     // type — route them straight to the admin app, ahead of the type gate.
     if (user.is_admin) return '/admin'
     if (!user.type) return '/onboarding'
+    // Forwarded from the login screen: the page the visitor was on when a
+    // guest affordance sent them here. See the note in LoginPage.
+    if (state?.from) return state.from
     return user.type === 'PROVIDER' ? '/provider' : '/customer'
   }
 

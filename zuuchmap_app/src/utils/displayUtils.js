@@ -46,6 +46,27 @@ export const formatDate = (dateString) => {
     }
 };
 
+/**
+ * `HH:MM`, 24-hour — the same rule `formatDate` follows, and for the same
+ * reason.
+ *
+ * Kept here rather than inline in the two screens that need it so the web has
+ * something to be checked against: its copies went through `toLocaleTimeString`
+ * and rendered `08:47 PM` for the message this returns `20:47` for. Mongolia
+ * writes time in 24 hours.
+ */
+export const formatTime = (value) => {
+    if (!value) return '—';
+    try {
+        const d = new Date(value);
+        if (isNaN(d.getTime())) return i18n.t('common.invalidDate');
+        return [String(d.getHours()).padStart(2, '0'), String(d.getMinutes()).padStart(2, '0')].join(':');
+    } catch (error) {
+        logger.error('Time formatting error:', error);
+        return i18n.t('common.invalidDate');
+    }
+};
+
 export const formatDateTime = (dateString) => {
     if (!dateString) return '—';
     try {
@@ -60,6 +81,30 @@ export const formatDateTime = (dateString) => {
     }
 };
 
+/**
+ * "just now" · "5 min ago" · "3 h ago" · "2 d ago".
+ *
+ * Coarse buckets on purpose — nobody reading a banner needs seconds. Lifted out
+ * of `DraftResumeBanner` so the web has something to be checked against: it
+ * rendered the same stored draft as an absolute `09/11, 14:32` through
+ * `toLocaleString`, so one device told you *when* you stopped typing and the
+ * other told you *how long ago*, for the same draft.
+ *
+ * Takes `t` rather than reaching for the module-level i18n so the caller's
+ * render subscribes to a locale change the way every other string on the screen
+ * does.
+ */
+export const formatRelativeAge = (savedAt, t) => {
+    const at = savedAt instanceof Date ? savedAt.getTime() : Number(savedAt);
+    if (!at || Number.isNaN(at)) return t('provider.draftJustNow');
+    const mins = Math.max(0, Math.round((Date.now() - at) / 60000));
+    if (mins < 1) return t('provider.draftJustNow');
+    if (mins < 60) return t('provider.draftMinutesAgo', { count: mins });
+    const hours = Math.round(mins / 60);
+    if (hours < 24) return t('provider.draftHoursAgo', { count: hours });
+    return t('provider.draftDaysAgo', { count: Math.round(hours / 24) });
+};
+
 // --- Price formatting ---
 
 export const getPriceUnitLabel = (priceUnit) => {
@@ -67,17 +112,68 @@ export const getPriceUnitLabel = (priceUnit) => {
     return i18n.t(`priceUnit.${priceUnit}`, { defaultValue: priceUnit });
 };
 
-export const formatPrice = (priceAmount, priceUnit) => {
+/**
+ * Thousand separators, built by hand.
+ *
+ * The last Intl call left in the display path, and it was the one that mattered
+ * most: `toLocaleString('mn-MN')` on Android, where JSC ships no full ICU,
+ * silently resolves to en-US. It happens to group the same way today, so the
+ * behavioural `check:sync` fixtures agreed under Node's full ICU and would have
+ * gone on agreeing right up until an ICU or engine update moved mn-MN to a
+ * space separator on one platform only — the same "agree by coincidence" the
+ * `formatDate` comment above refuses. A price is the single number on the card
+ * a provider is trusting us with; it does not get to depend on that.
+ *
+ * `TextInput` already grouped its currency field this way for exactly this
+ * reason. This is that rule, in one place, imported by both.
+ */
+export const groupThousands = (digits) => {
+    // Block-bodied, like every other helper `check:sync` lifts out of this file.
+    return String(digits ?? '').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+};
+
+/**
+ * A price is renderable only if it is a real, non-zero number. `price_amount`
+ * arrives as a Postgres decimal string, so a malformed row coerces to NaN;
+ * both clients return null and the caller hides the line.
+ */
+const priceValue = (priceAmount) => {
     if (!priceAmount) return null;
-    // price_amount arrives as a Postgres decimal string ("250000.00"); coerce
-    // before formatting so thousands-grouping applies and the .00 tail is dropped.
     const amount = Number(priceAmount);
-    if (Number.isNaN(amount)) return null;
-    const formattedAmount = amount.toLocaleString('mn-MN', { maximumFractionDigits: 0 });
+    return Number.isNaN(amount) ? null : amount;
+};
+
+// The .00 tail of a Postgres decimal has no business on screen, and no listing
+// is priced in fractions of a tugrik.
+const wholeTugriks = (amount) => {
+    return groupThousands(Math.round(amount));
+};
+
+export const formatPrice = (priceAmount, priceUnit) => {
+    const amount = priceValue(priceAmount);
+    if (amount === null) return null;
+    const formattedAmount = wholeTugriks(amount);
     // A total (sale) price is the whole amount — a "/unit" suffix would misread as recurring
     if (priceUnit === 'TOTAL') return `${formattedAmount}₮`;
     const unitLabel = getPriceUnitLabel(priceUnit);
     return unitLabel ? `${formattedAmount}₮/${unitLabel}` : `${formattedAmount}₮`;
+};
+
+/**
+ * The price split into amount and unit so a display can weight them
+ * differently — a big amount with a quiet unit above or beside it. Same rules
+ * as `formatPrice`, including the one that matters: a TOTAL price has **no**
+ * unit at all, so a caller cannot label a sale price "нийт" and have it read as
+ * a rate. The listing detail screens on both clients used to build this split
+ * inline, and the app's showed that label where the web's suppressed it.
+ */
+export const formatPriceParts = (priceAmount, priceUnit) => {
+    const amount = priceValue(priceAmount);
+    if (amount === null) return null;
+    const formatted = `${wholeTugriks(amount)}₮`;
+    if (priceUnit === 'TOTAL') return { amount: formatted, unit: null };
+    const unitLabel = getPriceUnitLabel(priceUnit);
+    return { amount: formatted, unit: unitLabel || null };
 };
 
 // --- Localized sorting ---

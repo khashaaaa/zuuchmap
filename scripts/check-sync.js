@@ -25,6 +25,39 @@ const failures = [];
 const checks = [];
 const fail = (contract, msg) => failures.push({ contract, msg });
 
+/**
+ * Every client source file, as [display label, repo-relative path].
+ *
+ * Used by the Intl ban, which has to sweep both trees whole rather than a list
+ * of the files a bug was last found in.
+ */
+function walkClientSources() {
+  const out = [];
+  const walk = (rel) => {
+    for (const e of fs.readdirSync(path.join(ROOT, rel), { withFileTypes: true })) {
+      const child = `${rel}/${e.name}`;
+      if (e.isDirectory()) walk(child);
+      else if (/\.(js|jsx)$/.test(e.name) && !/\.test\.|\.spec\./.test(e.name)) out.push([child, child]);
+    }
+  };
+  walk('zuuchmap_web/src');
+  walk('zuuchmap_app/src');
+  return out;
+}
+
+/**
+ * The two helper modules are where the rule is *stated*, so they are the two
+ * files allowed to name it. Everything else imports from them.
+ */
+const ALLOWED_INTL = [
+  'zuuchmap_web/src/lib/utils.js',
+  'zuuchmap_app/src/utils/displayUtils.js',
+];
+
+/** Drop line and block comments so a rule written *about* Intl doesn't trip the ban on it. */
+const stripComments = (src) =>
+  src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+
 /** Pull `const NAME = { ... }` / `NAME = [ ... ]` out of a source file and eval it as data. */
 function objectLiteral(src, name) {
   const start = src.search(new RegExp(`(?:const|let|var|export const|export enum)?\\s*${name}\\s*[:=]\\s*[{\\[]`));
@@ -594,12 +627,25 @@ function agree(contract, sets) {
   const appSrc = read('zuuchmap_app/src/utils/displayUtils.js');
   const webSrc = read('zuuchmap_web/src/lib/utils.js');
 
-  const appFn = liftArrow(C, appSrc, 'formatPrice', { getPriceUnitLabel: appUnitStub }, 'app/displayUtils.js');
-  const webFn = liftArrow(C, webSrc, 'formatPrice', {
-    PRICE_FORMAT: objectLiteral(webSrc, 'PRICE_FORMAT'),
+  // Both sides now compose the same three helpers; lift them too rather than
+  // stubbing, so the fixtures exercise the real grouping on both.
+  const appGroup = liftArrow(C, appSrc, 'groupThousands', {}, 'app/displayUtils.js');
+  const webGroup = liftArrow(C, webSrc, 'groupThousands', {}, 'web/utils.js');
+  const appScope = {
+    getPriceUnitLabel: appUnitStub,
+    groupThousands: appGroup,
+    priceValue: liftArrow(C, appSrc, 'priceValue', {}, 'app/displayUtils.js'),
+    wholeTugriks: liftArrow(C, appSrc, 'wholeTugriks', { groupThousands: appGroup }, 'app/displayUtils.js'),
+  };
+  const webScope = {
     PRICE_UNIT_KEYS: objectLiteral(webSrc, 'PRICE_UNIT_KEYS'),
+    groupThousands: webGroup,
     priceValue: liftArrow(C, webSrc, 'priceValue', {}, 'web/utils.js'),
-  }, 'web/utils.js');
+    wholeTugriks: liftArrow(C, webSrc, 'wholeTugriks', { groupThousands: webGroup }, 'web/utils.js'),
+  };
+
+  const appFn = liftArrow(C, appSrc, 'formatPrice', appScope, 'app/displayUtils.js');
+  const webFn = liftArrow(C, webSrc, 'formatPrice', webScope, 'web/utils.js');
 
   const FIXTURES = [
     ['whole number', 250000, 'HOUR'],
@@ -614,6 +660,8 @@ function agree(contract, sets) {
     ['NaN amount', NaN, 'DAY'],
     ['negative', -5000, 'DAY'],
     ['exponent string', '1e3', 'DAY'],
+    ['decimal tail rounds, never truncates', '250000.60', 'DAY'],
+    ['sub-tugrik amount', '0.40', 'DAY'],
     ['unknown unit falls back to the code', 250000, 'ZZZ_UNKNOWN'],
     ['null unit', 250000, null],
     ['undefined unit', 250000, undefined],
@@ -625,6 +673,37 @@ function agree(contract, sets) {
       try { a = appFn(amount, unit); } catch (e) { a = `THREW: ${e.message}`; }
       try { w = webFn(amount, unit, webTStub); } catch (e) { w = `THREW: ${e.message}`; }
       if (a !== w) fail(C, `fixture "${label}" — app returned ${JSON.stringify(a)}, web returned ${JSON.stringify(w)}`);
+    }
+  }
+
+  // ── 10b. formatPriceParts ──────────────────────────────────────────────────
+  // The same price, split so a screen can set the amount large and the unit
+  // quiet. It carries one rule the string form also has and a caller cannot be
+  // trusted to remember: a TOTAL price has **no** unit. The app's listing
+  // detail built this split inline and labelled a sale price with its unit,
+  // where the web suppressed it — the same listing, priced once, described two
+  // ways.
+  {
+    const CP = 'formatPriceParts';
+    checks.push(CP);
+    const appParts = liftArrow(CP, appSrc, 'formatPriceParts', appScope, 'app/displayUtils.js');
+    const webParts = liftArrow(CP, webSrc, 'formatPriceParts', webScope, 'web/utils.js');
+    if (appParts && webParts) {
+      for (const [label, amount, unit] of FIXTURES) {
+        let a, w;
+        try { a = appParts(amount, unit); } catch (e) { a = `THREW: ${e.message}`; }
+        try { w = webParts(amount, unit, webTStub); } catch (e) { w = `THREW: ${e.message}`; }
+        if (JSON.stringify(a) !== JSON.stringify(w)) {
+          fail(CP, `fixture "${label}" — app returned ${JSON.stringify(a)}, web returned ${JSON.stringify(w)}`);
+        }
+      }
+      // Spelled out rather than left to the fixtures: this is the rule that
+      // gets re-broken, and a fixture only proves the two agree, not that they
+      // agree on the right thing.
+      const total = appParts(250000, 'TOTAL');
+      if (!total || total.unit !== null) {
+        fail(CP, `a TOTAL price must carry no unit — got ${JSON.stringify(total)}`);
+      }
     }
   }
 }
@@ -683,6 +762,191 @@ function agree(contract, sets) {
       try { a = appFn(value); } catch (e) { a = `THREW: ${e.message}`; }
       try { w = webFn(value); } catch (e) { w = `THREW: ${e.message}`; }
       if (a !== w) fail(C, `fixture "${label}" — app returned ${JSON.stringify(a)}, web returned ${JSON.stringify(w)}`);
+    }
+  }
+}
+
+// ── 11b. formatTime ──────────────────────────────────────────────────────────
+// The same contract as formatDate, for the same reason and after the same bug.
+// The messaging and notification screens each built their own clock inline; the
+// web's went through `toLocaleTimeString` and rendered `08:47 PM` where the app
+// rendered `20:47`, with `toLocaleDateString(locale, {month:'short'})` beside it
+// printing the English "Aug" into a Mongolian inbox. Both are helpers now so
+// there is something to check.
+{
+  const C = 'formatTime';
+  checks.push(C);
+
+  const i18nStub = { t: (k) => `I18N:${k}` };
+  const appSrc = read('zuuchmap_app/src/utils/displayUtils.js');
+  const webSrc = read('zuuchmap_web/src/lib/utils.js');
+
+  const appFn = liftArrow(C, appSrc, 'formatTime', {
+    i18n: i18nStub,
+    logger: { error: () => {} },
+  }, 'app/displayUtils.js');
+  const webFn = liftArrow(C, webSrc, 'formatTime', { i18n: i18nStub }, 'web/utils.js');
+
+  const FIXTURES = [
+    ['midnight', '2026-08-26T00:00:00'],
+    ['noon', '2026-08-26T12:00:00'],
+    ['afternoon needs 24h', '2026-08-26T20:47:00'],
+    ['single-digit pad', '2026-08-26T09:05:00'],
+    ['epoch millis', 1787758591848],
+    ['null', null],
+    ['undefined', undefined],
+    ['empty string', ''],
+    ['zero', 0],
+    ['unparseable', 'garbage'],
+  ];
+
+  // Neither side may reach for Intl: that is the drift, not just its symptom.
+  for (const [file, src] of [['app/displayUtils.js', appSrc], ['web/utils.js', webSrc]]) {
+    const at = src.search(/(?:export\s+)?const\s+formatTime\s*=/);
+    const body = at === -1 ? '' : src.slice(at, at + 700);
+    if (/toLocaleTimeString|Intl\.DateTimeFormat/.test(body)) {
+      fail(C, `${file}: formatTime goes through Intl — build HH:MM by hand so both runtimes agree regardless of ICU`);
+    }
+  }
+
+  if (appFn && webFn) {
+    for (const [label, value] of FIXTURES) {
+      let a, w;
+      try { a = appFn(value); } catch (e) { a = `THREW: ${e.message}`; }
+      try { w = webFn(value); } catch (e) { w = `THREW: ${e.message}`; }
+      if (a !== w) fail(C, `fixture "${label}" — app returned ${JSON.stringify(a)}, web returned ${JSON.stringify(w)}`);
+    }
+  }
+}
+
+// ── 11c. formatDateTime ──────────────────────────────────────────────────────
+// `YYYY.MM.DD HH:MM` — formatDate and formatTime in one string, for the places
+// that need the clock beside the day. The admin report queue is one, and it had
+// grown its own on each client: the web read `11 Sep, 14:32` through
+// toLocaleDateString where the app read `2026.09.11 14:32`, for the same report
+// row in the same queue.
+{
+  const C = 'formatDateTime';
+  checks.push(C);
+
+  const i18nStub = { t: (k) => `I18N:${k}` };
+  const appSrc = read('zuuchmap_app/src/utils/displayUtils.js');
+  const webSrc = read('zuuchmap_web/src/lib/utils.js');
+
+  const appParts = liftArrow(C, appSrc, 'parts', {}, 'app/displayUtils.js');
+  const sep = appSrc.match(/const DATE_SEPARATOR = '([^']*)'/);
+  const appFn = liftArrow(C, appSrc, 'formatDateTime', {
+    parts: appParts,
+    DATE_SEPARATOR: sep ? sep[1] : '.',
+    i18n: i18nStub,
+    logger: { error: () => {} },
+  }, 'app/displayUtils.js');
+  const webFn = liftArrow(C, webSrc, 'formatDateTime', {
+    i18n: i18nStub,
+    formatDate: liftArrow(C, webSrc, 'formatDate', { i18n: i18nStub }, 'web/utils.js'),
+    formatTime: liftArrow(C, webSrc, 'formatTime', { i18n: i18nStub }, 'web/utils.js'),
+  }, 'web/utils.js');
+
+  const FIXTURES = [
+    ['iso timestamp', '2026-08-26T20:47:00'],
+    ['midnight', '2026-08-26T00:00:00'],
+    ['single-digit everything', '2026-01-05T09:05:00'],
+    ['date only', '2026-08-26'],
+    ['epoch millis', 1787758591848],
+    ['null', null],
+    ['undefined', undefined],
+    ['empty string', ''],
+    ['zero', 0],
+    ['unparseable', 'garbage'],
+  ];
+
+  if (appFn && webFn) {
+    for (const [label, value] of FIXTURES) {
+      let a, w;
+      try { a = appFn(value); } catch (e) { a = `THREW: ${e.message}`; }
+      try { w = webFn(value); } catch (e) { w = `THREW: ${e.message}`; }
+      if (a !== w) fail(C, `fixture "${label}" — app returned ${JSON.stringify(a)}, web returned ${JSON.stringify(w)}`);
+    }
+  }
+}
+
+// ── 11d. formatRelativeAge ───────────────────────────────────────────────────
+// "just now" · "5 min ago" · "3 h ago" · "2 d ago", for the draft-resume banner.
+// Not a clock but the same class of fact: how old the stored draft is. The app
+// said "5 минутын өмнө" and the web said "09/11, 14:32" for the same draft, so
+// one device did the subtraction for you and the other made you do it.
+//
+// Compared by the i18n key and count each side chooses rather than by a
+// rendered string, which is the actual decision — the wording is then pinned by
+// the shared-key contract.
+{
+  const C = 'formatRelativeAge';
+  checks.push(C);
+
+  const appSrc = read('zuuchmap_app/src/utils/displayUtils.js');
+  const webSrc = read('zuuchmap_web/src/lib/utils.js');
+  const appFn = liftArrow(C, appSrc, 'formatRelativeAge', {}, 'app/displayUtils.js');
+  const webFn = liftArrow(C, webSrc, 'formatRelativeAge', {}, 'web/utils.js');
+
+  // Records the call instead of translating it.
+  const tSpy = (key, opts) => `${key}${opts && opts.count !== undefined ? `:${opts.count}` : ''}`;
+
+  const MIN = 60 * 1000;
+  const now = Date.now();
+  const FIXTURES = [
+    ['just saved', now],
+    ['30 seconds', now - 30 * 1000],
+    ['exactly a minute', now - MIN],
+    ['59 minutes', now - 59 * MIN],
+    ['an hour', now - 60 * MIN],
+    ['23 hours', now - 23 * 60 * MIN],
+    ['a day', now - 24 * 60 * MIN],
+    ['nine days', now - 9 * 24 * 60 * MIN],
+    ['a future timestamp clamps to zero', now + 10 * MIN],
+    ['null', null],
+    ['undefined', undefined],
+    ['zero', 0],
+    ['unparseable', 'garbage'],
+    ['a Date object', new Date(now - 5 * MIN)],
+  ];
+
+  if (appFn && webFn) {
+    for (const [label, value] of FIXTURES) {
+      let a, w;
+      try { a = appFn(value, tSpy); } catch (e) { a = `THREW: ${e.message}`; }
+      try { w = webFn(value, tSpy); } catch (e) { w = `THREW: ${e.message}`; }
+      if (a !== w) fail(C, `fixture "${label}" — app returned ${JSON.stringify(a)}, web returned ${JSON.stringify(w)}`);
+    }
+  }
+}
+
+// ── 11e. The Intl ban ────────────────────────────────────────────────────────
+// Nothing outside the two helper modules may format a date, a time or a number
+// through Intl.
+//
+// This started as a list of the six messaging and notification screens the
+// first bug was found in, which is the shape of check that finds a bug once. It
+// missed the provider billing pages, the admin report queue, the availability
+// strip, the draft banner, the landing counters and the map filter — every one
+// of which had independently grown its own on the web while the app used a
+// helper, or the reverse. So it sweeps both clients whole.
+//
+// The rule is not "prefer the helper". React Native's JSC ships without full
+// ICU on Android: `toLocaleString('mn-MN')` there silently resolves to en-US.
+// Every behavioural fixture in this file runs under Node's full ICU, so two
+// sides that both call Intl agree *here* and can still disagree on a phone —
+// which makes an Intl call invisible to every other contract in this file. That
+// is why it is banned outright rather than checked.
+{
+  const C = 'Intl ban';
+  checks.push(C);
+
+  for (const [label, file] of walkClientSources()) {
+    if (ALLOWED_INTL.includes(label)) continue;
+    const src = stripComments(read(file));
+    const hit = src.match(/toLocaleDateString|toLocaleTimeString|toLocaleString|localeCompare|Intl\.[A-Za-z]/);
+    if (hit) {
+      fail(C, `${label}: reaches for Intl (${hit[0]}) — use formatDate / formatTime / formatDateTime / formatPrice / groupThousands from ${label.startsWith('zuuchmap_app') ? 'utils/displayUtils' : 'lib/utils'} instead`);
     }
   }
 }

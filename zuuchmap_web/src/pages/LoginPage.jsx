@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { motion, useReducedMotion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import { authApi } from '@/lib/api'
@@ -19,10 +19,18 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const login = useStore((s) => s.login)
+  // Where the visitor was when they were asked to sign in. Every guest
+  // affordance sets this; nothing used to read it, so someone who tapped Save
+  // on a listing verified their number and landed on a dashboard, with the
+  // listing they had come for nowhere on the screen.
+  const from = useLocation().state?.from
 
   function routeFor(user) {
     if (!user.type) return '/onboarding'
     if (user.is_admin) return '/admin'
+    // Onboarding and the admin app are destinations of their own; anything
+    // else goes back where the visitor was interrupted.
+    if (from) return from
     return user.type === 'PROVIDER' ? '/provider' : '/customer'
   }
 
@@ -43,7 +51,7 @@ export default function LoginPage() {
 
       // Session details travel in router state, never the URL — a phone number
       // in the query string leaks into history, logs and referrer headers.
-      navigate('/verify', { state: { phone, ...res }, replace: true })
+      navigate('/verify', { state: { phone, from, ...res }, replace: true })
     } catch (err) {
       toast.error(apiErrorMessage(err, t, t('auth.sendError')))
     } finally {

@@ -31,7 +31,7 @@ import { StatusBadge, StatTile, PressableScale, SkeletonItem, AvailabilityStrip,
 import LikeButton from '../../components/LikeButton';
 import { Button } from '../../components';
 import { TextInput } from '../../components';
-import { getPriceUnitLabel, formatDate, formatDateTime, getProvinceLabel, getDistrictLabel } from '../../utils/displayUtils';
+import { formatPriceParts, formatDate, formatDateTime, getProvinceLabel, getDistrictLabel } from '../../utils/displayUtils';
 import { normalizePostType, getPostTypeConfig, getPostTitle, getSchemaLabel, getSubcategoryLabel } from '../../utils/postUtils';
 import { normalizeWebsiteUrl } from '../../utils/formUtils';
 import { processPostImages } from '../../utils/imageUtils';
@@ -336,9 +336,15 @@ const PostDetailScreen = ({ route, navigation }) => {
     // and contractors renting each other's machinery is ordinary here. The old
     // `!isProvider` was the *view mode* from the route param rather than an
     // identity, so it turned a provider browsing the marketplace into someone
-    // who could not book. Signed-out users are excluded because the request
-    // would 401; they get the sign-in prompt instead.
-    const canBook = Boolean(currentUserId) && !isAdmin && Boolean(schema?.has_rental_status)
+    // who could not book.
+    //
+    // Signed-out users are included: the request would 401, but `handleBook`
+    // opens with `ensureAuth`, and that is what turns the tap into a named
+    // sign-in prompt. Excluding them here rendered no button at all, so the
+    // prompt could never fire — `auth.guestBook`, `auth.guestMessage` and
+    // `auth.guestReport` sat unused in all four locales, and a guest on a
+    // listing had no way to ask about it, book it, or flag it.
+    const canBook = !isAdmin && Boolean(schema?.has_rental_status)
         && Boolean(post?.user) && post?.user?.id !== currentUserId;
     // Availability is separate from category and approval — mirrors the engine's
     // gate in booking.service.ts. RENTED is the provider's own "not right now",
@@ -350,7 +356,16 @@ const PostDetailScreen = ({ route, navigation }) => {
     // Messaging and reporting apply to every listing, not just rentable ones:
     // "is this still available" is the question customers actually have, and it
     // used to be answerable only by phone — leaving no record of what was agreed.
-    const canContact = Boolean(currentUserId) && !isAdmin
+    //
+    // Guests included, same as `canBook`: `handleMessage` and `handleReport`
+    // both gate through `ensureAuth`. The owner test still holds for them —
+    // `post.user.id !== undefined` is true for anyone signed out.
+    // Amount and unit, split by the shared helper so the big number and the
+    // quiet label beside it follow the same rules as every other price on both
+    // clients — including the TOTAL case, which has no unit at all.
+    const priceParts = formatPriceParts(post?.price_amount, post?.price_unit);
+
+    const canContact = !isAdmin
         && Boolean(post?.user) && post?.user?.id !== currentUserId;
 
     const { data: openReports = [] } = useQuery({
@@ -653,12 +668,20 @@ const PostDetailScreen = ({ route, navigation }) => {
                                 </View>
                             </View>
 
-                            {(post.price_amount || post.attributes?.salary_range) && (
+                            {/* The amount and its unit come from the shared
+                                `formatPriceParts`, not from a local
+                                toLocaleString: this used to build the number
+                                inline and label a TOTAL price with its unit,
+                                where the web deliberately suppresses that —
+                                a sale price shown under a "нийт" eyebrow reads
+                                as a rate. A salary range is free text the
+                                provider typed and is never a formatted price. */}
+                            {(priceParts || post.attributes?.salary_range) && (
                                 <View style={styles.priceBlock}>
                                     <Text style={[styles.priceEyebrow, { color: colors.text.tertiary }]}>
                                         {post.attributes?.salary_range
                                             ? t('attrs.salaryRange')
-                                            : (getPriceUnitLabel(post.price_unit) || t('common.price'))}
+                                            : (priceParts?.unit || t('common.price'))}
                                     </Text>
                                     <Text
                                         style={[styles.priceAmount, { color: colors.text.link }]}
@@ -667,7 +690,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                                     >
                                         {post.attributes?.salary_range
                                             ? post.attributes.salary_range
-                                            : `${Number(post.price_amount).toLocaleString('mn-MN', { maximumFractionDigits: 0 })}₮`}
+                                            : priceParts?.amount}
                                     </Text>
                                 </View>
                             )}

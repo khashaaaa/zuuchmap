@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { useDocumentMeta } from '@/hooks/useDocumentMeta'
 import { ShieldCheck } from 'lucide-react'
 import { postsApi } from '@/lib/api'
-import { getCategoryLabel, getCategoryColor, getCategoryIcon, getThumbUrl, fallbackToFullImage, getPostTitle, formatPrice, withAlpha, toneForTheme } from '@/lib/utils'
+import { getCategoryLabel, getCategoryColor, getCategoryIcon, getThumbUrl, fallbackToFullImage, getPostTitle, formatPrice, groupThousands, withAlpha, toneForTheme } from '@/lib/utils'
 import { trackPageView } from '@/lib/analytics'
 import { useThemeStore } from '@/store'
 import PublicHeader from '@/components/PublicHeader'
@@ -127,7 +127,7 @@ export default function LandingPage() {
             <div key={stat.label}>
               <dt className="sr-only">{stat.label}</dt>
               <dd className="text-2xl md:text-3xl font-bold text-text tabular-nums">
-                {typeof stat.value === 'number' ? stat.value.toLocaleString() : '—'}
+                {typeof stat.value === 'number' ? groupThousands(stat.value) : '—'}
               </dd>
               <p className="text-xs text-muted mt-0.5" aria-hidden="true">{stat.label}</p>
             </div>
@@ -165,7 +165,7 @@ export default function LandingPage() {
                   <Icon size={18} className="shrink-0 mt-0.5" style={tone ? { color: tone } : undefined} aria-hidden="true" />
                 </span>
                 <span className="mt-3 text-2xl font-bold text-text tabular-nums">
-                  {countFor(schema.key).toLocaleString()}
+                  {groupThousands(countFor(schema.key))}
                 </span>
               </Link>
             )

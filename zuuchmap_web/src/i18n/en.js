@@ -34,6 +34,13 @@ export default {
   },
   auth: {
     title: 'Sign in', subtitle: 'Construction marketplace for Mongolia',
+    // Named reasons for a signed-out visitor, matching the app's `ensureAuth`
+    // prompts word for word — the same tap must explain itself the same way
+    // on both clients.
+    guestSave: 'Sign in to save listings to your favourites.',
+    guestMessage: 'Sign in to message this provider.',
+    guestReport: 'Sign in to report this listing.',
+    guestBook: 'Sign in to request a booking.',
     startHint: 'Enter your number — we verify it with one SMS you send.',
     phoneLabel: '+976', phonePlaceholder: '8-digit number',
     continue: 'Continue', starting: 'Starting...',
@@ -310,7 +317,9 @@ export default {
   customer: { marketTitle: 'Marketplace' },
   provider: {
     greeting: 'Hello, {{name}}',
-    draftFound: 'You have an unfinished post', draftSavedAt: 'Draft saved {{time}}',
+    draftFound: 'You have an unfinished post', draftSavedAgo: 'Saved {{time}}',
+    draftJustNow: 'just now', draftMinutesAgo: '{{count}} min ago',
+    draftHoursAgo: '{{count}} h ago', draftDaysAgo: '{{count}} d ago',
     draftResume: 'Resume', draftDiscard: 'Discard',
     draftRestored: 'Restored from your saved draft. Photos need adding again.',
     healthTitle: 'Listing completeness', healthScore: 'Listing completeness {{score}}%',
@@ -584,6 +593,21 @@ export default {
     history: 'Payment history',
     noHistory: 'No payments yet.',
     reference: 'Reference',
+    featured: {
+      title: 'Featured placement',
+      lead: 'Puts your listing at the top of browse, where more people see it.',
+      listing: 'Listing #{{id}}',
+      listingGone: 'Deleted listing',
+      days: 'Duration',
+      daysValue: '{{count}} days',
+      perDay: '{{price}} per day',
+      clamped: 'This listing expires in {{count}} days, so that is what you will be charged for.',
+      expiresTooSoon: 'This listing is about to expire. Renew it first.',
+      notLive: 'Only published, active listings can be featured.',
+      action: 'Feature',
+      active: 'Featured until {{date}}',
+      paidHint: 'Your listing now appears at the top of browse.',
+    },
   },
   report: {
     action: 'Report',

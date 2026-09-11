@@ -9,7 +9,8 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { User } from '../../user/entities/user.entity';
-import { PaymentProvider, PaymentStatus } from '../../enums/payment';
+import { Post } from '../../post/entities/post.entity';
+import { PaymentKind, PaymentProvider, PaymentStatus } from '../../enums/payment';
 
 /**
  * One attempt to buy plan time.
@@ -30,12 +31,40 @@ export class Payment {
   @Index()
   user: User;
 
-  /** The plan this buys. Stored, not re-derived: prices change, receipts don't. */
-  @Column()
-  plan: string;
+  /**
+   * Which product this invoice is for. Defaults to PLAN so every row written
+   * before featured placement was sellable reads correctly.
+   */
+  @Column({ default: PaymentKind.PLAN })
+  @Index()
+  kind: string;
+
+  /**
+   * The plan this buys, for a PLAN invoice. Stored, not re-derived: prices
+   * change, receipts don't. Null on a FEATURED invoice, which buys placement
+   * on one post rather than entitlement on the account.
+   */
+  @Column({ type: 'varchar', nullable: true })
+  plan: string | null;
 
   @Column({ type: 'int', default: 1 })
   months: number;
+
+  /**
+   * The post a FEATURED invoice buys placement on.
+   *
+   * Nullable and `SET NULL` on delete: a receipt outlives the listing it was
+   * for. Someone reconciling a bank line a year later needs the row to still
+   * exist, and the amount and reference on it are the parts that matter.
+   */
+  @ManyToOne(() => Post, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn()
+  @Index()
+  post: Post | null;
+
+  /** Days of placement bought, for a FEATURED invoice. Null on a PLAN one. */
+  @Column({ type: 'int', nullable: true })
+  days: number | null;
 
   /** Minor-unit-free: the tögrög has no subunit in circulation. */
   @Column({ type: 'int' })

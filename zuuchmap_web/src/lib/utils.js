@@ -28,11 +28,21 @@ export const apiErrorMessage = (error, t, fallback) => {
 
 const PRICE_UNIT_KEYS = { HOUR: 'priceUnit.hour', MOTO_HOUR: 'priceUnit.moto_hour', DAY: 'priceUnit.day', WEEK: 'priceUnit.week', MONTH: 'priceUnit.month', PROJECT: 'priceUnit.project', UNIT: 'priceUnit.unit', PIECE: 'priceUnit.piece', SQM: 'priceUnit.sqm', TRIP: 'priceUnit.trip', TOTAL: 'priceUnit.total' }
 
-// Prices are always grouped mn-MN and always whole tugriks. A bare
-// toLocaleString() followed the *viewer's browser* locale, so the same listing
-// read 250,000₮ here and 250.000₮ on a de-DE machine — and price_amount arrives
-// as a Postgres decimal ("250000.00"), whose tail has no business on screen.
-const PRICE_FORMAT = { maximumFractionDigits: 0 }
+/**
+ * Thousand separators, built by hand.
+ *
+ * A bare `toLocaleString()` followed the *viewer's browser* locale, so the same
+ * listing read 250,000₮ here and 250.000₮ on a de-DE machine. Pinning the call
+ * to 'mn-MN' fixed that and left a subtler one: the app has to group by hand
+ * regardless (React Native's JSC ships no full ICU on Android and resolves
+ * 'mn-MN' to en-US), so the two clients agreed only because en-US and mn-MN
+ * group identically today — the same "agree by coincidence" `formatDate` below
+ * refuses. One rule, spelled out, on both sides.
+ */
+export const groupThousands = (digits) => {
+  // Block-bodied, like every other helper `check:sync` lifts out of this file.
+  return String(digits ?? '').replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+}
 
 /**
  * A price is renderable only if it is a real, non-zero number. `price_amount`
@@ -46,10 +56,16 @@ const priceValue = (amount) => {
   return Number.isNaN(n) ? null : n
 }
 
+// The .00 tail of a Postgres decimal has no business on screen, and no listing
+// is priced in fractions of a tugrik.
+const wholeTugriks = (value) => {
+  return groupThousands(Math.round(value))
+}
+
 export const formatPrice = (amount, unit, t) => {
   const value = priceValue(amount)
   if (value === null) return null
-  const formatted = value.toLocaleString('mn-MN', PRICE_FORMAT)
+  const formatted = wholeTugriks(value)
   // A total (sale) price is the whole amount — a "/unit" suffix would misread as recurring
   if (unit === 'TOTAL') return `${formatted}₮`
   const unitLabel = t ? t(PRICE_UNIT_KEYS[unit] ?? '', { defaultValue: unit ?? '' }) : (unit ?? '')
@@ -58,12 +74,14 @@ export const formatPrice = (amount, unit, t) => {
 
 /**
  * The price split into amount and unit so a display can weight them
- * differently (big amount, quiet unit). Same rules as formatPrice.
+ * differently (big amount, quiet unit). Same rules as formatPrice, including
+ * the one that matters: a TOTAL price has **no** unit at all, so a caller
+ * cannot label a sale price "total" and have it read as a rate.
  */
 export const formatPriceParts = (amount, unit, t) => {
   const value = priceValue(amount)
   if (value === null) return null
-  const formatted = `${value.toLocaleString('mn-MN', PRICE_FORMAT)}₮`
+  const formatted = `${wholeTugriks(value)}₮`
   if (unit === 'TOTAL') return { amount: formatted, unit: null }
   const unitLabel = t ? t(PRICE_UNIT_KEYS[unit] ?? '', { defaultValue: unit ?? '' }) : (unit ?? '')
   return { amount: formatted, unit: unitLabel || null }
@@ -82,6 +100,60 @@ export const formatDate = (date) => {
   const d = new Date(date)
   if (Number.isNaN(d.getTime())) return i18n.t('common.invalidDate')
   return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('.')
+}
+
+/**
+ * `HH:MM`, 24-hour — the same rule `formatDate` follows, and for the same
+ * reason.
+ *
+ * The messaging and notification screens used to call `toLocaleTimeString`,
+ * which rendered `08:47 PM` on the web against the app's `20:47` for the one
+ * message — and `toLocaleDateString(locale, {month:'short'})` beside it printed
+ * the English "Aug" inside an otherwise Mongolian inbox, because Chrome has no
+ * Mongolian month-abbreviation data to fall back on. Mongolia writes time in 24
+ * hours; a runtime's idea of `mn` is not a design decision anyone made here.
+ */
+export const formatTime = (value) => {
+  if (!value) return '—'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return i18n.t('common.invalidDate')
+  return [String(d.getHours()).padStart(2, '0'), String(d.getMinutes()).padStart(2, '0')].join(':')
+}
+
+/**
+ * `YYYY.MM.DD HH:MM` — `formatDate` and `formatTime` in one string, for the
+ * places that need the clock beside the day (a moderation queue, a report).
+ *
+ * It exists because the admin report queue had grown its own: the web read
+ * `toLocaleDateString(mn|en-GB, {month:'short', …})` and printed `11 Sep, 14:32`
+ * where the app printed `2026.09.11 14:32` for the same report row, with the
+ * English month name arriving through the en-GB branch.
+ */
+export const formatDateTime = (value) => {
+  if (!value) return '—'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return i18n.t('common.invalidDate')
+  return `${formatDate(d)} ${formatTime(d)}`
+}
+
+/**
+ * "just now" · "5 min ago" · "3 h ago" · "2 d ago".
+ *
+ * Coarse buckets on purpose — nobody reading a banner needs seconds. Mirrors
+ * the app's helper of the same name: the draft banner used to render an
+ * absolute `09/11, 14:32` here against the app's "5 минутын өмнө", so one
+ * device told you *when* you stopped typing and the other *how long ago*, for
+ * the same draft.
+ */
+export const formatRelativeAge = (savedAt, t) => {
+  const at = savedAt instanceof Date ? savedAt.getTime() : Number(savedAt)
+  if (!at || Number.isNaN(at)) return t('provider.draftJustNow')
+  const mins = Math.max(0, Math.round((Date.now() - at) / 60000))
+  if (mins < 1) return t('provider.draftJustNow')
+  if (mins < 60) return t('provider.draftMinutesAgo', { count: mins })
+  const hours = Math.round(mins / 60)
+  if (hours < 24) return t('provider.draftHoursAgo', { count: hours })
+  return t('provider.draftDaysAgo', { count: Math.round(hours / 24) })
 }
 
 // Location codes — mirror the engine's Province/District enums. Display names

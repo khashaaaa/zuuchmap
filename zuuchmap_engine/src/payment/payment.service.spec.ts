@@ -1,6 +1,15 @@
 import { PaymentService, monthlyPriceMnt } from './payment.service';
 import { Plan } from '../enums/plan';
-import { PaymentStatus } from '../enums/payment';
+import { PaymentKind, PaymentStatus } from '../enums/payment';
+
+jest.mock('../post/featured', () => ({
+  ...jest.requireActual('../post/featured'),
+  openFeaturedWindow: jest.fn(async () => ({
+    featured_until: new Date('2026-10-01'),
+  })),
+}));
+
+const featured = require('../post/featured');
 
 jest.mock('./qpay.client', () => ({
   qpayConfigured: jest.fn(() => true),
@@ -21,6 +30,7 @@ describe('PaymentService', () => {
     opts: {
       payment?: any;
       user?: any;
+      post?: any;
       transactionResult?: any;
     } = {},
   ) => {
@@ -54,6 +64,22 @@ describe('PaymentService', () => {
           },
       ),
     };
+    const postsRepo: any = {
+      findOne: jest.fn(async () =>
+        opts.post === undefined
+          ? {
+              id: 7,
+              title: 'Komatsu PC200-8',
+              user: { id: 'user-1' },
+              approval_status: 'APPROVED',
+              status: 'ACTIVE',
+              expires_at: new Date(Date.now() + 60 * 86400000),
+              featured_until: null,
+            }
+          : opts.post,
+      ),
+      save: jest.fn(async (row: any) => row),
+    };
     const plans: any = {
       setPlan: jest.fn(async () => ({
         plan: Plan.PROVIDER,
@@ -75,8 +101,14 @@ describe('PaymentService', () => {
         return cb(em);
       }),
     };
-    const svc = new PaymentService(paymentsRepo, usersRepo, plans, dataSource);
-    return { svc, paymentsRepo, usersRepo, plans, payment };
+    const svc = new PaymentService(
+      paymentsRepo,
+      usersRepo,
+      postsRepo,
+      plans,
+      dataSource,
+    );
+    return { svc, paymentsRepo, usersRepo, postsRepo, plans, payment };
   };
 
   beforeEach(() => {
@@ -169,7 +201,7 @@ describe('PaymentService', () => {
     });
     const { svc, paymentsRepo } = makeService();
 
-    await svc.createInvoice('user-1', Plan.PROVIDER, 3);
+    await svc.createInvoice('user-1', { plan: Plan.PROVIDER, months: 3 });
 
     expect(paymentsRepo.update).toHaveBeenCalledWith(
       expect.objectContaining({ status: PaymentStatus.PENDING }),
@@ -186,7 +218,7 @@ describe('PaymentService', () => {
     });
     const { svc } = makeService();
 
-    const result = await svc.createInvoice('user-1', Plan.PROVIDER, 99);
+    const result = await svc.createInvoice('user-1', { plan: Plan.PROVIDER, months: 99 });
 
     expect(result.months).toBe(12);
     expect(result.amount).toBe(monthlyPriceMnt(Plan.PROVIDER) * 12);
@@ -194,14 +226,209 @@ describe('PaymentService', () => {
 
   it('refuses to open an invoice for a plan nobody can buy', async () => {
     const { svc } = makeService();
-    await expect(svc.createInvoice('user-1', Plan.FREE, 1)).rejects.toThrow();
+    await expect(
+      svc.createInvoice('user-1', { plan: Plan.FREE, months: 1 }),
+    ).rejects.toThrow();
   });
+
+  // ---------------------------------------------------------------------
+  // Featured placement
+  //
+  // Placement is the second thing anyone can buy, and it settles through the
+  // same latch as a plan. What is different — and what these cover — is that
+  // it can be sold against a listing that is not actually in browse, or that
+  // will lapse before the window does. Both are ways of taking money for
+  // nothing that nobody would notice from the inside.
+  // ---------------------------------------------------------------------
+
+  const withFeaturedPrice = (mnt: string | undefined, fn: () => Promise<void>) => {
+    const before = process.env.FEATURED_PRICE_PER_DAY_MNT;
+    if (mnt === undefined) delete process.env.FEATURED_PRICE_PER_DAY_MNT;
+    else process.env.FEATURED_PRICE_PER_DAY_MNT = mnt;
+    return fn().finally(() => {
+      if (before === undefined) delete process.env.FEATURED_PRICE_PER_DAY_MNT;
+      else process.env.FEATURED_PRICE_PER_DAY_MNT = before;
+    });
+  };
+
+  const invoiceOk = () =>
+    qpay.createQPayInvoice.mockResolvedValue({
+      invoice_id: 'qpay-f',
+      qr_text: 'x',
+      qr_image: 'y',
+      urls: [],
+    });
+
+  it('prices placement per day and reports the days bought', () =>
+    withFeaturedPrice('2000', async () => {
+      invoiceOk();
+      const { svc } = makeService();
+
+      const result = await svc.createInvoice('user-1', {
+        kind: PaymentKind.FEATURED,
+        post_id: 7,
+        days: 14,
+      });
+
+      expect(result.kind).toBe(PaymentKind.FEATURED);
+      expect(result.days).toBe(14);
+      expect(result.amount).toBe(2000 * 14);
+      expect(result.post_id).toBe(7);
+    }));
+
+  // An unset price is not a zero price. Selling placement for nothing, or for
+  // a number nobody chose, are the two ways this goes wrong quietly.
+  it('will not sell placement until a price is set', () =>
+    withFeaturedPrice(undefined, async () => {
+      invoiceOk();
+      const { svc } = makeService();
+      await expect(
+        svc.createInvoice('user-1', { kind: PaymentKind.FEATURED, post_id: 7 }),
+      ).rejects.toThrow();
+    }));
+
+  it('refuses placement on somebody else\'s listing', () =>
+    withFeaturedPrice('2000', async () => {
+      invoiceOk();
+      const { svc } = makeService({
+        post: {
+          id: 7,
+          user: { id: 'someone-else' },
+          approval_status: 'APPROVED',
+          status: 'ACTIVE',
+          expires_at: null,
+        },
+      });
+      await expect(
+        svc.createInvoice('user-1', { kind: PaymentKind.FEATURED, post_id: 7 }),
+      ).rejects.toThrow();
+    }));
+
+  // Placement sorts listings that are already in browse. A window on a post
+  // awaiting moderation buys a position in a list it does not appear in.
+  it('refuses placement on a listing that is not live', () =>
+    withFeaturedPrice('2000', async () => {
+      invoiceOk();
+      const { svc } = makeService({
+        post: {
+          id: 7,
+          user: { id: 'user-1' },
+          approval_status: 'PENDING',
+          status: 'ACTIVE',
+          expires_at: null,
+        },
+      });
+      await expect(
+        svc.createInvoice('user-1', { kind: PaymentKind.FEATURED, post_id: 7 }),
+      ).rejects.toThrow();
+    }));
+
+  it('never sells more days than the listing has left', () =>
+    withFeaturedPrice('2000', async () => {
+      invoiceOk();
+      const { svc } = makeService({
+        post: {
+          id: 7,
+          user: { id: 'user-1' },
+          approval_status: 'APPROVED',
+          status: 'ACTIVE',
+          expires_at: new Date(Date.now() + 3 * 86400000),
+        },
+      });
+
+      const result = await svc.createInvoice('user-1', {
+        kind: PaymentKind.FEATURED,
+        post_id: 7,
+        days: 30,
+      });
+
+      expect(result.days).toBe(3);
+      expect(result.amount).toBe(2000 * 3);
+    }));
+
+  it('opens the window exactly once when a placement invoice settles', async () => {
+    qpay.checkQPayInvoice.mockResolvedValue({ paid: true, paid_amount: 28000 });
+    const { svc, plans } = makeService({
+      payment: {
+        id: 'pay-f',
+        user: { id: 'user-1' },
+        kind: PaymentKind.FEATURED,
+        plan: null,
+        months: 1,
+        post: { id: 7 },
+        days: 14,
+        amount: 28000,
+        status: PaymentStatus.PENDING,
+        provider_invoice_id: 'qpay-f',
+        granted_at: null,
+        paid_at: null,
+      },
+    });
+
+    const result = await svc.check('pay-f');
+
+    expect(result.status).toBe(PaymentStatus.PAID);
+    expect(featured.openFeaturedWindow).toHaveBeenCalledWith(
+      expect.anything(),
+      7,
+      14,
+    );
+    // Placement must never touch plan entitlement — they are separate products
+    // and a FREE provider is allowed to buy one without becoming a paid one.
+    expect(plans.setPlan).not.toHaveBeenCalled();
+  });
+
+  it('does not reopen the window when the callback is replayed', async () => {
+    qpay.checkQPayInvoice.mockResolvedValue({ paid: true, paid_amount: 28000 });
+    const settled = {
+      id: 'pay-f',
+      user: { id: 'user-1' },
+      kind: PaymentKind.FEATURED,
+      plan: null,
+      months: 1,
+      post: { id: 7 },
+      days: 14,
+      amount: 28000,
+      status: PaymentStatus.PENDING,
+      provider_invoice_id: 'qpay-f',
+      granted_at: new Date(),
+      paid_at: new Date(),
+    };
+    const { svc } = makeService({
+      payment: settled,
+      transactionResult: settled,
+    });
+
+    const result = await svc.check('pay-f');
+
+    expect(result.status).toBe(PaymentStatus.PAID);
+    expect(featured.openFeaturedWindow).not.toHaveBeenCalled();
+  });
+
+  // Two products, one till: opening a placement invoice must not retire a plan
+  // invoice the provider is about to pay in another tab.
+  it('supersedes only invoices of the same kind', () =>
+    withFeaturedPrice('2000', async () => {
+      invoiceOk();
+      const { svc, paymentsRepo } = makeService();
+
+      await svc.createInvoice('user-1', {
+        kind: PaymentKind.FEATURED,
+        post_id: 7,
+        days: 7,
+      });
+
+      expect(paymentsRepo.update).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: PaymentKind.FEATURED }),
+        expect.objectContaining({ status: PaymentStatus.CANCELLED }),
+      );
+    }));
 
   it('answers 503 rather than half-working when QPay is unconfigured', async () => {
     qpay.qpayConfigured.mockReturnValue(false);
     const { svc } = makeService();
     await expect(
-      svc.createInvoice('user-1', Plan.PROVIDER, 1),
+      svc.createInvoice('user-1', { plan: Plan.PROVIDER, months: 1 }),
     ).rejects.toThrow();
   });
 });

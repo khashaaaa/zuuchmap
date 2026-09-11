@@ -26,6 +26,18 @@
  *   - featured windows both live and lapsed
  *   - bookings past, live and future, plus an ACCEPTED one on a post that gets
  *     deleted, to exercise `ON DELETE SET NULL` and review eligibility surviving
+ *   - an edit parked in `pending_revision` behind a listing that stays live,
+ *     and an edit that was refused while the published version stayed up
+ *     (APPROVED *and* carrying a rejection_reason — the state most likely to be
+ *     rendered as "your listing was rejected")
+ *   - threads unread on each side, a thread nobody answered, one long enough to
+ *     page past the 30-message cursor, and one whose listing is gone
+ *   - reports OPEN, RESOLVED and DISMISSED, including one whose reporter's
+ *     account has been deleted
+ *   - payments in every QPay state, plus a MANUAL row with no invoice id and a
+ *     PAID row not yet granted — the window the idempotency latch guards
+ *   - push rows on all three transports, and accounts with no device at all,
+ *     which is the only case the email fallback ever fires for
  *
  * Wipes first: `--wipe` truncates every domain table (never `migrations`).
  * Run: npx ts-node -r tsconfig-paths/register src/database/seed-test-posts.ts --wipe [--seed=N]
@@ -44,6 +56,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as sharp from 'sharp';
 import { CATEGORY_SEED } from '../post/category.service';
+import { REPORT_REASONS } from '../enums/report';
 
 const ADMIN_PHONES = (process.env.ADMIN_PHONES ?? '')
   .split(',')
@@ -1022,6 +1035,86 @@ const REVIEW_COMMENTS = [
   'Дуудлагын дараа 20 минутад ирсэн. Маш хурдан шуурхай.',
 ];
 
+// Thread prose. A conversation reads as a negotiation or it reads as filler,
+// and the inbox is the one screen where every row is prose — a corpus of
+// "Message 3" cannot show whether the 200-char preview truncates sensibly or
+// whether a two-line row is what the list was measured for.
+const THREAD_OPENERS = [
+  'Сайн байна уу. Энэ зар идэвхтэй байгаа юу?',
+  'Үнэ нь тохиролцох боломжтой юу? Урт хугацаагаар авна.',
+  'Маргааш үзэж болох уу? Байршил нь яг хаана байдаг вэ?',
+  'Операторын хөлс үнэд орсон уу, эсвэл тусад нь тооцох уу?',
+  'Хэдэн оны үйлдвэрлэлийн вэ? Мото цаг хэд явсан бэ?',
+  'Дархан руу явуулах боломжтой юу? Тээврийн зардал хэд болох вэ?',
+  'Бөөнөөр авбал хөнгөлөлт үзүүлэх үү? 200 шуудай хэрэгтэй байна.',
+  'Ажлын байр нээлттэй хэвээр байна уу? Ямар туршлага шаардах вэ?',
+  'Гэрээ байгуулж ажилладаг уу? Байгууллагын нэр дээр авна.',
+];
+
+const THREAD_PROVIDER_REPLIES = [
+  'Тийм, идэвхтэй байна. Хэзээнээс хэрэгтэй вэ?',
+  'Долоо хоногоос дээш хугацаагаар авбал 10% хөнгөлнө.',
+  'Байршил Баянзүрх дүүрэг, 100 айлын ард. Өдөр бүр 09:00–18:00 цагт үзэж болно.',
+  'Операторын хөлс тусдаа, өдрийн 80,000₮.',
+  '2019 оны үйлдвэрлэл, 4,200 мото цаг явсан. Бүрэн ажиллагаатай.',
+  'Тээврийг өөрсдөө хариуцна. Дархан хүртэл 350,000₮ нэмэгдэнэ.',
+  'Ажлын байр нээлттэй. 2-оос дээш жилийн туршлага шаардана.',
+  'Уучлаарай, тэр өдрүүд захиалгатай байна. 15-наас хойш боломжтой.',
+  'Байгууллагын нэр дээр гэрээ хийж, НӨАТ-тай баримт өгнө.',
+];
+
+const THREAD_CUSTOMER_FOLLOWUPS = [
+  'Ойлголоо, баярлалаа. Тэгвэл маргааш ярья.',
+  'Урьдчилгаа хэдэн хувь төлөх вэ?',
+  'Зурагнаас илүү дэлгэрэнгүй харах боломжтой юу?',
+  'Дансны мэдээллээ явуулна уу.',
+  'За тохирлоо. Утсаар холбогдъё.',
+  'Ажил 3 хоног үргэлжилнэ. Түлш хэн хариуцах вэ?',
+];
+
+/** What a reporter actually types, by reason — the queue is triaged by kind. */
+const REPORT_DETAILS: Record<string, (string | null)[]> = {
+  SPAM: [
+    'Ижил зар 5 удаа давхардаж тавигдсан байна.',
+    'Зарын агуулга нь зөвхөн сурталчилгаа, бодит бараа алга.',
+    null,
+  ],
+  SCAM: [
+    'Урьдчилгаа 500,000₮ шаардсаны дараа холбогдохоо больсон.',
+    'Данс руу мөнгө шилжүүлсний дараа утас нь унтарсан.',
+  ],
+  WRONG_INFO: [
+    'Зарласан үнэ болон бодит үнэ хоёр өөр байна.',
+    'Байршил Улаанбаатар гэсэн ч бодитоор Дархан хотод байсан.',
+    null,
+  ],
+  UNAVAILABLE: [
+    'Техник нь аль хэдийн зарагдсан гэж хэлсэн.',
+    'Ажлын байр хаагдсан байна.',
+  ],
+  OFFENSIVE: ['Зарын тайлбарт доромжилсон үг хэллэг байна.'],
+  OTHER: ['Ангилал буруу сонгосон байна.', null],
+};
+
+const REPORT_RESOLUTIONS: Record<string, string[]> = {
+  RESOLVED: [
+    'Зар устгагдав, эзэмшигчид сануулга өгсөн.',
+    'Мэдээллийг шалгаж, зарыг түр хаасан.',
+    'Эзэмшигч үнийн мэдээллээ засварласан.',
+  ],
+  DISMISSED: [
+    'Шалгалтад зөрчил илрээгүй.',
+    'Гомдол үндэслэлгүй — зар журамд нийцэж байна.',
+  ],
+};
+
+/** Notes a support agent leaves on a payment row. */
+const PAYMENT_NOTES = [
+  'Банкны шилжүүлгээр төлсөн, гараар баталгаажуулав.',
+  'Хэрэглэгч буруу дүн шилжүүлсэн тул зөрүүг буцаав.',
+  'Нэхэмжлэх хугацаа дуусч, шинээр үүсгэсэн.',
+];
+
 // ---------------------------------------------------------------------------
 // Fixture images
 // ---------------------------------------------------------------------------
@@ -1046,6 +1139,7 @@ async function makeImage(
   label: string,
   w = 1200,
   h = 900,
+  thumb = false,
 ) {
   const file = path.join(process.cwd(), 'uploads', dir, name);
   await fs.mkdir(path.dirname(file), { recursive: true });
@@ -1061,6 +1155,17 @@ async function makeImage(
      </svg>`,
   );
   await sharp(svg).jpeg({ quality: 72 }).toFile(file);
+  if (thumb) {
+    // Post photos are written twice by the upload path — the original and a
+    // 640px `_thumb` — and every list, grid, map carousel and thread row asks
+    // for the thumb first. A fixture set with only originals therefore renders
+    // entirely through the fallback: the optimisation is invisible locally, and
+    // so is a mistake in the naming convention that joins the two.
+    await sharp(svg)
+      .resize(640, 640, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 70 })
+      .toFile(file.replace(/(\.[a-z0-9]+)$/i, '_thumb$1'));
+  }
   return name;
 }
 
@@ -1074,12 +1179,22 @@ async function seedImageFiles(): Promise<Record<string, string[]>> {
     pools[key] = [];
     for (let n = 1; n <= 4; n++) {
       pools[key].push(
-        await makeImage('posts', `seed-${key}-${n}.jpg`, hex, `${label} ${n}`),
+        await makeImage(
+          'posts',
+          `seed-${key}-${n}.jpg`,
+          hex,
+          `${label} ${n}`,
+          1200,
+          900,
+          true,
+        ),
       );
     }
   }
   const total = Object.values(pools).reduce((a, p) => a + p.length, 0);
-  console.log(`images: ${total} post photos written to uploads/posts`);
+  console.log(
+    `images: ${total} post photos + ${total} thumbnails written to uploads/posts`,
+  );
   return pools;
 }
 
@@ -1921,7 +2036,46 @@ async function seedPushDevices(client: Client, userIds: string[]) {
     );
     made++;
   }
-  console.log(`push devices: ${made} tokens (some users on two devices)`);
+  // Browser subscriptions live in the same table under provider='WEB', with the
+  // endpoint standing in for the token. `splitTargets()` routes a row by its
+  // provider, so a corpus of EXPO-only rows exercises one of the three
+  // transports and makes a broken web fan-out look identical to a quiet one.
+  let web = 0;
+  for (let i = 0; i < 14; i++) {
+    const user = userIds[(i * 5) % userIds.length];
+    const endpoint = `https://fcm.googleapis.com/fcm/send/${createHash('sha256').update(`web-${SEED}-${i}`).digest('hex').slice(0, 32)}`;
+    await client.query(
+      `INSERT INTO push_device (token, provider, web_subscription, platform, last_seen_at, "userId", date_created)
+       VALUES ($1,'WEB',$2::jsonb,'web', now() - interval '${int(0, 14)} days', $3, now() - interval '${int(14, 90)} days')
+       ON CONFLICT DO NOTHING`,
+      [
+        endpoint,
+        JSON.stringify({
+          endpoint,
+          keys: {
+            p256dh: createHash('sha256').update(`p256-${i}`).digest('base64'),
+            auth: createHash('sha256')
+              .update(`auth-${i}`)
+              .digest('base64')
+              .slice(0, 22),
+          },
+        }),
+        user,
+      ],
+    );
+    web++;
+  }
+  // An account with no device at all is the only case the email fallback ever
+  // fires for, and it is the majority of a phone-signup marketplace.
+  const {
+    rows: [{ n: unreachable }],
+  } = await client.query(
+    `SELECT COUNT(*)::int AS n FROM "user" u
+      WHERE NOT EXISTS (SELECT 1 FROM push_device d WHERE d."userId" = u.id)`,
+  );
+  console.log(
+    `push devices: ${made} Expo tokens, ${web} web subscriptions (some users on two devices); ${unreachable} accounts have no device — the email-fallback and UnreachableBanner path`,
+  );
 }
 
 async function seedBookings(client: Client, customers: string[]) {
@@ -2028,12 +2182,27 @@ async function seedBookings(client: Client, customers: string[]) {
     );
 }
 
-async function seedReviews(client: Client) {
-  // Eligibility is "has an ACCEPTED booking with this provider", so derive the
-  // review set from bookings rather than inventing pairs the API would refuse.
-  const { rows: pairs } = await client.query(
+async function seedReviews(
+  client: Client,
+  talkedTo: { customerId: string; providerId: string }[],
+) {
+  // `ReviewService.canReview` accepts two proofs, so the fixture set must too:
+  // an ACCEPTED booking, or a thread the provider actually replied to. Deriving
+  // only from bookings left the four categories with no booking flow —
+  // materialstore, jobvacancy, factory, usedequipment — with a permanently
+  // empty ratings block, which is the exact gap the second clause was added to
+  // close and therefore the last place a fixture set should be silent.
+  const { rows: booked } = await client.query(
     `SELECT DISTINCT "customerId", "providerId" FROM booking WHERE status = 'ACCEPTED'`,
   );
+  const seen = new Set<string>();
+  const pairs = [...booked, ...talkedTo].filter((p: any) => {
+    const k = `${p.customerId}:${p.providerId}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+  const fromBooking = booked.length;
   let made = 0;
   for (const p of pairs) {
     // Skewed high, the way marketplace ratings actually are — a uniform 1–5
@@ -2053,7 +2222,9 @@ async function seedReviews(client: Client) {
       /* one review per author per provider */
     }
   }
-  console.log(`reviews: ${made} (a third with no comment)`);
+  console.log(
+    `reviews: ${made} of ${pairs.length} eligible pairs — ${fromBooking} via an accepted booking, ${pairs.length - fromBooking} via an answered thread (a third with no comment)`,
+  );
 }
 
 async function seedAuthArtifacts(
@@ -2130,6 +2301,451 @@ async function seedAnalytics(client: Client, userIds: string[]) {
   console.log(`analytics: ${made} events spread over 90 days`);
 }
 
+/**
+ * Category schemas, when the table is empty.
+ *
+ * `CategoryService.seedCategories()` does this on engine boot, but a corpus
+ * that only becomes browsable after the server has been started once is a
+ * corpus with a hidden prerequisite: every client derives its form sections,
+ * filters, markers and labels from this table, so a freshly wiped database
+ * renders as thirteen raw keys until something boots. Same guard as the
+ * service — a non-empty table is left alone, so admin edits survive a re-seed.
+ */
+async function seedCategorySchemas(client: Client) {
+  const {
+    rows: [{ n }],
+  } = await client.query('SELECT COUNT(*)::int AS n FROM category_schema');
+  if (n > 0) {
+    console.log(`categories: ${n} schemas already present, left alone`);
+    return;
+  }
+  for (let i = 0; i < CATEGORY_SEED.length; i++) {
+    const c = CATEGORY_SEED[i] as any;
+    await client.query(
+      `INSERT INTO category_schema
+         (key, label, icon, color, subcategories, fields, active, sort_order, labels,
+          has_rental_status, has_availability_dates, has_price, default_price_unit,
+          emphasized, post_expiry_days)
+       VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7,$8,$9::jsonb,$10,$11,$12,$13,$14,$15)`,
+      [
+        c.key,
+        c.label,
+        c.icon ?? null,
+        c.color ?? null,
+        JSON.stringify(c.subcategories ?? []),
+        JSON.stringify(c.fields ?? []),
+        c.active ?? true,
+        c.sort_order ?? i,
+        JSON.stringify(c.labels ?? {}),
+        !!c.has_rental_status,
+        !!c.has_availability_dates,
+        !!c.has_price,
+        c.default_price_unit ?? null,
+        !!c.emphasized,
+        c.post_expiry_days ?? null,
+      ],
+    );
+  }
+  console.log(`categories: ${CATEGORY_SEED.length} schemas seeded`);
+}
+
+/**
+ * Edits waiting on moderation, and edits that were refused.
+ *
+ * The `pending_revision` path is invisible in a corpus of freshly-created
+ * posts: the admin queue looks like a plain PENDING list, the owner's form
+ * has nothing to hydrate from, and "APPROVED with a rejection_reason" — an
+ * edit that was turned down while the published version stayed up — never
+ * appears at all, which is precisely the state most likely to be rendered as
+ * "your listing was rejected".
+ *
+ * The proposal is a real diff of the live row (a price move, a corrected
+ * phone, an appended paragraph), because a revision identical to the post is
+ * one the update path would have dropped rather than queued.
+ */
+async function seedRevisions(client: Client) {
+  const { rows } = await client.query(
+    `SELECT id, title, details, subcategory, province, district, address, location,
+            price_unit, contact_phone, contact_email, website, latitude, longitude,
+            price_amount, attributes, images
+       FROM post
+      WHERE approval_status = 'APPROVED' AND status = 'ACTIVE'
+      ORDER BY id`,
+  );
+  let queued = 0;
+  let refused = 0;
+  for (let i = 0; i < rows.length; i++) {
+    const p = rows[i];
+    if (i % 9 !== 0 && i % 23 !== 5) continue;
+
+    // A refused edit leaves the live version serving and a reason on the row.
+    if (i % 23 === 5) {
+      await client.query(
+        `UPDATE post SET rejection_reason = $2, rejection_field = $3 WHERE id = $1`,
+        [p.id, pick(REJECTIONS), pick(['title', 'price_amount', 'images'])],
+      );
+      refused++;
+      continue;
+    }
+
+    const kind = i % 3;
+    const revision = {
+      title:
+        kind === 0 ? `${p.title} (шинэчилсэн)`.slice(0, 200) : p.title,
+      details:
+        kind === 2
+          ? `${p.details ?? ''} Тавигдах шаардлага нэмэгдсэн байгаа тул дэлгэрэнгүйг утсаар лавлана уу.`.trim()
+          : p.details,
+      subcategory: p.subcategory,
+      province: p.province,
+      district: p.district,
+      address: p.address,
+      location: p.location,
+      price_unit: p.price_unit,
+      contact_phone: kind === 1 ? mobile() : p.contact_phone,
+      contact_email: p.contact_email,
+      website: p.website,
+      latitude: p.latitude,
+      longitude: p.longitude,
+      // The correction a provider makes most often, and the reason this whole
+      // path exists: a price edit used to take the listing out of browse.
+      price_amount:
+        p.price_amount == null
+          ? null
+          : Math.round((Number(p.price_amount) * (kind === 0 ? 1.15 : 0.9)) / 1000) * 1000,
+      attributes: p.attributes,
+      images: p.images ?? [],
+      submitted_at: new Date(
+        Date.now() - int(1, 9) * 24 * 3600 * 1000,
+      ).toISOString(),
+    };
+    await client.query(
+      `UPDATE post SET pending_revision = $2::jsonb WHERE id = $1`,
+      [p.id, JSON.stringify(revision)],
+    );
+    queued++;
+  }
+  // rejection_field on genuinely rejected posts too — the client highlights
+  // the offending input, and a null there makes every rejection look generic.
+  const { rowCount: fielded } = await client.query(
+    `UPDATE post
+        SET rejection_field = (ARRAY['title','price_amount','images','contact_phone','details'])[1 + (id % 5)]
+      WHERE approval_status = 'REJECTED' AND rejection_field IS NULL AND id % 3 <> 0`,
+  );
+  console.log(
+    `revisions: ${queued} edits queued behind live listings, ${refused} refused (post stays APPROVED), ${fielded} rejections carry a field`,
+  );
+}
+
+/**
+ * Threads. Six shapes, because the inbox branches on all of them: unread on
+ * each side, a thread nobody answered, one long enough to page (the cursor is
+ * 30), and one whose listing is gone — `post` is nullable exactly so a thread
+ * survives its listing, and a corpus where it never happens is a corpus where
+ * the null-post row is first rendered in production.
+ *
+ * Returns the (customer, provider) pairs where the provider actually replied:
+ * that is the second clause of review eligibility, and the only one available
+ * to the four categories with no booking flow.
+ */
+async function seedConversations(client: Client, customers: string[]) {
+  const { rows: posts } = await client.query(
+    `SELECT id, "userId" FROM post
+      WHERE approval_status = 'APPROVED' AND status IN ('ACTIVE','RENTED')
+      ORDER BY id`,
+  );
+  if (!posts.length) {
+    console.log('conversations: no approved posts to talk about');
+    return [] as { customerId: string; providerId: string }[];
+  }
+
+  // `unreadDepth` is how many trailing messages the recipient has not opened.
+  // Turns alternate, so a depth of 3 leaves two unread from one side — which is
+  // what makes the badge show a number rather than always showing 1.
+  const SHAPES = [
+    { key: 'answered', turns: 4, unreadSide: null as null | 'c' | 'p', unreadDepth: 0 },
+    { key: 'customer_unread', turns: 3, unreadSide: 'c' as const, unreadDepth: 1 },
+    { key: 'provider_unread', turns: 5, unreadSide: 'p' as const, unreadDepth: 3 },
+    { key: 'unanswered', turns: 1, unreadSide: 'p' as const, unreadDepth: 1 },
+    { key: 'answered', turns: 6, unreadSide: null, unreadDepth: 0 },
+    { key: 'long', turns: 34, unreadSide: 'c' as const, unreadDepth: 4 },
+    { key: 'orphan', turns: 3, unreadSide: null, unreadDepth: 0 },
+  ];
+
+  const replied: { customerId: string; providerId: string }[] = [];
+  const counts: Record<string, number> = {};
+  let messages = 0;
+  const seen = new Set<string>();
+
+  for (let i = 0; i < 46; i++) {
+    const post = posts[(i * 7) % posts.length];
+    const customer = customers[(i * 3) % customers.length];
+    if (customer === post.userId) continue;
+    // One thread per (customer, post) — the API opens or returns, never forks.
+    const key = `${customer}:${post.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const shape = SHAPES[i % SHAPES.length];
+    const startedDaysAgo = int(1, 45);
+    const {
+      rows: [conv],
+    } = await client.query(
+      `INSERT INTO conversation ("postId", "customerId", "providerId", date_created, date_updated)
+       VALUES ($1, $2, $3,
+               now() - interval '${startedDaysAgo} days',
+               now() - interval '${startedDaysAgo} days')
+       RETURNING id`,
+      // The listing is gone; the thread is not. Passed as a null parameter
+      // rather than a literal so every branch binds the same three placeholders.
+      [shape.key === 'orphan' ? null : post.id, customer, post.userId],
+    );
+
+    // Turns alternate, customer first. Minutes-then-hours apart, so the thread
+    // reads as a conversation rather than as a batch insert — but the whole
+    // span has to fit inside the thread's own age. Fixed 4–900 minute gaps
+    // meant a 34-turn thread covered up to three weeks from a start only a few
+    // days ago, so its newest messages were dated in the future: they sorted
+    // above everything real in the inbox and rendered as tomorrow.
+    const spanMin = Math.max(30, Math.floor(startedDaysAgo * 24 * 60 * 0.85));
+    const gapMax = Math.max(4, Math.floor(spanMin / Math.max(1, shape.turns)));
+    // A pool this size cannot fill 17 turns a side without repeating, and a
+    // thread that says the same sentence three times reads as generated. Draw
+    // without replacement and only start over once the pool is exhausted.
+    const spent = { c: new Set<string>(), p: new Set<string>() };
+    const fresh = (pool: string[], side: 'c' | 'p') => {
+      const left = pool.filter((x) => !spent[side].has(x));
+      if (!left.length) spent[side].clear();
+      const chosen = pick(left.length ? left : pool);
+      spent[side].add(chosen);
+      return chosen;
+    };
+    let offsetMin = 0;
+    let lastBody = '';
+    let providerSpoke = false;
+    let customerUnread = 0;
+    let providerUnread = 0;
+    for (let t = 0; t < shape.turns; t++) {
+      const fromCustomer = t % 2 === 0;
+      const body = fromCustomer
+        ? t === 0
+          ? pick(THREAD_OPENERS)
+          : fresh(THREAD_CUSTOMER_FOLLOWUPS, 'c')
+        : fresh(THREAD_PROVIDER_REPLIES, 'p');
+      offsetMin += t === 0 ? 0 : int(4, gapMax);
+      // Unread is the tail of the thread, on one side only; everything before
+      // it was read, which is what the read receipt and the badge both assume.
+      // The counters below are tallied from this, never invented — a
+      // denormalised badge that disagrees with its own rows is the bug the
+      // column exists to risk, not a state worth shipping in the fixtures.
+      const inTail = t >= shape.turns - shape.unreadDepth;
+      const forCustomer = !fromCustomer;
+      const unread =
+        inTail &&
+        shape.unreadSide != null &&
+        (shape.unreadSide === 'c' ? forCustomer : fromCustomer);
+      if (unread) {
+        if (forCustomer) customerUnread++;
+        else providerUnread++;
+      }
+      await client.query(
+        `INSERT INTO message ("conversationId", "senderId", body, read_at, date_created)
+         VALUES ($1,$2,$3,
+                 ${unread ? 'NULL' : `(now() - interval '${startedDaysAgo} days' + interval '${offsetMin + int(2, 120)} minutes')`},
+                 now() - interval '${startedDaysAgo} days' + interval '${offsetMin} minutes')`,
+        [conv.id, fromCustomer ? customer : post.userId, body],
+      );
+      messages++;
+      lastBody = body;
+      if (!fromCustomer) providerSpoke = true;
+    }
+
+    // Read back from the messages rather than recomputed from the same
+    // expression: each INSERT above ran in its own transaction, so its `now()`
+    // is microseconds later than this statement's, and a sort key that is
+    // *nearly* the last message is a cursor that can skip one.
+    await client.query(
+      `UPDATE conversation c
+          SET last_message_at = m.max_at,
+              last_message_preview = $2,
+              customer_unread = $3,
+              provider_unread = $4,
+              date_updated = m.max_at
+         FROM (SELECT max(date_created) AS max_at FROM message WHERE "conversationId" = $1) m
+        WHERE c.id = $1`,
+      [conv.id, lastBody.slice(0, 200), customerUnread, providerUnread],
+    );
+
+    if (providerSpoke) replied.push({ customerId: customer, providerId: post.userId });
+    counts[shape.key] = (counts[shape.key] ?? 0) + 1;
+  }
+
+  console.log(
+    `conversations: ${seen.size} threads, ${messages} messages — ${Object.entries(
+      counts,
+    )
+      .map(([k, v]) => `${k} ${v}`)
+      .join(', ')}`,
+  );
+  return replied;
+}
+
+/**
+ * Flags on live listings, in all three states.
+ *
+ * An empty queue makes the admin Reports tab, the report badge, the admin
+ * socket room and `notifyAdminsOfReport` all indistinguishable from working.
+ * A verdict is written once, so RESOLVED and DISMISSED rows carry both a
+ * resolution and a `resolved_at` — an admin screen that formats one without
+ * the other has nothing here to catch it.
+ */
+async function seedReports(client: Client, customers: string[]) {
+  const { rows: posts } = await client.query(
+    `SELECT id, "userId" FROM post WHERE approval_status = 'APPROVED' ORDER BY id`,
+  );
+  if (!posts.length) {
+    console.log('reports: no approved posts to flag');
+    return;
+  }
+  const statuses = [
+    'OPEN',
+    'OPEN',
+    'OPEN',
+    'RESOLVED',
+    'RESOLVED',
+    'DISMISSED',
+  ];
+  const counts: Record<string, number> = {};
+  const filed = new Set<string>();
+  // Shuffled rather than strided: an `i * k % length` walk silently collapses
+  // to a short cycle whenever k and length share a factor, and it did — 11
+  // against 176 posts repeated every 16 rows, so two thirds of the queue was
+  // deduped away without anything saying so.
+  const postOrder = shuffle<{ id: number; userId: string }>(posts);
+  const reporterOrder = shuffle<string>(customers);
+  let made = 0;
+  for (let i = 0; i < 34; i++) {
+    const post = postOrder[i % postOrder.length];
+    const reporter = reporterOrder[i % reporterOrder.length];
+    if (reporter === post.userId) continue;
+    // `POST /reports` returns the existing row rather than filing a second one,
+    // so the corpus must not contain a pair the API could not have produced.
+    // There is no unique index behind this — deduping here, not in a catch.
+    const pair = `${reporter}:${post.id}`;
+    if (filed.has(pair)) continue;
+    filed.add(pair);
+    const reason = REPORT_REASONS[i % REPORT_REASONS.length];
+    const status = statuses[i % statuses.length];
+    const filedDaysAgo = int(0, 50);
+    await client.query(
+      `INSERT INTO report ("reporterId", "postId", reason, detail, status, resolution, resolved_at, date_created, date_updated)
+       VALUES ($1,$2,$3,$4,$5,$6,
+               ${status === 'OPEN' ? 'NULL' : `now() - interval '${Math.max(0, filedDaysAgo - int(1, 4))} days'`},
+               now() - interval '${filedDaysAgo} days',
+               now() - interval '${filedDaysAgo} days')`,
+      [
+        // A tenth are anonymous-by-deletion: the reporter's account is gone but
+        // the report is not, which is what ON DELETE SET NULL is for.
+        i % 10 === 7 ? null : reporter,
+        post.id,
+        reason,
+        pick(REPORT_DETAILS[reason] ?? [null]),
+        status,
+        status === 'OPEN' ? null : pick(REPORT_RESOLUTIONS[status]),
+      ],
+    );
+    counts[status] = (counts[status] ?? 0) + 1;
+    made++;
+  }
+  console.log(
+    `reports: ${made} — ${Object.entries(counts)
+      .map(([k, v]) => `${k} ${v}`)
+      .join(', ')}`,
+  );
+}
+
+/**
+ * Receipts and invoices.
+ *
+ * The row is written before QPay is contacted, so every state QPay can leave
+ * behind has to render: a PAID row that was granted, a PENDING invoice still
+ * inside its hour, a PENDING one the sweep should have expired, and the
+ * EXPIRED/CANCELLED tail. A MANUAL row too — a bank transfer reconciled by
+ * hand has no `provider_invoice_id`, and the billing screen must not assume one.
+ *
+ * Amounts are stored, not derived: this is what makes a receipt a receipt, and
+ * a corpus where every row equals today's price cannot show it.
+ */
+async function seedPayments(client: Client) {
+  const { rows: users } = await client.query(
+    `SELECT id, plan, plan_expires_at FROM "user" WHERE type = 'PROVIDER' ORDER BY id`,
+  );
+  if (!users.length) {
+    console.log('payments: no providers to bill');
+    return;
+  }
+  const price = Number(process.env.PLAN_PRICE_PROVIDER_MNT ?? 49900);
+  const plans = [
+    { status: 'PAID', granted: true, provider: 'QPAY', ageDays: 40 },
+    { status: 'PAID', granted: true, provider: 'QPAY', ageDays: 12 },
+    { status: 'PAID', granted: true, provider: 'MANUAL', ageDays: 70 },
+    // Accepted by QPay, never confirmed — the row the sweep re-checks.
+    { status: 'PENDING', granted: false, provider: 'QPAY', ageDays: 0 },
+    { status: 'PENDING', granted: false, provider: 'QPAY', ageDays: 2 },
+    { status: 'EXPIRED', granted: false, provider: 'QPAY', ageDays: 20 },
+    { status: 'CANCELLED', granted: false, provider: 'QPAY', ageDays: 33 },
+    // Paid but not yet granted — the window the idempotency latch guards.
+    { status: 'PAID', granted: false, provider: 'QPAY', ageDays: 0 },
+  ];
+  const counts: Record<string, number> = {};
+  let made = 0;
+  for (let i = 0; i < 30; i++) {
+    const user = users[i % users.length];
+    const p = plans[i % plans.length];
+    // Historic prices differ from today's — a receipt is a record, not a lookup.
+    const months = pick([1, 1, 1, 3, 6, 12]);
+    const unit = p.ageDays > 30 ? Math.round(price * 0.8) : price;
+    const paidAt =
+      p.status === 'PAID'
+        ? `now() - interval '${p.ageDays} days' + interval '${int(2, 50)} minutes'`
+        : 'NULL';
+    try {
+      await client.query(
+        `INSERT INTO payment
+           ("userId", plan, months, amount, currency, provider, status,
+            provider_invoice_id, reference, paid_at, granted_at, note,
+            date_created, date_updated)
+         VALUES ($1,'PROVIDER',$2,$3,'MNT',$4,$5,$6,$7,${paidAt},
+                 ${p.granted ? paidAt : 'NULL'}, $8,
+                 now() - interval '${p.ageDays} days',
+                 now() - interval '${p.ageDays} days')`,
+        [
+          user.id,
+          months,
+          unit * months,
+          p.provider,
+          p.status,
+          p.provider === 'MANUAL'
+            ? null
+            : createHash('sha256').update(`qpay-${SEED}-${i}`).digest('hex').slice(0, 32),
+          `ZM-${createHash('sha256').update(`ref-${SEED}-${i}`).digest('hex').slice(0, 8).toUpperCase()}`,
+          p.provider === 'MANUAL' ? pick(PAYMENT_NOTES) : null,
+        ],
+      );
+      counts[`${p.status}${p.granted ? '' : p.status === 'PAID' ? ' (ungranted)' : ''}`] =
+        (counts[`${p.status}${p.granted ? '' : p.status === 'PAID' ? ' (ungranted)' : ''}`] ?? 0) + 1;
+      made++;
+    } catch (err: any) {
+      if (err?.constraint !== 'UQ_payment_provider_invoice_id') throw err;
+    }
+  }
+  console.log(
+    `payments: ${made} at ${price.toLocaleString('en-US')}₮/mo — ${Object.entries(counts)
+      .map(([k, v]) => `${k} ${v}`)
+      .join(', ')}`,
+  );
+}
+
 async function main() {
   const client = new Client({
     host: process.env.PG_HOST,
@@ -2144,13 +2760,21 @@ async function main() {
   if (process.argv.includes('--wipe')) await wipe(client);
 
   const imagePool = await seedImageFiles();
+  await seedCategorySchemas(client);
   const companies = await seedCompanies(client);
   const { providers, customers, admins } = await seedUsers(client, companies);
   const owners = [...providers, ...admins];
   const postIds = await seedPosts(client, owners, imagePool);
+  await seedRevisions(client);
   await seedEngagement(client, postIds, customers);
   await seedBookings(client, customers);
-  await seedReviews(client);
+  // Threads before reviews: a provider who answered a message is the second
+  // half of review eligibility, and the only half available to the four
+  // categories that have no booking flow at all.
+  const talkedTo = await seedConversations(client, customers);
+  await seedReviews(client, talkedTo);
+  await seedReports(client, customers);
+  await seedPayments(client);
   await seedSavedSearches(client, customers);
   await seedPushDevices(client, [...owners.map((o) => o.id), ...customers]);
   await seedAuthArtifacts(client, owners);

@@ -24,9 +24,13 @@ export default function ProfilePage() {
     enabled: isProvider,
   })
 
-  const { data: likedPosts } = useQuery({
-    queryKey: ['liked-posts'],
-    queryFn: likesApi.getLiked,
+  // The engine's own total, not the length of a page of it. This read
+  // `getLiked().length`, which rode the default limit of 20 — so a customer
+  // with more saves than that was told "20" here and shown a different, larger
+  // number by the app's profile, which has always read the total.
+  const { data: likedCount = 0 } = useQuery({
+    queryKey: ['liked-count'],
+    queryFn: likesApi.count,
     enabled: !isProvider,
   })
 
@@ -45,7 +49,7 @@ export default function ProfilePage() {
   } else {
     stats = (
       <div className="grid grid-cols-1 gap-3 mb-4">
-        <StatCard label={t('nav.saved')} value={likedPosts?.length ?? 0} />
+        <StatCard label={t('nav.saved')} value={likedCount} />
         {isCustomer && <SavedSearches />}
       </div>
     )

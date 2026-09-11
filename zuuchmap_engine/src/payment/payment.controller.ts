@@ -31,7 +31,7 @@ export class PaymentController {
   @UseGuards(JwtAuthGuard)
   @ThrottleDecorator({ default: { limit: 10, ttl: 60000 } })
   createInvoice(@Body() dto: CreateInvoiceDto, @Req() req) {
-    return this.payments.createInvoice(req.user.id, dto.plan, dto.months ?? 1);
+    return this.payments.createInvoice(req.user.id, dto);
   }
 
   /**

@@ -1,5 +1,7 @@
+import { groupThousands } from '@/lib/utils'
+
 function StatValue({ value }) {
-  if (typeof value === 'number') return value.toLocaleString()
+  if (typeof value === 'number') return groupThousands(value)
   return value ?? '—'
 }
 

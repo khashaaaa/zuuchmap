@@ -1,17 +1,18 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { CreditCard, CheckCircle2 } from 'lucide-react'
+import { CreditCard, CheckCircle2, Star } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
 import Button from '@/components/Button'
 import Modal from '@/components/Modal'
-import { paymentsApi } from '@/lib/api'
-import { formatPrice, goBack } from '@/lib/utils'
+import { paymentsApi, postsApi } from '@/lib/api'
+import { formatDate, formatPrice, goBack } from '@/lib/utils'
 import { useProfile } from '@/hooks/useProfile'
 
 const MONTH_CHOICES = [1, 3, 6, 12]
+const DAY_CHOICES_FALLBACK = [7, 14, 30]
 /** QPay settles in seconds, but a bank app can sit on it — poll for two minutes. */
 const POLL_INTERVAL_MS = 3000
 const POLL_TIMEOUT_MS = 120000
@@ -27,12 +28,19 @@ const POLL_TIMEOUT_MS = 120000
  * poll below only reads the answer the engine has already verified.
  */
 export default function ProviderBilling() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const qc = useQueryClient()
+  const [params, setParams] = useSearchParams()
   const [months, setMonths] = useState(1)
+  const [days, setDays] = useState(7)
   const [invoice, setInvoice] = useState(null)
   const [paid, setPaid] = useState(false)
+
+  // `?post=` is how the posts list hands one listing to the till. Placement is
+  // bought for a specific listing, so it is only offered when there is one —
+  // an empty picker on a page about plans would be noise.
+  const featuredPostId = Number(params.get('post')) || null
 
   const { data: catalogue } = useQuery({
     queryKey: ['payments', 'catalogue'],
@@ -40,11 +48,51 @@ export default function ProviderBilling() {
   })
   const { data: profile } = useProfile()
   const { data: history = [] } = useQuery({ queryKey: ['payments', 'mine'], queryFn: paymentsApi.mine })
+  // Same key and fetcher as the posts list, so arriving from it is a cache hit
+  // rather than a second round trip for a title we were just shown.
+  const { data: myPosts = [] } = useQuery({
+    queryKey: ['my-posts'],
+    queryFn: postsApi.getMine,
+    enabled: Boolean(featuredPostId),
+  })
+  const featuredPost = useMemo(
+    () => myPosts.find((p) => p.id === featuredPostId) ?? null,
+    [myPosts, featuredPostId]
+  )
+  const featuredCat = catalogue?.featured
+  const dayChoices = featuredCat?.packs?.length ? featuredCat.packs : DAY_CHOICES_FALLBACK
+  const perDay = featuredCat?.price_per_day ?? 0
+  // What the server will actually sell: never more days than the listing has
+  // left, so the total on screen is the total on the invoice.
+  const daysLeft = featuredPost?.expires_at
+    ? Math.floor((new Date(featuredPost.expires_at) - Date.now()) / 86400000)
+    : null
+  const sellableDays = daysLeft == null ? days : Math.max(0, Math.min(days, daysLeft))
 
   const paidPlan = catalogue?.plans?.find((p) => p.plan === 'PROVIDER')
   const unitPrice = paidPlan?.monthly_price ?? 0
   const expiresAt = profile?.plan_expires_at ? new Date(profile.plan_expires_at) : null
   const planActive = profile?.plan === 'PROVIDER' && expiresAt && expiresAt > new Date()
+
+  const featuredMut = useMutation({
+    mutationFn: () => paymentsApi.createFeaturedInvoice(featuredPostId, days),
+    onSuccess: (data) => {
+      setPaid(false)
+      setInvoice(data)
+    },
+    onError: (err) => {
+      const code = err?.response?.data?.message
+      toast.error(
+        code === 'PAYMENTS_NOT_CONFIGURED' || code === 'FEATURED_PRICE_NOT_SET'
+          ? t('billing.notConfigured')
+          : code === 'POST_EXPIRES_TOO_SOON'
+            ? t('billing.featured.expiresTooSoon')
+            : code === 'POST_NOT_FEATURABLE'
+              ? t('billing.featured.notLive')
+              : t('billing.failed')
+      )
+    },
+  })
 
   const createMut = useMutation({
     mutationFn: () => paymentsApi.createInvoice('PROVIDER', months),
@@ -79,7 +127,9 @@ export default function ProviderBilling() {
           setPaid(true)
           qc.invalidateQueries({ queryKey: ['profile'] })
           qc.invalidateQueries({ queryKey: ['payments', 'mine'] })
-          qc.invalidateQueries({ queryKey: ['posts', 'mine'] })
+          qc.invalidateQueries({ queryKey: ['my-posts'] })
+          // Placement reorders browse, so the public lists are stale too.
+          qc.invalidateQueries({ queryKey: ['posts'] })
         }
       } catch {
         // A failed poll is not a failed payment — the hourly sweep settles an
@@ -93,11 +143,6 @@ export default function ProviderBilling() {
     setInvoice(null)
     setPaid(false)
   }
-
-  const dateStr = (value) =>
-    new Date(value).toLocaleDateString(i18n.language === 'mn' ? 'mn-MN' : 'en-GB', {
-      year: 'numeric', month: 'short', day: 'numeric',
-    })
 
   return (
     <div className="max-w-2xl">
@@ -113,7 +158,7 @@ export default function ProviderBilling() {
         <p className="text-xl font-bold text-text mt-1">{profile?.plan ?? 'FREE'}</p>
         <p className="text-sm text-muted mt-1">
           {planActive
-            ? t('billing.expiresOn', { date: dateStr(expiresAt) })
+            ? t('billing.expiresOn', { date: formatDate(expiresAt) })
             : t('billing.postsLimit', { count: catalogue?.plans?.find((p) => p.plan === 'FREE')?.posts ?? 3 })}
         </p>
       </section>
@@ -178,6 +223,82 @@ export default function ProviderBilling() {
         </section>
       )}
 
+      {/* Placement. Sold per listing per day and priced separately from the
+          plan ladder — it buys position in browse, not entitlement on the
+          account, so a FREE provider is as welcome to it as a paid one. Only
+          rendered when the posts list handed us a listing to sell it for. */}
+      {featuredPostId && (
+        <section className="rounded-card bg-surface p-4 mb-6">
+          <div className="flex items-start gap-2">
+            <Star size={18} className="text-primary-text shrink-0 mt-0.5" aria-hidden="true" />
+            <div className="min-w-0">
+              <p className="font-semibold text-text">{t('billing.featured.title')}</p>
+              <p className="text-sm text-muted truncate">
+                {featuredPost?.title ?? t('billing.featured.listing', { id: featuredPostId })}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setParams({}, { replace: true })}
+              className="ml-auto text-xs text-muted underline underline-offset-2 shrink-0"
+            >
+              {t('common.cancel')}
+            </button>
+          </div>
+
+          <p className="text-sm text-muted mt-3">{t('billing.featured.lead')}</p>
+
+          {featuredCat?.enabled === false ? (
+            <p className="text-sm text-muted mt-3">{t('billing.notConfigured')}</p>
+          ) : (
+            <>
+              <fieldset className="mt-4">
+                <legend className="text-xs uppercase tracking-wide text-muted mb-2">{t('billing.featured.days')}</legend>
+                <div className="flex gap-2 flex-wrap">
+                  {dayChoices.map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setDays(d)}
+                      aria-pressed={days === d}
+                      className={`px-3 py-1.5 rounded-btn text-sm font-medium transition-colors ${
+                        days === d ? 'bg-primary text-on-primary' : 'bg-surface2 text-text hover:bg-border/20'
+                      }`}
+                    >
+                      {t('billing.featured.daysValue', { count: d })}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+
+              {/* The server clamps the window to what the listing has left, so
+                  saying so here is the difference between a clear price and a
+                  total that changes at the QR. */}
+              {daysLeft != null && sellableDays < days && (
+                <p className="text-xs text-warning mt-2" role="status">
+                  {t('billing.featured.clamped', { count: sellableDays })}
+                </p>
+              )}
+
+              <div className="flex items-center justify-between mt-4 pt-4 border-t border-border/40">
+                <span className="text-sm text-muted">
+                  {t('billing.featured.perDay', { price: formatPrice(perDay) })}
+                </span>
+                <span className="text-lg font-bold text-text">{formatPrice(perDay * sellableDays)}</span>
+              </div>
+
+              <Button
+                className="w-full mt-4"
+                onClick={() => featuredMut.mutate()}
+                disabled={featuredMut.isPending || perDay <= 0 || sellableDays < 1}
+              >
+                {featuredMut.isPending ? t('billing.creating') : t('billing.payWithQpay')}
+              </Button>
+            </>
+          )}
+        </section>
+      )}
+
       <section>
         <h2 className="text-sm font-semibold text-text mb-2">{t('billing.history')}</h2>
         {history.length === 0 ? (
@@ -188,10 +309,18 @@ export default function ProviderBilling() {
               <li key={p.id} className="flex items-center justify-between gap-3 rounded-card bg-surface p-3">
                 <div className="min-w-0">
                   <p className="text-sm text-text truncate">
-                    {p.plan} · {t('billing.monthsValue', { count: p.months })}
+                    {p.kind === 'FEATURED'
+                      ? `${t('billing.featured.title')} · ${t('billing.featured.daysValue', { count: p.days })}`
+                      : `${p.plan} · ${t('billing.monthsValue', { count: p.months })}`}
                   </p>
+                  {p.kind === 'FEATURED' && (
+                    /* Null once the listing is deleted — the receipt outlives it. */
+                    <p className="text-xs text-muted truncate">
+                      {p.post?.title ?? t('billing.featured.listingGone')}
+                    </p>
+                  )}
                   <p className="text-xs text-muted">
-                    {t('billing.reference')}: {p.reference ?? p.id.slice(0, 8)} · {dateStr(p.date_created)}
+                    {t('billing.reference')}: {p.reference ?? p.id.slice(0, 8)} · {formatDate(p.date_created)}
                   </p>
                 </div>
                 <div className="text-right shrink-0">
@@ -209,7 +338,11 @@ export default function ProviderBilling() {
           <div className="text-center py-6">
             <CheckCircle2 size={40} className="text-success mx-auto" />
             <p className="font-semibold text-text mt-3">{t('billing.paid')}</p>
-            <p className="text-sm text-muted mt-1">{t('billing.paidHint')}</p>
+            {/* Two products settle through this modal, and "you can now post
+                more listings" is only true of one of them. */}
+            <p className="text-sm text-muted mt-1">
+              {invoice?.kind === 'FEATURED' ? t('billing.featured.paidHint') : t('billing.paidHint')}
+            </p>
             <Button className="mt-4" onClick={closeInvoice}>{t('common.close')}</Button>
           </div>
         ) : (

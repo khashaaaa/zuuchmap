@@ -10,7 +10,7 @@ Construction marketplace for Mongolia. Providers post rentals/services/jobs acro
 
 ## Rules
 
-- **Git.** "Push" means `git add -A` → commit → push, on `master`, without asking. Glance at what `-A` stages first (no `dist/`, export dirs or `.env`; the `.env.example` files are tracked templates). A new file left untracked builds locally and breaks the clean clone the server deploys from.
+- **Git.** `git add -A`, commit, push. Nothing else.
 - **No yarn.** Use `npm` everywhere.
 - **Read targeted.** grep/find first, read only the needed range.
 - **No speculative cleanup.** Only change what the task requires.

@@ -15,8 +15,6 @@
     "migration:run": "cross-env NODE_ENV=development npx typeorm-ts-node-commonjs migration:run -d src/database/data-source.ts",
     "migration:revert": "cross-env NODE_ENV=development npx typeorm-ts-node-commonjs migration:revert -d src/database/data-source.ts",
     "migration:show": "cross-env NODE_ENV=development npx typeorm-ts-node-commonjs migration:show -d src/database/data-source.ts",
-    "test:int": "cross-env NODE_ENV=development jest --testRegex '.*\\\\.int-spec\\\\.ts$' --runInBand",
-    "test": "jest",
     "backfill:thumbs": "cross-env NODE_ENV=production npx ts-node src/database/backfill-thumbs.ts"
   },
   "dependencies": {
@@ -60,47 +58,20 @@
     "@eslint/js": "^9.18.0",
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
-    "@nestjs/testing": "^11.0.1",
     "@types/express": "^5.0.0",
-    "@types/jest": "^29.5.14",
     "@types/multer": "^2.0.0",
     "@types/node": "^22.10.7",
     "@types/nodemailer": "^8.0.1",
-    "@types/supertest": "^7.2.1",
     "@types/web-push": "^3.6.4",
     "cross-env": "^7.0.3",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",
     "globals": "^15.14.0",
-    "jest": "^29.7.0",
     "prettier": "^3.4.2",
-    "supertest": "^7.2.2",
-    "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.20.0"
-  },
-  "jest": {
-    "moduleFileExtensions": [
-      "js",
-      "json",
-      "ts"
-    ],
-    "rootDir": "src",
-    "testRegex": ".*\\.spec\\.ts$",
-    "transform": {
-      "^.+\\.(t|j)s$": "ts-jest"
-    },
-    "collectCoverageFrom": [
-      "**/*.(t|j)s"
-    ],
-    "coverageDirectory": "../coverage",
-    "testEnvironment": "node",
-    "moduleNameMapper": {
-      "^src/(.*)$": "<rootDir>/$1",
-      "^config/(.*)$": "<rootDir>/../config/$1"
-    }
   }
 }

@@ -7,7 +7,6 @@
     "dev:engine": "npm run dev --prefix zuuchmap_engine",
     "dev:web": "npm run dev --prefix zuuchmap_web",
     "dev:app": "npm run start --prefix zuuchmap_app",
-    "test:engine": "npm test --prefix zuuchmap_engine",
     "build:web": "npm run build --prefix zuuchmap_web"
   }
 }

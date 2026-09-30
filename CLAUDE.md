@@ -8,452 +8,239 @@ Construction marketplace for Mongolia. Providers post rentals/services/jobs acro
 | `zuuchmap_web/` | React 19, Vite, Tailwind 4, Zustand, React Query |
 | `zuuchmap_app/` | React Native 0.81, Expo 54 |
 
----
-
 ## Rules
 
-- **No git commands.** User manages all commits.
+- **Git.** "Push" means `git add -A` → commit → push, on `master`, without asking. Glance at what `-A` stages first (no `dist/`, export dirs or `.env`; the `.env.example` files are tracked templates). A new file left untracked builds locally and breaks the clean clone the server deploys from.
 - **No yarn.** Use `npm` everywhere.
 - **Read targeted.** grep/find first, read only the needed range.
 - **No speculative cleanup.** Only change what the task requires.
 - **No bloatware.** Prefer editing existing files over creating new ones.
 - **Bigger picture.** When fixing an issue, scan the whole codebase for the same pattern, report all locations, ask before acting.
 
----
+## Commands
+
+Three independent apps (own `package.json`/`node_modules`/lockfile, no workspaces). The root `package.json` proxies:
+
+```bash
+npm run install:all
+npm run dev:engine    # port 8282
+npm run dev:web       # port 5173
+npm run dev:app       # Expo
+npm run check:sync    # cross-repo contracts
+```
+
+**There are no test suites** (removed 2026-09-30). The gates, all run by `.github/workflows/ci.yml` on every push:
+
+```bash
+npm run check:sync                                  # 26 contracts, many behavioural
+cd zuuchmap_engine && npx tsc --noEmit              # + migration:run against real Postgres, + build
+cd zuuchmap_web && npm run lint:undef && npm run build
+cd zuuchmap_app && npx expo export --platform android   # resolves every import
+```
+
+Lint is **advisory** in CI (2,111 engine / 39 web pre-existing findings). `lint:undef` is the exception: a name used and never imported builds fine and white-screens the page. `npm run lint` in the engine **fixes in place** — use `npx eslint src --no-fix` to look. The app has no eslint config.
 
 ## Cross-repo sync
 
-These values are duplicated across the three apps by design. `npm run check:sync`
-(`scripts/check-sync.js`, zero deps) verifies them and **gates deploy.sh as step
-0/6** — run it after touching any of them. It reports **26 contracts** against the
-22 rows below: the locations row covers `provinces` + `districts`, and the i18n
-row covers `i18n:mn|en` + `i18n completeness` (every non-`en` locale has
-exactly `en`'s key set on **its own** side, plural suffixes aside) + `i18n keys` (every
-literal `t('…')` must resolve). Every other row is one contract.
+Values duplicated across the apps by design. `npm run check:sync` (`scripts/check-sync.js`, zero deps) verifies them and **gates `deploy.sh` as step 0/6** — run it after touching any of them. "Behavioural" = both copies are lifted and run over shared fixtures.
 
-**The two clients ship different locale sets** — the app has `mn en zh ru`, the
-web only `mn en`. So the cross-client contracts (shared keys, price-unit labels)
-compare `SHARED_LOCALES` = the overlap, while completeness runs per client over
-`CLIENT_LOCALES`. Adding a locale to one side means editing those constants at
-the top of `check-sync.js`, nothing else.
+The app ships locales `mn en zh ru`, the web only `mn en`. Cross-client contracts compare `SHARED_LOCALES` (the overlap); completeness runs per client over `CLIENT_LOCALES`. Adding a locale means editing those two constants at the top of `check-sync.js`.
 
 | Contract | Copies |
 |---|---|
 | `SOCKET_EVENTS` | engine gateway · `web/lib/socket.js` · `app/services/socketService.js` |
 | category fallback colours | `app/design/theme.js` · `web/lib/utils.js` · engine `category.service.ts` seed |
-| palette | `app/design/theme.js` · `web/src/index.css` (1:1 tokens only — the file names the deliberate exceptions) |
+| palette | `app/design/theme.js` · `web/src/index.css` (1:1 tokens only; the file names the exceptions) |
 | `Province` / `District` | engine `enums/province.ts` · `app/config/app.config.js` · `web/lib/utils.js` |
 | `PriceUnit` | engine `enums/priceunit.ts` · `web/lib/utils.js` · `app/config/app.config.js` |
-| shared i18n keys | `app/i18n/locales/{mn,en,zh,ru}.js` · `web/i18n/{mn,en}.js` — the web ships two locales, the app four, so only `mn`/`en` are compared. Each tree keeps ~280 platform-specific keys, but a key present in **both** must have the same value |
-| `getPostTitle` | `app/utils/postUtils.js` · `web/lib/utils.js` — checked *behaviourally*: both are lifted, stubbed and run over shared fixtures |
-| `postHealth` | `app/utils/postHealth.js` · `web/lib/postHealth.js` — behavioural; the same listing must score the same on both |
-| map clustering | `app/screens/customer/CustomerMapView.jsx` (`gridCluster`) · `web/lib/mapCluster.js` — behavioural, across four zoom levels |
-| `formatPrice` | `app/utils/displayUtils.js` · `web/lib/utils.js` — behavioural; thousands grouping, no decimal tail, and never a `/unit` suffix on `TOTAL`. Grouping is hand-rolled (`groupThousands`), not `toLocaleString('mn-MN')` — see the `Intl ban` row |
-| `formatPriceParts` | same two files — behavioural; the same price split into `{amount, unit}` so a screen can set the number large and the unit quiet. Carries the rule a caller forgets: a `TOTAL` price has `unit: null`. The app's listing detail built this split inline and labelled a sale price with its unit where the web suppressed it |
-| `formatDate` | `app/utils/displayUtils.js` · `web/lib/utils.js` — behavioural; `YYYY.MM.DD` built by hand on both. **Neither side may use `Intl`** — RN's JSC has no full ICU on Android, so a locale-driven format silently falls back to en-US there |
-| `formatTime` | `app/utils/displayUtils.js` · `web/lib/utils.js` — behavioural; `HH:MM`, 24-hour, built by hand on both, same `Intl` ban. Added after the messaging and notification screens each grew their own inline clock: the web's went through `toLocaleTimeString` and showed `08:47 PM` where the app showed `20:47`, with `toLocaleDateString(…, {month:'short'})` beside it printing the English "Aug" into a Mongolian inbox. The contract also **greps the six messaging/notification screens** so none of them can quietly grow a private clock again |
-| `formatDateTime` | same two files — behavioural; `formatDate` + `formatTime` in one string, for a queue that needs the clock beside the day. The admin report queue had grown its own on each client: `11 Sep, 14:32` on the web against `2026.09.11 14:32` in the app, for the same report row |
-| `formatRelativeAge` | same two files — behavioural; "just now" · "5 min ago" · "3 h ago" · "2 d ago" for the draft-resume banner, compared by the i18n key and count each side picks. The app said "5 минутын өмнө" where the web said "09/11, 14:32" for the same draft |
-| inbox/notification stamps | `formatInboxStamp` `formatNotificationStamp`, same two files — behavioural. Compositions *of* the helpers above, which is the gap the `Intl ban` cannot see: every half was already shared and correct and the assembly was still written out twice, comment and all. The inbox one carries a real rule — the time for today, the date for anything older, so a list of `14:32` rows still tells you which threads have gone cold |
-| `Intl ban` | **greps both client trees whole** — no file outside `app/utils/displayUtils.js` and `web/lib/utils.js` may name `toLocaleString` `toLocaleDateString` `toLocaleTimeString` `localeCompare` or `Intl.*`. Not a style rule: RN's JSC has no full ICU on Android, so `toLocaleString('mn-MN')` silently resolves to en-US there, while every behavioural fixture in `check-sync.js` runs under Node's **full** ICU — so two sides that both call Intl agree in the checker and can still disagree on a phone. An Intl call is invisible to every other contract here, which is why it is banned rather than checked. This replaced a list of the six screens the first bug was found in, which missed the billing pages, the report queue, the availability strip, the draft banner, the landing counters and the map filter |
-| price unit labels | `app/i18n/locales/*.js` · `web/i18n/*.js` — **coverage**, not values: every `PriceUnit` code must have a label in every locale of both clients, or a price renders the raw `MOTO_HOUR`. The values are checked by the shared-i18n row above, which now sees them because both clients key `priceUnit.<CODE>` — the web used to key `priceUnit.hour`, so no key was present in both trees and this row did a case-insensitive comparison in its place. That lowercasing also cost a `PRICE_UNIT_KEYS` lookup table in `web/lib/utils.js`, now deleted |
-| typeface | `app/design/theme.js` (bundled Commissioner TTFs) · `web/src/index.css` (`@font-face`, self-hosted). **Never load it from Google Fonts** — that serves Commissioner as four `unicode-range` subsets, stranding Ө/Ү in `cyrillic-ext` and ₮ in `latin-ext`, so those glyphs render in the fallback face until a second request lands |
-| `REPORT_REASONS` | engine `enums/report.ts` · `web/lib/api.js` · `app/services/api/reportService.js` — the engine is the authority (`GET /reports/reasons`); the client copies are only the first-paint fallback |
-| thumbnail naming | engine `utils/uploader.ts` (`thumbUrl`) · `web/lib/utils.js` (`getThumbUrl`) · `app/config/api.config.js` (`getPostThumbUrl`) — `<name>.jpg` → `<name>_thumb.jpg`, a convention rather than a second column so `images` stays a `string[]` all three clients already agree on. Every call site pairs it with a fallback to the full-size URL, because a photo uploaded before thumbnails existed has no `_thumb` object until `npm run backfill:thumbs` has run |
-| form validation | `app/utils/formUtils.js` · `web/lib/utils.js` — `validateEmail` `validatePhone` `validateRequired` `normalizeWebsiteUrl`, behavioural. The company DTOs have no server-side decorators, so these are the only gate; no call site may hand-roll the `https://` prefix rule |
+| `REPORT_REASONS` | engine `enums/report.ts` (authority, `GET /reports/reasons`) · `web/lib/api.js` · `app/services/api/reportService.js` (first-paint fallback only) |
+| i18n | `app/i18n/locales/*.js` · `web/i18n/*.js` — a key present in both trees must have the same value; every locale has `en`'s key set on its own side; every literal `t('…')` resolves; every `PriceUnit` code has a `priceUnit.<CODE>` label in every locale |
+| thumbnail naming | engine `utils/uploader.ts` `thumbUrl` · web `getThumbUrl` · app `getPostThumbUrl` — `<name>.jpg` → `<name>_thumb.jpg`; every call site falls back to the full-size URL |
+| typeface | `app/design/theme.js` (bundled Commissioner TTFs) · `web/src/index.css` (self-hosted `@font-face`). **Never Google Fonts** — its `unicode-range` subsets strand Ө/Ү/₮ in the fallback face |
+| behavioural, `app/utils/displayUtils.js` · `web/lib/utils.js` | `formatPrice` `formatPriceParts` (a `TOTAL` price has no unit) · `formatDate` (`YYYY.MM.DD`) · `formatTime` (`HH:MM` 24h) · `formatDateTime` · `formatRelativeAge` · `formatInboxStamp` (time today, date if older) · `formatNotificationStamp` |
+| behavioural, other | `getPostTitle` (`app/utils/postUtils.js` · `web/lib/utils.js`) · `postHealth` (`app/utils/postHealth.js` · `web/lib/postHealth.js`) · map clustering (`CustomerMapView.jsx` `gridCluster` · `web/lib/mapCluster.js`) · form validation (`app/utils/formUtils.js` · `web/lib/utils.js`: `validateEmail` `validatePhone` `validateRequired` `normalizeWebsiteUrl` — the company DTOs have no server-side decorators, so these are the only gate) |
+| `Intl ban` | no file outside `app/utils/displayUtils.js` and `web/lib/utils.js` may name `toLocaleString` `toLocaleDateString` `toLocaleTimeString` `localeCompare` or `Intl.*`. RN's JSC has no full ICU on Android, so a locale call silently resolves to en-US there while Node's full ICU makes the checker agree. Number grouping is hand-rolled (`groupThousands`) |
 
+### Web/app parity
 
-### What must match between web and app, and what may differ
+1. **Identical — the same fact rendered twice.** A price, date, time, phone, status label, category name, count. Put it in a shared-named helper on both sides with a `check:sync` contract.
+2. **Equally available — anything done in a transaction.** Browse, save, message, report, book, renew, pay, review, saved searches. Guest affordances count: a named sign-in prompt on one client means one on the other.
+3. **Free to differ — how a capability is reached.** Navigation shape, density, input modality, platform transports.
 
-Three tiers. When in doubt, ask which one a change lands in.
-
-**1 — Identical: the same fact rendered twice.** Any value that comes from one
-row of the database and appears on both clients — a price, a date, a time, a
-phone number, a status label, a category name, a count. A user who sees `20:47`
-on the phone and `08:47 PM` on the laptop for the same message is being told the
-product is careless, and they are not wrong. Anything in this tier belongs in a
-shared-named helper on both sides with a `check:sync` contract; if you cannot
-contract it, that is the reason to extract it, not the reason to skip it.
-
-**2 — Equally available: anything a customer or provider does in a
-transaction.** Browse, save, message, report, book, renew, pay, review, saved
-searches. People switch devices mid-deal — a site visit on the phone, the
-paperwork on a desktop — so a capability that exists on one client and not the
-other is a dead end for whoever is holding the wrong one. **Guest affordances
-count**: if a signed-out visitor gets a named sign-in prompt for an action on
-one client, they get it on the other. (Both clients failed this for *message*
-and *report* until it was fixed; each had rendered nothing at all rather than
-offering the account.)
-
-**3 — Free to differ: how a capability is reached.** Navigation shape (bottom
-tabs vs sidebar, action sheet vs a row of icon buttons), density (a card list vs
-a table), input modality (camera vs file picker), and platform transports (Expo
-push vs VAPID web push). This is the platform doing its job; making these match
-would make both worse.
-
-**The deliberate exception is admin.** Admin capability is *not* at parity and
-should not be brought to it. The app carries the **queues** — approval, reports:
-things that need answering promptly from wherever the admin is standing. The web
-carries **configuration and look-ups** — category schemas, user detail, company
-verification, broadcast, featured grants. A four-locale schema form does not
-survive 390px and a sixth tab does not fit a phone bar.
-
----
+**Admin is deliberately not at parity.** The app carries the queues (approval, reports); the web carries configuration and look-ups (category schemas, user detail, company verification, broadcast, featured grants).
 
 ## Deployment
 
-`.claude/skills/deploy/deploy.sh` — one-command production deploy (push → DB backup → engine pull/build/migrate/pm2 restart → web build → smoke test). Server facts and gotchas in `.claude/skills/deploy/SKILL.md`. Credentials in `~/.zuuchmap-deploy.env` (never committed).
+`.claude/skills/deploy/deploy.sh` — push → DB backup → engine pull/build/migrate/pm2 restart → web build → smoke test. Server facts, the manual nginx blocks, monitoring and the restore drill are in `.claude/skills/deploy/SKILL.md`. Credentials in `~/.zuuchmap-deploy.env`.
 
-`.claude/skills/deploy/restore-drill.sh` — restores the newest dump into a scratch
-database, asserts the core tables came back with rows, drops it again. Production
-is never touched. Run it monthly and after any change to the backup step: an
-unverified dump is not a backup.
-
-**Monitoring.** Point an uptime monitor at `https://zuuchmap.com/engine/health/ready`
-and alert on non-200. pm2 restarting a crashed process is not monitoring — nothing
-was watching for "up but not serving", which is the shape the 9-day 502 took.
-
-**Nginx (manual, one time).** The generated sitemaps and the per-listing OG tags
-must be served from the site's own origin — a sitemap on another host is ignored,
-and a crawler reads OG tags from the URL that was shared. The `location` blocks
-are in `.claude/skills/deploy/SKILL.md`; without them the SEO module is reachable
-only under `/engine` and does nothing for search or link previews.
-
-**App releases.** `expo-updates` is wired (`app.json` `updates`, EAS channels in
-`eas.json`, `hooks/useOtaUpdates.js`), so a JavaScript-only fix ships with
-`eas update` instead of a store review. `runtimeVersion` must change **only when
-the native code does** — bumping it per release strands every installed build with
-no compatible update. It is therefore a bare native-ABI counter (`"1"`), deliberately
-**not** shaped like `version` (`1.0.1`): the two used to be the same literal, which
-is exactly the coincidence that invites bumping them together. The hook fetches in the background and applies on the next
-return from background, never mid-form.
-
----
-
-## Commands
-
-Monorepo — three independent apps (own `package.json`/`node_modules`/lockfile each, no npm workspaces). Root `package.json` just proxies into each:
-
-```bash
-npm run install:all   # installs all three
-npm run dev:engine    # port 8282
-npm run dev:web
-npm run dev:app       # Expo
-
-# equivalent, if working inside one app:
-cd zuuchmap_engine && npm run dev
-```
-
-**Tests.** All three apps have a suite now, and `.github/workflows/ci.yml` runs
-them on every push and PR (plus `check:sync`, a web build, and a Metro bundle of
-the app — `expo export`, which is the only gate that resolves every import in a
-codebase whose screens mostly have no test). Lint is
-**advisory** in CI on purpose — both eslint configs carry findings that predate
-the workflow, and a gate nobody can pass is a gate everybody learns to ignore.
-The one exception is `npm run lint:undef` in the web, which **is** a gate: it
-fails only on `no-undef`. A name used and never imported builds, passes every
-test that does not render that branch, and white-screens the page — two admin
-pages shipped that way, visible in the advisory output among forty unrelated
-findings. The app has no eslint config; the same check was run over it once by
-hand (152 files, clean) and is not yet in CI.
-
-```bash
-cd zuuchmap_engine && npm test        # jest, mocked repositories
-cd zuuchmap_engine && npm run test:int # real Postgres: schema + the HTTP journey
-cd zuuchmap_web    && npm test        # vitest + Testing Library (jsdom)
-cd zuuchmap_app    && npm test        # jest-expo + RNTL
-```
-
-`zuuchmap_engine/src/e2e/journey.int-spec.ts` walks the actual product over HTTP
-— create → approve → view → message → report — minting JWTs directly from
-`JWT_SECRET` rather than through verify.mn (that flow costs the user 150₮ per run
-and proves possession of a phone, which is not what the suite is asking about).
-It deletes everything it creates. **RNTL v14's `render` is async** — `await` it,
-or the queries do not exist yet (`src/test/render.jsx` does this for you).
-
----
+**App releases.** `expo-updates` is wired, so a JS-only fix ships with `eas update`. `runtimeVersion` is a bare native-ABI counter (`"1"`) and changes **only when native code does** — bumping it per release strands every installed build.
 
 ## Backend
 
-**Entry:** `src/main.ts` — port `8282`, prefix `/engine`  
-**Env:** `config/variables/<NODE_ENV>.env` (gitignored; the live one is on the server). **`zuuchmap_engine/.env.example` is the checked-in template and lists every variable the code reads** — it exists because the deployed file drifted behind several releases of features that read variables nothing in the repo named, so each was silently inert in production. Add a variable there in the same commit that reads it. Same for `zuuchmap_web/.env.example`.
-Required: `PG_*` `JWT_SECRET` `ADMIN_PHONES` `R2_*` `PROG_PORT` `PUBLIC_ENGINE_URL`
-- `ALLOWED_ORIGIN` — comma-separated browser origins. Gates **both** the HTTP CORS allowlist (`main.ts`) and the Socket.io one (`events.gateway.ts`). A request with no `Origin` (the app, curl, verify.mn's callback) is never affected. Add every host the web app is served from — a bare apex here blocks `www.`.
-- `VERIFY_MN_API_KEY` `VERIFY_MN_BASE_URL` `VERIFY_MN_TIMEOUT_MS` (default 10s) — verify.mn client.
-- `VERIFY_TTL_MS` (5m) how long a verification session lives · `VERIFY_RATE_LIMIT` (5) + `RATE_TTL_MS` (1h) per-phone cap on **paid** SMS verifications, 150₮ each. `OTP_RATE_LIMIT` is the retired name, still read as a fallback.
-- `THROTTLER_TTL` (60s) / `THROTTLER_LIMIT` (100) — global per-IP default. Routes that need to be stingier set their own `@Throttle`: `auth/verify/start` is 3/min. (The legacy `POST /user/check` that shared that limit is **deleted** — it was a phone-number enumeration oracle kept for old builds, and no client had called it for some time.)
-- `ANALYTICS_RETENTION_DAYS` — pruned nightly by `AnalyticsService`.
-- `REDIS_URL` (or `REDIS_HOST`/`REDIS_PORT`/`REDIS_PASSWORD`) — optional; see the multi-instance row under Known issues.
-- `SENTRY_DSN` (+ `SENTRY_RELEASE`, `SENTRY_TRACES_SAMPLE_RATE`) — error reporting (`utils/observability.ts`). Unset ⇒ no-op; unhandled 5xx, uncaught exceptions and rejected promises stay in the pm2 log.
-- `QPAY_USERNAME` `QPAY_PASSWORD` `QPAY_INVOICE_CODE` (+ `QPAY_BASE_URL`, `QPAY_TIMEOUT_MS`) — payments. Unset ⇒ `qpayConfigured()` is false and `/payments/invoice` answers 503 rather than half-working.
-- `PLAN_PRICE_PROVIDER_MNT` — monthly price of the PROVIDER plan. **The built-in default is a placeholder**; set the real number before taking money.
-- `FEATURED_PRICE_PER_DAY_MNT` — price of one day of featured placement on one listing. **Deliberately has no default**, unlike the line above: unset ⇒ `catalogue().featured.enabled` is false and `/payments/invoice` answers 503, so placement is simply not for sale rather than sold at a number nobody chose.
-- `VAPID_PUBLIC_KEY` `VAPID_PRIVATE_KEY` `VAPID_SUBJECT` — browser push (`utils/webPush.ts`). Generate once with `npx web-push generate-vapid-keys`; the public half is served by `GET /user/push/vapid-key` so the two sides cannot drift.
-- `SMTP_HOST` (+ `SMTP_PORT` `SMTP_USER` `SMTP_PASSWORD` `SMTP_FROM`) — email (`utils/mailer.ts`). Only ever a payment receipt or a fallback for an account with no push device at all; signup is phone-based, so most accounts have no address and get nothing here.
-- `PUBLIC_WEB_URL` (default `https://zuuchmap.com`) — the origin the sitemap and OG tags are built from.  
-**DB:** `synchronize: false` — TypeORM migrations (`src/migrations/`, `data-source.ts`).  
-**⚠ `migrationsRun: true`** — the dev server auto-runs any pending migration file on (re)start, including watch-mode restarts. Never leave a broken/experimental migration file on disk while `npm run dev` is running.  
-**Uploads:** Cloudflare R2 via S3 client (`src/utils/uploader.ts`), magic-byte validation, Sharp compression. Every post photo is written twice — the 1920×1080 original and a 640px `_thumb` — from the one decode. Lists, grids, map carousels and thread rows request the thumb; a screen of twenty cards used to be several megabytes of full-resolution JPEG over a mobile connection, and on cheap Android the decode cost more than the download. Photos predating this have no thumb until `npm run backfill:thumbs` (`src/database/backfill-thumbs.ts`, re-runnable and interruptible) has been run against production.
+**Entry:** `src/main.ts` — port `8282`, prefix `/engine`.
+**Env:** `config/variables/<NODE_ENV>.env` (gitignored). **`.env.example` in the engine and the web list every variable the code reads — add a variable there in the same commit that reads it.**
+**DB:** `synchronize: false`, TypeORM migrations (`src/migrations/`, `data-source.ts`). ⚠ **`migrationsRun: true`** — the dev server runs any pending migration on every (re)start. Never leave a broken migration on disk while `npm run dev` is running.
+**Uploads:** Cloudflare R2 (`src/utils/uploader.ts`), magic-byte validation, Sharp. Each post photo is stored as a 1920×1080 original plus a 640px `_thumb`; lists request the thumb. Older photos need `npm run backfill:thumbs`.
 
-**Modules:** `auth` `user` `post` `company` `likedpost` `admin` `events` `booking` `review` `analytics` `saved-search` `payment` `messaging` `report` `seo` `health`  
-**Post module services:** `PostService` (posts, expiry cron, cache) · `CategoryService` (`post/category.service.ts` — schemas, validation, seeding; unit-tested in `category.service.spec.ts`, run `npx jest`) · `PostNotificationService` (`post/post-notification.service.ts` — push fan-out to admins/users; injected by `BookingService` too) · `ViewedpostService` (`post/viewedpost.service.ts` — view dedupe, no routes)  
-**User module controllers:** `UserController` (self-service) + `UserAdminController` (`user-admin.controller.ts` — admin ops on other accounts). Both use the `user` prefix; **UserAdminController must stay last in the module's `controllers` array** or its `:id` routes shadow `/user/profile` and `/user/account`.
+Required env: `PG_*` `JWT_SECRET` `ADMIN_PHONES` `R2_*` `PROG_PORT` `PUBLIC_ENGINE_URL`. Optional, each inert when unset:
 
-**Key endpoints:**
+- `ALLOWED_ORIGIN` — comma-separated; gates HTTP CORS and Socket.io. List every host (a bare apex blocks `www.`).
+- `VERIFY_MN_API_KEY` `VERIFY_MN_BASE_URL` `VERIFY_MN_TIMEOUT_MS` · `VERIFY_TTL_MS` (5m) · `VERIFY_RATE_LIMIT` (5) + `RATE_TTL_MS` (1h) per phone.
+- `THROTTLER_TTL` / `THROTTLER_LIMIT` — global per-IP default; `auth/verify/start` is 3/min.
+- `ANALYTICS_RETENTION_DAYS` · `SENTRY_DSN` · `REDIS_URL` (required for more than one pm2 instance) · `SMTP_*` · `PUBLIC_WEB_URL`.
+- `QPAY_USERNAME` `QPAY_PASSWORD` `QPAY_INVOICE_CODE` — unset ⇒ `/payments/invoice` answers 503.
+- `PLAN_PRICE_PROVIDER_MNT` — **default is a placeholder**. `FEATURED_PRICE_PER_DAY_MNT` — **no default**; unset ⇒ placement is not for sale.
+- `VAPID_PUBLIC_KEY` `VAPID_PRIVATE_KEY` `VAPID_SUBJECT` — browser push; the public half is served by `GET /user/push/vapid-key`.
+
+**Modules:** `auth` `user` `post` `company` `likedpost` `admin` `events` `booking` `review` `analytics` `saved-search` `payment` `messaging` `report` `seo` `health`
+**Post services:** `PostService` · `CategoryService` (schemas, validation, seeding) · `PostNotificationService` (push fan-out) · `ViewedpostService`.
+**User controllers:** `UserController` + `UserAdminController`, both on the `user` prefix. **`UserAdminController` must stay last in `controllers`** or its `:id` routes shadow `/user/profile`.
+**Admin guard:** `src/admin/admin.guard.ts` reads `ADMIN_PHONES`. Clients read `is_admin` from the auth response; they never duplicate the list.
+**Entities:** User · Post · Company · Likedpost · Viewedpost · CategorySchema · Booking · Review · VerificationSession · TrustedDevice · AnalyticsEvent · PushDevice · SavedSearch · Payment · Conversation · Message · Report
+
+### Endpoints
+
 ```
 POST /auth/verify/start           {phone_number,device_id?} → trusted device returns a token
 POST /auth/verify/status          {session_id} → PENDING|VERIFIED|EXPIRED (+token)
-GET  /auth/verify/callback/:id    verify.mn nudge (unauthenticated, never trusted alone)
+GET  /auth/verify/callback/:id    verify.mn nudge — unauthenticated, never trusted alone
 GET  /user/profile                JWT
 GET  /posts                       ?category&subcategory&province&district&approval_status
-                                  &q&attr.<key>[=|_min=|_max=]&page&limit
-                                  → { items, total }   (all other list endpoints return arrays)
-                                  List items go through `listItem` (`utils/public-user.ts`): no
-                                  `details` (no card reads it, and it was most of the bytes) and no
-                                  moderation fields — `pending_revision` `previous_snapshot`
-                                  `rejection_reason` `rejection_field` used to ride out on the public
-                                  list. Same projection on `/posts/:id/similar` and `GET /like`.
-                                  Only `GET /posts/:id` returns `details`.
+                                  &q&attr.<key>[=|_min=|_max=]&page&limit → { items, total }
+                                  (every other list endpoint returns an array)
 GET  /posts/mine                  JWT
-GET  /posts/mine/stats            JWT   per-post views/saves/booking counts + totals
-                                  `views` now counts anonymous visitors too: PUT /posts/:id/views is
-                                  optional-auth and dedupes on `X-Visitor-Id` (salted+hashed server-side,
-                                  `utils/visitor.ts`) when there is no session. Owners still never count
-                                  their own views. Clients send the header from `web/lib/visitor.js` /
-                                  the app's existing `getAnonId()`.
-GET  /posts/:id/similar           ?limit  same category, nearest location/price (cached 5m)
-                                  list/map/detail items carry busy_dates[] (next 14d) for has_rental_status categories
+GET  /posts/mine/stats            JWT   per-post views/saves/bookings + totals
+GET  /posts/:id                   the only route that returns `details`
+GET  /posts/:id/similar           ?limit (cached 5m)
+PUT  /posts/:id/views             optional auth; anonymous dedupe on X-Visitor-Id
 POST /posts                       multipart JWT
-PATCH /posts/:id                  multipart JWT — see "Editing a live post" below
-POST /posts/:id/renew             JWT   reopens a lapsed window, no moderation
-GET  /posts/stats                 public landing counters (cached 5m)
+PATCH /posts/:id                  multipart JWT — see "Editing a live post"
+POST /posts/:id/renew             JWT   reopens a lapsed window, no moderation, quota-checked
+GET  /posts/stats                 landing counters (cached 5m)
 GET  /posts/categories/all
-POST /like                        JWT   {post_type,post_id}
-DELETE /like/:type/:id            JWT
-GET  /like                        JWT   ?page&limit → { posts, total, page, total_pages } (default 20)
-GET  /like/check/:type/:id        JWT   → { is_liked }   (kept for old app builds; both clients now
-                                  derive saved state from /like/ids)
-GET  /like/stats/:type/:id        JWT   → { total_likes, recent_likes } (7-day window)
-GET  /like/ids                    JWT   ?post_type → flat ids; without it, { liked_by_type }
-                                  ⚠ `:type` is accepted for URL compatibility but **ignored**:
-                                  `likedpost.post_type` is a denormalised copy of `post.category`
-                                  and the service keys on `post_id` alone. A row whose copy had
-                                  drifted used to vanish from the saved list, the provider's saves
-                                  count and the unlike — which answered 200 having deleted nothing.
-                                  On insert the post is the authority: `post_type: post.category`.
-GET  /admin/posts/pending
-POST /admin/broadcast             JWT+AdminGuard  {title,body,user_type?,category?} push campaign
-PUT  /admin/posts/:id/approve|reject   JWT+AdminGuard   reject {reason,field_key?} → post.rejection_field;
-                                  approve clears it + post.previous_snapshot.
-                                  On a post carrying `pending_revision`, the verdict is about the *edit*:
-                                  approve writes it onto the row, reject discards it and the published
-                                  version stays. Either way `approval_status` stays APPROVED.
-GET  /admin/posts/pending         JWT+AdminGuard  approval_status=PENDING **or** pending_revision IS NOT NULL,
-                                  FIFO on COALESCE(revision submitted_at, date_created)
-POST /bookings                    JWT   {post_id,start_date,end_date,message?}
-GET  /bookings/mine|received      JWT
-PUT  /bookings/:id/accept|decline|cancel  JWT
+POST /like  DELETE /like/:type/:id  GET /like (?page&limit)  GET /like/ids   JWT
+GET  /admin/posts/pending         AdminGuard  PENDING or pending_revision set, FIFO
+PUT  /admin/posts/:id/approve|reject   AdminGuard  reject {reason,field_key?}
+POST /admin/broadcast             AdminGuard  {title,body,user_type?,category?}
+POST /bookings  GET /bookings/mine|received  PUT /bookings/:id/accept|decline|cancel   JWT
 POST /reviews                     JWT   {provider_id,rating,comment?} (upsert)
-GET  /reviews/provider/:id             → {average,count,reviews,own,stats:{avg_response_hours,completed_bookings,member_since,company_verified}}
-POST /saved-searches  GET /saved-searches  DELETE /saved-searches/:id   JWT, max 10; matched on approve → push type 'saved_search'
-                                  daily 01:00 cron pushes 'review_prompt' for finished ACCEPTED bookings (booking.review_prompted_at)
-POST /analytics/collect                batched events, anonymous allowed
-GET  /analytics/summary           JWT+AdminGuard  ?days=7|30|90
-
-GET  /health                      liveness — touches nothing external, never 503s on a DB blip
-GET  /health/ready                readiness — DB (+Redis when configured); 503 when degraded
-
-GET  /payments/catalogue          public plan ladder + `enabled` (false ⇒ QPay unconfigured)
-                                  + `featured:{enabled,price_per_day,min_days,max_days,packs[]}`
-POST /payments/invoice            JWT   two products, one till:
-                                  {kind:'PLAN',plan:'PROVIDER',months?}  → months of plan
-                                  {kind:'FEATURED',post_id,days?}        → days of placement
-                                  → {payment_id,kind,amount,days,post_id,qr_text,qr_image,urls[]}
-                                  `kind` defaults to PLAN, so a client that predates placement
-                                  and posts {plan,months} still means what it always did
-GET  /payments/:id/check          JWT   polls QPay server-to-server; settles + grants the plan
-GET  /payments/mine               JWT   receipts
-GET  /payments/callback/:id       QPay nudge — unauthenticated, never trusted alone (same rule as verify.mn)
-
-GET  /conversations               JWT   inbox, 50/page, ?before=<ISO> cursor on last activity
+GET  /reviews/provider/:id        → {average,count,reviews,own,stats}
+POST|GET /saved-searches  DELETE /saved-searches/:id   JWT, max 10
+POST /analytics/collect           batched, anonymous allowed
+GET  /analytics/summary           AdminGuard  ?days=7|30|90
+GET  /health                      liveness
+GET  /health/ready                readiness — 503 when DB/Redis is down
+GET  /payments/catalogue          plan ladder + featured{enabled,price_per_day,…}
+POST /payments/invoice            JWT   {kind:'PLAN',plan,months?} | {kind:'FEATURED',post_id,days?}
+                                  (`kind` defaults to PLAN)
+GET  /payments/:id/check          JWT   polls QPay, settles, grants
+GET  /payments/mine               JWT
+GET  /payments/callback/:id       QPay nudge — unauthenticated, never trusted alone
+GET  /conversations               JWT   50/page, ?before=<ISO>
 GET  /conversations/unread-count  JWT
-POST /conversations               JWT   {post_id, body?} → opens or returns the existing thread
-GET  /conversations/:id/messages  JWT   ?before=<ISO>&before_id=<uuid> cursor on (date_created,id), 30/page
+POST /conversations               JWT   {post_id, body?} → opens or returns the thread
+GET  /conversations/:id/messages  JWT   ?before&before_id, 30/page
 POST /conversations/:id/messages  JWT   {body}
-PUT  /conversations/:id/read      JWT   idempotent
-
-GET  /reports/reasons             JWT   closed list — clients must not hardcode it
-POST /reports                     JWT   {post_id,reason,detail?}; duplicate returns the existing one
-GET  /reports  GET /reports/count JWT+AdminGuard  ?status=OPEN|RESOLVED|DISMISSED&post_id
-PUT  /reports/:id                 JWT+AdminGuard  {status,resolution?} — OPEN only; a verdict is written once
-                                  filing pushes admins (`notifyAdminsOfReport`, notifType 'report') as well as the admin socket room
-
-GET  /seo/sitemap.xml             sitemap index; -static and -posts-N pages beneath it
-GET  /seo/post/:id                server-rendered OG tags for crawlers (nginx routes bot UAs here)
+PUT  /conversations/:id/read      JWT
+GET  /reports/reasons             JWT
+POST /reports                     JWT   {post_id,reason,detail?}; a duplicate returns the existing one
+GET  /reports  GET /reports/count AdminGuard
+PUT  /reports/:id                 AdminGuard  {status,resolution?} — OPEN only
+GET  /seo/sitemap.xml  GET /seo/post/:id   sitemap index; OG tags for crawlers
 ```
 
-**Bookings/reviews rules (enforced server-side):** only `has_rental_status` categories are bookable; no self-booking; one PENDING request per customer per post; accept refuses date overlap with an ACCEPTED booking; contact phone shared only after ACCEPTED; one review per author (upsert). Review eligibility is `ReviewService.canReview`: an ACCEPTED booking **or** a conversation the provider actually replied to. The second clause exists because four of the thirteen categories (`materialstore` `jobvacancy` `factory` `usedequipment`) have no booking flow at all, so requiring one meant a used-equipment seller could never accumulate a single review — the transactions where a buyer most wants to see somebody went first were the ones with no way to say so. A message sent into the void proves nothing and does not count.
+- **List items go through `listItem`** (`utils/public-user.ts`): no `details`, no moderation fields (`pending_revision` `previous_snapshot` `rejection_reason` `rejection_field`). Same on `/similar` and `GET /like`. Items carry `busy_dates[]` (14d) for `has_rental_status` categories.
+- **Likes key on `post_id` alone.** `:type` in the URL is accepted and ignored; `likedpost.post_type` is a denormalised copy of `post.category`, written from the post on insert.
+- **Owners never count their own views.** Clients send `X-Visitor-Id` (`web/lib/visitor.js`, the app's `getAnonId()`); without it the engine falls back to hashed IP+UA.
 
-**Editing a live post (`pending_revision`).** An APPROVED post never leaves
-browse because its owner edited it. The row keeps serving the approved content
-and the proposal is parked in `post.pending_revision`; the moderation queue picks
-it up beside never-approved posts, approve writes it onto the row, reject drops
-it. This exists because `price_amount` and `contact_phone` are content fields, so
-the most routine correction a provider makes used to take their listing off the
-market for as long as the queue was — and providers learned to leave stale prices
-alone. A PENDING or REJECTED post has no live version to protect, so its edits
-are written straight to the row as before.
+### Behaviour
 
-Consequences to keep in mind: the owner's form must hydrate from
-`pending_revision ?? post` or they read their own pre-edit wording back; photos
-uploaded for a revision are referenced only by the revision, so reclaim on
-approve/reject/delete has to account for both sets; and `rejection_reason` on a
-post that is still APPROVED means *the edit* was refused, not the listing.
+**Bookings / reviews.** Only `has_rental_status` categories are bookable; no self-booking; one PENDING request per customer per post; accept refuses overlap with an ACCEPTED booking; the contact phone is shared only after ACCEPTED. Review eligibility (`ReviewService.canReview`) is an ACCEPTED booking **or** a conversation the provider replied to — four categories have no booking flow at all.
 
-**Auto-approved edits.** `PostService.isProvenProvider` — 3+ approved posts, zero
-rejections, zero upheld (RESOLVED) reports — lets an owner's edit to an
-already-approved post publish immediately. Deliberately never applied to a new
-listing: a first post from an unknown account is what manual review is for.
+**Editing a live post (`pending_revision`).** An APPROVED post never leaves browse because its owner edited it: the proposal is parked in `post.pending_revision`, approve writes it onto the row, reject drops it, and `approval_status` stays APPROVED throughout. A PENDING or REJECTED post is edited in place. Consequences: the owner's form hydrates from `pending_revision ?? post`; revision photos are referenced only by the revision, so reclaim must cover both sets; `rejection_reason` on an APPROVED post means *the edit* was refused. `PostService.isProvenProvider` (3+ approved, zero rejections, zero upheld reports) auto-publishes edits — never new listings.
 
-**Expiry.** Nightly at 00:00 `expireOldPosts` marks lapsed posts EXPIRED and
-pushes each owner (`post_expired`); at 01:00 `warnExpiringPosts` pushes
-`post_expiring` three days out. `POST /posts/:id/renew` reopens the window
-without moderation — the content is byte-for-byte what was approved — and is
-quota-checked, since a renewal puts a post back into browse. Before this the only
-route back from an expiry was to edit the post, which queued it for a change the
-owner never wanted to make.
+**Expiry.** 00:00 `expireOldPosts` marks lapsed posts EXPIRED and pushes `post_expired`; 01:00 `warnExpiringPosts` pushes `post_expiring` three days out, and `review_prompt` for finished bookings.
 
-**Category system (data-driven — never hardcode category behavior in clients):**
-- `CategorySchema` holds fields (`FieldDef[]`), subcategories, behavior flags
-  (`has_rental_status` `has_availability_dates` `has_price` `default_price_unit`
-  `emphasized` — attention-drawing card style in lists — and `post_expiry_days`,
-  1–365, null = 30-day default applied at post creation),
-  and localized `labels` (`{mn,en,zh,ru}`) on category/subcategory/field level.
-- Clients derive form sections, status toggles, filter lists, map markers, badges and labels from the schema — `icon` is an Ionicons name, `color` a hex, both admin-editable. Adding a vertical is an admin-UI operation: no deploy, no app release. Do not reintroduce a hardcoded category list anywhere.
-- `FieldDef.filterable` exposes an attribute as a browse filter (`attr.<key>` query param).
-- `q` is Postgres full-text: a prefix-matching tsvector over title + details + location + address + `attributes::text` (SearchVectorWidened). Attributes are in it because the form collects manufacturer/model as structured fields, and searching "Komatsu" used to find nothing unless the provider had also typed it into the title. Both the browse query and the saved-search matcher tokenize through `utils/search-terms.ts` — the matcher has to answer the same question in JS, and when it had its own rule (whole-phrase `includes` on the title) a multi-word saved search matched in browse and never notified. Change the two together, or better, only change the shared helper.
-- **Query terms are stemmed, documents are not** (`stripMongolianSuffix`). Prefix matching only reaches forward: "экскаватор" finds "экскаваторын", the reverse finds nothing, and since terms are ANDed one inflected word emptied the whole page. Stripping the ending off the *query* fixes both directions. The suffix list errs long on purpose — cutting a stem short only widens a prefix match, cutting too little returns nothing — and skips any term that is not Cyrillic so model numbers stay literal. **The list is linguistic data and is worth a native reading.**
-- Post has `category` + `subcategory` only; legacy `secondcategory` still accepted as DTO input alias.
+**Category system — data-driven; never hardcode category behaviour in a client.**
+- `CategorySchema` holds `FieldDef[]`, subcategories, flags (`has_rental_status` `has_availability_dates` `has_price` `default_price_unit` `emphasized` `post_expiry_days`), `icon` (Ionicons name), `color` (hex) and localized `labels` `{mn,en,zh,ru}` at category/subcategory/field level. All admin-editable: adding a vertical needs no deploy.
+- `FieldDef.filterable` exposes an attribute as a browse filter (`attr.<key>`).
+- `q` is Postgres full-text over title + details + location + address + `attributes::text`, prefix-matching. Browse and the saved-search matcher both tokenize through `utils/search-terms.ts` — change only the shared helper. **Query terms are stemmed (`stripMongolianSuffix`), documents are not**; non-Cyrillic terms stay literal.
+- Post has `category` + `subcategory`; legacy `secondcategory` is still accepted as a DTO alias.
 
-**Phone verification (verify.mn, Mobile-Originated):** we never send an SMS. `verify/start` registers a code; the *user* texts it to shortcode `144773` from the number they claim, and possession is proven by the message arriving from that number — so the code is not a secret and is rendered in the UI. Costs the end user 150₮ per verification, so it runs only at signup and on a new device: `TrustedDevice` stores `sha256(device_id)` and a match short-circuits to a token. The token is then held in AsyncStorage, unencrypted and behind no device-side unlock — `expo-local-authentication` was a declared-but-never-imported dependency, dropped in the dead-code sweep, so there is no biometric gate. The server never accepts a biometric claim: `user.biometric` and the OTP endpoint that trusted it are both gone.
+**Phone verification (verify.mn, Mobile-Originated).** We never send an SMS: the *user* texts a displayed code to `144773` from the number they claim, at 150₮ per verification. It runs only at signup and on a new device — `TrustedDevice` stores `sha256(device_id)` and a match returns a token directly. Sessions last `SESSION_EXPIRES_IN` (`utils/session.ts`, one year) because signing in again costs the user money.
 
-**`req.user` is identity only.** `JwtStrategy.validate` answers from
-`sessionUsers` (`utils/session.ts`, 30 s) and loads no relations — it used to
-read the user joined to their company before every guarded handler, including
-the cached public browse. Handlers may read `id` and `phone_number` off
-`req.user` and nothing else; anything that can change (company, plan, profile)
-is read by the service that needs it, as `CompanyService.isMember` does. Deleting
-an account calls `forgetSessionUser`.
+**`req.user` is identity only.** `JwtStrategy.validate` answers from `sessionUsers` (30s) and loads no relations. Handlers read `id` and `phone_number` off it and nothing else; anything mutable is read by the service that needs it. Account deletion calls `forgetSessionUser`.
 
-**Sessions** last `SESSION_EXPIRES_IN` (`utils/session.ts`, one year, imported by
-both `auth.module.ts` and `generateToken` so the two cannot drift). A user stays
-signed in until they sign out: thirty days meant an account that went quiet over
-a slow winter came back to a login screen, and signing in again costs the *user*
-150₮.
+**Push permission is never requested at login.** `useNotificationSync` only registers an already-granted token; `utils/pushPrompt.js` asks later behind an in-app rationale. `UnreachableBanner` (both clients) tells a provider who declined.
 
-**Push permission is never requested at login.** `useNotificationSync` only
-registers a token that is already granted; `utils/pushPrompt.js` asks later, at a
-moment that explains itself (a listing just submitted, a message just sent),
-behind an in-app rationale so a "no" never spends the OS prompt. This matters
-more than it looks: there is no SMS transport, signup is phone-based so most
-accounts have no email, and the email fallback only fires for an account with no
-device at all — so a provider who declined push once was simply unreachable, and
-their customers' messages went nowhere. `UnreachableBanner` (both clients) says
-so on the screen a provider actually opens.
+**Realtime.** `events/events.gateway.ts` — rooms `admin` + `user:<id>` (legacy `provider:<id>` kept for old builds). `MESSAGE_CREATED` goes to the recipient only and carries the whole message; `REPORT_CREATED` is admin-only. In the app only `useNotificationSync` subscribes to the socket.
 
-**Realtime:** `events/events.gateway.ts` — Socket.io rooms `admin` + `user:<id>`. `MESSAGE_CREATED` goes to the recipient only (echoing to the sender races their optimistic row) and carries the whole message (`body`, `date_created`), so an open thread appends it instead of refetching its history; `REPORT_CREATED` is admin-only. (legacy `provider:<id>` joins/emits kept for pre-rename app builds; drop when those are gone). Event names + payload shapes (`{postId, category, …}`) are exported as `SOCKET_EVENTS` and mirrored in `zuuchmap_web/src/lib/socket.js` and `zuuchmap_app/src/services/socketService.js` — change all three together. In the app, only `useNotificationSync` subscribes to the socket; screens never do.
-
-**Notification transports:** `PostNotificationService` fans out over three, each env-gated and independently absent — Expo push (app), **web push over VAPID** (browsers, stored in the same `push_device` table with `provider='WEB'` and the subscription endpoint as `token`), and **email**, only for an account with no registered device at all. `splitTargets()` routes each row to the transport it speaks; a row that lacks what its transport needs is not counted as addressed.
-
-**Admin guard:** `src/admin/admin.guard.ts` — reads `ADMIN_PHONES` env, exports `isAdmin()`.  
-Web/app read `is_admin` from JWT response — they do not duplicate the list.
-
-**Entities:** User · Post · Company · Likedpost · Viewedpost · CategorySchema · Booking · Review · VerificationSession · TrustedDevice · AnalyticsEvent · PushDevice · SavedSearch · Payment · Conversation · Message · Report  
-**Enums:** `UserType` `ApprovalStatus` `Status` `PriceUnit` `Province` `District` `BookingStatus` `Plan` `PaymentProvider` `PaymentStatus` `ReportStatus` (+ `REPORT_REASONS`)
-
----
+**Notification transports.** `PostNotificationService` fans out over Expo push, web push (VAPID, stored in `push_device` with `provider='WEB'`) and email (only for an account with no device). `splitTargets()` routes each row.
 
 ## Web (`zuuchmap_web/`)
 
-**Entry:** `src/main.jsx` → `App.jsx`. Alias `@` → `src/`.  
-**HTTP:** `src/lib/api.js` — Axios, auto-JWT, redirects `/login` on 401.  
-**State:** `useAuthStore` + `useThemeStore` + `useNotificationStore` (Zustand, `src/store.js`); everything else React Query.  
-**Realtime:** `hooks/useRealtimeSync.js` — Socket.io (JWT auth), invalidates queries on events.  
-**i18n:** `src/i18n/` — **`mn en` only** (the app ships `zh`/`ru` too; the web does not). Listed in `LANGUAGES` (`i18n/index.js`), which drives the header switcher. Adding a string means adding it to both files — `check:sync` fails otherwise. A visitor whose stored `zm_lang` names a retired locale falls back to `mn`.
+**Entry:** `src/main.jsx` → `App.jsx`. Alias `@` → `src/`.
+**HTTP:** `src/lib/api.js` — Axios, auto-JWT, redirects to `/login` on 401.
+**State:** `useAuthStore` `useThemeStore` `useNotificationStore` (Zustand, `src/store.js`); everything else React Query. `hooks/useRealtimeSync.js` invalidates queries on socket events.
+**i18n:** `src/i18n/` — `mn en`, listed in `LANGUAGES`. A new string goes in both files.
 
-⚠ **`AdminCategories` label inputs derive from `SCHEMA_LOCALES`, not `LANGUAGES`** — deliberately. `CategorySchema.labels` stays `{mn,en,zh,ru}` because the **app** renders all four, and the web admin is the only place to edit them. Tie the two lists together again and zh/ru category names become unenterable and decay to the raw key on every app screen that shows one, with nothing to notice it.
+⚠ **`AdminCategories` label inputs derive from `SCHEMA_LOCALES`, not `LANGUAGES`.** The app renders all four locales and the web admin is the only place to edit them.
 
-Page titles and meta descriptions come from `meta.title` / `meta.description` via `useDocumentMeta`; `index.html` still ships the Mongolian pair for first paint and for crawlers that run no JavaScript.
+**Category display text** always goes through `getCategoryLabel` / `getSubcategoryLabel` / `getFieldLabel` (`src/lib/utils.js`): schema `labels[locale]`, then client i18n, then the raw label. Page titles come from `meta.title` / `meta.description` via `useDocumentMeta`.
 
-**Key utilities** (`src/lib/utils.js`): `getPostCategory(post)`; `getCategoryLabel` / `getSubcategoryLabel` / `getFieldLabel` — resolve schema `labels[locale]` first, then client i18n, then raw label. Always use these for category-related display text.
-
-**Routes:**
 ```
-Public:   / (landing) /browse /login /verify /onboarding /posts/:id
-Shared:   /privacy /terms (both `PolicyPage doc=`) /help /account-deletion
-Authed:   /notifications /messages /messages/:id   (a thread has a customer AND a
-          provider, so messaging belongs to neither role's routes)
-Admin:    /admin /admin/posts /admin/posts/:id /admin/users /admin/users/:id
-          /admin/categories /admin/analytics /admin/reports /admin/profile
-Provider: /provider /provider/posts /provider/posts/new /provider/posts/:id
-          /provider/posts/:id/edit /provider/profile /provider/company /provider/bookings
-          /provider/billing
-Customer: /customer /customer/browse /customer/map /customer/saved /customer/saved-searches /customer/profile
-          /customer/bookings
+Public:   / /browse /login /verify /onboarding /posts/:id /privacy /terms /help /account-deletion
+Authed:   /notifications /messages /messages/:id
+Admin:    /admin /admin/posts[/:id] /admin/users[/:id] /admin/categories /admin/analytics
+          /admin/reports /admin/profile
+Provider: /provider /provider/posts[/new|/:id|/:id/edit] /provider/profile /provider/company
+          /provider/bookings /provider/billing
+Customer: /customer /customer/browse /customer/map /customer/saved /customer/saved-searches
+          /customer/profile /customer/bookings
 ```
-
----
 
 ## App (`zuuchmap_app/`)
 
-**Entry:** `App.js` → `Stack.Navigator`. Initial route: `getInitialRoute()` in `App.js` (`navigationUtils.js` holds `getDashboardScreen`/`resetToLogin`, not this).
+**Entry:** `App.js` → `Stack.Navigator`; initial route from `getInitialRoute()` in `App.js`.
 
-**Startup never waits on the network.** A stored token and role open the app at once; `userService.isAuthenticated()` runs behind it, answers once per minute per token, and treats only a 401 as signed out — a timeout or a 5xx used to drop a signed-in user into the guest catalogue. The token itself is memoised in `authHelpers` (`rememberAuthToken`); any new code that removes the storage key must call it.
+**Startup never waits on the network.** A stored token and role open the app at once; `userService.isAuthenticated()` runs behind it and treats only a 401 as signed out. The token is memoised in `authHelpers` (`rememberAuthToken`) — code that removes the storage key must call it.
 
-**Guest mode.** An unauthenticated launch lands on `CustomerDashboard`, not the phone screen — verification bills the **user** 150₮, so gating the whole catalogue behind it charged people to discover whether the marketplace was worth joining. Reading is open (browse, map, listing detail, the public contact number); the four actions that write to an account — save, message, report, book — call `ensureAuth(navigation, reasonKey)` from `src/utils/requireAuth.js`, which prompts with a named reason and a route to `PhoneNumber`. `useIsGuest()` is the reactive form, riding `onAuthChanged`; it returns `null` until the token read resolves, so nothing paints the wrong state first.
+**Guest mode.** An unauthenticated launch lands on `CustomerDashboard`. Reading is open; save, message, report and book call `ensureAuth(navigation, reasonKey)` (`src/utils/requireAuth.js`). `useIsGuest()` returns `null` until the token read resolves.
 
-**Key configs:**
-- `src/config/api.config.js` — `API_BASE_URL`, `ENDPOINTS`, `STORAGE_KEYS`
-- `src/config/app.config.js` — `IMAGE`, `VALIDATION`, `provinces`/`districts` (bare code arrays; labels come from i18n `province.<CODE>`/`district.<CODE>`, mirrored in `zuuchmap_web/src/lib/utils.js`)
-- `src/design/theme.js` — `palettes.dark/light` (Direction A: neutral grounds, amber accents), spacing, radius, typography; tablet scaling via `isTablet` — a device class (`Platform.isPad` or shorter window side ≥ 700, so the iPad mini counts and rotation cannot flip it), read once at load because every type role and `maxWidth` cap is baked into module-scope StyleSheets. Content columns cap at 800 (detail) / 680 (forms, lists, prose) / 480 (auth) with `{ maxWidth, alignSelf: 'center', width: '100%' }`; a pinned footer's *button* goes inside the same cap, the bar itself spans the screen. Bottom sheets cap at `SHEET_MAX_WIDTH` (640, `BaseModal.jsx`). Phones are portrait-locked; tablets unlock at runtime in `App.js` via `expo-screen-orientation` (iPad also needs the `~ipad` orientations in `app.json`). **No static `colors`/`globalStyles` exports** — get `{ colors, styles }` from `useAppTheme()`; per-file color styles use `themedStyles((colors) => ({...}))`. Text on amber fills uses `colors.onPrimary`; on semantic fills `colors.text.onColor`; on photography `colors.text.onMedia` (white in both palettes by design). **Never use `colors.primary` as a foreground** — it is a fill colour and only makes 2.3–2.6:1 on the light grounds. Amber *text* (prices, links, active labels) is `colors.text.link`; amber *glyphs* (icons, spinners) are `colors.iconAccent`. Both are amber in dark and step darker in light. Web's equivalent is `--color-primary-text`, used for accent text and icons alike (lucide glyphs inherit `currentColor`). Web mirrors the same values in `zuuchmap_web/src/index.css` — change palettes in both places.
-  - **Type scale.** Spread a role — `...typography.styles.title` — never set `fontSize`+`fontFamily` by hand, so line-height and tracking travel with the size. Roles: `display h1 h2 h3 title body bodyBold bodyMedium lead label labelStrong caption small micro badge price overline`. `title` (18) is the card/row heading that does the scanning work in a list; `price` is its own rung; `overline` is for text set in caps.
-  - **Elevation.** `...colors.elevation.sm|md|lg` — spread it FIRST in a style object so anything declaring its own `borderColor` after it wins. One idiom per theme, never both: dark separates with a hairline (black shadows are invisible on a dark ground), light separates with a soft shadow. `lg` keeps a shadow on both — modals sit over a scrim. `elevation.selected` is the amber selected state. Do not reintroduce raw `shadows.*` at a call site.
-  - **Category colours.** `categoryColors` holds the eight fallbacks; the live value is admin-editable `CategorySchema.color`. All are solved to one luminance so a single stored hex reads at 4.0:1 on *both* grounds and ~2:1 against amber — amber therefore always stays the brightest accent. Anything rendering a category colour as *text* must pass it through `toneForTheme(hex, isDark)` first (admins can save any hex); `withAlpha(hex, a)` builds the tinted fill. Mirrored in `zuuchmap_web/src/lib/utils.js` and seeded in `post/category.service.ts` — change all three together.
-  - **Tints on elevated surfaces.** Android draws an elevation shadow *through* a translucent fill, so in the light theme (where elevation is a shadow) an `opacity.background.*` tint on anything carrying `elevation.*` comes out muddy with a pale square in it. Use `tintOn(hex, alpha, colors.surface)` — the same tint, opaque. `<Switch>` takes `colors.switch.thumb` / `colors.switch.track`; never `colors.surface` as a thumb, which is the sheet's own ground in dark.
-  - **Motion.** `animations.duration/press/stagger`. Card and button presses use `<PressableScale>` (spring scale, honours reduce-motion) rather than `activeOpacity` alone; list entrances use `<FadeSlideIn index={i}>`; screen transitions are set in `App.js` `screenOptions`.
+**Config:** `src/config/api.config.js` (`API_BASE_URL`, `ENDPOINTS`, `STORAGE_KEYS`) · `src/config/app.config.js` (`IMAGE`, `VALIDATION`, `provinces`/`districts` as bare codes; labels from i18n).
 
-**Server state:** TanStack React Query everywhere — client from `src/services/queryClient.js` (wired in `App.js` with AppState focus manager). After any post mutation call `invalidatePostData()` from that module; it clears both React Query caches and the AsyncStorage offline fallbacks. Socket handlers call `invalidatePostDataSoon()` instead — events arrive in runs (a bulk approve is two per post) and each used to restart every mounted post query. The detail screen opens on `findListedPost(postId)` as placeholder data, so a listing tapped from a list paints before its own request answers; the web does the same from `lib/queryClient.js`. `utils/cacheManager.js` is only the offline-fallback layer used inside services (map posts, category schemas) — never cache screen data with it.
+**Theme (`src/design/theme.js`).** No static `colors`/`globalStyles` exports — get `{ colors, styles }` from `useAppTheme()`; per-file styles use `themedStyles((colors) => ({...}))`. The web mirrors the palette in `src/index.css`.
+- **Amber.** `colors.primary` is a fill, **never a foreground**. Amber text is `colors.text.link`, amber glyphs `colors.iconAccent`. Text on amber is `colors.onPrimary`, on semantic fills `colors.text.onColor`, on photos `colors.text.onMedia`. Web: `--color-primary-text`.
+- **Type.** Spread a role (`...typography.styles.title`), never set `fontSize`+`fontFamily` by hand. Roles: `display h1 h2 h3 title body bodyBold bodyMedium lead label labelStrong caption small micro badge price overline`.
+- **Elevation.** `...colors.elevation.sm|md|lg`, spread FIRST. Dark separates with a hairline, light with a shadow. No raw `shadows.*`.
+- **Category colours.** Anything rendering one as *text* passes it through `toneForTheme(hex, isDark)`; `withAlpha(hex, a)` builds the tint. On an elevated surface use `tintOn(hex, alpha, colors.surface)` — Android draws the shadow through a translucent fill.
+- **Switch.** `colors.switch.thumb` / `colors.switch.track`.
+- **Motion.** `<PressableScale>` for presses, `<FadeSlideIn index={i}>` for list entrances.
+- **Tablet.** `isTablet` is read once at load. Content caps: 800 (detail) / 680 (forms, lists) / 480 (auth), as `{ maxWidth, alignSelf: 'center', width: '100%' }`; sheets cap at `SHEET_MAX_WIDTH` (640). Phones are portrait-locked.
 
-**Seeded post types:** `vehiclerent toolrent machineryrent materialstore factory construction jobvacancy sos usedequipment transport designservice miningsupport winterservice` — but categories come from the API (`CategorySchema`); form behavior is driven by schema flags via `formUtils.getInitialFormData/getEditFormData(schema, …)`, and labels via `postUtils.getSchemaLabel/getSubcategoryLabel`.
+**Server state.** React Query everywhere (`src/services/queryClient.js`). After a post mutation call `invalidatePostData()`; socket handlers call `invalidatePostDataSoon()`. The detail screen opens on `findListedPost(postId)` as placeholder data. `utils/cacheManager.js` is only the offline fallback inside services — never cache screen data with it.
 
-**Category schemas:** `hooks/useCategorySchemas.js` → `useCategorySchemas()` / `useActiveCategorySchemas()`. Use these for any per-category affordance; `getPostTypeConfig(type, colors, schemas)` resolves icon+colour from the schema.
+**Categories.** `useCategorySchemas()` / `useActiveCategorySchemas()`; `getPostTypeConfig(type, colors, schemas)` resolves icon and colour; forms via `formUtils.getInitialFormData/getEditFormData(schema, …)`; labels via `postUtils.getSchemaLabel/getSubcategoryLabel`.
 
-**New surfaces:** `screens/shared/MessagesScreen.jsx` + `MessageThreadScreen.jsx` (inbox and thread; routes `Messages` / `MessageThread`), `screens/provider/BillingScreen.jsx` (route `Billing` — QPay QR, bank deep links, receipts). Services: `messageService` `paymentService` `reportService`. Reporting is a reason sheet on `PostDetailScreen` rather than a screen — the reasons come from `REPORT_REASONS`, mirrored from the engine's enum. `screens/auth/PhoneVerification.jsx` (route `PhoneVerification`) is the verify.mn MO screen — it was called `OtpVerification` long after the OTP flow was retired.
+**Admin.** Tabs `Browse` `Approval` `Reports` `Profile`; `AdminUsers` and `AdminAnalytics` are stack screens reached from `AdminProfile`. Category editing is web-only. Admin is `is_admin` from `userService.isAuthenticated()`, not `userType`.
 
-**Admin surfaces:** tabs are `Browse` `Approval` `Reports` `Profile`; `AdminUsers` and `AdminAnalytics` are root-stack screens reached from `AdminProfile` (rows, not tabs — both are look-ups rather than queues, and a sixth tab does not fit a phone bar). They call `services/api/adminService.js`; post moderation stays in `postService`. **Category editing remains web-only** — a four-locale schema form does not survive 390px.
+**LikeButton.** Every call site gates admins and providers itself; the component's own `hidden` fallback is skipped in every list.
 
-**Admin detection:** `is_admin` from `userService.isAuthenticated()` — phone-based, not `userType`.  
-**LikeButton:** every call site gates admins itself (`!isProvider && !isAdmin`, `showLike={isCustomer}`, or a customer-only screen). The component's own `hidden` fallback lives in `initializeLikeData()`, which is skipped whenever `skip_check` and `is_authenticated` are both passed — i.e. in every list. Do not rely on it.  
-**⚠ BottomSheetModal:** `PanResponder` captures closures at mount — `onClose` is mirrored into a ref; keep that pattern when editing.
+⚠ **BottomSheetModal.** `PanResponder` captures closures at mount — `onClose` is mirrored into a ref; keep that pattern.
 
-**i18n:** `src/i18n/locales/` — `mn en zh ru`; same rules as the web note. Locale is persisted by `AppContext.setLocale`.
-
----
+**i18n.** Locales `mn en zh ru` in `src/i18n/locales/`; locale is persisted by `AppContext.setLocale`.
 
 ## Known issues
 
-| Priority | Issue | Location |
+| | Issue | Location |
 |---|---|---|
-| 🟡 | Google Maps key ships in `app.json` (unavoidable for the Maps SDK); it must be restricted by package name + SHA-1 in Google Cloud Console — the app id is now `com.khashaa.zuuchmap` (Android package + iOS bundle, set 2026-08; do not change after store release) | `zuuchmap_app/app.json` |
-| 🟡 | Prod Postgres SSL uses `rejectUnauthorized: false` (no CA validation) | `app.module.ts:71` |
-| 🟢 | Multi-instance is Redis-gated. With `REDIS_URL` set: throttler storage → Redis (`@nest-lab/throttler-storage-redis`), cache invalidation → Redis pub/sub (`utils/cache-coordinator.ts`, per-process L1 + cross-instance clear), Socket.io → Redis adapter (`utils/redis-io.adapter.ts`). Then raise `PM2_INSTANCES`. **Unset `REDIS_URL` ⇒ single instance only** — each worker would otherwise split rate limits/cache/broadcasts. Localhost dev runs Redis-free (in-memory). | `utils/redis.ts`, `app.module.ts`, `ecosystem.config.js` |
-| 🟡 | Web admin role is client-side routing only — backend endpoints are guarded, but the UI trusts `is_admin` from the JWT response | `web/src/App.jsx` |
-| 🔴 | `PLAN_PRICE_PROVIDER_MNT` has a **placeholder default** (49,900₮). Set the real price before QPay credentials go in, or the first invoice charges a number nobody chose | `engine/payment/payment.service.ts` |
-| 🟡 | Featured placement is built and sellable but **priced at nothing until `FEATURED_PRICE_PER_DAY_MNT` is set** — the catalogue reports `featured.enabled:false` and the clients hide the buy button. This is the deliberate opposite of the row above; decide the per-day number before QPay goes live | `engine/payment/payment.service.ts` |
-| 🟡 | Static assets are served uncompressed, over HTTP/1.1, with no cache lifetime until the nginx block in the deploy skill is added by hand. The engine compresses its own responses; the ~1 MB of bundles it cannot | `.claude/skills/deploy/SKILL.md` |
-| 🟡 | The map still ships every pin in one response (`MAP_PIN_LIMIT` 5000, one image each, gzipped). The real fix is a viewport-bounded query, which changes how both map screens load and their offline fallback — not done | `engine/post/post.service.ts` `findForMap` |
-| 🟡 | The SEO routes do nothing until the nginx `location` blocks are added by hand (see the deploy skill). Until then the live sitemap is still the 5-URL static file and shared listings still show the generic card | `.claude/skills/deploy/SKILL.md` (the live conf is only in the `~/zuuchmap-vps-bundle/` snapshot, not this repo) |
-| 🟡 | `@sentry/react-native`, `expo-updates` and `expo-screen-orientation` are native modules — the installed build has none of them until the next **EAS rebuild**. Error reporting, OTA and tablet rotation all start working only from that build onward | `app/app.json` |
-| 🟡 | `react-native-maps` 1.20.1 (pinned by Expo SDK 54) never learns a custom marker's size under the new architecture on Android and rasterises every one into a fixed **100×100 px** bitmap, top-left aligned. Map pins and clusters are therefore sized from `MARKER_MAX_DP` (`100 / PixelRatio`) and carry no shadow; anything larger is cut off on the right and bottom. Drop the cap when the SDK moves to a maps version that reports marker size | `app/screens/customer/CustomerMapView.jsx` |
-| 🟢 | Anonymous view dedupe falls back to a hashed IP+user-agent when a client sends no `X-Visitor-Id`. Under CGNAT that undercounts — deliberately the safe direction, but it is not exact | `engine/utils/visitor.ts` |
-| 🟢 | Both eslint configs carry pre-existing findings (2,111 engine, 39 web — counted 2026-09-08), so lint is advisory in CI. `npm run lint` in the engine **fixes in place** — use `npx eslint src --no-fix` to look without rewriting 147 files | `.github/workflows/ci.yml` |
+| 🔴 | `PLAN_PRICE_PROVIDER_MNT` defaults to a placeholder (49,900₮). Set the real price before QPay credentials go in | `engine/payment/payment.service.ts` |
+| 🟡 | Featured placement is unsellable until `FEATURED_PRICE_PER_DAY_MNT` is set | same |
+| 🟡 | Google Maps key ships in `app.json`; restrict it by package (`com.khashaa.zuuchmap` — do not change after store release) + SHA-1 | `zuuchmap_app/app.json` |
+| 🟡 | Prod Postgres SSL uses `rejectUnauthorized: false` | `app.module.ts` |
+| 🟡 | Web admin role is client-side routing only (endpoints are guarded) | `web/src/App.jsx` |
+| 🟡 | Static assets are uncompressed, HTTP/1.1 and uncached, and the SEO routes are unreachable, until the nginx blocks are added by hand | deploy `SKILL.md` |
+| 🟡 | The map ships every pin in one response (`MAP_PIN_LIMIT` 5000); the fix is a viewport-bounded query | `post.service.ts` `findForMap` |
+| 🟡 | `@sentry/react-native`, `expo-updates`, `expo-screen-orientation` do nothing until the next EAS rebuild | `app/app.json` |
+| 🟡 | `react-native-maps` 1.20.1 rasterises custom markers into 100×100 px on Android; pins are sized from `MARKER_MAX_DP` and carry no shadow | `CustomerMapView.jsx` |
+| 🟢 | Without `REDIS_URL` the engine is single-instance only | `utils/redis.ts`, `ecosystem.config.js` |

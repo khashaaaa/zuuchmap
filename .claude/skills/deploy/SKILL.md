@@ -74,17 +74,6 @@ set `PM2_INSTANCES=<n>` (or in the pm2 env), `pm2 reload ecosystem.config.js`.
 That flips throttler storage, cache invalidation and Socket.io broadcasts onto
 Redis so N workers stay consistent. Without Redis, keep `instances: 1` — the
 engine runs fine single-node (in-memory), it just can't be horizontally scaled.
-Redis also removes the throttler's unbounded-memory behaviour under a
-high-cardinality IP flood (verified: 40k distinct IPs → engine RSS flat at
-~220MB, counts off-heap in Redis).
-
-**Running on localhost meanwhile:** local dev needs nothing from the VPS —
-`npm run dev:engine` + `dev:web` use the local Postgres and
-`config/variables/development.env`. For the mobile app against a local engine,
-point `API_BASE_URL` in `zuuchmap_app/src/config/api.config.js` at
-`http://<your-LAN-IP>:8282/engine` (remember to revert before a release build).
-While the VPS is suspended, anything pointing at `https://zuuchmap.com` (deployed
-web, installed apps, verify.mn callback) is down — that's expected.
 
 ## Backup restore drill
 
@@ -224,5 +213,5 @@ curl -sI --http2 https://zuuchmap.com/ | head -1
 - **Always back up the DB before migrations** (the script does this; backups land in `~/zuuchmap_backup_*.sql.gz` on the VPS).
 - The engine caches categories in-process for 1h — restart pm2 after any direct SQL edit to `category_schema`.
 - Rollback: `cd ~/zuuchmap-mono && git checkout <prev>`, re-run the two `rsync` commands (engine/web, see deploy.sh steps 3 and 6) to push that commit's content into `/var/www/...`, then rebuild + `pm2 restart` (or `migration:revert` per migration, same NODE_ENV=production form, or restore the DB dump).
-- **New env vars.** `production.env` additionally reads, all optional and inert when unset: `SENTRY_DSN` (error reporting), `QPAY_USERNAME`/`QPAY_PASSWORD`/`QPAY_INVOICE_CODE`/`QPAY_BASE_URL` (payments — without them `/payments/invoice` answers 503 rather than half-working), `PLAN_PRICE_PROVIDER_MNT` (**a placeholder until the real price is set**), `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT` (browser push — generate once with `npx web-push generate-vapid-keys`), `SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASSWORD`/`SMTP_FROM` (email receipts and the no-device fallback), and `PUBLIC_WEB_URL` (defaults to `https://zuuchmap.com`; the sitemap and OG tags are built from it).
+- **Env vars.** `zuuchmap_engine/.env.example` lists every variable `production.env` may carry; all the optional ones are inert when unset. `PLAN_PRICE_PROVIDER_MNT` is **a placeholder until the real price is set**.
 - Auth is verify.mn Mobile-Originated SMS. `production.env` must carry `VERIFY_MN_API_KEY` and `PUBLIC_ENGINE_URL=https://zuuchmap.com/engine` — the callback is unreachable without the latter, and verification silently fails. `OTP_OVERRIDE` is gone; the old `/auth/otp/*` endpoints now return 410.

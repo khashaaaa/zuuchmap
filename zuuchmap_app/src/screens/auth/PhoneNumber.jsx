@@ -6,12 +6,12 @@ import {
     TouchableOpacity,
     KeyboardAvoidingView,
     Platform,
-    StatusBar,
     StyleSheet,
     Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import CustomSafeAreaView from '../../components/CustomSafeAreaView';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { spacing, typography, radius, interactions, isTablet } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
@@ -36,6 +36,7 @@ const PhoneNumber = ({ navigation }) => {
     const [savedUser, setSavedUser] = useState(null);
     const inputRef = useRef(null);
     const { colors, isDark } = useAppTheme();
+    const insets = useSafeAreaInsets();
     const { setThemeMode } = useAppContext();
     const { t } = useTranslation();
 
@@ -115,14 +116,23 @@ const PhoneNumber = ({ navigation }) => {
     };
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-            <StatusBar backgroundColor={colors.surface} barStyle={isDark ? 'light-content' : 'dark-content'} />
+        // The same status-bar handling as every other screen. An opaque
+        // <StatusBar> here, after the translucent one the rest of the app sets,
+        // left the safe-area inset and the window disagreeing about where the
+        // top was, and the top row slid up under the status bar.
+        <CustomSafeAreaView backgroundColor={colors.background}>
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                // See MessageThreadScreen: on Android the view's own frame is
+                // measured below the status bar, so without this the keyboard
+                // still covered the lower half of "Үргэлжлүүлэх".
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : insets.top}
                 style={styles.flex1}
             >
                 <View style={styles.tabletCentering}>
-            <View style={styles.content}>
+            {/* The window runs behind the navigation bar; without its inset the
+                "other number" link sat on the bar's edge. */}
+            <View style={[styles.content, { paddingBottom: insets.bottom + spacing.lg }]}>
                     <View style={styles.topRow}>
                         {/*
                           * A guest who tapped "sign in" from browsing must be
@@ -217,12 +227,11 @@ const PhoneNumber = ({ navigation }) => {
                 </View>
             </View>{/* end tabletCentering */}
             </KeyboardAvoidingView>
-        </SafeAreaView>
+        </CustomSafeAreaView>
     );
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1 },
     flex1: { flex: 1 },
     tabletCentering: {
         flex: 1,

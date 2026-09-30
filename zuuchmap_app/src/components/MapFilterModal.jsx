@@ -368,10 +368,11 @@ const createStyles = (colors, screenWidth) => StyleSheet.create({
         ...typography.styles.badge,
         color: colors.onPrimary,
     },
+    // An equal half of the footer, like Apply and like the browse filter's
+    // pair. It used to be a content-width button with its own right margin on
+    // top of the row's gap: narrower than Apply, and twice the space between.
     resetButton: {
-        marginRight: spacing.md,
-        paddingVertical: spacing.xs,
-        paddingHorizontal: spacing.sm,
+        flex: 1,
     },
     section: {
         marginBottom: spacing.xl,
@@ -499,10 +500,12 @@ const createStyles = (colors, screenWidth) => StyleSheet.create({
     applyButton: {
         flex: 1,
     },
+    // No padding of its own: BottomSheetModal's footer already insets its
+    // content by lg, and a second lg here pulled the buttons in past the
+    // edge of the chips and fields above them.
     modalFooterButtons: {
         flexDirection: 'row',
         gap: spacing.md,
-        paddingHorizontal: spacing.lg,
     },
 });
 

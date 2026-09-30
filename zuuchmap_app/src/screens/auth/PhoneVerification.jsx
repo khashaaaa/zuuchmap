@@ -3,12 +3,11 @@ import {
     View,
     Text,
     TouchableOpacity,
-    StatusBar,
     StyleSheet,
     Linking,
     Animated,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import { Ionicons } from '@expo/vector-icons';
 import { spacing, typography, radius, interactions, isTablet, animations } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
@@ -149,8 +148,7 @@ const PhoneVerification = ({ route, navigation }) => {
     const secs = String(secondsLeft % 60).padStart(2, '0');
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-            <StatusBar backgroundColor={colors.surface} barStyle={isDark ? 'light-content' : 'dark-content'} />
+        <CustomSafeAreaView backgroundColor={colors.background}>
             <View style={styles.tabletCentering}>
                 <View style={styles.content}>
                     <View style={styles.topRow}>
@@ -256,12 +254,11 @@ const PhoneVerification = ({ route, navigation }) => {
                     </View>
                 </View>
             </View>
-        </SafeAreaView>
+        </CustomSafeAreaView>
     );
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1 },
     tabletCentering: {
         flex: 1,
         maxWidth: isTablet ? 480 : '100%',

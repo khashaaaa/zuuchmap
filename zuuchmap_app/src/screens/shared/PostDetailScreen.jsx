@@ -1620,9 +1620,11 @@ const createStyles = (colors, width) => StyleSheet.create({
     // md gaps the CTA was left ~130dp, which is not enough for "Захиалга хүсэх"
     // on one line, let alone the Russian. 44 is the accessible-target floor, so
     // the width comes off the gaps and the icon boxes rather than the label.
+    // Only the width: the boxes stretch to the CTA's height (52), so the bar
+    // is one height instead of 44dp squares beside a taller button.
     footer: {
         flexDirection: 'row',
-        alignItems: 'center',
+        alignItems: 'stretch',
         backgroundColor: colors.surface,
         padding: spacing.md,
         gap: spacing.sm,
@@ -1630,7 +1632,7 @@ const createStyles = (colors, width) => StyleSheet.create({
     footerBtn: { flex: 1, minWidth: 0 },
     iconAction: {
         width: 44,
-        height: 44,
+        minHeight: 44,
         borderRadius: radius.button,
         borderWidth: 1,
         justifyContent: 'center',

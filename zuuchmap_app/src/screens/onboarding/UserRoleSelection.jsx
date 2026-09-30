@@ -3,10 +3,9 @@ import {
     View,
     Text,
     TouchableOpacity,
-    StatusBar,
     StyleSheet,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import { Ionicons } from '@expo/vector-icons';
 import { spacing, typography, radius, interactions, isTablet } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
@@ -113,8 +112,7 @@ const UserRoleSelection = ({ route, navigation }) => {
 
     if (isLoading) {
         return (
-            <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
-                <StatusBar backgroundColor={colors.surface} barStyle={isDark ? 'light-content' : 'dark-content'} />
+            <CustomSafeAreaView backgroundColor={colors.background}>
                 <View style={styles.loadingTopRow}>
                     {backButton}
                     <TouchableOpacity
@@ -129,13 +127,12 @@ const UserRoleSelection = ({ route, navigation }) => {
                     </TouchableOpacity>
                 </View>
                 <ScreenLoading />
-            </SafeAreaView>
+            </CustomSafeAreaView>
         );
     }
 
     return (
-        <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
-            <StatusBar backgroundColor={colors.surface} barStyle={isDark ? 'light-content' : 'dark-content'} />
+        <CustomSafeAreaView backgroundColor={colors.background}>
             <View style={styles.content}>
                 <View style={styles.topRow}>
                     {backButton}
@@ -269,12 +266,11 @@ const UserRoleSelection = ({ route, navigation }) => {
                     />
                 </View>
             </View>
-        </SafeAreaView>
+        </CustomSafeAreaView>
     );
 };
 
 const styles = StyleSheet.create({
-    safeArea: { flex: 1 },
     loadingTopRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',

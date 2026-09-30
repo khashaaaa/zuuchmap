@@ -385,11 +385,12 @@ const createStyles = (colors) => StyleSheet.create({
     priceRangeInput: {
         flex: 1,
     },
+    // No padding of its own: BottomSheetModal's footer already insets its
+    // content by lg, and a second lg here pulled the buttons in past the
+    // edge of the chips and fields above them.
     modalFooterButtons: {
         flexDirection: 'row',
         gap: spacing.md,
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.md,
     },
     modalFooterButton: {
         flex: 1,

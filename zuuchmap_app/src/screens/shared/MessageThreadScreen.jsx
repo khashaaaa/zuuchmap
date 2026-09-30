@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     View, Text, FlatList, TextInput, TouchableOpacity,
-    KeyboardAvoidingView, Platform, StyleSheet,
+    KeyboardAvoidingView, Platform, StyleSheet, Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -43,6 +43,15 @@ const MessageThreadScreen = ({ navigation, route }) => {
     const { t } = useTranslation();
     const qc = useQueryClient();
     const [draft, setDraft] = useState('');
+    // The navigation-bar inset under the composer only applies while the
+    // keyboard is down; with it up the keyboard covers the bar, and keeping the
+    // inset pushed the composer's lower edge under the keyboard.
+    const [keyboardUp, setKeyboardUp] = useState(false);
+    useEffect(() => {
+        const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardUp(true));
+        const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardUp(false));
+        return () => { show.remove(); hide.remove(); };
+    }, []);
 
     // The inbox row is this same object. Arriving from the inbox it is already
     // in cache, so the header paints with it and — while that list is fresh —
@@ -219,10 +228,18 @@ const MessageThreadScreen = ({ navigation, route }) => {
 
             <KeyboardAvoidingView
                 style={styles.flex}
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                // Android resizes the window itself; adding an offset there
-                // double-counts the keyboard and leaves a gap under the input.
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+                // 'height' on Android, like every other keyboard screen. With no
+                // behaviour the window was panned instead (app.json sets
+                // softwareKeyboardLayoutMode "pan"): the header slid off the top
+                // and the oldest visible messages went with it, out of reach
+                // of the scroll. Shrinking the view keeps the whole thread
+                // scrollable above the composer.
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                // KeyboardAvoidingView measures its frame relative to its parent,
+                // but the keyboard in screen coordinates; the difference on an
+                // edge-to-edge Android window is the status-bar inset, which
+                // otherwise leaves the composer's lower edge under the keyboard.
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : insets.top}
             >
                 {isError ? (
                     <ScreenError onRetry={refetch} />
@@ -245,7 +262,7 @@ const MessageThreadScreen = ({ navigation, route }) => {
                     navigation bar, so a pinned footer has to hold its own
                     inset — without this the composer sat *under* the nav
                     buttons and the input could not be tapped at all. */}
-                <View style={[styles.composer, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
+                <View style={[styles.composer, { paddingBottom: keyboardUp ? spacing.md : Math.max(insets.bottom, spacing.md) }]}>
                     <View style={styles.composerInner}>
                     <TextInput
                         style={styles.input}

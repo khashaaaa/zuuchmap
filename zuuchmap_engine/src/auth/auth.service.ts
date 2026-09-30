@@ -14,7 +14,11 @@ import { LessThan, Repository } from 'typeorm';
 import { incrAndCheckOverLimit } from 'src/utils/rate-counter';
 import { isAdmin } from 'src/admin/admin.guard';
 import { jwtSecret } from 'src/utils/jwt-secret';
-import { SESSION_EXPIRES_IN } from '../utils/session';
+import {
+  SESSION_EXPIRES_IN,
+  SESSION_USER_TTL_MS,
+  sessionUsers,
+} from '../utils/session';
 import * as crypto from 'crypto';
 import { VerificationSession } from './entities/verification-session.entity';
 import { TrustedDevice } from './entities/trusted-device.entity';
@@ -372,12 +376,13 @@ export class AuthService {
     });
   }
 
+  /** The account behind a token — see `sessionUsers` for why it is cached. */
   async validateUser(userId: string): Promise<User> {
-    const user = await this.userRepository.findOne({
-      where: { id: userId },
-      relations: ['company'],
-    });
+    const cached = sessionUsers.get<User>(userId);
+    if (cached) return cached;
+    const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new UnauthorizedException('Invalid token');
+    sessionUsers.set(userId, user, SESSION_USER_TTL_MS);
     return user;
   }
 }

@@ -110,7 +110,6 @@ export const API_CONFIG = {
     LIKE: {
       LIKE: '/like',
       UNLIKE: (postType, postId) => `/like/${postType}/${postId}`,
-      CHECK: (postType, postId) => `/like/check/${postType}/${postId}`,
       LIST: '/like',
       GET_IDS: '/like/ids',
       GET_STATS: (postType, postId) => `/like/stats/${postType}/${postId}`,

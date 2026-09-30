@@ -95,3 +95,26 @@ export function publicCompany(
   }
   return users === undefined ? rest : { ...rest, users: users.map(publicUser) };
 }
+
+/**
+ * A post as a list shows it: browse pages, similar listings.
+ *
+ * Two things are left out. The moderation fields — an unapproved edit, the
+ * pre-edit snapshot, the reason an edit was refused — were only ever stripped
+ * by `GET /posts/:id`, so the public list handed anyone the pending wording of
+ * every listing with an edit in the queue. And `details`, the largest column
+ * on the row, which no card on either client reads: it made up most of a
+ * browse page's bytes for a screen that shows a title, a price and a photo.
+ * The detail route still returns it.
+ */
+export function listItem<T extends object>(post: T): T {
+  const {
+    details: _details,
+    previous_snapshot: _snapshot,
+    pending_revision: _revision,
+    rejection_reason: _reason,
+    rejection_field: _field,
+    ...rest
+  } = post as any;
+  return { ...rest, user: publicUser(rest.user) } as T;
+}

@@ -1,5 +1,6 @@
 import { PostService, expandBusyDates, snapshotOf } from './post.service';
 import { sharedCache } from '../utils/cache';
+import { listItem } from '../utils/public-user';
 
 const makeQb = (items: unknown[] = []) => {
   const qb: any = {
@@ -110,6 +111,41 @@ describe('PostService.findSimilar', () => {
     ]);
     const [item] = await svc.findSimilar(7);
     expect(item.busy_dates).toEqual([today.toISOString().slice(0, 10)]);
+  });
+});
+
+// A public list is read by anyone. The unapproved edit parked on a live post,
+// and the admin's reason for refusing one, are the owner's and the admin's.
+describe('listItem', () => {
+  const row = {
+    id: 1,
+    title: 'Экскаватор',
+    details: 'x'.repeat(2000),
+    pending_revision: { title: 'not yet approved' },
+    previous_snapshot: { title: 'before' },
+    rejection_reason: 'үнэ буруу',
+    rejection_field: 'price',
+    user: { id: 'u1', given_name: 'Бат', push_token: 'secret' },
+  };
+
+  it('drops moderation fields and the details body', () => {
+    const out: any = listItem(row);
+    for (const key of [
+      'details',
+      'pending_revision',
+      'previous_snapshot',
+      'rejection_reason',
+      'rejection_field',
+    ]) {
+      expect(out).not.toHaveProperty(key);
+    }
+    expect(out.title).toBe('Экскаватор');
+  });
+
+  it('projects the owner through publicUser', () => {
+    const out: any = listItem(row);
+    expect(out.user).toMatchObject({ id: 'u1', given_name: 'Бат' });
+    expect(out.user).not.toHaveProperty('push_token');
   });
 });
 

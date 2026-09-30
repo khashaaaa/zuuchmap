@@ -103,9 +103,16 @@ export class MessagingService {
       );
     }
 
-    if (body?.trim()) await this.send(customerId, conversation.id, body);
+    // The thread is already in hand with its three relations. Going back
+    // through `send` and `detail` re-read that same four-table join twice more
+    // inside the one request.
+    if (body?.trim()) {
+      const sent = await this.deliver(conversation, customerId, body);
+      conversation.last_message_at = sent.date_created;
+      conversation.last_message_preview = sent.body.slice(0, PREVIEW_LENGTH);
+    }
 
-    return this.detail(conversation.id, customerId);
+    return this.shape(conversation, customerId);
   }
 
   /**
@@ -119,17 +126,38 @@ export class MessagingService {
     const cutoff = parseCursor(before);
     const qb = this.conversations
       .createQueryBuilder('c')
-      .leftJoinAndSelect('c.post', 'post')
-      .leftJoinAndSelect('c.customer', 'customer')
-      .leftJoinAndSelect('c.provider', 'provider')
-      .where('(customer.id = :userId OR provider.id = :userId)', { userId })
+      // Only the columns `shape` reads. The full rows carried each listing's
+      // details, attributes and search vector, and both users' whole records,
+      // into a list that shows a title, a thumbnail and a name.
+      .leftJoin('c.post', 'post')
+      .addSelect(['post.id', 'post.title', 'post.images'])
+      .leftJoin('c.customer', 'customer')
+      .addSelect([
+        'customer.id',
+        'customer.given_name',
+        'customer.profile_picture',
+      ])
+      .leftJoin('c.provider', 'provider')
+      .addSelect([
+        'provider.id',
+        'provider.given_name',
+        'provider.profile_picture',
+      ])
+      // On the conversation's own FK columns, not the joined users' ids: each
+      // arm is then the leading column of a (participant, last_message_at)
+      // index, which the joined form could not use.
+      .where('(c."customerId" = :userId OR c."providerId" = :userId)', {
+        userId,
+      })
       // `last_message_at` is set at creation (= date_created) and on every
       // send, so the plain column is the activity time and the
       // (participant, last_message_at) indexes serve both the sort and the
       // cursor — a COALESCE here would force a heap sort per page.
       .orderBy('c.last_message_at', 'DESC')
       .addOrderBy('c.id', 'DESC')
-      .take(INBOX_PAGE_SIZE);
+      // `limit`, not `take`: every join is many-to-one so rows cannot
+      // multiply, and `take` would page through a DISTINCT id pre-query.
+      .limit(INBOX_PAGE_SIZE);
     if (cutoff) {
       qb.andWhere(
         cursorWhere('c.last_message_at', 'c.id', beforeId),
@@ -174,11 +202,12 @@ export class MessagingService {
     before?: string,
     beforeId?: string,
   ) {
-    await this.mustParticipate(conversationId, userId);
+    await this.seatOf(conversationId, userId);
     const cutoff = parseCursor(before);
     const qb = this.messages
       .createQueryBuilder('m')
-      .leftJoinAndSelect('m.sender', 'sender')
+      .leftJoin('m.sender', 'sender')
+      .addSelect('sender.id')
       .where('m."conversationId" = :conversationId', { conversationId })
       .orderBy('m.date_created', 'DESC')
       .addOrderBy('m.id', 'DESC')
@@ -211,6 +240,16 @@ export class MessagingService {
    */
   async send(senderId: string, conversationId: string, body: string) {
     const conversation = await this.mustParticipate(conversationId, senderId);
+    return this.deliver(conversation, senderId, body);
+  }
+
+  /** The write half of `send`, for a caller that already holds the thread. */
+  private async deliver(
+    conversation: Conversation,
+    senderId: string,
+    body: string,
+  ) {
+    const conversationId = conversation.id;
     const text = body.trim();
     if (!text) throw new BadRequestException('EMPTY_MESSAGE');
 
@@ -220,9 +259,15 @@ export class MessagingService {
       : conversation.customer.id;
 
     const saved = await this.dataSource.transaction(async (em) => {
-      const sender = await em.findOne(User, { where: { id: senderId } });
+      // By reference: the sender is a participant `mustParticipate` has just
+      // vouched for, so reading their row back only to write its id cost a
+      // statement per message.
       const message = await em.save(
-        em.create(Message, { conversation, sender, body: text }),
+        em.create(Message, {
+          conversation: { id: conversationId },
+          sender: { id: senderId },
+          body: text,
+        }),
       );
       await em.update(
         Conversation,
@@ -246,6 +291,10 @@ export class MessagingService {
       postId: conversation.post?.id ?? null,
       senderId,
       preview: text.slice(0, PREVIEW_LENGTH),
+      // The whole message, so an open thread appends it rather than
+      // refetching every page it has loaded to learn one row.
+      body: text,
+      date_created: saved.date_created,
     });
 
     // Push as well as socket: the recipient is usually not looking at the app,
@@ -279,8 +328,7 @@ export class MessagingService {
 
   /** Mark the caller's side read. Idempotent — the client calls it on every open. */
   async markRead(conversationId: string, userId: string) {
-    const conversation = await this.mustParticipate(conversationId, userId);
-    const isCustomer = conversation.customer.id === userId;
+    const isCustomer = (await this.seatOf(conversationId, userId)) === 'CUSTOMER';
 
     await this.dataSource.transaction(async (em) => {
       await em.update(
@@ -301,6 +349,29 @@ export class MessagingService {
     });
 
     return { ok: true };
+  }
+
+  /**
+   * Which seat the caller holds, from the thread's own row.
+   *
+   * `history` and `markRead` need nothing else, and they run on every thread
+   * open beside `detail` — three requests that each joined the listing and both
+   * users to answer a question two FK columns already hold.
+   */
+  private async seatOf(
+    conversationId: string,
+    userId: string,
+  ): Promise<'CUSTOMER' | 'PROVIDER'> {
+    const row = await this.conversations
+      .createQueryBuilder('c')
+      .select('c."customerId"', 'customerId')
+      .addSelect('c."providerId"', 'providerId')
+      .where('c.id = :conversationId', { conversationId })
+      .getRawOne<{ customerId: string; providerId: string }>();
+    if (!row) throw new NotFoundException('Conversation not found');
+    if (row.customerId === userId) return 'CUSTOMER';
+    if (row.providerId === userId) return 'PROVIDER';
+    throw new ForbiddenException('NOT_A_PARTICIPANT');
   }
 
   private async mustParticipate(
@@ -343,7 +414,7 @@ export class MessagingService {
           }
         : null,
       role: isCustomer ? 'CUSTOMER' : 'PROVIDER',
-      unread: isCustomer ? c.customer_unread : c.provider_unread,
+      unread: (isCustomer ? c.customer_unread : c.provider_unread) ?? 0,
       last_message_at: c.last_message_at,
       last_message_preview: c.last_message_preview,
       date_created: c.date_created,

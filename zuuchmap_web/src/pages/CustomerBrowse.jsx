@@ -218,7 +218,6 @@ export default function CustomerBrowse() {
       qc.invalidateQueries({ queryKey: ['liked-ids'] })
       qc.invalidateQueries({ queryKey: ['liked-posts'] })
       qc.invalidateQueries({ queryKey: ['liked-count'] })
-      qc.invalidateQueries({ queryKey: ['like-check'] })
       toast.success(t(isLiked ? 'posts.unsaved' : 'posts.saved'))
     },
     onError: () => toast.error(t('common.error')),

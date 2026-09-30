@@ -38,7 +38,6 @@ export default function CustomerSaved() {
       qc.invalidateQueries({ queryKey: ['liked-count'] })
       // Without this the listing's own page still read "Saved" from a cached
       // check — the browse grid has invalidated it all along.
-      qc.invalidateQueries({ queryKey: ['like-check'] })
       // Unsaving the last card on a page leaves that page empty; step back to
       // one that still has something on it rather than showing an empty shelf
       // with a pager under it.

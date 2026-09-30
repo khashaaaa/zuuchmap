@@ -28,7 +28,7 @@ import { User } from '../user/entities/user.entity';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { processAfterSave, deleteMultipleImages } from '../utils/uploader';
-import { publicUser } from '../utils/public-user';
+import { listItem } from '../utils/public-user';
 import { ViewedpostService, Viewer } from './viewedpost.service';
 import { EventsGateway } from '../events/events.gateway';
 import { sharedCache, invalidatePostReadCaches } from '../utils/cache';
@@ -717,9 +717,7 @@ export class PostService {
 
     // Never let raw User entities (push_token, device fields, …) reach clients.
     const result = {
-      items: await this.attachBusyDates(
-        items.map((p) => ({ ...p, user: publicUser(p.user) })),
-      ),
+      items: await this.attachBusyDates(items.map(listItem)),
       total,
     };
     if (useCache) this.cache.set(cacheKey, result, TTL.posts);
@@ -849,7 +847,19 @@ export class PostService {
     const cached = this.cache.get<Post[]>(cacheKey);
     if (cached) return cached;
 
-    const post = await this.findOne(id);
+    // Only the four columns the ranking needs. `findOne` joined the owner and
+    // their company to read a category and a price.
+    const post = await this.postRepository.findOne({
+      where: { id },
+      select: {
+        id: true,
+        category: true,
+        district: true,
+        province: true,
+        price_amount: true,
+      },
+    });
+    if (!post) throw new NotFoundException(`Post #${id} not found`);
     const price = post.price_amount == null ? null : Number(post.price_amount);
 
     const items = await this.postRepository
@@ -877,7 +887,7 @@ export class PostService {
       .take(take)
       .getMany();
 
-    const result = items.map((p) => ({ ...p, user: publicUser(p.user) }));
+    const result = items.map(listItem);
     await this.attachBusyDates(result);
     this.cache.set(cacheKey, result, TTL.similar);
     return result;
@@ -925,6 +935,12 @@ export class PostService {
       this.logger.warn(
         `Map pin cap reached (${MAP_PIN_LIMIT}) — some approved posts are not on the map`,
       );
+    }
+
+    // A pin shows one photo. The whole gallery rode along on every pin — up to
+    // ten URLs each, more than the rest of the row put together.
+    for (const pin of result) {
+      if (pin.images?.length > 1) pin.images = pin.images.slice(0, 1);
     }
 
     await this.attachBusyDates(result);
@@ -1077,32 +1093,15 @@ export class PostService {
   }
 
   /**
-   * Counts one view per user per post. The route is behind `JwtAuthGuard`, so
-   * `userId` is always present — there is no anonymous path to fall back to.
+   * Counts one view per viewer per post — a signed-in account, or an anonymous
+   * visitor key.
    *
    * A provider opening their own listing is not audience: counting it made the
    * dashboard's headline number partly a reflection of the provider checking on
    * it, which is exactly the number they are trying to read.
    */
   async incrementViews(postId: number, viewer: Viewer): Promise<void> {
-    const post = await this.postRepository.findOne({
-      where: { id: postId },
-      relations: ['user'],
-      select: { id: true, user: { id: true } },
-    });
-    if (!post) return;
-    // A provider opening their own listing is still not audience — that rule
-    // predates anonymous views and is the reason the number is readable.
-    if (viewer.userId && post.user?.id === viewer.userId) return;
-
-    const result = await this.viewedpostService.recordView(
-      viewer,
-      'post',
-      postId,
-    );
-    if (!result.already_viewed) {
-      await this.postRepository.increment({ id: postId }, 'views', 1);
-    }
+    await this.viewedpostService.countView(viewer, postId);
   }
 
   /**

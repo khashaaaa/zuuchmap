@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { spacing, typography, radius } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
 import bookingService from '../services/api/bookingService';
-import { invalidatePostData, queryClient } from '../services/queryClient';
+import { queryClient } from '../services/queryClient';
 import { showInfoModal, getErrorMessage } from '../utils/errorManager';
 import { track } from '../services/analytics';
 import { formatDate } from '../utils/displayUtils';
@@ -76,7 +76,8 @@ const BookingRequestModal = ({ visible, onClose, postId, availableFrom, availabl
         }),
         onSuccess: () => {
             track('booking.requested', { post_id: postId });
-            invalidatePostData();
+            // Only the bookings. A request is PENDING: it blocks no dates and
+            // changes nothing a listing shows until the provider accepts it.
             queryClient.invalidateQueries({ queryKey: ['bookings'] });
             onClose();
             showInfoModal(t('booking.request'), t('booking.submitted'));

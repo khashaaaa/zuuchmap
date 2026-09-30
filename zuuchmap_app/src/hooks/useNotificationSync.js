@@ -7,7 +7,7 @@ import * as Device from 'expo-device';
 import { socketService, SOCKET_EVENTS, ROOM_ADMIN, userRoom } from '../services/socketService';
 import { useAppContext } from '../context/AppContext';
 import { getAuthToken, getUserId, getUserInfo, onAuthChanged } from '../services/api/authHelpers';
-import { queryClient, invalidatePostData } from '../services/queryClient';
+import { queryClient, invalidatePostDataSoon } from '../services/queryClient';
 import apiClient from '../services/api/apiClient';
 import { API_CONFIG } from '../config/api.config';
 import { logger } from '../utils/logger';
@@ -180,8 +180,9 @@ export function useNotificationSync() {
             // NotificationsScreen tappable — they mirror the push-tap routing.
             const onPostCreated = ({ postId, category, title } = {}) => {
                 if (!mounted) return;
-                invalidatePostData();
-                // Only admins receive this — it is a new row in their queue.
+                // Only admins receive this — it is a new row in their queue, and
+                // nowhere else: a pending post is in no browse page, map or saved
+                // list, so refetching those for it fetched the same data again.
                 queryClient.invalidateQueries({ queryKey: ['admin'] });
                 addNotification({
                     title: t('notifications.postCreated'),
@@ -210,7 +211,7 @@ export function useNotificationSync() {
 
             const onPostApproved = ({ postId, userId: ownerId, title, category } = {}) => {
                 if (!mounted) return;
-                invalidatePostData();
+                invalidatePostDataSoon();
                 queryClient.invalidateQueries({ queryKey: ['admin'] });
                 if (!isMine(ownerId)) return;
                 addNotification({
@@ -234,8 +235,8 @@ export function useNotificationSync() {
             const onPostRejected = ({ postId, userId: ownerId, reason, category } = {}) => {
                 if (!mounted) return;
                 queryClient.invalidateQueries({ queryKey: ['admin'] });
-                if (!isMine(ownerId)) { invalidatePostData(); return; }
-                invalidatePostData();
+                invalidatePostDataSoon();
+                if (!isMine(ownerId)) return;
                 addNotification({
                     title: t('notifications.postRejected'),
                     message: reason || t('notifications.postRejectedDesc'),
@@ -310,11 +311,33 @@ export function useNotificationSync() {
             };
 
             // Recipient-only on the server, so no "is this mine" check here.
-            const onMessageCreated = ({ conversationId, messageId, postId, preview } = {}) => {
+            const onMessageCreated = ({ conversationId, messageId, senderId, postId, preview, body, date_created } = {}) => {
                 if (!mounted) return;
-                queryClient.invalidateQueries({ queryKey: CONVERSATIONS_KEY });
-                queryClient.invalidateQueries({ queryKey: UNREAD_KEY });
-                if (conversationId) queryClient.invalidateQueries({ queryKey: messagesKey(conversationId) });
+                const key = conversationId ? messagesKey(conversationId) : null;
+                // With the thread on screen, its own mark-read refreshes the
+                // inbox a moment later; doing it here as well fetched it twice
+                // per incoming line.
+                const threadOpen = key
+                    ? (queryClient.getQueryCache().find({ queryKey: key })?.getObserversCount() ?? 0) > 0
+                    : false;
+                if (!threadOpen) {
+                    queryClient.invalidateQueries({ queryKey: CONVERSATIONS_KEY });
+                    queryClient.invalidateQueries({ queryKey: UNREAD_KEY });
+                }
+                // The event carries the message, so a loaded thread appends it.
+                // Invalidating refetched every page of history on each incoming
+                // line. An engine that predates `body` still gets the refetch.
+                if (key && messageId && body) {
+                    queryClient.setQueryData(key, (old) => {
+                        if (!old?.pages?.length) return old;
+                        if (old.pages.some((page) => page.some((m) => m.id === messageId))) return old;
+                        const pages = [...old.pages];
+                        pages[0] = [...pages[0], { id: messageId, body, sender_id: senderId, mine: false, read_at: null, date_created }];
+                        return { ...old, pages };
+                    });
+                } else if (key) {
+                    queryClient.invalidateQueries({ queryKey: key });
+                }
                 addNotification({
                     title: t('notifications.newMessage'),
                     message: preview || '',
@@ -352,7 +375,7 @@ export function useNotificationSync() {
 
             const onStatsUpdated = () => {
                 if (!mounted) return;
-                invalidatePostData();
+                invalidatePostDataSoon();
             };
 
             socket.on('connect', onReconnect);

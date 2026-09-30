@@ -208,6 +208,12 @@ GET  /user/profile                JWT
 GET  /posts                       ?category&subcategory&province&district&approval_status
                                   &q&attr.<key>[=|_min=|_max=]&page&limit
                                   → { items, total }   (all other list endpoints return arrays)
+                                  List items go through `listItem` (`utils/public-user.ts`): no
+                                  `details` (no card reads it, and it was most of the bytes) and no
+                                  moderation fields — `pending_revision` `previous_snapshot`
+                                  `rejection_reason` `rejection_field` used to ride out on the public
+                                  list. Same projection on `/posts/:id/similar` and `GET /like`.
+                                  Only `GET /posts/:id` returns `details`.
 GET  /posts/mine                  JWT
 GET  /posts/mine/stats            JWT   per-post views/saves/booking counts + totals
                                   `views` now counts anonymous visitors too: PUT /posts/:id/views is
@@ -225,7 +231,8 @@ GET  /posts/categories/all
 POST /like                        JWT   {post_type,post_id}
 DELETE /like/:type/:id            JWT
 GET  /like                        JWT   ?page&limit → { posts, total, page, total_pages } (default 20)
-GET  /like/check/:type/:id        JWT   → { is_liked }
+GET  /like/check/:type/:id        JWT   → { is_liked }   (kept for old app builds; both clients now
+                                  derive saved state from /like/ids)
 GET  /like/stats/:type/:id        JWT   → { total_likes, recent_likes } (7-day window)
 GET  /like/ids                    JWT   ?post_type → flat ids; without it, { liked_by_type }
                                   ⚠ `:type` is accepted for URL compatibility but **ignored**:
@@ -330,6 +337,14 @@ owner never wanted to make.
 
 **Phone verification (verify.mn, Mobile-Originated):** we never send an SMS. `verify/start` registers a code; the *user* texts it to shortcode `144773` from the number they claim, and possession is proven by the message arriving from that number — so the code is not a secret and is rendered in the UI. Costs the end user 150₮ per verification, so it runs only at signup and on a new device: `TrustedDevice` stores `sha256(device_id)` and a match short-circuits to a token. The token is then held in AsyncStorage, unencrypted and behind no device-side unlock — `expo-local-authentication` was a declared-but-never-imported dependency, dropped in the dead-code sweep, so there is no biometric gate. The server never accepts a biometric claim: `user.biometric` and the OTP endpoint that trusted it are both gone.
 
+**`req.user` is identity only.** `JwtStrategy.validate` answers from
+`sessionUsers` (`utils/session.ts`, 30 s) and loads no relations — it used to
+read the user joined to their company before every guarded handler, including
+the cached public browse. Handlers may read `id` and `phone_number` off
+`req.user` and nothing else; anything that can change (company, plan, profile)
+is read by the service that needs it, as `CompanyService.isMember` does. Deleting
+an account calls `forgetSessionUser`.
+
 **Sessions** last `SESSION_EXPIRES_IN` (`utils/session.ts`, one year, imported by
 both `auth.module.ts` and `generateToken` so the two cannot drift). A user stays
 signed in until they sign out: thirty days meant an account that went quiet over
@@ -346,7 +361,7 @@ device at all — so a provider who declined push once was simply unreachable, a
 their customers' messages went nowhere. `UnreachableBanner` (both clients) says
 so on the screen a provider actually opens.
 
-**Realtime:** `events/events.gateway.ts` — Socket.io rooms `admin` + `user:<id>`. `MESSAGE_CREATED` goes to the recipient only (echoing to the sender races their optimistic row); `REPORT_CREATED` is admin-only. (legacy `provider:<id>` joins/emits kept for pre-rename app builds; drop when those are gone). Event names + payload shapes (`{postId, category, …}`) are exported as `SOCKET_EVENTS` and mirrored in `zuuchmap_web/src/lib/socket.js` and `zuuchmap_app/src/services/socketService.js` — change all three together. In the app, only `useNotificationSync` subscribes to the socket; screens never do.
+**Realtime:** `events/events.gateway.ts` — Socket.io rooms `admin` + `user:<id>`. `MESSAGE_CREATED` goes to the recipient only (echoing to the sender races their optimistic row) and carries the whole message (`body`, `date_created`), so an open thread appends it instead of refetching its history; `REPORT_CREATED` is admin-only. (legacy `provider:<id>` joins/emits kept for pre-rename app builds; drop when those are gone). Event names + payload shapes (`{postId, category, …}`) are exported as `SOCKET_EVENTS` and mirrored in `zuuchmap_web/src/lib/socket.js` and `zuuchmap_app/src/services/socketService.js` — change all three together. In the app, only `useNotificationSync` subscribes to the socket; screens never do.
 
 **Notification transports:** `PostNotificationService` fans out over three, each env-gated and independently absent — Expo push (app), **web push over VAPID** (browsers, stored in the same `push_device` table with `provider='WEB'` and the subscription endpoint as `token`), and **email**, only for an account with no registered device at all. `splitTargets()` routes each row to the transport it speaks; a row that lacks what its transport needs is not counted as addressed.
 
@@ -393,6 +408,8 @@ Customer: /customer /customer/browse /customer/map /customer/saved /customer/sav
 
 **Entry:** `App.js` → `Stack.Navigator`. Initial route: `getInitialRoute()` in `App.js` (`navigationUtils.js` holds `getDashboardScreen`/`resetToLogin`, not this).
 
+**Startup never waits on the network.** A stored token and role open the app at once; `userService.isAuthenticated()` runs behind it, answers once per minute per token, and treats only a 401 as signed out — a timeout or a 5xx used to drop a signed-in user into the guest catalogue. The token itself is memoised in `authHelpers` (`rememberAuthToken`); any new code that removes the storage key must call it.
+
 **Guest mode.** An unauthenticated launch lands on `CustomerDashboard`, not the phone screen — verification bills the **user** 150₮, so gating the whole catalogue behind it charged people to discover whether the marketplace was worth joining. Reading is open (browse, map, listing detail, the public contact number); the four actions that write to an account — save, message, report, book — call `ensureAuth(navigation, reasonKey)` from `src/utils/requireAuth.js`, which prompts with a named reason and a route to `PhoneNumber`. `useIsGuest()` is the reactive form, riding `onAuthChanged`; it returns `null` until the token read resolves, so nothing paints the wrong state first.
 
 **Key configs:**
@@ -405,7 +422,7 @@ Customer: /customer /customer/browse /customer/map /customer/saved /customer/sav
   - **Tints on elevated surfaces.** Android draws an elevation shadow *through* a translucent fill, so in the light theme (where elevation is a shadow) an `opacity.background.*` tint on anything carrying `elevation.*` comes out muddy with a pale square in it. Use `tintOn(hex, alpha, colors.surface)` — the same tint, opaque. `<Switch>` takes `colors.switch.thumb` / `colors.switch.track`; never `colors.surface` as a thumb, which is the sheet's own ground in dark.
   - **Motion.** `animations.duration/press/stagger`. Card and button presses use `<PressableScale>` (spring scale, honours reduce-motion) rather than `activeOpacity` alone; list entrances use `<FadeSlideIn index={i}>`; screen transitions are set in `App.js` `screenOptions`.
 
-**Server state:** TanStack React Query everywhere — client from `src/services/queryClient.js` (wired in `App.js` with AppState focus manager). After any post mutation or socket event call `invalidatePostData()` from that module; it clears both React Query caches and the AsyncStorage offline fallbacks. `utils/cacheManager.js` is only the offline-fallback layer used inside services (map posts, category schemas) — never cache screen data with it.
+**Server state:** TanStack React Query everywhere — client from `src/services/queryClient.js` (wired in `App.js` with AppState focus manager). After any post mutation call `invalidatePostData()` from that module; it clears both React Query caches and the AsyncStorage offline fallbacks. Socket handlers call `invalidatePostDataSoon()` instead — events arrive in runs (a bulk approve is two per post) and each used to restart every mounted post query. The detail screen opens on `findListedPost(postId)` as placeholder data, so a listing tapped from a list paints before its own request answers; the web does the same from `lib/queryClient.js`. `utils/cacheManager.js` is only the offline-fallback layer used inside services (map posts, category schemas) — never cache screen data with it.
 
 **Seeded post types:** `vehiclerent toolrent machineryrent materialstore factory construction jobvacancy sos usedequipment transport designservice miningsupport winterservice` — but categories come from the API (`CategorySchema`); form behavior is driven by schema flags via `formUtils.getInitialFormData/getEditFormData(schema, …)`, and labels via `postUtils.getSchemaLabel/getSubcategoryLabel`.
 
@@ -433,6 +450,8 @@ Customer: /customer /customer/browse /customer/map /customer/saved /customer/sav
 | 🟡 | Web admin role is client-side routing only — backend endpoints are guarded, but the UI trusts `is_admin` from the JWT response | `web/src/App.jsx` |
 | 🔴 | `PLAN_PRICE_PROVIDER_MNT` has a **placeholder default** (49,900₮). Set the real price before QPay credentials go in, or the first invoice charges a number nobody chose | `engine/payment/payment.service.ts` |
 | 🟡 | Featured placement is built and sellable but **priced at nothing until `FEATURED_PRICE_PER_DAY_MNT` is set** — the catalogue reports `featured.enabled:false` and the clients hide the buy button. This is the deliberate opposite of the row above; decide the per-day number before QPay goes live | `engine/payment/payment.service.ts` |
+| 🟡 | Static assets are served uncompressed, over HTTP/1.1, with no cache lifetime until the nginx block in the deploy skill is added by hand. The engine compresses its own responses; the ~1 MB of bundles it cannot | `.claude/skills/deploy/SKILL.md` |
+| 🟡 | The map still ships every pin in one response (`MAP_PIN_LIMIT` 5000, one image each, gzipped). The real fix is a viewport-bounded query, which changes how both map screens load and their offline fallback — not done | `engine/post/post.service.ts` `findForMap` |
 | 🟡 | The SEO routes do nothing until the nginx `location` blocks are added by hand (see the deploy skill). Until then the live sitemap is still the 5-URL static file and shared listings still show the generic card | `.claude/skills/deploy/SKILL.md` (the live conf is only in the `~/zuuchmap-vps-bundle/` snapshot, not this repo) |
 | 🟡 | `@sentry/react-native`, `expo-updates` and `expo-screen-orientation` are native modules — the installed build has none of them until the next **EAS rebuild**. Error reporting, OTA and tablet rotation all start working only from that build onward | `app/app.json` |
 | 🟡 | `react-native-maps` 1.20.1 (pinned by Expo SDK 54) never learns a custom marker's size under the new architecture on Android and rasterises every one into a fixed **100×100 px** bitmap, top-left aligned. Map pins and clusters are therefore sized from `MARKER_MAX_DP` (`100 / PixelRatio`) and carry no shadow; anything larger is cut off on the right and bottom. Drop the cap when the SDK moves to a maps version that reports marker size | `app/screens/customer/CustomerMapView.jsx` |

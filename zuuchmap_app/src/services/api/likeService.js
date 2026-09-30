@@ -10,11 +10,6 @@ const likeService = {
             ? apiClient.delete(API_CONFIG.ENDPOINTS.LIKE.UNLIKE(post_type, post_id))
             : apiClient.post(API_CONFIG.ENDPOINTS.LIKE.LIKE, { post_type, post_id }),
 
-    checkIfLiked: async (post_type, post_id) => {
-        const response = await apiClient.get(API_CONFIG.ENDPOINTS.LIKE.CHECK(post_type, post_id));
-        return response.data.is_liked === true;
-    },
-
     getUserLikedPosts: (page = 1, limit = 20) =>
         apiClient.get(`${API_CONFIG.ENDPOINTS.LIKE.LIST}?page=${page}&limit=${limit}`),
 

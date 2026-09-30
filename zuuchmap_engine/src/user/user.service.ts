@@ -1,3 +1,4 @@
+import { forgetSessionUser } from '../utils/session';
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -220,5 +221,7 @@ export class UserService {
       .execute();
 
     await this.userRepository.delete(id);
+    // Their token is still cryptographically valid; stop honouring it now.
+    forgetSessionUser(id);
   }
 }

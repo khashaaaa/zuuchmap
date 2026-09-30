@@ -158,11 +158,11 @@ export class AdminService {
     // An edit to a live post: publish the proposal, and only now reclaim the
     // photos it dropped — until this moment they were still being served.
     const revision = post.pending_revision;
+    let dropped: string[] = [];
     if (revision) {
-      const dropped = (post.images ?? []).filter(
+      dropped = (post.images ?? []).filter(
         (url) => !(revision.images ?? []).includes(url),
       );
-      if (dropped.length) await deleteMultipleImages(dropped);
       applyContent(post, revision);
       post.pending_revision = null;
     }
@@ -176,10 +176,17 @@ export class AdminService {
     // window publishes something `findAll` will never return.
     await this.posts.relistIfLapsed(post);
     await this.postRepository.save(post);
+    // After the save, and not awaited: the photos are only unreferenced once
+    // the row says so, and deleting them first meant a failed save had already
+    // destroyed what the live listing was still showing.
+    if (dropped.length) void deleteMultipleImages(dropped);
 
     const userId = post.user?.id;
     if (userId) {
-      await this.notifications.notifyUsers(
+      // Not awaited. The verdict is written; the push is a round trip to Expo
+      // that the admin was sitting through on every approval — and a bulk
+      // approve ran them one after another inside a single request.
+      void this.notifications.notifyUsers(
         [userId],
         revision ? 'Засвар зөвшөөрөгдлөө' : 'Зар зөвшөөрөгдлөө',
         revision
@@ -252,11 +259,11 @@ export class AdminService {
     // `rejection_reason` on a post that is still APPROVED is what tells the
     // owner their edit came back rather than their listing coming down.
     const revision = post.pending_revision;
+    let orphaned: string[] = [];
     if (revision) {
-      const orphaned = (revision.images ?? []).filter(
+      orphaned = (revision.images ?? []).filter(
         (url) => !(post.images ?? []).includes(url),
       );
-      if (orphaned.length) await deleteMultipleImages(orphaned);
       post.pending_revision = null;
     } else {
       post.approval_status = 'REJECTED';
@@ -265,10 +272,11 @@ export class AdminService {
     post.rejection_field = field;
     post.previous_snapshot = null;
     await this.postRepository.save(post);
+    if (orphaned.length) void deleteMultipleImages(orphaned);
 
     const userId = post.user?.id;
     if (userId) {
-      await this.notifications.notifyUsers(
+      void this.notifications.notifyUsers(
         [userId],
         revision
           ? `"${post.title}" зарын засвар зөвшөөрөгдсөнгүй`

@@ -154,6 +154,19 @@ describe('MessagingService', () => {
     await expect(svc.open('cust-1', 7)).rejects.toThrow('POST_NOT_AVAILABLE');
   });
 
+  // "Message provider" with a first message went back through `send` and
+  // `detail`, each of which re-read the thread and its three relations.
+  it('reads the thread once when opening with a first message', async () => {
+    const { svc, conversations, events } = makeService();
+    const thread = await svc.open('cust-1', 7, 'Сайн байна уу');
+    expect(conversations.findOne).toHaveBeenCalledTimes(1);
+    expect(events.emitMessage).toHaveBeenCalledWith(
+      'prov-1',
+      expect.objectContaining({ body: 'Сайн байна уу' }),
+    );
+    expect(thread.last_message_preview).toBe('Сайн байна уу');
+  });
+
   it('reuses the existing thread instead of opening a second one', async () => {
     const { svc, conversations } = makeService();
     await svc.open('cust-1', 7);

@@ -211,6 +211,21 @@ const App = () => {
         return;
       }
 
+      // A token and a chosen role are enough to open the app. Waiting on
+      // `GET /user/profile` first held every launch on the loading screen for a
+      // network round trip — up to the 30 s timeout on a bad connection — to
+      // confirm what storage already said. The check still runs, in the
+      // background; if the token has died its 401 resets to login.
+      if (storedToken && storedUserType) {
+        setAuthState({
+          isAuthenticated: true,
+          userType: storedUserType,
+          isAdmin: storedIsAdmin,
+        });
+        userService.isAuthenticated().catch(() => {});
+        return;
+      }
+
       if (storedToken) {
         try {
           const authResult = await userService.isAuthenticated();
@@ -223,12 +238,6 @@ const App = () => {
             });
             // Push-token registration lives in useNotificationSync — it runs on
             // this same startup path AND on fresh logins (auth events).
-          } else if (authResult?.rateLimited) {
-            setAuthState({
-              isAuthenticated: false,
-              userType: null,
-              isAdmin: false,
-            });
           } else {
             setAuthState({
               isAuthenticated: false,

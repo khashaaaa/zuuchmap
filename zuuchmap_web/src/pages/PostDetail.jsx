@@ -30,7 +30,7 @@ import { usePostModeration } from '@/hooks/usePostModeration'
 import ImageLightbox from '@/components/ImageLightbox'
 import { useHotkeys } from '@/hooks/useHotkeys'
 import { useCategories } from '@/hooks/useCategories'
-import { invalidatePostQueries } from '@/lib/queryClient'
+import { invalidatePostQueries, findListedPost } from '@/lib/queryClient'
 import { toast } from 'sonner'
 import InfoSection from '@/components/InfoSection'
 import CollapsibleSection from '@/components/CollapsibleSection'
@@ -40,6 +40,9 @@ import ReportModal from '@/components/ReportModal'
 import { reportsApi } from '@/lib/api'
 import { messagesApi } from '@/lib/api'
 import useDocumentMeta from '@/hooks/useDocumentMeta'
+
+// Shared with browse, which keeps the same set for its card hearts.
+const LIKED_IDS_KEY = ['liked-ids']
 
 // React renders a raw boolean as nothing and an array as concatenated text, so
 // every attribute value goes through here before display.
@@ -79,10 +82,13 @@ export default function PostDetail() {
   const [zoomed, setZoomed] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
 
-  const { data: post, isLoading, isError, error, refetch } = useQuery({
+  const { data: post, isLoading, isError, error, refetch, isPlaceholderData } = useQuery({
     queryKey: ['post', id],
     queryFn: () => postsApi.getOne(id),
     staleTime: 60_000,
+    // Not for an admin: the moderation panel edits from this row, and a list
+    // row has no details, snapshot or pending revision to edit from.
+    placeholderData: () => (isAdmin ? undefined : findListedPost(qc, id)),
   })
 
   useEffect(() => {
@@ -112,18 +118,25 @@ export default function PostDetail() {
   const { data: schemas = [], isError: schemasError, refetch: refetchSchemas } = useCategories()
   const schema = schemas.find((s) => s.key === getPostCategory(post))
 
+  // Signed out too. The engine dedupes an anonymous viewer on the X-Visitor-Id
+  // every request already carries; gating this on a token meant the web counted
+  // nobody who had not signed in, which is most of the people who look.
   useEffect(() => {
-    if (!post?.id || !token) return
+    if (!post?.id) return
     const timer = setTimeout(() => postsApi.view(post.id).catch(() => {}), 2000)
     return () => clearTimeout(timer)
-  }, [post?.id, token])
+  }, [post?.id])
 
-  const { data: likeData } = useQuery({
-    queryKey: ['like-check', id],
-    queryFn: () => likesApi.check(getPostCategory(post), id),
-    enabled: Boolean(token && post),
-    staleTime: 30_000,
+  // The same id set browse keeps — one request for the session rather than a
+  // `like/check` per listing opened, and already in cache when arriving from a
+  // list.
+  const { data: likedIds = [] } = useQuery({
+    queryKey: LIKED_IDS_KEY,
+    queryFn: likesApi.getIds,
+    enabled: Boolean(token) && !isAdmin,
+    staleTime: 60_000,
   })
+  const liked = likedIds.some((likedId) => String(likedId) === String(id))
   // Save count. Guarded endpoint, so signed-out visitors simply don't get it —
   // the row degrades to views alone rather than showing a zero that isn't true.
   const { data: likeStats } = useQuery({
@@ -439,6 +452,13 @@ export default function PostDetail() {
             )}
 
             {/* Details */}
+            {isPlaceholderData && (
+              <div className="pt-4 border-t border-border/50 space-y-2" aria-hidden="true">
+                <div className="h-4 skeleton rounded w-1/4" />
+                <div className="h-4 skeleton rounded w-full" />
+                <div className="h-4 skeleton rounded w-5/6" />
+              </div>
+            )}
             {(post.details || (isAdmin && editMode)) && (
               <div className="pt-4 border-t border-border/50">
                 <p className="text-sm text-muted font-medium mb-1">{t('posts.details')}</p>
@@ -634,7 +654,7 @@ export default function PostDetail() {
 
             {/* Like button — customers only */}
             {token && !isOwner && !isAdmin && currentUser?.type === 'CUSTOMER' && (
-              <LikeButton post={post} liked={likeData?.is_liked} />
+              <LikeButton post={post} liked={liked} />
             )}
 
             {/* A signed-out visitor used to get no save affordance at all — the
@@ -830,10 +850,10 @@ export default function PostDetail() {
 function LikeButton({ post, liked }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
-  // Display is derived from the `like-check` query, patched optimistically and
+  // Display is derived from the liked-id set, patched optimistically and
   // rolled back on error; a local useState seeded before the query resolved
   // never showed the saved state at all.
-  const key = ['like-check', String(post.id)] // same shape as the page query above
+  const key = LIKED_IDS_KEY
   // The save count shown a few rows up. It has a 60s staleTime and nothing used
   // to touch it, so saving a listing left the number it is a count of sitting
   // still — the app has moved it on the tap all along.
@@ -844,7 +864,10 @@ function LikeButton({ post, liked }) {
     onMutate: async (next) => {
       await qc.cancelQueries({ queryKey: key })
       const previous = { liked: qc.getQueryData(key), stats: qc.getQueryData(statsKey) }
-      qc.setQueryData(key, (old) => ({ ...(old ?? {}), is_liked: next }))
+      qc.setQueryData(key, (old = []) => {
+        const rest = old.filter((likedId) => String(likedId) !== String(post.id))
+        return next ? [...rest, post.id] : rest
+      })
       qc.setQueryData(statsKey, (old) => old && ({
         ...old,
         total_likes: Math.max(0, (old.total_likes || 0) + (next ? 1 : -1)),
@@ -853,7 +876,6 @@ function LikeButton({ post, liked }) {
     },
     onSuccess: (_, next) => {
       qc.invalidateQueries({ queryKey: ['liked-posts'] })
-      qc.invalidateQueries({ queryKey: ['liked-ids'] })
       qc.invalidateQueries({ queryKey: ['liked-count'] })
       toast.success(t(next ? 'posts.saved' : 'posts.unsaved'))
     },

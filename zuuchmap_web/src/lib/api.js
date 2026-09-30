@@ -141,7 +141,6 @@ export const likesApi = {
   getIds: () => client.get('/like/ids').then(r => Object.values(r.data?.liked_by_type ?? {}).flat()),
   toggle: (post_id, post_type) => client.post('/like', { post_id, post_type }),
   unlike: (post_type, post_id) => client.delete(`/like/${post_type}/${post_id}`),
-  check: (post_type, post_id) => client.get(`/like/check/${post_type}/${post_id}`).then(data),
 }
 
 // Company

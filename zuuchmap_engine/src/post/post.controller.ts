@@ -140,11 +140,24 @@ export class PostController {
     // The pre-edit snapshot and any unapproved revision are moderation material
     // — owner and admins only. A reader must see the approved version and only
     // the approved version, which is the whole point of parking the edit.
-    const { previous_snapshot, pending_revision, ...rest } = post;
+    // `rejection_reason` goes with them: on a post that is still APPROVED it is
+    // an admin's note about a refused edit, addressed to the owner.
+    const {
+      previous_snapshot,
+      pending_revision,
+      rejection_reason,
+      rejection_field,
+      ...rest
+    } = post;
     return {
       ...rest,
       ...(isOwner || requesterIsAdmin
-        ? { previous_snapshot, pending_revision }
+        ? {
+            previous_snapshot,
+            pending_revision,
+            rejection_reason,
+            rejection_field,
+          }
         : {}),
       user: publicUser(post.user),
     };

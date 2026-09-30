@@ -181,6 +181,44 @@ curl -s https://zuuchmap.com/sitemap.xml | head -5
 curl -s -A "facebookexternalhit/1.1" https://zuuchmap.com/posts/1 | grep 'og:title'
 ```
 
+## Nginx — compression, HTTP/2 and asset caching (manual, one time)
+
+The site config carries no `gzip` directive, `listen 443 ssl;` has no `http2`,
+and nothing sets a cache lifetime on the hashed bundles. Ubuntu's stock
+`nginx.conf` does say `gzip on;` but leaves `gzip_types` commented out, which
+compresses `text/html` and nothing else — so roughly 940 KB of JavaScript and
+64 KB of CSS go out at full size, over HTTP/1.1's six connections, and are
+revalidated on every visit. The engine compresses its own JSON now
+(`compression()` in `main.ts`); the static half can only be fixed here.
+
+In `/etc/nginx/sites-available/zuuchmap`, inside the `server` block that listens
+on 443:
+
+```nginx
+listen 443 ssl http2;   # replaces `listen 443 ssl;`
+
+gzip on;
+gzip_vary on;
+gzip_min_length 1024;
+gzip_types text/css application/javascript application/json image/svg+xml font/ttf;
+
+# Vite names these by content hash, so a changed file is a new URL.
+location /assets/ {
+    expires 1y;
+    add_header Cache-Control "public, immutable";
+}
+```
+
+Leave `/index.html` uncached — it is the one file that names the current
+bundles. Then `sudo nginx -t && sudo systemctl reload nginx`. Verify with:
+
+```bash
+curl -sI -H 'Accept-Encoding: gzip' https://zuuchmap.com/assets/<any>.js | grep -iE 'content-encoding|cache-control'
+# content-encoding: gzip · cache-control: public, immutable
+curl -sI --http2 https://zuuchmap.com/ | head -1
+# HTTP/2 200
+```
+
 ## Gotchas
 
 - **Always back up the DB before migrations** (the script does this; backups land in `~/zuuchmap_backup_*.sql.gz` on the VPS).

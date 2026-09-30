@@ -41,9 +41,14 @@ export default function MessageThread() {
   const [draft, setDraft] = useState('')
   const bottomRef = useRef(null)
 
+  // The inbox row is this same object. Coming from the inbox it is already in
+  // cache, so the header paints with it and — while that list is fresh — the
+  // detail request is not made at all.
   const { data: thread } = useQuery({
     queryKey: ['conversation', id],
     queryFn: () => messagesApi.detail(id),
+    initialData: () => qc.getQueryData(['conversations'])?.pages?.flat().find((c) => c.id === id),
+    initialDataUpdatedAt: () => qc.getQueryState(['conversations'])?.dataUpdatedAt,
   })
   useDocumentMeta({ title: thread?.other_party?.given_name || t('messages.title') })
 
@@ -111,8 +116,16 @@ export default function MessageThread() {
       )
       toast.error(t('messages.failed'))
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: messagesKey })
+    // The response is the stored message: swap it in for the pending bubble.
+    // Invalidating instead refetched every page of history the reader had
+    // scrolled back through, to learn the one row the server had just returned.
+    onSuccess: (saved, { tempId }) => {
+      qc.setQueryData(messagesKey, (old) =>
+        patchLast(old, (page) => [
+          ...page.filter((m) => m.id !== tempId && m.id !== saved.id),
+          saved,
+        ]),
+      )
       qc.invalidateQueries({ queryKey: ['conversations'] })
     },
   })

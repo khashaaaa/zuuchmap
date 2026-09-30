@@ -45,6 +45,19 @@ export class CompanyService {
     }
   }
 
+  /**
+   * Whether the account belongs to the company. Asked of the database rather
+   * than read off `req.user`: the request user is identity only, and a company
+   * created a moment ago must be manageable by the person who created it.
+   */
+  async isMember(userId: string, companyId: string): Promise<boolean> {
+    if (!userId || !companyId) return false;
+    const count = await this.userRepository.count({
+      where: { id: userId, company: { id: companyId } },
+    });
+    return count > 0;
+  }
+
   async findOne(id: string): Promise<Company> {
     const company = await this.companyRepository.findOne({
       where: { id },

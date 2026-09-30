@@ -4,6 +4,7 @@ import { Repository, MoreThan } from 'typeorm';
 import { Likedpost } from './entities/likedpost.entity';
 import { User } from '../user/entities/user.entity';
 import { Post } from '../post/entities/post.entity';
+import { listItem } from '../utils/public-user';
 
 @Injectable()
 export class LikedpostService {
@@ -116,7 +117,9 @@ export class LikedpostService {
         // to a total, and `image_url` pointed at the full-size original,
         // bypassing the `_thumb` convention every other list follows.
         return {
-          ...post,
+          // Same projection as browse: the saved list spread the joined row as
+          // it came, raw owner record and moderation fields included.
+          ...listItem(post),
           post_type: lp.post_type,
           date_liked: lp.date_liked,
           location:

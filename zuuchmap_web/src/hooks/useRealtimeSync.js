@@ -36,6 +36,21 @@ export function useRealtimeSync() {
       qc.invalidateQueries({ queryKey: ['conversation'] })
     })
 
+    // A bulk approve is one event per post. Each one used to restart every
+    // mounted post query, so twenty approvals were twenty full refetches of
+    // the same lists; they now collapse into one, a beat after the last.
+    const changedPosts = new Set()
+    let postFlush = null
+    const refreshPosts = (postId) => {
+      if (postId != null) changedPosts.add(postId)
+      clearTimeout(postFlush)
+      postFlush = setTimeout(() => {
+        invalidatePostQueries(qc)
+        changedPosts.forEach((changedId) => qc.invalidateQueries({ queryKey: ['post', String(changedId)] }))
+        changedPosts.clear()
+      }, 400)
+    }
+
     on(SOCKET_EVENTS.POST_CREATED, ({ postId } = {}) => {
       qc.invalidateQueries({ queryKey: ['admin-pending'], refetchType: 'none' })
       qc.invalidateQueries({ queryKey: ['admin-stats'] })
@@ -43,7 +58,7 @@ export function useRealtimeSync() {
     })
 
     on(SOCKET_EVENTS.POST_APPROVED, ({ postId }) => {
-      invalidatePostQueries(qc, { postId })
+      refreshPosts(postId)
       if (!isAdmin) {
         playNotifySound()
         toast.success(t('admin.approveSuccess'))
@@ -52,7 +67,7 @@ export function useRealtimeSync() {
     })
 
     on(SOCKET_EVENTS.POST_REJECTED, ({ postId, reason }) => {
-      invalidatePostQueries(qc, { postId })
+      refreshPosts(postId)
       if (!isAdmin) {
         playNotifySound()
         toast.error(`${t('posts.rejectionReason')}: ${reason}`)
@@ -88,13 +103,26 @@ export function useRealtimeSync() {
       useNotificationStore.getState().add({ message: t('notifications.bookingCancelled'), kind: 'info', bookingRole: 'provider', url: '/provider/bookings' })
     })
 
-    on(SOCKET_EVENTS.MESSAGE_CREATED, ({ conversationId, preview } = {}) => {
+    on(SOCKET_EVENTS.MESSAGE_CREATED, ({ conversationId, messageId, senderId, body, date_created, preview } = {}) => {
       // The inbox list, the badge, and the open thread if it happens to be
       // this one — a message arriving in the thread you are reading must
       // appear without a refresh, which is most of the point of a chat.
       qc.invalidateQueries({ queryKey: ['conversations'] })
       qc.invalidateQueries({ queryKey: ['messages', 'unread'] })
-      if (conversationId) qc.invalidateQueries({ queryKey: ['conversation', conversationId] })
+      // The event carries the message, so a loaded thread appends it.
+      // Invalidating the thread refetched its header and every page of history
+      // on each incoming line. An engine that predates `body` still gets that.
+      if (conversationId && messageId && body) {
+        qc.setQueryData(['conversation', conversationId, 'messages'], (old) => {
+          if (!old?.pages?.length) return old
+          if (old.pages.some((page) => page.some((m) => m.id === messageId))) return old
+          const pages = [...old.pages]
+          pages[0] = [...pages[0], { id: messageId, body, sender_id: senderId, mine: false, read_at: null, date_created }]
+          return { ...old, pages }
+        })
+      } else if (conversationId) {
+        qc.invalidateQueries({ queryKey: ['conversation', conversationId] })
+      }
       playNotifySound()
       toast(preview || t('messages.title'))
       useNotificationStore.getState().add({
@@ -114,6 +142,7 @@ export function useRealtimeSync() {
     })
 
     return () => {
+      clearTimeout(postFlush)
       Object.entries(handlers).forEach(([event, fn]) => socket.off(event, fn))
       disconnectSocket()
     }

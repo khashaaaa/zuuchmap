@@ -3,6 +3,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import * as path from 'path';
 import helmet from 'helmet';
+import * as compression from 'compression';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CategoryService } from './post/category.service';
@@ -85,6 +86,12 @@ async function bootstrap() {
   // events, and `attributesOutOfBounds` caps a post's attributes ~30x above the
   // largest real row. 50mb only bought an unauthenticated caller the right to
   // make the process parse 50MB per request, 100 times a minute.
+  // JSON compresses four- or fivefold and nothing in front of this process was
+  // doing it: the nginx site config has no gzip directives, and Ubuntu's stock
+  // `gzip on` covers text/html only. A browse page, the category schemas and
+  // the map pins all went out at full size over a mobile connection. Done here
+  // rather than left to nginx so it holds wherever the engine is reached from.
+  app.use(compression());
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ limit: '1mb', extended: true }));
 

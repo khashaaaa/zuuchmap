@@ -37,7 +37,7 @@ import { normalizeWebsiteUrl } from '../../utils/formUtils';
 import { processPostImages } from '../../utils/imageUtils';
 import { logger } from '../../utils/logger';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { invalidatePostData } from '../../services/queryClient';
+import { invalidatePostData, findListedPost } from '../../services/queryClient';
 import { track } from '../../services/analytics';
 import categoryService from '../../services/api/categoryService';
 import { fieldLabel, BASE_FIELD_LABELS } from '../../components/DynamicForm';
@@ -47,7 +47,7 @@ import {
     DetailItem, ContactRow, MetaRow, SectionCard, CollapsibleSectionCard, TagList,
 } from '../../components/PostDetailSections';
 import { usePostModeration } from '../../hooks/usePostModeration';
-import { useToggleLike } from '../../hooks/useToggleLike';
+import { useToggleLike, toggleLikedIdInCache, LIKED_IDS_KEY } from '../../hooks/useToggleLike';
 import { showErrorModal, showInfoModal, getErrorMessage } from '../../utils/errorManager';
 import messageService from '../../services/api/messageService';
 import reportService, { REPORTS_KEY } from '../../services/api/reportService';
@@ -210,13 +210,24 @@ const PostDetailScreen = ({ route, navigation }) => {
 
     useEffect(() => { getUserId().then(setCurrentUserId); }, []);
 
-    const { data: rawPost = null, isLoading, isError, error: postError, refetch: loadPost } = useQuery({
+    // Read once per post: a fresh object on every render would hand React
+    // Query a new placeholder each time and re-run everything keyed on the post.
+    // Not for an admin — the moderation form seeds its edit fields from this
+    // row, and a list row has no details or pending revision.
+    const listedPost = useMemo(() => {
+        if (isAdmin) return undefined;
+        const listed = findListedPost(postId);
+        return listed ? processPostImages({ ...listed }) : undefined;
+    }, [postId, isAdmin]);
+
+    const { data: rawPost = null, isLoading, isError, error: postError, refetch: loadPost, isPlaceholderData } = useQuery({
         queryKey: ['post', postId],
         queryFn: async () => {
             const response = await postService.getById(postId, false);
             return processPostImages(response.data);
         },
         staleTime: 30 * 1000,
+        placeholderData: listedPost,
     });
 
     /**
@@ -262,7 +273,6 @@ const PostDetailScreen = ({ route, navigation }) => {
     // Like count (providers see it in the stats tiles, customers on the heart)
     // and this user's own saved state. Both are owned here; LikeButton only draws.
     const likeStatsKey = ['post', postId, 'likeStats'];
-    const likedKey = ['liked', 'status', postType, postId];
     const canLike = !isProvider && !isAdmin;
     const { data: likeStats = { total_likes: 0, recent_likes: 0 }, isLoading: loadingLikes } = useQuery({
         queryKey: likeStatsKey,
@@ -271,16 +281,23 @@ const PostDetailScreen = ({ route, navigation }) => {
         queryFn: () => likeService.getLikeStats(postType, postId),
         staleTime: 60 * 1000,
     });
-    const { data: liked = false } = useQuery({
-        queryKey: likedKey,
-        enabled: canLike && Boolean(currentUserId) && Boolean(postType),
-        queryFn: () => likeService.checkIfLiked(postType, postId),
+    // The id set browse already keeps, under the same key — one request for the
+    // session instead of a `like/check` per listing opened. Matched on the id
+    // alone: the grouping key is a copy of the category and can drift.
+    const { data: likedByType } = useQuery({
+        queryKey: LIKED_IDS_KEY,
+        enabled: canLike && Boolean(currentUserId),
+        queryFn: () => likeService.likedIdsByType(),
         staleTime: 60 * 1000,
     });
+    const liked = useMemo(
+        () => Object.values(likedByType ?? {}).some((ids) => ids.some((id) => String(id) === String(postId))),
+        [likedByType, postId],
+    );
     const toggleLike = useToggleLike({
-        onMutate: ({ liked: wasLiked }) => {
-            const previous = { liked: qc.getQueryData(likedKey), stats: qc.getQueryData(likeStatsKey) };
-            qc.setQueryData(likedKey, !wasLiked);
+        onMutate: (vars) => {
+            const { liked: wasLiked } = vars;
+            const previous = { liked: toggleLikedIdInCache(qc, vars), stats: qc.getQueryData(likeStatsKey) };
             qc.setQueryData(likeStatsKey, (old = { total_likes: 0, recent_likes: 0 }) => ({
                 ...old,
                 total_likes: Math.max(0, (old.total_likes || 0) + (wasLiked ? -1 : 1)),
@@ -288,7 +305,7 @@ const PostDetailScreen = ({ route, navigation }) => {
             return previous;
         },
         onRollback: (_vars, previous) => {
-            qc.setQueryData(likedKey, previous?.liked);
+            qc.setQueryData(LIKED_IDS_KEY, previous?.liked);
             qc.setQueryData(likeStatsKey, previous?.stats);
         },
         onSettled: () => qc.invalidateQueries({ queryKey: likeStatsKey }),
@@ -933,6 +950,11 @@ const PostDetailScreen = ({ route, navigation }) => {
                 )}
 
                 {/* ── Description / details ─────────────────────────────── */}
+                {isPlaceholderData && !(post.description || post.details) && (
+                    <SectionCard label={t('posts.sectionDescription')} colors={colors} styles={styles}>
+                        <ActivityIndicator size="small" color={colors.iconAccent} />
+                    </SectionCard>
+                )}
                 {(post.description || post.details) && (
                     <SectionCard label={t('posts.sectionDescription')} colors={colors} styles={styles}>
                         <Text style={[styles.descriptionText, { color: colors.text.primary }]}>{post.description || post.details}</Text>

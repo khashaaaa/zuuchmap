@@ -2,7 +2,7 @@ import axios from 'axios';
 import { InteractionManager } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG, getUploadUrl } from '../../config/api.config';
-import { getAuthToken, getUserId, getUserType, storeAuthData, emitAuthChanged } from './authHelpers';
+import { getAuthToken, getUserId, getUserInfo, getUserType, storeAuthData, emitAuthChanged, onAuthChanged, rememberAuthToken } from './authHelpers';
 import { socketService } from '../socketService';
 import { queryClient } from '../queryClient';
 import apiClient from './apiClient';
@@ -19,6 +19,38 @@ const handleRoleNavigation = async (selectedRole, navigation) => {
 
     if (navigation) {
         navigateToDashboard(navigation, selectedRole);
+    }
+};
+
+const AUTH_CHECK_TTL_MS = 60 * 1000;
+let authCheck = null;
+onAuthChanged(() => { authCheck = null; });
+
+/** What storage says about the session, for when the server cannot be asked. */
+const storedSession = async () => {
+    const [userType, info] = await Promise.all([getUserType(), getUserInfo()]);
+    return {
+        authenticated: true,
+        roleSelected: !!userType,
+        userType,
+        is_admin: info?.is_admin === true,
+        unverified: true,
+    };
+};
+
+const verifySession = async () => {
+    try {
+        const response = await apiClient.get(API_CONFIG.ENDPOINTS.USER.PROFILE);
+        const type = response.data?.type;
+        if (!type) return storedSession();
+        if ((await getUserType()) !== type) {
+            await AsyncStorage.setItem(API_CONFIG.STORAGE_KEYS.USER_TYPE, type);
+        }
+        return { authenticated: true, roleSelected: true, userType: type, is_admin: response.data.is_admin === true };
+    } catch (error) {
+        if (error.response?.status === 401) return { authenticated: false, roleSelected: false };
+        logger.warn('Profile check unanswered, trusting the stored session:', error?.message);
+        return storedSession();
     }
 };
 
@@ -70,50 +102,32 @@ const userService = {
         }
     },
 
+    /**
+     * Whether there is a session, and whose.
+     *
+     * Only a 401 means "no". This used to report *any* failure — no signal, a
+     * timeout, a 429, a 500 — as signed out, so a provider opening the app in a
+     * basement was shown the guest catalogue with a valid token in storage. A
+     * token that really has died is caught by the interceptor on the first
+     * request that gets through, which clears the session and resets to login.
+     *
+     * The answer is kept for a minute per token. App start and the first two
+     * tabs each asked, and each ask was its own `GET /user/profile`.
+     */
     isAuthenticated: async () => {
-        try {
-            const token = await getAuthToken();
-            const userType = await getUserType();
+        const token = await getAuthToken();
+        if (!token) return { authenticated: false, roleSelected: false };
 
-            if (!token) {
-                return { authenticated: false, roleSelected: false };
-            }
-
-            try {
-                const response = await apiClient.get(API_CONFIG.ENDPOINTS.USER.PROFILE);
-
-                if (response.data && response.data.type) {
-                    if (userType !== response.data.type) {
-                        await AsyncStorage.setItem(API_CONFIG.STORAGE_KEYS.USER_TYPE, response.data.type);
-                    }
-                    return { authenticated: true, roleSelected: true, userType: response.data.type, is_admin: response.data.is_admin === true };
-                }
-
-                return { authenticated: true, roleSelected: !!userType, userType };
-            } catch (error) {
-                if (error.response?.status === 401) {
-                    return { authenticated: false, roleSelected: false };
-                }
-                if (error.response?.status === 429) {
-                    // Rate limited. A 429 says nothing about whether the token is
-                    // valid, but it is reported as unauthenticated, so the user is
-                    // sent to the login screen with a working session. `rateLimited`
-                    // exists for a caller that wants to retry instead — nothing reads
-                    // it yet.
-                    logger.error('Error during profile check:', error);
-                    return { authenticated: false, roleSelected: false, rateLimited: true };
-                }
-                logger.error('Error during profile check:', error);
-                throw error;
-            }
-        } catch (error) {
-            logger.error('Authentication check failed:', error.message);
-            if (error.response) {
-                logger.error('Auth check response status:', error.response.status);
-                logger.error('Auth check response data:', error.response.data);
-            }
-            return { authenticated: false, roleSelected: false };
+        if (authCheck && authCheck.token === token && Date.now() - authCheck.at < AUTH_CHECK_TTL_MS) {
+            return authCheck.result;
         }
+        const result = verifySession().then((answer) => {
+            // A refusal is never remembered: the next ask should go and look.
+            if (!answer.authenticated && authCheck?.result === result) authCheck = null;
+            return answer;
+        });
+        authCheck = { token, at: Date.now(), result };
+        return result;
     },
 
     deleteAccount: async () => {
@@ -148,6 +162,7 @@ const userService = {
                     API_CONFIG.STORAGE_KEYS.USER_INFO,
                 ]);
             }
+            rememberAuthToken(null);
             // PUSH_ASKED goes too: it is device-scoped, but it gates the in-app
             // rationale, and the next account on this phone is a different person
             // who has been asked nothing. The OS prompt stays protected by

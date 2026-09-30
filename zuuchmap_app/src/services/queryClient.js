@@ -70,3 +70,50 @@ export const invalidatePostData = () => {
   queryClient.invalidateQueries({ queryKey: ['map', 'posts'] });
   queryClient.invalidateQueries({ queryKey: ['liked'] });
 };
+
+/**
+ * `invalidatePostData`, a beat later and once.
+ *
+ * For socket events, which arrive in runs: a bulk approve is one POST_APPROVED
+ * and one STATS_UPDATED per post, and each used to restart every mounted post
+ * query — browse (every page scrolled so far), the map's whole pin set, the
+ * saved list. Twenty approvals were forty refetches of the same data. A user's
+ * own mutation still calls `invalidatePostData` directly: that is one event,
+ * and they are waiting on it.
+ */
+let postRefreshTimer = null;
+export const invalidatePostDataSoon = () => {
+  clearTimeout(postRefreshTimer);
+  postRefreshTimer = setTimeout(invalidatePostData, 400);
+};
+
+const rowsOf = (data) => {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.pages)) return data.pages.flatMap(rowsOf);
+  return data?.items ?? data?.posts ?? [];
+};
+
+/**
+ * A listing this device has already been sent, from whichever list it was on:
+ * a browse page, the similar drawer, the saved list, the provider's own posts.
+ *
+ * The detail screen fetched the post and sat on a skeleton until it answered,
+ * then started the requests that hang off it — for a row the card just tapped
+ * was drawn from. Handed to `placeholderData`, the screen opens with the card's
+ * content and those requests leave together with the post's own. Browse rows
+ * carry no `details`; that section fills in when the full row lands. The
+ * `images` test keeps out the stats rows that share the `['posts']` prefix.
+ */
+export const findListedPost = (postId) => {
+  const want = String(postId);
+  for (const prefix of [['posts'], ['liked']]) {
+    for (const [, data] of queryClient.getQueriesData({ queryKey: prefix })) {
+      const rows = rowsOf(data);
+      const hit = Array.isArray(rows)
+        ? rows.find((row) => row && typeof row === 'object' && String(row.id) === want && 'images' in row)
+        : undefined;
+      if (hit) return hit;
+    }
+  }
+  return undefined;
+};

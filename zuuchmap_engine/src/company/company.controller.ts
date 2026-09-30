@@ -50,9 +50,9 @@ export class CompanyController {
   }
 
   /** Owner (user attached to the company) or admin only. */
-  private assertCanManage(req: any, id: string): void {
+  private async assertCanManage(req: any, id: string): Promise<void> {
     if (isAdmin(req.user?.phone_number)) return;
-    if (req.user?.company?.id !== id) {
+    if (!(await this.companyService.isMember(req.user?.id, id))) {
       throw new ForbiddenException({
         code: 'COMPANY_FORBIDDEN',
         message: 'You can only manage your own company',
@@ -75,7 +75,7 @@ export class CompanyController {
     @Body() updateCompanyDto: UpdateCompanyDto,
     @UploadedFile() file?: Express.Multer.File,
   ) {
-    this.assertCanManage(req, id);
+    await this.assertCanManage(req, id);
     if (file) {
       const compressedLogo = await handleSingleUpload(
         file,

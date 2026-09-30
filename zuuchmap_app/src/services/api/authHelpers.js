@@ -19,9 +19,23 @@ export const emitAuthChanged = () => {
     });
 };
 
+// The token, once read. The request interceptor asks for it on every call, and
+// each ask was a trip across the native bridge to AsyncStorage — a screen that
+// opens with six requests queued six storage reads ahead of them. `undefined`
+// means not read yet; `null` means read and absent. Every writer of the key
+// goes through `rememberAuthToken`: storeAuthData, clearAuthData and
+// userService.logout. A new site that removes the key must call it too.
+let tokenMemo;
+
+export const rememberAuthToken = (token) => {
+    tokenMemo = token || null;
+};
+
 export const getAuthToken = async () => {
+    if (tokenMemo !== undefined) return tokenMemo;
     try {
-        return await AsyncStorage.getItem(API_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
+        tokenMemo = (await AsyncStorage.getItem(API_CONFIG.STORAGE_KEYS.AUTH_TOKEN)) || null;
+        return tokenMemo;
     } catch (error) {
         logger.error('Error retrieving authentication token:', error);
         return null;
@@ -69,7 +83,10 @@ export const getUserInfo = async () => {
 export const storeAuthData = async (responseData, phoneNumber) => {
     try {
         queryClient.clear();
-        if (responseData?.token) await AsyncStorage.setItem(API_CONFIG.STORAGE_KEYS.AUTH_TOKEN, responseData.token);
+        if (responseData?.token) {
+            await AsyncStorage.setItem(API_CONFIG.STORAGE_KEYS.AUTH_TOKEN, responseData.token);
+            rememberAuthToken(responseData.token);
+        }
         if (responseData?.id)    await AsyncStorage.setItem(API_CONFIG.STORAGE_KEYS.USER_ID, responseData.id);
         if (phoneNumber)         await AsyncStorage.setItem(API_CONFIG.STORAGE_KEYS.PHONE_NUMBER, phoneNumber);
         if (responseData?.type)  await AsyncStorage.setItem(API_CONFIG.STORAGE_KEYS.USER_TYPE, responseData.type);
@@ -140,6 +157,7 @@ export const clearAuthData = async () => {
             API_CONFIG.STORAGE_KEYS.USER_ID,
             API_CONFIG.STORAGE_KEYS.PUSH_TOKEN,
         ]);
+        rememberAuthToken(null);
         queryClient.clear();
         emitAuthChanged();
     } catch (error) {

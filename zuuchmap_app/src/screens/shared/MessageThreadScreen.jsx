@@ -44,10 +44,15 @@ const MessageThreadScreen = ({ navigation, route }) => {
     const qc = useQueryClient();
     const [draft, setDraft] = useState('');
 
+    // The inbox row is this same object. Arriving from the inbox it is already
+    // in cache, so the header paints with it and — while that list is fresh —
+    // the detail request is not made at all.
     const { data: thread } = useQuery({
         queryKey: threadKey(id),
         queryFn: () => messageService.detail(id),
         enabled: Boolean(id),
+        initialData: () => qc.getQueryData(CONVERSATIONS_KEY)?.pages?.flat().find((c) => c.id === id),
+        initialDataUpdatedAt: () => qc.getQueryState(CONVERSATIONS_KEY)?.dataUpdatedAt,
     });
 
     const {
@@ -116,8 +121,16 @@ const MessageThreadScreen = ({ navigation, route }) => {
             );
             showErrorModal(t('common.error'), t('messages.failed'));
         },
-        onSuccess: () => {
-            qc.invalidateQueries({ queryKey: messagesKey(id) });
+        // The response is the stored message: swap it in for the pending
+        // bubble. Invalidating instead refetched every page of history the
+        // reader had scrolled back through, to learn the one row just returned.
+        onSuccess: (saved, { tempId }) => {
+            qc.setQueryData(messagesKey(id), (old) =>
+                patchNewest(old, (page) => [
+                    ...page.filter((m) => m.id !== tempId && m.id !== saved?.id),
+                    ...(saved ? [saved] : []),
+                ])
+            );
             qc.invalidateQueries({ queryKey: CONVERSATIONS_KEY });
             // A reply is coming and it is worth nothing if it arrives unseen.
             // Asks once, ever, and only if the OS will still show the dialog.

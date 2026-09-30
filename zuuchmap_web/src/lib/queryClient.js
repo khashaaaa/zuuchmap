@@ -63,3 +63,25 @@ export function invalidatePostQueries(qc, { postId } = {}) {
   POST_KEYS.forEach((k) => qc.invalidateQueries({ queryKey: [k] }))
   if (postId != null) qc.invalidateQueries({ queryKey: ['post', String(postId)] })
 }
+
+/**
+ * A listing the visitor has already been sent, found in whichever list it was
+ * on: a browse page, the similar strip, the saved shelf.
+ *
+ * The detail page fetched the post and rendered a skeleton until it answered,
+ * then started the five requests that hang off it — for a row the card they
+ * had just clicked was built from. Handed to `placeholderData`, the page paints
+ * at once and those requests leave together with the post's own. List rows
+ * carry no `details`; that one block fills in when the real row lands.
+ */
+export function findListedPost(qc, id) {
+  const want = String(id)
+  for (const key of [['posts'], ['liked-posts']]) {
+    for (const [, data] of qc.getQueriesData({ queryKey: key })) {
+      const rows = Array.isArray(data) ? data : (data?.items ?? data?.posts)
+      const hit = Array.isArray(rows) ? rows.find((p) => String(p?.id) === want) : undefined
+      if (hit) return hit
+    }
+  }
+  return undefined
+}

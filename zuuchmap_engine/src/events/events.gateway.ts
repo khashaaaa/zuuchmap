@@ -187,6 +187,8 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       postId: number | null;
       senderId: string;
       preview: string;
+      body: string;
+      date_created: Date;
     },
   ) {
     this.emitToUser(recipientId, SOCKET_EVENTS.MESSAGE_CREATED, payload);

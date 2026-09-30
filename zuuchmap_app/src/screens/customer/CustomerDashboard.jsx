@@ -62,6 +62,8 @@ const CustomerDashboard = () => {
                     },
                     tabBarItemStyle: { paddingVertical: spacing.xs, paddingHorizontal: spacing.sm },
                     tabBarLabelStyle: { ...typography.styles.micro, marginTop: spacing.xs },
+                    // The same badge as ProfileActionRow's, not the platform's red.
+                    tabBarBadgeStyle: { backgroundColor: colors.danger, color: colors.text.onColor },
                     tabBarHideOnKeyboard: Platform.OS === 'android',
                 })}
                 safeAreaInsets={{ bottom: Platform.OS === 'android' ? insets.bottom : 0 }}

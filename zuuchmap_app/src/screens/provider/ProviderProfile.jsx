@@ -333,7 +333,11 @@ const styles = StyleSheet.create({
         padding: spacing.lg,
         marginBottom: spacing.xl,
     },
-    statItem: { flex: 1 },
+    // Sized by content, not in equal thirds: "ГИШҮҮН БОЛСОН" does not fit a
+    // third of a 360dp row and wrapped while its neighbours had room to spare.
+    // All three fit on one line when the spare width is shared out instead;
+    // on a narrower screen the tiles shrink and the label wraps as before.
+    statItem: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto' },
 });
 
 export default ProviderProfile;

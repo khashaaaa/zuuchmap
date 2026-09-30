@@ -1481,7 +1481,6 @@ const createStyles = (colors, width) => StyleSheet.create({
         // four stats still wrap into an even 2×2.
         flexGrow: 1,
         flexBasis: '28%',
-        minHeight: 70,
     },
 
     // Location & map
@@ -1567,10 +1566,11 @@ const createStyles = (colors, width) => StyleSheet.create({
     },
 
     // Contact
+    // No bottom margin: on the last row it stacked under the card's own
+    // padding and left the card bottom-heavy. The rows' padding spaces them.
     contactRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: spacing.md,
         paddingVertical: spacing.sm,
     },
     contactIcon: {
@@ -1591,10 +1591,11 @@ const createStyles = (colors, width) => StyleSheet.create({
     },
 
     // Meta
+    // No bottom margin: on the last row it stacked under the card's own
+    // padding and left the card bottom-heavy. The rows' padding spaces them.
     metaRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: spacing.md,
         paddingVertical: spacing.sm,
     },
     metaIcon: {

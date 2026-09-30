@@ -186,7 +186,10 @@ const CategorySelectScreen = ({ route, navigation }) => {
 
 const createStyles = (colors) => StyleSheet.create({
     content: { flex: 1, padding: spacing.lg },
-    searchBar: { marginBottom: spacing.lg },
+    // SearchInput pads itself by spacing.lg for use at a screen edge; inside
+    // this already-padded content that doubled the inset and left the field
+    // narrower than the cards under it. Match the cards' own xs inset.
+    searchBar: { padding: 0, paddingHorizontal: spacing.xs, marginBottom: spacing.lg },
     list: {
         paddingBottom: spacing.xxl,
         ...(isTablet ? { maxWidth: 680, alignSelf: 'center', width: '100%' } : {}),

@@ -112,6 +112,7 @@ const SubcategorySelectScreen = ({ route, navigation }) => {
                     value={search}
                     onChangeText={setSearch}
                     placeholder={t('common.search')}
+                    containerStyle={styles.searchBar}
                 />
 
                 {filtered.length === 0 && search.trim() ? (
@@ -166,6 +167,8 @@ const SubcategorySelectScreen = ({ route, navigation }) => {
 const createStyles = (colors) => StyleSheet.create({
     skipButton: {
         marginTop: spacing.md,
+        // Same xs inset as the cards above it, so the column has one edge.
+        marginHorizontal: spacing.xs,
         paddingVertical: spacing.lg,
         borderRadius: radius.card,
         borderWidth: 1,
@@ -174,11 +177,14 @@ const createStyles = (colors) => StyleSheet.create({
     },
     skipText: { ...typography.styles.label },
     content: { flex: 1, padding: spacing.lg },
+    // See CategorySelectScreen: align the field with the cards, not inset past them.
+    searchBar: { padding: 0, paddingHorizontal: spacing.xs, marginBottom: spacing.lg },
     categoryInfo: {
         backgroundColor: colors.opacity.background.success,
         padding: spacing.lg,
         borderRadius: radius.card,
         marginBottom: spacing.lg,
+        marginHorizontal: spacing.xs,
         flexDirection: 'row',
         alignItems: 'center',
         borderWidth: 1,

@@ -198,7 +198,10 @@ const createStyles = (colors) => StyleSheet.create({
         backgroundColor: colors.surface,
         borderRadius: radius.card,
         padding: spacing.lg,
-        marginBottom: spacing.lg,
+        // The same gutters as every other card on the detail screen — without
+        // them this one ran edge to edge between inset neighbours.
+        marginHorizontal: spacing.lg,
+        marginBottom: spacing.md,
         gap: spacing.md,
     },
     headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: spacing.sm },

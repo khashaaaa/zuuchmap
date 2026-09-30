@@ -28,10 +28,14 @@ const StatTile = ({ label, value, icon, emphasis = false, ready = true, loading 
 
     return (
         <View style={[styles.tile, style]}>
-            <View style={styles.labelRow}>
+            {/* The icon is a glyph inside the label, not a sibling beside it. As a
+                sibling it was centred against the whole text box: when the label
+                wrapped, the box stayed full-width and the icon was left stranded
+                at its far edge, half a line below the first line. */}
+            <Text style={styles.label} numberOfLines={2}>
                 {icon && <Ionicons name={icon} size={12} color={colors.text.tertiary} />}
-                <Text style={styles.label} numberOfLines={2}>{label}</Text>
-            </View>
+                {icon ? ' ' : ''}{label}
+            </Text>
             {loading
                 ? <ActivityIndicator size="small" color={colors.iconAccent} />
                 : (
@@ -48,31 +52,22 @@ const StatTile = ({ label, value, icon, emphasis = false, ready = true, loading 
 };
 
 const createStyles = (colors) => StyleSheet.create({
-    // Label to the top, number to the bottom: when one label in a row of tiles
-    // wraps and its neighbours do not, the numbers still share a baseline.
+    // Everything sits on the bottom edge: the numbers share a baseline and
+    // each label ends directly above its number. When one label in a row wraps
+    // ("ГИШҮҮН БОЛСОН" in a three-up row at 360dp) it grows upward, instead of
+    // leaving its one-line neighbours stranded a line above their numbers.
     tile: {
         alignItems: 'center',
-        justifyContent: 'space-between',
-        minHeight: 56,
-    },
-    // The row is capped at the tile's width and the label shrinks inside it.
-    // Without both, a long overline ("ГИШҮҮН БОЛСОН" in a three-up row at
-    // 360dp) laid out at its natural width and ran into the next tile's.
-    labelRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        maxWidth: '100%',
-        paddingHorizontal: spacing.xxs,
-        gap: spacing.xxs,
-        marginBottom: spacing.xs,
+        justifyContent: 'flex-end',
     },
     label: {
         ...typography.styles.overline,
         textTransform: 'uppercase',
         color: colors.text.tertiary,
         textAlign: 'center',
-        flexShrink: 1,
+        alignSelf: 'stretch',
+        paddingHorizontal: spacing.xxs,
+        marginBottom: spacing.xs,
     },
     value: {
         ...typography.styles.h1,

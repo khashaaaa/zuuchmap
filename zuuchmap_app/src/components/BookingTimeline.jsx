@@ -76,7 +76,16 @@ const BookingTimeline = ({ status, startDate, endDate, style }) => {
                 const segmentDone = i < active;
                 return (
                     <View key={key} style={[styles.step, isLast && styles.stepLast]}>
-                        <View style={styles.dotRow}>
+                        <View style={[styles.dotRow, isLast && styles.dotRowLast]}>
+                            {/* The last stop is as wide as its label, so the
+                                incoming track continues inside it up to the dot. */}
+                            {isLast && i > 0 && (
+                                <View style={[
+                                    styles.track,
+                                    styles.trackJoinLeft,
+                                    { backgroundColor: i - 1 < active ? withAlpha(colors.success, 0.55) : colors.border.light },
+                                ]} />
+                            )}
                             <View style={[
                                 styles.dot,
                                 { backgroundColor: s.fill, borderColor: s.ring },
@@ -92,12 +101,13 @@ const BookingTimeline = ({ status, startDate, endDate, style }) => {
                             {!isLast && (
                                 <View style={[
                                     styles.track,
+                                    i === steps.length - 2 && styles.trackJoinRight,
                                     { backgroundColor: segmentDone ? withAlpha(colors.success, 0.55) : colors.border.light },
                                 ]} />
                             )}
                         </View>
                         <Text
-                            style={[styles.label, { color: s.text }, isActive && styles.labelActive]}
+                            style={[styles.label, { color: s.text }, isActive && styles.labelActive, isLast && styles.labelLast]}
                             numberOfLines={2}
                         >
                             {t(key)}
@@ -114,6 +124,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'flex-start',
         marginTop: spacing.xs,
+        marginBottom: spacing.xs,
     },
     step: {
         flex: 1,
@@ -123,11 +134,17 @@ const styles = StyleSheet.create({
         // dots stay evenly spaced.
         flex: 0,
         minWidth: 56,
+        maxWidth: '40%',
+        // The dot sits on the card's right edge and its label ends under it.
+        // Left-aligned, "Дууссан" hung out past the dot it names.
+        alignItems: 'flex-end',
     },
+    labelLast: { textAlign: 'right', paddingRight: 0 },
     dotRow: {
         flexDirection: 'row',
         alignItems: 'center',
     },
+    dotRowLast: { alignSelf: 'stretch' },
     dot: {
         width: DOT,
         height: DOT,
@@ -152,10 +169,15 @@ const styles = StyleSheet.create({
         marginHorizontal: spacing.xxs,
         borderRadius: radius.full,
     },
+    // The segment into the last stop is drawn in two pieces; butt them together.
+    trackJoinRight: { marginRight: 0, borderTopRightRadius: 0, borderBottomRightRadius: 0 },
+    trackJoinLeft: { marginLeft: 0, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 },
     label: {
         ...typography.styles.micro,
         marginTop: spacing.xxs,
-        maxWidth: 72,
+        // Bounded by the step, not by a fixed 72dp: with two stops on a card
+        // "Хүсэлт илгээсэн" wrapped beside a track's worth of empty space.
+        paddingRight: spacing.xs,
     },
     labelActive: {
         ...typography.styles.badge,

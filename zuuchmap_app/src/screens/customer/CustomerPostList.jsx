@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { track } from '../../services/analytics';
 import {
     View,
     Text,
@@ -96,6 +97,11 @@ const CustomerPostList = ({ route, navigation }) => {
         // Values for the category's `filterable` schema fields, by field key.
         attrs: bareAttrs(routeAttrs),
     });
+    useEffect(() => {
+        const q = debouncedSearchQuery.trim();
+        if (q) track('browse.search', { query_length: q.length });
+    }, [debouncedSearchQuery]);
+
     // Price inputs are debounced: every keystroke would otherwise start a new
     // server query and reset paging.
     const debouncedPriceMin = useDebounce(filters.priceMin, 400);

@@ -127,7 +127,6 @@ export const likesApi = {
   // signed out — the app has shown this on a listing all along and the web
   // showed views only, so the same listing reported different engagement
   // depending on which client you opened it in.
-  stats: (post_type, post_id) => client.get(`/like/stats/${post_type}/${post_id}`).then(data),
   // One page of the saved list. This used to take no arguments at all, so it
   // silently rode the engine's default limit of 20 and the page rendered those
   // twenty as the whole shelf — while the app paged through all of them.
@@ -230,6 +229,7 @@ export const reportsApi = {
 // Web push — a browser subscription, stored beside the app's Expo devices.
 export const webPushApi = {
   vapidKey: () => client.get('/user/push/vapid-key').then(data),
-  subscribe: (endpoint, keys) => client.put('/user/push/web', { endpoint, keys }).then(data),
+  // `locale` is the language pushes to this browser are written in.
+  subscribe: (endpoint, keys, locale) => client.put('/user/push/web', { endpoint, keys, locale }).then(data),
   unsubscribe: (endpoint) => client.delete('/user/push/web', { data: { endpoint } }).then(data),
 }

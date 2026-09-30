@@ -55,7 +55,7 @@ export const LocationSection = ({
     onDistrictChange,
     errors
 }) => {
-    const { colors, styles: gStyles } = useAppTheme();
+    const { styles: gStyles } = useAppTheme();
     const { t } = useTranslation();
 
     // The code arrays are a cross-repo contract and stay in their declared

@@ -157,7 +157,7 @@ export default {
     noImage: 'No image', call: 'Call', navigate: 'Navigate',
     openInMaps: 'Open in Maps', viewCount: 'Views', last7Days: 'Last 7 days',
     updatedAt: 'Updated', postId: 'Post ID', sectionLocation: 'Location', sectionAvailability: 'Availability', sectionDescription: 'Description', sectionContact: 'Contact',
-    updatedAt: 'Updated', postId: 'Post ID', moreInfo: 'More info',
+    moreInfo: 'More info',
     likeError: 'Failed to save the post.',
     editLoadError: 'Failed to load post for editing',
     updateError: 'There was a problem updating your post',

@@ -25,7 +25,7 @@ import { useActiveCategorySchemas } from '../../hooks/useCategorySchemas';
 import { logger } from '../../utils/logger';
 
 const UserRoleSelection = ({ route, navigation }) => {
-    const { phoneNumber: routePhoneNumber, userId, token: routeToken } = route.params || {};
+    const { phoneNumber: routePhoneNumber, token: routeToken } = route.params || {};
     const [phoneNumber, setPhoneNumber] = useState(routePhoneNumber || '');
     const [token, setToken] = useState(routeToken || '');
     const [selectedRole, setSelectedRole] = useState(null);

@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import apiClient from './apiClient';
 import { API_CONFIG } from '../../config/api.config';
 
@@ -59,5 +60,19 @@ const messageService = {
     /** Clears the caller's own side. Idempotent — called on every thread open. */
     markRead: async (id) => (await apiClient.put(E.READ(id))).data,
 };
+
+/**
+ * Unread messages across every thread, for the tab and profile badges.
+ * `useNotificationSync` and the thread screen invalidate UNREAD_KEY on every
+ * arrival and read; the interval is the fallback for a missed socket event.
+ */
+export const useUnreadMessages = (enabled = true) =>
+    useQuery({
+        queryKey: UNREAD_KEY,
+        queryFn: messageService.unreadCount,
+        enabled,
+        staleTime: 30 * 1000,
+        refetchInterval: 60 * 1000,
+    }).data ?? 0;
 
 export default messageService;

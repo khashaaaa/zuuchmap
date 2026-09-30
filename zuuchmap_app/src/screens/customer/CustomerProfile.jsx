@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
     View,
     Text,
     TouchableOpacity,
-    Image,
     ActivityIndicator,
     ScrollView,
     RefreshControl,
@@ -23,6 +22,7 @@ import { ProfileBadge } from '../../components';
 import { showErrorModal, isPostLogoutStraggler } from '../../utils/errorManager';
 import { confirmLogout } from '../../utils/navigationUtils';
 import { useIsGuest } from '../../utils/requireAuth';
+import { useUnreadMessages } from '../../services/api/messageService';
 import { logger } from '../../utils/logger';
 
 const CustomerProfile = ({ navigation }) => {
@@ -33,6 +33,7 @@ const CustomerProfile = ({ navigation }) => {
     // member view must not paint first and then swap, and neither must the
     // guest card.
     const guest = useIsGuest();
+    const unread = useUnreadMessages(guest === false);
 
     // Both reads need a session. `guest` is null until the token read resolves
     // and true for a signed-out visitor; either way there is nothing to fetch,
@@ -281,6 +282,7 @@ const CustomerProfile = ({ navigation }) => {
                     <ProfileActionRow
                         icon="chatbubbles-outline"
                         text={t('messages.title')}
+                        badgeCount={unread}
                         onPress={() => navigation.navigate('Messages')}
                     />
                     <ProfileActionRow

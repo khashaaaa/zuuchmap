@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { webPushApi } from '../lib/api'
+import { useAuthStore } from '../store'
 
 /**
  * Browser push subscription.
@@ -31,9 +33,13 @@ export function useWebPush({ enabled = true } = {}) {
   const [permission, setPermission] = useState(() => (supported() ? Notification.permission : 'unsupported'))
   const [subscribed, setSubscribed] = useState(false)
   const [busy, setBusy] = useState(false)
+  const { i18n } = useTranslation()
+  const locale = i18n.language
 
   // Register early so the worker is active by the time the user opts in, but
-  // only register — registering does not prompt for anything.
+  // only register — registering does not prompt for anything. A browser that
+  // is already subscribed re-sends its subscription, which is what keeps the
+  // language its pushes are written in current after a switch.
   useEffect(() => {
     if (!enabled || !supported()) return
     let cancelled = false
@@ -41,7 +47,13 @@ export function useWebPush({ enabled = true } = {}) {
       .register('/sw.js')
       .then((reg) => reg.pushManager.getSubscription())
       .then((sub) => {
-        if (!cancelled) setSubscribed(Boolean(sub))
+        if (cancelled) return
+        setSubscribed(Boolean(sub))
+        // Signed in only: a 401 here would bounce the page to /login.
+        if (sub && useAuthStore.getState().token) {
+          const json = sub.toJSON()
+          webPushApi.subscribe(json.endpoint, json.keys, locale).catch(() => {})
+        }
       })
       .catch(() => {
         // An unregistered worker means no web push. Everything else still works.
@@ -49,7 +61,7 @@ export function useWebPush({ enabled = true } = {}) {
     return () => {
       cancelled = true
     }
-  }, [enabled])
+  }, [enabled, locale])
 
   const subscribe = useCallback(async () => {
     if (!supported()) return { ok: false, reason: 'unsupported' }
@@ -75,7 +87,7 @@ export function useWebPush({ enabled = true } = {}) {
         }))
 
       const json = sub.toJSON()
-      await webPushApi.subscribe(json.endpoint, json.keys)
+      await webPushApi.subscribe(json.endpoint, json.keys, locale)
       setSubscribed(true)
       return { ok: true }
     } catch (err) {

@@ -1,7 +1,10 @@
 import * as Sentry from '@sentry/react-native';
 
 /**
- * Crash and error reporting, env-gated on `SENTRY_DSN`.
+ * Crash and error reporting, env-gated on `EXPO_PUBLIC_SENTRY_DSN` — set it as
+ * an EAS environment variable (or in `.env`) for the build profile that should
+ * report. Expo inlines only `EXPO_PUBLIC_*`; a bare `SENTRY_DSN` never reaches
+ * the bundle.
  *
  * A crash on someone's phone was invisible: the app either showed its error
  * boundary or died, and nothing left the device. Without the DSN every function
@@ -13,7 +16,7 @@ import * as Sentry from '@sentry/react-native';
 let enabled = false;
 
 export function initObservability() {
-  const dsn = process.env.SENTRY_DSN || process.env.EXPO_PUBLIC_SENTRY_DSN;
+  const dsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
   if (!dsn) return;
 
   Sentry.init({

@@ -12,6 +12,8 @@ import CustomerPostList from './CustomerPostList';
 import CustomerProfile from './CustomerProfile';
 import CustomerMapView from './CustomerMapView';
 import CustomerLikeList from '../customer/CustomerLikeList';
+import { useUnreadMessages } from '../../services/api/messageService';
+import { useIsGuest } from '../../utils/requireAuth';
 
 const Tab = createBottomTabNavigator();
 
@@ -19,6 +21,9 @@ const CustomerDashboard = () => {
     const insets = useSafeAreaInsets();
     const { colors, isDark } = useAppTheme();
     const { t } = useTranslation();
+    // Messages sit behind the Profile tab here, so that is where the count goes.
+    // Never asked for a guest: the endpoint is JWT-guarded.
+    const unread = useUnreadMessages(useIsGuest() === false);
 
     return (
         <SafeAreaProvider>
@@ -64,7 +69,7 @@ const CustomerDashboard = () => {
                 <Tab.Screen name="AllPosts" component={CustomerPostList} options={{ tabBarLabel: t('nav.browse') }} />
                 <Tab.Screen name="Saved" component={CustomerLikeList} options={{ tabBarLabel: t('nav.saved') }} />
                 <Tab.Screen name="Map" component={CustomerMapView} options={{ tabBarLabel: t('nav.map') }} />
-                <Tab.Screen name="Profile" component={CustomerProfile} options={{ tabBarLabel: t('nav.profile') }} />
+                <Tab.Screen name="Profile" component={CustomerProfile} options={{ tabBarLabel: t('nav.profile'), tabBarBadge: unread > 0 ? unread : undefined }} />
             </Tab.Navigator>
         </SafeAreaProvider>
     );

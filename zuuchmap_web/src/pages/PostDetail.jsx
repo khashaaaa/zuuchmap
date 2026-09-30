@@ -137,14 +137,11 @@ export default function PostDetail() {
     staleTime: 60_000,
   })
   const liked = likedIds.some((likedId) => String(likedId) === String(id))
-  // Save count. Guarded endpoint, so signed-out visitors simply don't get it —
-  // the row degrades to views alone rather than showing a zero that isn't true.
-  const { data: likeStats } = useQuery({
-    queryKey: ['post', post?.id, 'likeStats'],
-    queryFn: () => likesApi.stats(getPostCategory(post), post.id),
-    enabled: Boolean(token && post?.id && !isAdmin),
-    staleTime: 60_000,
-  })
+  // Save count. It rides on the detail response (`like_count`) — this used to
+  // be a second request, `GET /like/stats`, after every detail load. Shown to
+  // signed-in readers only, as before; a list row standing in as the
+  // placeholder has no count, so nothing shows until the real row lands.
+  const likeCount = token && !isAdmin ? post?.like_count : undefined
 
 
   const deleteMut = useMutation({
@@ -439,8 +436,8 @@ export default function PostDetail() {
             <div className="flex flex-wrap gap-3 text-sm text-muted">
               {location && <span className="flex items-center gap-1"><MapPin size={13} /> {location}</span>}
               <span className="flex items-center gap-1 tabular-nums"><Eye size={13} /> {t('posts.viewCountValue', { count: post.views ?? 0 })}</span>
-              {likeStats && (
-                <span className="flex items-center gap-1 tabular-nums"><Heart size={13} /> {likeStats.total_likes ?? 0}</span>
+              {likeCount != null && (
+                <span className="flex items-center gap-1 tabular-nums"><Heart size={13} /> {likeCount}</span>
               )}
               <span className="text-xs">{formatDate(post.date_created)}</span>
             </div>
@@ -854,24 +851,23 @@ function LikeButton({ post, liked }) {
   // rolled back on error; a local useState seeded before the query resolved
   // never showed the saved state at all.
   const key = LIKED_IDS_KEY
-  // The save count shown a few rows up. It has a 60s staleTime and nothing used
-  // to touch it, so saving a listing left the number it is a count of sitting
-  // still — the app has moved it on the tap all along.
-  const statsKey = ['post', post.id, 'likeStats']
+  // The save count shown a few rows up lives on the cached detail row
+  // (`like_count`); move it on the tap, as the app does.
+  const postKey = ['post', String(post.id)]
   const { mutate, isPending } = useMutation({
     mutationFn: (next) =>
       next ? likesApi.toggle(post.id, getPostCategory(post)) : likesApi.unlike(getPostCategory(post), post.id),
     onMutate: async (next) => {
       await qc.cancelQueries({ queryKey: key })
-      const previous = { liked: qc.getQueryData(key), stats: qc.getQueryData(statsKey) }
+      const previous = { liked: qc.getQueryData(key), post: qc.getQueryData(postKey) }
       qc.setQueryData(key, (old = []) => {
         const rest = old.filter((likedId) => String(likedId) !== String(post.id))
         return next ? [...rest, post.id] : rest
       })
-      qc.setQueryData(statsKey, (old) => old && ({
+      qc.setQueryData(postKey, (old) => old && old.like_count != null ? ({
         ...old,
-        total_likes: Math.max(0, (old.total_likes || 0) + (next ? 1 : -1)),
-      }))
+        like_count: Math.max(0, old.like_count + (next ? 1 : -1)),
+      }) : old)
       return previous
     },
     onSuccess: (_, next) => {
@@ -881,12 +877,11 @@ function LikeButton({ post, liked }) {
     },
     onError: (_, __, previous) => {
       qc.setQueryData(key, previous?.liked)
-      qc.setQueryData(statsKey, previous?.stats)
+      qc.setQueryData(postKey, previous?.post)
       toast.error(t('common.error'))
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: key })
-      qc.invalidateQueries({ queryKey: statsKey })
     },
   })
   const optimistic = Boolean(liked)

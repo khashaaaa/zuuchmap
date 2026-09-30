@@ -24,6 +24,7 @@ import {
 } from './qpay.client';
 import { captureError } from '../utils/observability';
 import { sendMail, mailerConfigured } from '../utils/mailer';
+import { claimCron } from '../utils/redis';
 
 /** How long an unpaid invoice stays live before the sweep retires it. */
 const INVOICE_TTL_MS = 60 * 60 * 1000; // 1 h
@@ -504,6 +505,7 @@ export class PaymentService {
   @Cron(CronExpression.EVERY_HOUR)
   async sweepPendingInvoices(): Promise<void> {
     if (!qpayConfigured()) return;
+    if (!(await claimCron('sweepPendingInvoices'))) return;
     const cutoff = new Date(Date.now() - INVOICE_TTL_MS);
     const stale = await this.payments.find({
       where: { status: PaymentStatus.PENDING, date_created: LessThan(cutoff) },

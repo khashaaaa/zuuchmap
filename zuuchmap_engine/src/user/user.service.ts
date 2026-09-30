@@ -48,19 +48,15 @@ export class UserService {
   }
 
   async getUserPosts(userId: string) {
-    // Counters come from COUNT queries; loading every row to count in JS
-    // scaled linearly with the user's post history.
-    const [posts, totalPosts, activePosts] = await Promise.all([
-      this.postRepository.find({
-        where: { user: { id: userId } },
-        order: { date_created: 'DESC' },
-        take: 200,
-      }),
+    // Two counters and nothing else. This also shipped up to 200 full post rows
+    // that the one caller — the provider profile's two stat tiles — never read;
+    // the list itself is `GET /posts/mine`.
+    const [totalPosts, activePosts] = await Promise.all([
       this.postRepository.count({ where: { user: { id: userId } } }),
       // Same definition the quota card enforces — see active-posts.ts.
       countActivePosts(this.postRepository, userId),
     ]);
-    return { totalPosts, activePosts, posts };
+    return { totalPosts, activePosts };
   }
 
   async findAll(): Promise<User[]> {
@@ -119,6 +115,7 @@ export class UserService {
     userId: string,
     pushToken: string,
     platform?: string,
+    locale?: string,
   ): Promise<void> {
     try {
       await this.pushDeviceRepository.upsert(
@@ -126,6 +123,8 @@ export class UserService {
           user: { id: userId } as User,
           token: pushToken,
           platform: platform ?? null,
+          // Only when stated: an older build re-registering must not blank it.
+          ...(locale ? { locale } : {}),
           last_seen_at: new Date(),
         },
         { conflictPaths: ['token'], skipUpdateIfNoValuesChanged: false },
@@ -173,6 +172,7 @@ export class UserService {
     userId: string,
     endpoint: string,
     keys: { p256dh: string; auth: string },
+    locale?: string,
   ): Promise<void> {
     try {
       await this.pushDeviceRepository.upsert(
@@ -182,6 +182,7 @@ export class UserService {
           provider: 'WEB',
           web_subscription: { keys } as Record<string, any>,
           platform: 'web',
+          ...(locale ? { locale } : {}),
           last_seen_at: new Date(),
         },
         { conflictPaths: ['token'], skipUpdateIfNoValuesChanged: false },

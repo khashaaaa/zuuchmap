@@ -19,6 +19,7 @@ import ProviderProfile from './ProviderProfile';
 // The web has always had `/browse` open to every signed-in user.
 import CustomerPostList from '../customer/CustomerPostList';
 import MessagesScreen from '../shared/MessagesScreen';
+import { useUnreadMessages } from '../../services/api/messageService';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -70,6 +71,7 @@ const PostsStack = ({ navigation: stackNavigation }) => {
 
 const ProviderDashboard = ({ navigation }) => {
     const insets = useSafeAreaInsets();
+    const unread = useUnreadMessages();
     const { colors, isDark } = useAppTheme();
     const { t } = useTranslation();
 
@@ -145,7 +147,7 @@ const ProviderDashboard = ({ navigation }) => {
                 <Tab.Screen
                     name="Messages"
                     component={MessagesScreen}
-                    options={{ tabBarLabel: t('messages.title') }}
+                    options={{ tabBarLabel: t('messages.title'), tabBarBadge: unread > 0 ? unread : undefined }}
                 />
                 <Tab.Screen
                     name="Profile"

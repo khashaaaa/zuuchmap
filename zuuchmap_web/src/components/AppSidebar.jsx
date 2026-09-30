@@ -10,7 +10,7 @@ import {
 import { useAuthStore } from '../store'
 import { useProfile } from '@/hooks/useProfile'
 import { useQuery } from '@tanstack/react-query'
-import { reportsApi } from '@/lib/api'
+import { reportsApi, messagesApi } from '@/lib/api'
 import UserAvatar from './UserAvatar'
 import ConfirmModal from './ConfirmModal'
 
@@ -108,7 +108,17 @@ export default function AppSidebar({ onNavigate }) {
     enabled: isAdmin,
     refetchInterval: 60_000,
   })
-  const badgeFor = (to) => (to === '/admin/reports' ? reportCount?.open : undefined)
+  // Unread messages. `useRealtimeSync` and the thread invalidate this key on
+  // every arrival and read; the endpoint and the key existed all along, and
+  // nothing ever asked for the number.
+  const { data: unread } = useQuery({
+    queryKey: ['messages', 'unread'],
+    queryFn: messagesApi.unreadCount,
+    enabled: Boolean(user) && !isAdmin,
+    refetchInterval: 60_000,
+  })
+  const badgeFor = (to) =>
+    to === '/admin/reports' ? reportCount?.open : to === '/messages' ? unread?.unread : undefined
 
   return (
     <aside

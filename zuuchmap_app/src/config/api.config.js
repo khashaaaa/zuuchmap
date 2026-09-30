@@ -1,7 +1,9 @@
 export const API_CONFIG = {
   // Dev builds hit the LAN engine for device testing; release builds compile
-  // with __DEV__ === false and get production. API_BASE_URL overrides both.
-  BASE_URL: process.env.API_BASE_URL || (__DEV__ ? 'http://192.168.1.32:8282/engine' : 'https://zuuchmap.com/engine'),
+  // with __DEV__ === false and get production. EXPO_PUBLIC_API_BASE_URL
+  // overrides both — Expo only inlines variables with that prefix, so the bare
+  // `API_BASE_URL` this used to read was always undefined on a device.
+  BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL || (__DEV__ ? 'http://192.168.1.32:8282/engine' : 'https://zuuchmap.com/engine'),
 
   ENDPOINTS: {
     AUTH: {

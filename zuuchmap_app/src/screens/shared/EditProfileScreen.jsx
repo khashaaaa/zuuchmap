@@ -5,7 +5,6 @@ import {
     Text,
     TouchableOpacity,
     ScrollView,
-    Image,
     KeyboardAvoidingView,
     Platform,
     ActionSheetIOS,
@@ -22,6 +21,7 @@ import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import ScreenHeader from '../../components/ScreenHeader';
 import { ScreenLayout, TextInput } from '../../components';
 import Button from '../../components/Button';
+import Avatar from '../../components/Avatar';
 import { validateEmail, validatePhone, validateRequired } from '../../utils/formUtils';
 import { showErrorModal, showInfoModal, showWarningModal } from '../../utils/errorManager';
 import { logger } from '../../utils/logger';

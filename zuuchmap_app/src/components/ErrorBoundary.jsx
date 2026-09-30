@@ -4,6 +4,7 @@ import { spacing, typography, radius, palettes, interactions } from '../design/t
 import i18n from '../i18n';
 import { queryClient } from '../services/queryClient';
 import { reportError } from '../services/analytics';
+import { captureError } from '../utils/observability';
 
 export default class ErrorBoundary extends Component {
   constructor(props) {
@@ -18,6 +19,8 @@ export default class ErrorBoundary extends Component {
   componentDidCatch(error, info) {
     const where = info?.componentStack?.trim().split('\n')[0]?.trim() ?? 'unknown';
     reportError(error, `boundary:${where}`);
+    // A render error caught here never reaches Sentry's global handler.
+    captureError(error, { boundary: where });
   }
 
   handleRetry = () => {

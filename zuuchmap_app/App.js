@@ -18,7 +18,6 @@ import { palettes, dimensions, typography, spacing, fonts, animations, isTablet 
 const colors = palettes.dark;
 import { useAppTheme } from './src/hooks/useAppTheme';
 import { useReducedMotion } from './src/hooks/useReducedMotion';
-import CustomSafeAreaView from './src/components/CustomSafeAreaView';
 import { getUserInfo, getUserType, getAuthToken } from './src/services/api/authHelpers';
 
 const SplashStart = ({ onFinish }) => {
@@ -66,10 +65,17 @@ import { resolveNotificationRoute, notificationTouches } from './src/utils/notif
 import { AppProvider } from './src/context/AppContext';
 import { useNotificationSync } from './src/hooks/useNotificationSync';
 import { socketService } from './src/services/socketService';
-import { reportError } from './src/services/analytics';
+import { reportError, track } from './src/services/analytics';
 import { useFonts } from 'expo-font';
 import { fontAssets } from './src/design/theme';
 import './src/i18n'; // initialize i18next
+
+let lastTrackedScreen = null;
+const trackScreen = (name) => {
+  if (!name || name === lastTrackedScreen) return;
+  lastTrackedScreen = name;
+  track('page.view', { path: name });
+};
 
 if (global.ErrorUtils) {
   const prevHandler = global.ErrorUtils.getGlobalHandler();
@@ -136,7 +142,7 @@ import { useTranslation } from 'react-i18next';
 import OfflineBanner from './src/components/OfflineBanner';
 import useOnline from './src/hooks/useOnline';
 import useOtaUpdates from './src/hooks/useOtaUpdates';
-import { initObservability } from './src/utils/observability';
+import { initObservability, captureError } from './src/utils/observability';
 import MessagesScreen from './src/screens/shared/MessagesScreen';
 import MessageThreadScreen from './src/screens/shared/MessageThreadScreen';
 import BillingScreen from './src/screens/provider/BillingScreen';
@@ -180,7 +186,10 @@ const App = () => {
   });
 
   useEffect(() => {
-    if (fontError) reportError(fontError, 'fonts.load');
+    if (fontError) {
+      reportError(fontError, 'fonts.load');
+      captureError(fontError, { context: 'fonts.load' });
+    }
   }, [fontError]);
 
   useEffect(() => {
@@ -410,7 +419,13 @@ const ThemedApp = ({ initialRoute }) => {
       />
 
       <ErrorBoundary>
-        <NavigationContainer ref={navigationRef}>
+        <NavigationContainer
+          ref={navigationRef}
+          // One page.view per screen change — the top of the admin funnel, which
+          // only the web was feeding. `path` is the route name: the app has no URL.
+          onReady={() => trackScreen(navigationRef.getCurrentRoute()?.name)}
+          onStateChange={() => trackScreen(navigationRef.getCurrentRoute()?.name)}
+        >
           <Stack.Navigator
             initialRouteName={initialRoute}
             screenOptions={{

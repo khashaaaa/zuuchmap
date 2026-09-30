@@ -5,7 +5,7 @@
 # independent — a web-only change should not wait on the engine's Postgres.
 #
 # What is deliberately NOT a gate: `npm run lint`. The engine's eslint config is
-# type-aware and the existing code carries ~1,500 `no-unsafe-*` findings on
+# type-aware and the existing code carries ~2,100 `no-unsafe-*` findings on
 # `any`; gating on it would fail every PR for reasons that predate it. It runs
 # in a non-blocking job instead so the number can be watched, and the real gates
 # are the ones that can actually go from green to red: types, the cross-repo
@@ -122,7 +122,7 @@ jobs:
         working-directory: zuuchmap_web
         run: npm ci
 
-      # Advisory, like the engine's: the web app carries ~23 pre-existing
+      # Advisory, like the engine's: the web app carries ~39 pre-existing
       # findings (react-hooks/set-state-in-effect, react-refresh export rules)
       # that predate this workflow. Gating on them would fail every PR for
       # reasons unrelated to it.
@@ -145,7 +145,7 @@ jobs:
         run: npm run build
 
   app:
-    name: App — bundle
+    name: App — undefined names, bundle
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -158,6 +158,13 @@ jobs:
       - name: Install
         working-directory: zuuchmap_app
         run: npm ci
+
+      # The bundle below resolves imports; it does not notice a name that was
+      # never imported at all. `<Avatar>` with no import shipped that way and
+      # Edit Profile threw on render for three weeks.
+      - name: Undefined identifiers
+        working-directory: zuuchmap_app
+        run: npm run lint:undef
 
       # The engine typechecks and the web builds; the app did neither, so a
       # syntax error or a bad import in any screen reached EAS unchallenged.

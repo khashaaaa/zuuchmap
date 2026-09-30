@@ -13,6 +13,7 @@ import { Post } from '../post/entities/post.entity';
 import { User } from '../user/entities/user.entity';
 import { EventsGateway } from '../events/events.gateway';
 import { PostNotificationService } from '../post/post-notification.service';
+import { PUSH } from '../utils/push-messages';
 
 const PREVIEW_LENGTH = 200;
 const PAGE_SIZE = 30;
@@ -305,7 +306,7 @@ export class MessagingService {
     void this.notifications
       .notifyUsers(
         [recipientId],
-        senderName || 'Шинэ мессеж',
+        senderName || PUSH.newMessage.title,
         text.slice(0, 120),
         {
           type: 'message',

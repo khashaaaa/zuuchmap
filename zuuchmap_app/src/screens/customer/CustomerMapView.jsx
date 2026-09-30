@@ -27,7 +27,7 @@ import PressableScale from '../../components/PressableScale';
 import OfflineBanner from '../../components/OfflineBanner';
 import MapClusterCarousel from '../../components/MapClusterCarousel';
 import EmptyState from '../../components/EmptyState';
-import { getPostTypeConfig, normalizePostType } from '../../utils/postUtils';
+import { normalizePostType } from '../../utils/postUtils';
 import { useCategorySchemas } from '../../hooks/useCategorySchemas';
 import { showErrorModal, showWarningModal } from '../../utils/errorManager';
 import { logger } from '../../utils/logger';

@@ -37,6 +37,8 @@ import { PostNotificationService } from './post-notification.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { searchTerms } from '../utils/search-terms';
 import { APP_TIMEZONE } from '../utils/timezone';
+import { Localized, PUSH } from '../utils/push-messages';
+import { claimCron } from '../utils/redis';
 import { Report } from '../report/entities/report.entity';
 import { ReportStatus } from '../enums/report';
 
@@ -793,6 +795,15 @@ export class PostService {
     }
   }
 
+  /** How many accounts have saved this post — carried on the detail response. */
+  async likeCount(postId: number): Promise<number> {
+    const [row] = await this.postRepository.query(
+      `SELECT COUNT(*)::int AS count FROM "likedpost" WHERE post_id = $1`,
+      [postId],
+    );
+    return Number(row?.count ?? 0);
+  }
+
   /**
    * Adds `busy_dates` to every post whose category is bookable. One query over
    * the ACCEPTED bookings of the whole page, never per post. Bookings live in
@@ -1396,6 +1407,7 @@ export class PostService {
 
   @Cron('0 0 * * *', { timeZone: APP_TIMEZONE })
   async expireOldPosts(): Promise<void> {
+    if (!(await claimCron('expireOldPosts'))) return;
     try {
       // Read the rows before flipping them: once the UPDATE has run there is no
       // way to tell which posts it was, and an expiry nobody is told about is
@@ -1422,8 +1434,8 @@ export class PostService {
 
       await this.notifyExpiry(
         due,
-        'Таны зарын хугацаа дууслаа',
-        (post) => `"${post.title}" зар хугацаа дуусаж, жагсаалтаас хасагдлаа. Сунгах товч дарж эргүүлэн нийтэлнэ үү.`,
+        PUSH.postExpired.title,
+        (post) => PUSH.postExpired.body(post.title),
         'post_expired',
       );
     } catch (err) {
@@ -1435,17 +1447,25 @@ export class PostService {
   private static readonly EXPIRY_WARNING_DAYS = 3;
 
   /**
-   * Warn owners whose posts lapse in three days.
+   * Warn owners whose posts lapse in three days — once.
+   *
+   * The window is the single day that is three days out, not "anything within
+   * three days": that wider window matched the same post on three consecutive
+   * nights, so a provider with twenty listings lapsing together got sixty
+   * pushes. A renewed post moves its `expires_at` and is warned again when the
+   * new date comes round.
    *
    * Runs an hour after the expiry sweep so the two can never race over the same
    * post — anything the sweep took is already EXPIRED and out of this window.
    */
   @Cron('0 1 * * *', { timeZone: APP_TIMEZONE })
   async warnExpiringPosts(): Promise<void> {
+    if (!(await claimCron('warnExpiringPosts'))) return;
     try {
-      const from = new Date();
       const to = new Date();
       to.setDate(to.getDate() + PostService.EXPIRY_WARNING_DAYS);
+      const from = new Date(to);
+      from.setDate(from.getDate() - 1);
       const due = await this.postRepository.find({
         where: {
           status: Not(Status.EXPIRED),
@@ -1465,7 +1485,7 @@ export class PostService {
       this.logger.log(`warnExpiringPosts: ${due.length} post(s) lapse soon`);
       await this.notifyExpiry(
         due,
-        'Таны зарын хугацаа дуусах гэж байна',
+        PUSH.postExpiring.title,
         (post) => {
           const days = Math.max(
             1,
@@ -1473,7 +1493,7 @@ export class PostService {
               (new Date(post.expires_at).getTime() - Date.now()) / 86400000,
             ),
           );
-          return `"${post.title}" зар ${days} хоногийн дараа жагсаалтаас хасагдана. Сунгах товч дарж хугацааг нь сунгаарай.`;
+          return PUSH.postExpiring.body(post.title, days);
         },
         'post_expiring',
       );
@@ -1485,8 +1505,8 @@ export class PostService {
   /** One push per lapsing post, batched into a single fan-out. */
   private async notifyExpiry(
     posts: Post[],
-    title: string,
-    body: (post: Post) => string,
+    title: Localized,
+    body: (post: Post) => Localized,
     notifType: string,
   ): Promise<void> {
     const items = posts

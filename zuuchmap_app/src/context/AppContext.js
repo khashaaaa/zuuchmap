@@ -69,6 +69,10 @@ export const AppProvider = ({ children }) => {
         setLocaleState(lang);
         await i18n.changeLanguage(lang);
         await AsyncStorage.setItem(STORAGE_KEYS.LOCALE, lang).catch(() => {});
+        // Pushes are written in the device's language, which the server learns
+        // with the token — re-send it. A no-op without permission or a session.
+        // Lazy: useNotificationSync imports this module.
+        import('../hooks/useNotificationSync').then((m) => m.registerPushToken()).catch(() => {});
     }, []);
 
     // postType/role/bookingRole are the navigation hints NotificationsScreen

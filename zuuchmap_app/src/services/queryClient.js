@@ -1,5 +1,6 @@
 import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query';
 import { invalidatePostCaches } from '../utils/cacheManager';
+import { captureError } from '../utils/observability';
 
 /**
  * Safety net under the per-screen error states: every read/write failure is
@@ -10,6 +11,7 @@ import { invalidatePostCaches } from '../utils/cacheManager';
  */
 const report = (error, context) => {
   if (error?.response?.status === 401) return; // handled by the axios interceptor
+  captureError(error, { context });
   import('./analytics')
     .then((m) => m.reportError(error, context))
     .catch(() => {});

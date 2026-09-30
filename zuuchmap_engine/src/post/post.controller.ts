@@ -136,7 +136,12 @@ export class PostController {
     if (post.approval_status !== 'APPROVED' && !isOwner && !requesterIsAdmin) {
       throw new NotFoundException(`Post #${id} not found`);
     }
-    await this.postService.attachBusyDates([post]);
+    // The save count rides on the detail: both clients used to follow every
+    // detail load with `GET /like/stats` for this one number.
+    const [like_count] = await Promise.all([
+      this.postService.likeCount(id),
+      this.postService.attachBusyDates([post]),
+    ]);
     // The pre-edit snapshot and any unapproved revision are moderation material
     // — owner and admins only. A reader must see the approved version and only
     // the approved version, which is the whole point of parking the edit.
@@ -151,6 +156,7 @@ export class PostController {
     } = post;
     return {
       ...rest,
+      like_count,
       ...(isOwner || requesterIsAdmin
         ? {
             previous_snapshot,

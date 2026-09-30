@@ -156,7 +156,7 @@ export default {
     noImage: 'Нет фото', call: 'Позвонить', navigate: 'Маршрут',
     openInMaps: 'Открыть в картах', viewCount: 'Просмотры', last7Days: 'Последние 7 дней',
     updatedAt: 'Обновлено', postId: 'ID объявления', sectionLocation: 'Местоположение', sectionAvailability: 'Доступность', sectionDescription: 'Описание', sectionContact: 'Контакты',
-    updatedAt: 'Обновлено', postId: 'ID объявления', moreInfo: 'Подробнее',
+    moreInfo: 'Подробнее',
     likeError: 'Не удалось сохранить объявление.',
     editLoadError: 'Не удалось загрузить объявление для редактирования',
     updateError: 'Не удалось обновить объявление',

@@ -10,6 +10,7 @@ import { SavedSearch } from './entities/saved-search.entity';
 import { CreateSavedSearchDto } from './dto/create-saved-search.dto';
 import { PostNotificationService } from '../post/post-notification.service';
 import { matchesPost, searchTerms } from '../utils/search-terms';
+import { PUSH } from '../utils/push-messages';
 
 export const SAVED_SEARCH_LIMIT = 10;
 /** A search fires at most once per window, however many posts land in it. */
@@ -165,8 +166,8 @@ export class SavedSearchService {
       const userIds = [...new Set(hits.map((s) => s.user_id))];
       await this.notifications.notifyUsers(
         userIds,
-        'Таны хайлтад шинэ зар',
-        `"${post.title ?? ''}" таны хадгалсан хайлтад тохирч байна.`,
+        PUSH.savedSearch.title,
+        PUSH.savedSearch.body(post.title ?? ''),
         {
           type: 'saved_search',
           postId: post.id,

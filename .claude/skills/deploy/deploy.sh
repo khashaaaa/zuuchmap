@@ -16,7 +16,10 @@ vps() {
 import sys, paramiko
 c = paramiko.SSHClient(); c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 c.connect('$VPS_HOST', username='$VPS_USER', password='$VPS_PASS', timeout=15)
-_, out, err = c.exec_command(sys.argv[1], timeout=900)
+# pipefail: most steps pipe their output through tail/grep to keep the log
+# short, and without it the step's exit status was tail's — a failed build or
+# migration reported success and the deploy carried on to restart pm2.
+_, out, err = c.exec_command('set -o pipefail; ' + sys.argv[1], timeout=900)
 o = out.read().decode(); e = err.read().decode(); code = out.channel.recv_exit_status()
 print(o, end='')
 if e.strip(): print('[stderr]', e[:2000], file=sys.stderr)
@@ -53,19 +56,32 @@ vps "test -d ~/zuuchmap-mono/.git && (cd ~/zuuchmap-mono && git fetch origin mas
 
 echo "== 3/6 Engine: sync from monorepo, install, build =="
 vps "rm -rf /var/www/zuuchmap_engine/.git; rsync -a --delete --exclude .git --exclude-from=~/zuuchmap-mono/zuuchmap_engine/.gitignore ~/zuuchmap-mono/zuuchmap_engine/ /var/www/zuuchmap_engine/"
-vps "$NODEPATH; cd /var/www/zuuchmap_engine && npm install --no-audit --no-fund 2>&1 | tail -1 && npm run build 2>&1 | tail -1"
+vps "$NODEPATH; cd /var/www/zuuchmap_engine && npm install --no-audit --no-fund 2>&1 | tail -1 && npm run build 2>&1 | tail -3"
 
 echo "== 4/6 Engine: migrations (production) =="
-vps "$NODEPATH; cd /var/www/zuuchmap_engine && NODE_ENV=production npx typeorm-ts-node-commonjs migration:run -d src/database/data-source.ts 2>&1 | grep -E 'executed|pending|No migrations' | tail -6"
+vps "$NODEPATH; cd /var/www/zuuchmap_engine && NODE_ENV=production npx typeorm-ts-node-commonjs migration:run -d src/database/data-source.ts 2>&1 | tail -6"
 
 echo "== 5/6 Engine: restart via pm2 =="
 vps "$NODEPATH; pm2 restart zuuchmap_engine 2>/dev/null || (cd /var/www/zuuchmap_engine && pm2 start ecosystem.config.js); pm2 save >/dev/null; sleep 4; pm2 status | grep zuuchmap"
 
 echo "== 6/6 Web: sync from monorepo, install, build (nginx serves dist directly) =="
 vps "rm -rf /var/www/zuuchmap_web/.git; rsync -a --delete --exclude .git --exclude-from=~/zuuchmap-mono/zuuchmap_web/.gitignore ~/zuuchmap-mono/zuuchmap_web/ /var/www/zuuchmap_web/"
-vps "$NODEPATH; cd /var/www/zuuchmap_web && npm install --no-audit --no-fund 2>&1 | tail -1 && npm run build 2>&1 | grep -E 'built|error'"
+# Built beside the served directory and copied over it, never into it: Vite
+# empties its outDir first, which left the live site without assets for the
+# length of the build — and for good if the build failed. Copying without
+# --delete also keeps the previous release's hashed chunks, so a tab opened
+# before the deploy can still load the lazy route it asks for next. Chunks
+# older than two weeks are pruned.
+vps "$NODEPATH; cd /var/www/zuuchmap_web && npm install --no-audit --no-fund 2>&1 | tail -1 && npx vite build --outDir dist.next --emptyOutDir 2>&1 | tail -3 && mkdir -p dist && rsync -a dist.next/ dist/ && rm -rf dist.next && find dist/assets -type f -mtime +14 -delete"
 
 echo "== Smoke test =="
-curl -s -o /dev/null -w "API  https://zuuchmap.com/engine/posts/categories/all -> HTTP %{http_code}\n" https://zuuchmap.com/engine/posts/categories/all
-curl -s -o /dev/null -w "WEB  https://zuuchmap.com -> HTTP %{http_code}\n" https://zuuchmap.com
+# Fails the deploy rather than printing a 502 above "Deploy complete".
+smoke() {
+  local code; code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$2" || true)
+  echo "$1  $2 -> HTTP $code"
+  [ "$code" = "200" ] || { echo "!! $1 smoke test failed — the release is live but not answering"; exit 1; }
+}
+smoke API https://zuuchmap.com/engine/health/ready
+smoke API https://zuuchmap.com/engine/posts/categories/all
+smoke WEB https://zuuchmap.com
 echo "Deploy complete. Backup: ~/zuuchmap_backup_$STAMP.sql.gz on the VPS."

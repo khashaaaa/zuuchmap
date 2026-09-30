@@ -80,3 +80,35 @@ export function createRedis(role: string): Redis {
   client.on('reconnecting', () => logger.warn(`[${role}] reconnecting`));
   return client;
 }
+
+let cronClient: Redis | null = null;
+
+/**
+ * Whether this process should run the named scheduled job.
+ *
+ * `@Cron` fires in every pm2 worker, so with more than one instance each
+ * nightly push went out once per worker. The first worker to set the key runs
+ * the job; the key outlives the tick (it is never released) so a worker whose
+ * clock fires a moment later still finds it taken.
+ *
+ * Without Redis there is one instance and nothing to arbitrate. If Redis is
+ * configured but unreachable the job runs: a duplicate push is a smaller
+ * failure than a listing that never expires.
+ */
+export async function claimCron(name: string, ttlSeconds = 300): Promise<boolean> {
+  if (!redisEnabled()) return true;
+  try {
+    cronClient ??= createRedis('cron');
+    const won = await cronClient.set(
+      `cron:${name}`,
+      String(process.pid),
+      'EX',
+      ttlSeconds,
+      'NX',
+    );
+    return won === 'OK';
+  } catch (err: any) {
+    logger.warn(`claimCron(${name}) failed open: ${err?.message}`);
+    return true;
+  }
+}

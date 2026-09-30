@@ -18,6 +18,8 @@ import { PostNotificationService } from '../post/post-notification.service';
 import { CategoryService } from '../post/category.service';
 import { EventsGateway, SOCKET_EVENTS } from '../events/events.gateway';
 import { APP_TIMEZONE } from '../utils/timezone';
+import { PUSH } from '../utils/push-messages';
+import { claimCron } from '../utils/redis';
 
 // Strip sensitive user fields; phone is only shared once a booking is ACCEPTED
 const safeUser = (u: any, includePhone: boolean) =>
@@ -191,8 +193,8 @@ export class BookingService {
     this.notifications
       .notifyUsers(
         [post.user.id],
-        'Шинэ захиалгын хүсэлт',
-        `"${post.title ?? schema.label}" зарт захиалгын хүсэлт ирлээ.`,
+        PUSH.bookingRequested.title,
+        PUSH.bookingRequested.body(post.title ?? schema.label),
         {
           bookingId: saved.id,
           postId: post.id,
@@ -254,6 +256,15 @@ export class BookingService {
         message: 'Booking is not pending',
       });
 
+    // A booking outlives its post (FK_booking_post is ON DELETE SET NULL). A
+    // request on a listing that no longer exists can be declined or cancelled,
+    // never accepted.
+    if (accept && !booking.post)
+      throw new BadRequestException({
+        code: 'BOOKING_POST_REMOVED',
+        message: 'This listing has been removed',
+      });
+
     if (accept) {
       // `create` refuses a start date in the past, but a request can sit PENDING
       // until its whole window has gone by. Accepting then would mint a live
@@ -275,7 +286,7 @@ export class BookingService {
       const overlap = await this.bookingRepository
         .createQueryBuilder('b')
         .where('b.postId = :postId AND b.id != :id AND b.status = :accepted', {
-          postId: booking.post.id,
+          postId: booking.post?.id,
           id,
           accepted: BookingStatus.ACCEPTED,
         })
@@ -309,10 +320,10 @@ export class BookingService {
     this.notifications
       .notifyUsers(
         [booking.customer.id],
-        accept ? 'Захиалга баталгаажлаа' : 'Захиалга татгалзагдлаа',
-        accept
-          ? `"${booking.post.title ?? ''}" захиалгын хүсэлт зөвшөөрөгдлөө.`
-          : `"${booking.post.title ?? ''}" захиалгын хүсэлт татгалзагдлаа.`,
+        accept ? PUSH.bookingAccepted.title : PUSH.bookingDeclined.title,
+        (accept ? PUSH.bookingAccepted : PUSH.bookingDeclined).body(
+          booking.post?.title ?? '',
+        ),
         {
           bookingId: saved.id,
           postId: booking.post?.id,
@@ -382,8 +393,8 @@ export class BookingService {
     this.notifications
       .notifyUsers(
         [booking.provider.id],
-        'Захиалга цуцлагдлаа',
-        `"${booking.post.title ?? ''}" захиалга цуцлагдлаа.`,
+        PUSH.bookingCancelled.title,
+        PUSH.bookingCancelled.body(booking.post?.title ?? ''),
         {
           bookingId: saved.id,
           postId: booking.post?.id,
@@ -437,6 +448,7 @@ export class BookingService {
    */
   @Cron('0 1 * * *', { timeZone: APP_TIMEZONE })
   async promptReviews(): Promise<void> {
+    if (!(await claimCron('promptReviews'))) return;
     try {
       const due = await this.bookingRepository
         .createQueryBuilder('b')
@@ -464,14 +476,14 @@ export class BookingService {
           .filter((b) => b.customer?.id && b.post?.id)
           .map((b) => ({
             userId: b.customer.id,
-            title: 'Үнэлгээ өгөх үү?',
-            body: 'Таны түрээс дууслаа. Үйлчилгээ үзүүлэгчийг үнэлж бусдад туслаарай.',
+            title: PUSH.reviewPrompt.title,
+            body: PUSH.reviewPrompt.body,
             data: {
               type: 'review_prompt',
               bookingId: b.id,
-              postId: b.post.id,
+              postId: b.post!.id,
               providerId: b.provider?.id,
-              url: `/posts/${b.post.id}?review=1`,
+              url: `/posts/${b.post!.id}?review=1`,
             },
           })),
       );

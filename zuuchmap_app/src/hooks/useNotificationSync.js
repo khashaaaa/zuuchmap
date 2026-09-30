@@ -10,6 +10,7 @@ import { getAuthToken, getUserId, getUserInfo, onAuthChanged } from '../services
 import { queryClient, invalidatePostDataSoon } from '../services/queryClient';
 import apiClient from '../services/api/apiClient';
 import { API_CONFIG } from '../config/api.config';
+import i18n from '../i18n';
 import { logger } from '../utils/logger';
 import { navigationRef } from '../utils/navigationUtils';
 import { CONVERSATIONS_KEY, UNREAD_KEY, messagesKey } from '../services/api/messageService';
@@ -109,6 +110,8 @@ export async function ensureAndroidChannel() {
 export async function registerPushToken() {
     if (!Device.isDevice) return;
     try {
+        // Also called on a language switch, which a guest can make.
+        if (!(await getAuthToken())) return;
         await ensureAndroidChannel();
         // Never asks. The OS dialog used to fire the instant verification
         // finished — before the user had seen a single thing worth being
@@ -126,6 +129,8 @@ export async function registerPushToken() {
         await apiClient.put(API_CONFIG.ENDPOINTS.USER.SAVE_PUSH_TOKEN, {
             push_token: token,
             platform: Platform.OS,
+            // The language pushes to this device are written in.
+            locale: i18n.language,
         });
         // Kept so logout can unbind *this* device rather than the whole account.
         await AsyncStorage.setItem(API_CONFIG.STORAGE_KEYS.PUSH_TOKEN, token).catch(() => {});

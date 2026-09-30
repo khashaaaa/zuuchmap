@@ -270,14 +270,23 @@ const PostDetailScreen = ({ route, navigation }) => {
         handleApprove, handleRejectConfirm,
     } = usePostModeration({ post, enabled: isAdmin, onDone: () => navigation.goBack() });
 
+    // Same event, same props as the web — the funnel counts both as one number.
+    // Waits for the real row: the list placeholder is not a detail view yet.
+    const viewedId = !isPlaceholderData ? rawPost?.id : undefined;
+    useEffect(() => {
+        if (viewedId) track('post.detail.view', { post_id: viewedId, category: rawPost?.category });
+    }, [viewedId]);
+
     // Like count (providers see it in the stats tiles, customers on the heart)
     // and this user's own saved state. Both are owned here; LikeButton only draws.
+    // The heart reads `like_count` off the detail row; only the owner's tiles,
+    // which also want the 7-day figure, still ask `/like/stats`.
     const likeStatsKey = ['post', postId, 'likeStats'];
     const canLike = !isProvider && !isAdmin;
     const { data: likeStats = { total_likes: 0, recent_likes: 0 }, isLoading: loadingLikes } = useQuery({
         queryKey: likeStatsKey,
         // /like/stats sits behind the JWT guard: never fire it signed out.
-        enabled: Boolean(currentUserId) && !isAdmin && Boolean(postType),
+        enabled: Boolean(currentUserId) && isProvider && !isAdmin && Boolean(postType),
         queryFn: () => likeService.getLikeStats(postType, postId),
         staleTime: 60 * 1000,
     });
@@ -297,18 +306,17 @@ const PostDetailScreen = ({ route, navigation }) => {
     const toggleLike = useToggleLike({
         onMutate: (vars) => {
             const { liked: wasLiked } = vars;
-            const previous = { liked: toggleLikedIdInCache(qc, vars), stats: qc.getQueryData(likeStatsKey) };
-            qc.setQueryData(likeStatsKey, (old = { total_likes: 0, recent_likes: 0 }) => ({
+            const previous = { liked: toggleLikedIdInCache(qc, vars), post: qc.getQueryData(['post', postId]) };
+            qc.setQueryData(['post', postId], (old) => (old && old.like_count != null ? {
                 ...old,
-                total_likes: Math.max(0, (old.total_likes || 0) + (wasLiked ? -1 : 1)),
-            }));
+                like_count: Math.max(0, old.like_count + (wasLiked ? -1 : 1)),
+            } : old));
             return previous;
         },
         onRollback: (_vars, previous) => {
             qc.setQueryData(LIKED_IDS_KEY, previous?.liked);
-            qc.setQueryData(likeStatsKey, previous?.stats);
+            qc.setQueryData(['post', postId], previous?.post);
         },
-        onSettled: () => qc.invalidateQueries({ queryKey: likeStatsKey }),
     });
     // Guests reach this screen now, so the four handlers below gate themselves.
     // The old check here showed a warning with a single Close button — it told
@@ -693,7 +701,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                                             // default would print "0" on a listing
                                             // with saves. The web hides the count
                                             // in the same case; so does this.
-                                            count={currentUserId ? likeStats.total_likes : undefined}
+                                            count={currentUserId ? rawPost?.like_count : undefined}
                                             size="large"
                                             disabled={toggleLike.isPending}
                                             onToggle={handleToggleLike}

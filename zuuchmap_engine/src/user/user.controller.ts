@@ -29,6 +29,7 @@ import {
 import { isAdmin } from '../admin/admin.guard';
 import { profileSummary } from '../utils/public-user';
 import { vapidPublicKey } from '../utils/webPush';
+import { knownLocale } from '../utils/push-messages';
 
 // No per-route try/catch here: the global AllExceptionsFilter already
 // normalizes errors — the old rethrow wrappers only stripped the
@@ -86,11 +87,17 @@ export class UserController {
     @Req() req,
     @Body('push_token') pushToken: string,
     @Body('platform') platform?: string,
+    @Body('locale') locale?: string,
   ) {
     if (!pushToken) {
       throw new HttpException('push_token is required', HttpStatus.BAD_REQUEST);
     }
-    await this.userService.savePushToken(req.user.id, pushToken, platform);
+    await this.userService.savePushToken(
+      req.user.id,
+      pushToken,
+      platform,
+      knownLocale(locale),
+    );
     return { success: true };
   }
 
@@ -122,6 +129,7 @@ export class UserController {
     @Req() req,
     @Body('endpoint') endpoint: string,
     @Body('keys') keys: { p256dh?: string; auth?: string },
+    @Body('locale') locale?: string,
   ) {
     if (!endpoint || !keys?.p256dh || !keys?.auth) {
       throw new HttpException(
@@ -129,10 +137,12 @@ export class UserController {
         HttpStatus.BAD_REQUEST,
       );
     }
-    await this.userService.saveWebPushSubscription(req.user.id, endpoint, {
-      p256dh: keys.p256dh,
-      auth: keys.auth,
-    });
+    await this.userService.saveWebPushSubscription(
+      req.user.id,
+      endpoint,
+      { p256dh: keys.p256dh, auth: keys.auth },
+      knownLocale(locale),
+    );
     return { success: true };
   }
 

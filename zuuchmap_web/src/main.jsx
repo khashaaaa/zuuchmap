@@ -15,6 +15,19 @@ import { initObservability } from './lib/observability'
 // No-op without VITE_SENTRY_DSN.
 initObservability()
 
+// A deploy replaces the hashed chunks, so a tab opened before it asks for a
+// lazy route's file that is no longer there. Reload once to pick up the new
+// index; the timestamp stops a genuinely missing chunk from looping.
+window.addEventListener('vite:preloadError', (event) => {
+  const KEY = 'zm_chunk_reload'
+  let last = 0
+  try { last = Number(sessionStorage.getItem(KEY)) || 0 } catch { /* private mode */ }
+  if (Date.now() - last < 30_000) return
+  try { sessionStorage.setItem(KEY, String(Date.now())) } catch { /* private mode */ }
+  event.preventDefault()
+  window.location.reload()
+})
+
 // A data router (rather than <BrowserRouter>) so useBlocker can guard
 // in-app navigation away from dirty forms. App keeps its own <Routes>.
 const router = createBrowserRouter([{ path: '*', element: <App /> }])

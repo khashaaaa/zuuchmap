@@ -12,6 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet, dimensions } from '../../design/theme';
+import { useUnreadMessages } from '../../services/api/messageService';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 import userService from '../../services/api/userService';
@@ -27,6 +28,7 @@ const ProviderProfile = ({ navigation }) => {
     const insets = useSafeAreaInsets();
     const { colors, styles: gStyles } = useAppTheme();
     const { t } = useTranslation();
+    const unread = useUnreadMessages();
     const [companyImageError, setCompanyImageError] = useState(false);
 
     const { data: profileData = null, isLoading, isRefetching, refetch: refetchProfile, error: profileError } = useProfile();
@@ -228,6 +230,7 @@ const ProviderProfile = ({ navigation }) => {
                     <ProfileActionRow
                         icon="chatbubbles-outline"
                         text={t('messages.title')}
+                        badgeCount={unread}
                         onPress={() => navigation.navigate('Messages')}
                     />
                     <ProfileActionRow

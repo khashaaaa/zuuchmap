@@ -11,6 +11,12 @@ import {
 } from '../utils/webPush';
 import { sendMail, mailerConfigured } from '../utils/mailer';
 import { getAdminPhones } from '../admin/admin.guard';
+import {
+  Localized,
+  PushLocale,
+  pushLocale,
+  resolveText,
+} from '../utils/push-messages';
 
 /**
  * Admin pushes are Mongolian; the closed reason list is English constants.
@@ -44,8 +50,8 @@ const REPORT_REASON_LABELS_MN: Record<string, string> = {
  */
 interface NotificationItem {
   userId: string;
-  title: string;
-  body: string;
+  title: Localized;
+  body: Localized;
   data?: Record<string, any>;
 }
 
@@ -114,8 +120,8 @@ export class PostNotificationService {
 
   async notifyUsers(
     userIds: string[],
-    title: string,
-    body: string,
+    title: Localized,
+    body: Localized,
     data?: Record<string, any>,
   ): Promise<void> {
     if (!userIds.length) return;
@@ -158,7 +164,7 @@ export class PostNotificationService {
   ): Promise<{ delivered: number; reached: Set<string> }> {
     const devices = await this.pushDeviceRepository.find({
       where: { user: { id: In(items.map((i) => i.userId)) } },
-      select: ['id', 'token', 'provider', 'web_subscription'],
+      select: ['id', 'token', 'provider', 'web_subscription', 'locale'],
       relations: ['user'],
     });
 
@@ -181,20 +187,27 @@ export class PostNotificationService {
       Promise<{ delivered: number; deadTokens: string[] }>
     > = [];
     for (const item of items) {
-      const { expo, web } = splitTargets(byUser.get(item.userId) ?? []);
-      messages.push(
-        ...expo.map((to) => ({
-          to,
-          title: item.title,
-          body: item.body,
-          data: item.data,
-        })),
-      );
-      // Web push carries one payload per request, so a per-recipient payload
-      // cannot batch the way Expo's heterogeneous array does. Issued in
-      // parallel rather than awaited in a loop, which is the part that mattered.
-      if (web.length)
-        webSends.push(sendWebPush(web, item.title, item.body, item.data));
+      // A recipient's devices need not agree on a language — the phone in
+      // Russian, the browser in Mongolian — so the text is resolved per locale.
+      const byLocale = new Map<PushLocale, typeof devices>();
+      for (const d of byUser.get(item.userId) ?? []) {
+        const locale = pushLocale(d.locale);
+        const list = byLocale.get(locale) ?? [];
+        list.push(d);
+        byLocale.set(locale, list);
+      }
+      for (const [locale, group] of byLocale) {
+        const title = resolveText(item.title, locale);
+        const body = resolveText(item.body, locale);
+        const { expo, web } = splitTargets(group);
+        messages.push(
+          ...expo.map((to) => ({ to, title, body, data: item.data })),
+        );
+        // Web push carries one payload per request, so a per-recipient payload
+        // cannot batch the way Expo's heterogeneous array does. Issued in
+        // parallel rather than awaited in a loop, which is the part that mattered.
+        if (web.length) webSends.push(sendWebPush(web, title, body, item.data));
+      }
     }
 
     let delivered = 0;
@@ -260,8 +273,8 @@ export class PostNotificationService {
    */
   private async dispatch(
     userIds: string[],
-    title: string,
-    body: string,
+    title: Localized,
+    body: Localized,
     data?: Record<string, any>,
   ): Promise<number> {
     if (!userIds.length) return 0;
@@ -270,8 +283,9 @@ export class PostNotificationService {
     );
     await this.emailFallback(
       userIds.filter((id) => !reached.has(id)),
-      title,
-      body,
+      // No device means no stated locale; email keeps the default.
+      resolveText(title, 'mn'),
+      resolveText(body, 'mn'),
     );
     return delivered;
   }

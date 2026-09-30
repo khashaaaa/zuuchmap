@@ -62,6 +62,10 @@ export class PushDevice {
   @Column({ type: 'varchar', nullable: true })
   platform: string | null;
 
+  /** The language this device's app is in — see `utils/push-messages.ts`. Null ⇒ mn. */
+  @Column({ type: 'varchar', nullable: true })
+  locale: string | null;
+
   @Column({ type: 'timestamp', default: () => 'now()' })
   last_seen_at: Date;
 

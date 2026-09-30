@@ -40,7 +40,14 @@ export const userRoom = (userId: string) => `${USER_ROOM_PREFIX}${userId}`;
 
 @WebSocketGateway({
   cors: {
-    origin: process.env.ALLOWED_ORIGIN ?? 'https://zuuchmap.com',
+    // Comma-separated, like the HTTP side in main.ts. This only answers the
+    // polling transport's CORS preflight: a websocket upgrade is not subject to
+    // CORS, and both clients connect websocket-only. What gates the socket is
+    // the JWT in the handshake (handleConnection), never the origin.
+    origin: (process.env.ALLOWED_ORIGIN ?? 'https://zuuchmap.com')
+      .split(',')
+      .map((o) => o.trim())
+      .filter(Boolean),
     credentials: true,
   },
   namespace: '/events',

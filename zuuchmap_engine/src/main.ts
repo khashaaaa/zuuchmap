@@ -1,3 +1,5 @@
+// Must stay the first import — see utils/load-env.ts.
+import './utils/load-env';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';

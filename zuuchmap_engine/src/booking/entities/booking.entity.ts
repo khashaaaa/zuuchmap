@@ -17,10 +17,12 @@ export class Booking {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ManyToOne(() => Post, { onDelete: 'CASCADE' })
+  // Nullable: a booking outlives its post — it is the record that a deal
+  // happened (1784334800000-PostDeletionIntegrity).
+  @ManyToOne(() => Post, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn()
   @Index()
-  post: Post;
+  post: Post | null;
 
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn()

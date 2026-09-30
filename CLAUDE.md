@@ -35,10 +35,10 @@ npm run check:sync    # cross-repo contracts
 npm run check:sync                                  # 26 contracts, many behavioural
 cd zuuchmap_engine && npx tsc --noEmit              # + migration:run against real Postgres, + build
 cd zuuchmap_web && npm run lint:undef && npm run build
-cd zuuchmap_app && npx expo export --platform android   # resolves every import
+cd zuuchmap_app && npm run lint:undef && npx expo export --platform android   # resolves every import
 ```
 
-Lint is **advisory** in CI (2,111 engine / 39 web pre-existing findings). `lint:undef` is the exception: a name used and never imported builds fine and white-screens the page. `npm run lint` in the engine **fixes in place** — use `npx eslint src --no-fix` to look. The app has no eslint config.
+Lint is **advisory** in CI (2,111 engine / 39 web pre-existing findings). `lint:undef` (web and app) is the exception: a name used and never imported builds fine — Metro included — and white-screens the page. `npm run lint` in the engine **fixes in place** — use `npx eslint src --no-fix` to look. The app's eslint config enforces only that rule and duplicate keys.
 
 ## Cross-repo sync
 
@@ -58,7 +58,7 @@ The app ships locales `mn en zh ru`, the web only `mn en`. Cross-client contract
 | thumbnail naming | engine `utils/uploader.ts` `thumbUrl` · web `getThumbUrl` · app `getPostThumbUrl` — `<name>.jpg` → `<name>_thumb.jpg`; every call site falls back to the full-size URL |
 | typeface | `app/design/theme.js` (bundled Commissioner TTFs) · `web/src/index.css` (self-hosted `@font-face`). **Never Google Fonts** — its `unicode-range` subsets strand Ө/Ү/₮ in the fallback face |
 | behavioural, `app/utils/displayUtils.js` · `web/lib/utils.js` | `formatPrice` `formatPriceParts` (a `TOTAL` price has no unit) · `formatDate` (`YYYY.MM.DD`) · `formatTime` (`HH:MM` 24h) · `formatDateTime` · `formatRelativeAge` · `formatInboxStamp` (time today, date if older) · `formatNotificationStamp` |
-| behavioural, other | `getPostTitle` (`app/utils/postUtils.js` · `web/lib/utils.js`) · `postHealth` (`app/utils/postHealth.js` · `web/lib/postHealth.js`) · map clustering (`CustomerMapView.jsx` `gridCluster` · `web/lib/mapCluster.js`) · form validation (`app/utils/formUtils.js` · `web/lib/utils.js`: `validateEmail` `validatePhone` `validateRequired` `normalizeWebsiteUrl` — the company DTOs have no server-side decorators, so these are the only gate) |
+| behavioural, other | `getPostTitle` (`app/utils/postUtils.js` · `web/lib/utils.js`) · `postHealth` (`app/utils/postHealth.js` · `web/lib/postHealth.js`) · map clustering (`CustomerMapView.jsx` `gridCluster` · `web/lib/mapCluster.js`) · form validation (`app/utils/formUtils.js` · `web/lib/utils.js`: `validateEmail` `validatePhone` `validateRequired` `normalizeWebsiteUrl` — the company DTO bounds lengths and checks the email, but phone and website formats are checked only here) |
 | `Intl ban` | no file outside `app/utils/displayUtils.js` and `web/lib/utils.js` may name `toLocaleString` `toLocaleDateString` `toLocaleTimeString` `localeCompare` or `Intl.*`. RN's JSC has no full ICU on Android, so a locale call silently resolves to en-US there while Node's full ICU makes the checker agree. Number grouping is hand-rolled (`groupThousands`) |
 
 ### Web/app parity
@@ -71,20 +71,20 @@ The app ships locales `mn en zh ru`, the web only `mn en`. Cross-client contract
 
 ## Deployment
 
-`.claude/skills/deploy/deploy.sh` — push → DB backup → engine pull/build/migrate/pm2 restart → web build → smoke test. Server facts, the manual nginx blocks, monitoring and the restore drill are in `.claude/skills/deploy/SKILL.md`. Credentials in `~/.zuuchmap-deploy.env`.
+`.claude/skills/deploy/deploy.sh` — push → DB backup → engine pull/build/migrate/pm2 restart → web build → smoke test. Every remote step runs under `pipefail` and the smoke test exits non-zero, so a failed build or migration stops the deploy. The web is built into `dist.next` and copied over `dist` without deleting, so the previous release's chunks survive for tabs still open. Server facts, the manual nginx blocks, monitoring and the restore drill are in `.claude/skills/deploy/SKILL.md`. Credentials in `~/.zuuchmap-deploy.env`.
 
 **App releases.** `expo-updates` is wired, so a JS-only fix ships with `eas update`. `runtimeVersion` is a bare native-ABI counter (`"1"`) and changes **only when native code does** — bumping it per release strands every installed build.
 
 ## Backend
 
 **Entry:** `src/main.ts` — port `8282`, prefix `/engine`.
-**Env:** `config/variables/<NODE_ENV>.env` (gitignored). **`.env.example` in the engine and the web list every variable the code reads — add a variable there in the same commit that reads it.**
+**Env:** `config/variables/<NODE_ENV>.env` (gitignored), loaded by `utils/load-env.ts` — **which must stay the first import in `main.ts`**: `ConfigModule` reads the file too late for anything evaluated at module scope or in a decorator. **`.env.example` in the engine and the web list every variable the code reads — add a variable there in the same commit that reads it.**
 **DB:** `synchronize: false`, TypeORM migrations (`src/migrations/`, `data-source.ts`). ⚠ **`migrationsRun: true`** — the dev server runs any pending migration on every (re)start. Never leave a broken migration on disk while `npm run dev` is running.
 **Uploads:** Cloudflare R2 (`src/utils/uploader.ts`), magic-byte validation, Sharp. Each post photo is stored as a 1920×1080 original plus a 640px `_thumb`; lists request the thumb. Older photos need `npm run backfill:thumbs`.
 
 Required env: `PG_*` `JWT_SECRET` `ADMIN_PHONES` `R2_*` `PROG_PORT` `PUBLIC_ENGINE_URL`. Optional, each inert when unset:
 
-- `ALLOWED_ORIGIN` — comma-separated; gates HTTP CORS and Socket.io. List every host (a bare apex blocks `www.`).
+- `ALLOWED_ORIGIN` — comma-separated; gates HTTP CORS and the socket's polling preflight. List every host (a bare apex blocks `www.`). A websocket upgrade is not origin-checked — both clients connect websocket-only and the handshake JWT is the gate.
 - `VERIFY_MN_API_KEY` `VERIFY_MN_BASE_URL` `VERIFY_MN_TIMEOUT_MS` · `VERIFY_TTL_MS` (5m) · `VERIFY_RATE_LIMIT` (5) + `RATE_TTL_MS` (1h) per phone.
 - `THROTTLER_TTL` / `THROTTLER_LIMIT` — global per-IP default; `auth/verify/start` is 3/min.
 - `ANALYTICS_RETENTION_DAYS` · `SENTRY_DSN` · `REDIS_URL` (required for more than one pm2 instance) · `SMTP_*` · `PUBLIC_WEB_URL`.
@@ -110,7 +110,7 @@ GET  /posts                       ?category&subcategory&province&district&approv
                                   (every other list endpoint returns an array)
 GET  /posts/mine                  JWT
 GET  /posts/mine/stats            JWT   per-post views/saves/bookings + totals
-GET  /posts/:id                   the only route that returns `details`
+GET  /posts/:id                   the only route that returns `details`; carries `like_count`
 GET  /posts/:id/similar           ?limit (cached 5m)
 PUT  /posts/:id/views             optional auth; anonymous dedupe on X-Visitor-Id
 POST /posts                       multipart JWT
@@ -155,11 +155,11 @@ GET  /seo/sitemap.xml  GET /seo/post/:id   sitemap index; OG tags for crawlers
 
 ### Behaviour
 
-**Bookings / reviews.** Only `has_rental_status` categories are bookable; no self-booking; one PENDING request per customer per post; accept refuses overlap with an ACCEPTED booking; the contact phone is shared only after ACCEPTED. Review eligibility (`ReviewService.canReview`) is an ACCEPTED booking **or** a conversation the provider replied to — four categories have no booking flow at all.
+**Bookings / reviews.** A booking outlives its post (`booking.post` is nullable, `ON DELETE SET NULL`): it can still be declined or cancelled, never accepted. Only `has_rental_status` categories are bookable; no self-booking; one PENDING request per customer per post; accept refuses overlap with an ACCEPTED booking; the contact phone is shared only after ACCEPTED. Review eligibility (`ReviewService.canReview`) is an ACCEPTED booking **or** a conversation the provider replied to — four categories have no booking flow at all.
 
 **Editing a live post (`pending_revision`).** An APPROVED post never leaves browse because its owner edited it: the proposal is parked in `post.pending_revision`, approve writes it onto the row, reject drops it, and `approval_status` stays APPROVED throughout. A PENDING or REJECTED post is edited in place. Consequences: the owner's form hydrates from `pending_revision ?? post`; revision photos are referenced only by the revision, so reclaim must cover both sets; `rejection_reason` on an APPROVED post means *the edit* was refused. `PostService.isProvenProvider` (3+ approved, zero rejections, zero upheld reports) auto-publishes edits — never new listings.
 
-**Expiry.** 00:00 `expireOldPosts` marks lapsed posts EXPIRED and pushes `post_expired`; 01:00 `warnExpiringPosts` pushes `post_expiring` three days out, and `review_prompt` for finished bookings.
+**Expiry.** 00:00 `expireOldPosts` marks lapsed posts EXPIRED and pushes `post_expired`; 01:00 `warnExpiringPosts` pushes `post_expiring` once, on the night a post is three days out, and `review_prompt` for finished bookings. Crons that push or settle call `claimCron()` (`utils/redis.ts`) so only one pm2 worker runs them.
 
 **Category system — data-driven; never hardcode category behaviour in a client.**
 - `CategorySchema` holds `FieldDef[]`, subcategories, flags (`has_rental_status` `has_availability_dates` `has_price` `default_price_unit` `emphasized` `post_expiry_days`), `icon` (Ionicons name), `color` (hex) and localized `labels` `{mn,en,zh,ru}` at category/subcategory/field level. All admin-editable: adding a vertical needs no deploy.
@@ -175,7 +175,7 @@ GET  /seo/sitemap.xml  GET /seo/post/:id   sitemap index; OG tags for crawlers
 
 **Realtime.** `events/events.gateway.ts` — rooms `admin` + `user:<id>` (legacy `provider:<id>` kept for old builds). `MESSAGE_CREATED` goes to the recipient only and carries the whole message; `REPORT_CREATED` is admin-only. In the app only `useNotificationSync` subscribes to the socket.
 
-**Notification transports.** `PostNotificationService` fans out over Expo push, web push (VAPID, stored in `push_device` with `provider='WEB'`) and email (only for an account with no device). `splitTargets()` routes each row.
+**Notification transports.** `PostNotificationService` fans out over Expo push, web push (VAPID, stored in `push_device` with `provider='WEB'`) and email (only for an account with no device). `splitTargets()` routes each row. Copy lives in `utils/push-messages.ts` in all four app locales and is resolved per device from `push_device.locale`, which the client sends with its token; null reads as `mn`. Admin pushes and broadcasts are not localised.
 
 ## Web (`zuuchmap_web/`)
 
@@ -207,7 +207,7 @@ Customer: /customer /customer/browse /customer/map /customer/saved /customer/sav
 
 **Guest mode.** An unauthenticated launch lands on `CustomerDashboard`. Reading is open; save, message, report and book call `ensureAuth(navigation, reasonKey)` (`src/utils/requireAuth.js`). `useIsGuest()` returns `null` until the token read resolves.
 
-**Config:** `src/config/api.config.js` (`API_BASE_URL`, `ENDPOINTS`, `STORAGE_KEYS`) · `src/config/app.config.js` (`IMAGE`, `VALIDATION`, `provinces`/`districts` as bare codes; labels from i18n).
+**Config:** `src/config/api.config.js` (`API_BASE_URL`, `ENDPOINTS`, `STORAGE_KEYS`; overridable with `EXPO_PUBLIC_API_BASE_URL` — Expo inlines only `EXPO_PUBLIC_*`, and Sentry likewise reads `EXPO_PUBLIC_SENTRY_DSN`) · `src/config/app.config.js` (`IMAGE`, `VALIDATION`, `provinces`/`districts` as bare codes; labels from i18n).
 
 **Theme (`src/design/theme.js`).** No static `colors`/`globalStyles` exports — get `{ colors, styles }` from `useAppTheme()`; per-file styles use `themedStyles((colors) => ({...}))`. The web mirrors the palette in `src/index.css`.
 - **Amber.** `colors.primary` is a fill, **never a foreground**. Amber text is `colors.text.link`, amber glyphs `colors.iconAccent`. Text on amber is `colors.onPrimary`, on semantic fills `colors.text.onColor`, on photos `colors.text.onMedia`. Web: `--color-primary-text`.
@@ -241,6 +241,7 @@ Customer: /customer /customer/browse /customer/map /customer/saved /customer/sav
 | 🟡 | Web admin role is client-side routing only (endpoints are guarded) | `web/src/App.jsx` |
 | 🟡 | Static assets are uncompressed, HTTP/1.1 and uncached, and the SEO routes are unreachable, until the nginx blocks are added by hand | deploy `SKILL.md` |
 | 🟡 | The map ships every pin in one response (`MAP_PIN_LIMIT` 5000); the fix is a viewport-bounded query | `post.service.ts` `findForMap` |
-| 🟡 | `@sentry/react-native`, `expo-updates`, `expo-screen-orientation` do nothing until the next EAS rebuild | `app/app.json` |
+| 🟡 | `@sentry/react-native`, `expo-updates`, `expo-screen-orientation` do nothing until the next EAS rebuild; Sentry additionally needs `EXPO_PUBLIC_SENTRY_DSN` set as an EAS environment variable, which nothing in the repo does | `app/app.json` |
+| 🟡 | `migration:generate` is unusable: migrations name constraints and indexes by hand and the entities do not, so a dry run proposes ~120 renames and would drop `search_vector`, the booking exclusion constraint and the partial unique indexes. Write migrations by hand | `src/migrations/` |
 | 🟡 | `react-native-maps` 1.20.1 rasterises custom markers into 100×100 px on Android; pins are sized from `MARKER_MAX_DP` and carry no shadow | `CustomerMapView.jsx` |
 | 🟢 | Without `REDIS_URL` the engine is single-instance only | `utils/redis.ts`, `ecosystem.config.js` |

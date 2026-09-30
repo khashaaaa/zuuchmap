@@ -17,6 +17,7 @@ import { SavedSearchService } from '../saved-search/saved-search.service';
 import { EventsGateway } from '../events/events.gateway';
 import { sharedCache, invalidatePostReadCaches } from '../utils/cache';
 import { openFeaturedWindow } from '../post/featured';
+import { PUSH } from '../utils/push-messages';
 
 const STATS_TTL = 30_000; // 30 s
 
@@ -188,10 +189,8 @@ export class AdminService {
       // approve ran them one after another inside a single request.
       void this.notifications.notifyUsers(
         [userId],
-        revision ? 'Засвар зөвшөөрөгдлөө' : 'Зар зөвшөөрөгдлөө',
-        revision
-          ? `"${post.title}" зарын засвар нийтлэгдлээ.`
-          : `"${post.title}" нийтлэгдлээ. Та одоо харагдаж байна.`,
+        (revision ? PUSH.revisionApproved : PUSH.postApproved).title,
+        (revision ? PUSH.revisionApproved : PUSH.postApproved).body(post.title),
         {
           postId,
           post_type: post.category,
@@ -278,12 +277,10 @@ export class AdminService {
     if (userId) {
       void this.notifications.notifyUsers(
         [userId],
-        revision
-          ? `"${post.title}" зарын засвар зөвшөөрөгдсөнгүй`
-          : `"${post.title}" зөвшөөрөгдсөнгүй`,
-        revision
-          ? `Шалтгаан: ${reason.trim()}\n\nӨмнөх хувилбар хэвээр нийтлэгдэж байна.`
-          : `Шалтгаан: ${reason.trim()}`,
+        (revision ? PUSH.revisionRejected : PUSH.postRejected).title(post.title),
+        (revision ? PUSH.revisionRejected : PUSH.postRejected).body(
+          reason.trim(),
+        ),
         {
           postId,
           post_type: post.category,

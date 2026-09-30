@@ -142,7 +142,15 @@ const BrowseFilterSheet = ({ visible, onClose, onClear, filters, setFilters, cat
                 {filterFields.map((f) => (
                     <View key={f.key} style={styles.attrField}>
                         <Text style={[styles.attrLabel, { color: colors.text.secondary }]}>{fieldLabel(f, t, i18n.language)}</Text>
-                        {f.type === 'select' ? (
+                        {f.type === 'boolean' ? (
+                            // The engine matches a real JSON boolean, so this is
+                            // yes / no / either — never free text.
+                            <View style={styles.filterOptionsContainer}>
+                                {chip('all', t('filter.all'), !filters.attrs[f.key], () => setAttr(f.key, ''))}
+                                {chip('true', t('common.yes'), filters.attrs[f.key] === 'true', () => setAttr(f.key, 'true'))}
+                                {chip('false', t('common.no'), filters.attrs[f.key] === 'false', () => setAttr(f.key, 'false'))}
+                            </View>
+                        ) : (f.type === 'select' || f.type === 'multiselect') ? (
                             <View style={styles.filterOptionsContainer}>
                                 {chip('all', t('filter.all'), !filters.attrs[f.key], () => setAttr(f.key, ''))}
                                 {(f.options ?? []).map((o) => chip(

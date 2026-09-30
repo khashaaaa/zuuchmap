@@ -26,7 +26,7 @@ import ScreenError from '../../components/ScreenError';
 import SearchInput from '../../components/SearchInput';
 import { getFixedImageUrl, getPostPrice, getPostImage, getPostTitle as getPostTitleUtil, categoryToPostType, getSchemaLabel } from '../../utils/postUtils';
 import { formatDate } from '../../utils/displayUtils';
-import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { useToggleLike, toggleLikedIdInCache, LIKED_IDS_KEY } from '../../hooks/useToggleLike';
 import { useDebounce } from '../../hooks/useDebounce';
 import { getErrorMessage } from '../../utils/errorManager';
@@ -177,6 +177,11 @@ const CustomerPostList = ({ route, navigation }) => {
         getNextPageParam: (last) =>
             last.page * PAGE_SIZE < last.total ? last.page + 1 : undefined,
         staleTime: 30_000,
+        // Every filter choice is a new query key. Without this the screen fell
+        // back to the skeleton branch on each one, which does not render the
+        // filter sheet — so the sheet vanished mid-choice and came back
+        // scrolled to the top once the results landed.
+        placeholderData: keepPreviousData,
     });
 
     const posts = useMemo(() => (data?.pages ?? []).flatMap((pg) => pg.items), [data]);

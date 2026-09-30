@@ -366,7 +366,15 @@ export default function CustomerBrowse() {
                   ))}
                 </Input>
               )}
-              {filterFields.map((f) => f.type === 'select' ? (
+              {filterFields.map((f) => f.type === 'boolean' ? (
+                // The engine matches a real JSON boolean: anything typed into a
+                // text box that was not exactly "true" filtered for false.
+                <Input as="select" key={f.key} value={attrInputs[f.key] ?? ''} onChange={(e) => handleAttrChange(f.key, e.target.value, true)}>
+                  <option value="">{getFieldLabel(f, t)}</option>
+                  <option value="true">{t('common.yes')}</option>
+                  <option value="false">{t('common.no')}</option>
+                </Input>
+              ) : (f.type === 'select' || f.type === 'multiselect') ? (
                 <Input as="select" key={f.key} value={attrInputs[f.key] ?? ''} onChange={(e) => handleAttrChange(f.key, e.target.value, true)}>
                   <option value="">{getFieldLabel(f, t)}</option>
                   {f.options?.map((o) => <option key={o} value={o}>{getOptionLabel(o, t)}</option>)}

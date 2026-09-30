@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { analyticsApi } from '@/lib/api'
-import { getCategoryLabel, getCategoryColor } from '@/lib/utils'
+import { getCategoryLabel, getCategoryColor, formatDateTime } from '@/lib/utils'
 import PageHeader from '@/components/PageHeader'
 import ErrorState from '@/components/ErrorState'
 import StatCard from '@/components/StatCard'
@@ -54,7 +54,7 @@ export default function AdminAnalytics() {
 
   const provinces = (data?.breakdowns?.provinces ?? []).map((p) => ({
     key: p.key,
-    label: p.key === 'unknown' ? t('analytics.unknownProvince') : p.key,
+    label: p.key === 'unknown' ? t('analytics.unknownProvince') : t(`province.${p.key}`, { defaultValue: p.key }),
     value: Number(p.posts),
   }))
 
@@ -250,7 +250,7 @@ export default function AdminAnalytics() {
                 e.platform,
                 e.count,
                 e.people,
-                e.last_seen,
+                formatDateTime(String(e.last_seen).replace(' ', 'T')),
               ])}
             />
           )}

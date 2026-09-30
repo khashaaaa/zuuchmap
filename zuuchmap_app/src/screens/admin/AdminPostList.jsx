@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -32,6 +32,13 @@ const AdminPostList = ({ navigation, route }) => {
     const { t } = useTranslation();
     const initialFilter = route?.params?.filterType || 'all';
     const [activeFilter, setActiveFilter] = useState(initialFilter);
+    // Arriving from a category row preselects a chip that is usually past the
+    // right edge, so the screen opened filtered with nothing on it saying by
+    // what. Bring that chip to the start of the row once it has a position.
+    const chipRow = useRef(null);
+    const revealChip = useCallback((e) => {
+        chipRow.current?.scrollTo({ x: Math.max(0, e.nativeEvent.layout.x - spacing.md), animated: false });
+    }, []);
 
     const { data: categories = [] } = useQuery({
         queryKey: ['categories'],
@@ -99,13 +106,15 @@ const AdminPostList = ({ navigation, route }) => {
         <ScreenLayout title={t('admin.pendingPosts')} onBack={() => navigation.goBack()}>
 
             <ScrollView
+                ref={chipRow}
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 style={styles.filterBar}
                 contentContainerStyle={styles.filterContent}
             >
                 {postTypes.map(type => (
-                    <SelectionPop key={type} selected={activeFilter === type}>
+                    <View key={type} onLayout={type !== 'all' && type === initialFilter ? revealChip : undefined}>
+                    <SelectionPop selected={activeFilter === type}>
                         <TouchableOpacity
                             style={[
                                 styles.filterChip,
@@ -127,6 +136,7 @@ const AdminPostList = ({ navigation, route }) => {
                             </Text>
                         </TouchableOpacity>
                     </SelectionPop>
+                    </View>
                 ))}
             </ScrollView>
 

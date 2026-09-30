@@ -5,6 +5,7 @@ import { CalendarCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { bookingsApi } from '@/lib/api'
 import { track } from '@/lib/analytics'
+import { formatDate } from '@/lib/utils'
 import InfoSection from '@/components/InfoSection'
 import Input from '@/components/Input'
 import Button from '@/components/Button'
@@ -78,7 +79,7 @@ export default function BookingRequest({ postId }) {
           <ul className="mt-1 space-y-0.5">
             {busy.slice(0, 4).map((r) => (
               <li key={`${r.start_date}-${r.end_date}`} className="text-xs text-muted tabular-nums">
-                {r.start_date} — {r.end_date}
+                {formatDate(r.start_date)} — {formatDate(r.end_date)}
               </li>
             ))}
           </ul>

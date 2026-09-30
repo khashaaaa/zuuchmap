@@ -23,11 +23,22 @@ export const fieldLabel = (field, t, lng) => {
   return field.unit ? `${base} (${field.unit})` : base;
 };
 
+// The base (non-schema) fields an admin's `rejection_field` can point at. Read
+// by the owner's form for the reason card and by the admin's reject sheet for
+// the pick, so the two cannot name different fields.
+export const BASE_FIELD_LABELS = {
+  title: 'form.postTitle',
+  details: 'form.postDetails',
+  price: 'form.priceAmount',
+  images: 'posts.rejectedFieldImages',
+  location: 'posts.rejectedFieldLocation',
+};
+
 // Localized placeholder mirrors `labels`; flat `placeholder` is the fallback.
 const fieldPlaceholder = (field, lng) =>
   field.placeholders?.[lng] ?? field.placeholder ?? undefined;
 
-const optionLabel = (opt, t) =>
+export const optionLabel = (opt, t) =>
   t(`attrs.${toCamel(String(opt).toLowerCase())}`, { defaultValue: String(opt) });
 
 const HIGHLIGHT_SCROLL_OFFSET = 96;
@@ -154,11 +165,12 @@ const BooleanField = ({ field, value, onChange, error }) => {
           <Switch
             value={value === true}
             onValueChange={onChange}
-            trackColor={{ false: colors.border.light, true: colors.primary }}
-            // Light in both states, like every other Switch in the app.
-            // `onPrimary` is a near-black foreground meant for text on amber;
-            // as a thumb it read as a dark blob on the pale off-track.
-            thumbColor={colors.surface}
+            trackColor={{ false: colors.switch.track, true: colors.primary }}
+            // Light in both states and both themes (`colors.switch`), like
+            // every other Switch in the app. `onPrimary` is a near-black
+            // foreground meant for text on amber; as a thumb it read as a dark
+            // blob on the pale off-track.
+            thumbColor={colors.switch.thumb}
           />
         </View>
       }

@@ -10,7 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing, typography, safeAreaHelpers, radius, interactions } from '../../design/theme';
+import { spacing, typography, safeAreaHelpers, radius, interactions, mapStyleFor } from '../../design/theme';
 import { ScreenLayout } from '../../components';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
@@ -31,7 +31,7 @@ const LATITUDE_DELTA = 0.0922;
 const longitudeDelta = (width, height) => LATITUDE_DELTA * (width / height);
 
 const ProviderLocationSelection = ({ route, navigation }) => {
-    const { colors, styles: gStyles } = useAppTheme();
+    const { colors, isDark, styles: gStyles } = useAppTheme();
     const { width: winW, height: winH } = useWindowDimensions();
     const LONGITUDE_DELTA = longitudeDelta(winW, winH);
     const styles = useMemo(() => createStyles(colors), [colors]);
@@ -193,6 +193,7 @@ const ProviderLocationSelection = ({ route, navigation }) => {
                     <MapView
                         style={styles.map}
                         provider={PROVIDER_GOOGLE}
+                        customMapStyle={mapStyleFor(isDark)}
                         initialRegion={location || defaultLocation}
                         showsUserLocation
                         showsMyLocationButton

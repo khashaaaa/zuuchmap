@@ -24,6 +24,7 @@ export const usePostModeration = ({ post, enabled, onDone }) => {
     const [editedDetails, setEditedDetails] = useState('');
     const [showRejectModal, setShowRejectModal] = useState(false);
     const [rejectReason, setRejectReason] = useState('');
+    const [rejectField, setRejectField] = useState('');
 
     useEffect(() => {
         if (post && enabled) {
@@ -64,9 +65,9 @@ export const usePostModeration = ({ post, enabled, onDone }) => {
 
     const reject = useMutation({
         mutationKey: ['admin', 'reject'],
-        mutationFn: async (reason) => {
+        mutationFn: async ({ reason, fieldKey }) => {
             await saveEditsIfNeeded(post);
-            await postService.rejectPost(post.id, reason);
+            await postService.rejectPost(post.id, reason, fieldKey);
         },
         onSuccess: () => { successHaptic(); settled(); },
         onError: (err) => {
@@ -83,7 +84,7 @@ export const usePostModeration = ({ post, enabled, onDone }) => {
             return;
         }
         setShowRejectModal(false);
-        reject.mutate(rejectReason.trim());
+        reject.mutate({ reason: rejectReason.trim(), fieldKey: rejectField || undefined });
     };
 
     return {
@@ -94,6 +95,7 @@ export const usePostModeration = ({ post, enabled, onDone }) => {
         rejecting: reject.isPending,
         showRejectModal, setShowRejectModal,
         rejectReason, setRejectReason,
+        rejectField, setRejectField,
         handleApprove, handleRejectConfirm,
     };
 };

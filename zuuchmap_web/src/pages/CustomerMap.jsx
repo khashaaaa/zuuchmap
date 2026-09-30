@@ -12,6 +12,7 @@ import {
   filterByLocationRadius, activeFilterCount, EMPTY_FILTERS,
 } from '@/lib/mapCluster'
 import MapFilterModal from '@/components/MapFilterModal'
+import { useDocumentMeta } from '@/hooks/useDocumentMeta'
 import MapClusterCarousel from '@/components/MapClusterCarousel'
 import ErrorState from '@/components/ErrorState'
 import EmptyState from '@/components/EmptyState'
@@ -46,6 +47,7 @@ function MapBridge({ onViewport, onReady }) {
 
 export default function CustomerMap() {
   const { t } = useTranslation()
+  useDocumentMeta({ title: t('nav.map') })
   const { theme } = useThemeStore()
   const isDark = theme === 'dark'
 

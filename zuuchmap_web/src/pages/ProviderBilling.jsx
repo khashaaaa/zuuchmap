@@ -8,7 +8,7 @@ import PageHeader from '@/components/PageHeader'
 import Button from '@/components/Button'
 import Modal from '@/components/Modal'
 import { paymentsApi, postsApi } from '@/lib/api'
-import { formatDate, formatPrice, goBack } from '@/lib/utils'
+import { formatDate, formatPrice, goBack, getPlanLabel } from '@/lib/utils'
 import { useProfile } from '@/hooks/useProfile'
 
 const MONTH_CHOICES = [1, 3, 6, 12]
@@ -155,7 +155,7 @@ export default function ProviderBilling() {
 
       <section className="rounded-card bg-surface p-4 mb-6">
         <p className="text-xs uppercase tracking-wide text-muted">{t('billing.currentPlan')}</p>
-        <p className="text-xl font-bold text-text mt-1">{profile?.plan ?? 'FREE'}</p>
+        <p className="text-xl font-bold text-text mt-1">{getPlanLabel(profile?.plan, t)}</p>
         <p className="text-sm text-muted mt-1">
           {planActive
             ? t('billing.expiresOn', { date: formatDate(expiresAt) })
@@ -171,7 +171,7 @@ export default function ProviderBilling() {
         <section className="rounded-card bg-surface p-4 mb-6">
           <div className="flex items-baseline justify-between gap-3">
             <div>
-              <p className="font-semibold text-text">PROVIDER</p>
+              <p className="font-semibold text-text">{getPlanLabel('PROVIDER', t)}</p>
               <p className="text-sm text-muted">{t('billing.postsLimit', { count: paidPlan?.posts ?? 25 })}</p>
             </div>
             <p className="text-lg font-bold text-primary-text">{formatPrice(unitPrice)}</p>
@@ -183,7 +183,7 @@ export default function ProviderBilling() {
         <section className="rounded-card bg-surface p-4 mb-6">
           <div className="flex items-baseline justify-between gap-3">
             <div>
-              <p className="font-semibold text-text">PROVIDER</p>
+              <p className="font-semibold text-text">{getPlanLabel('PROVIDER', t)}</p>
               <p className="text-sm text-muted">{t('billing.postsLimit', { count: paidPlan?.posts ?? 25 })}</p>
             </div>
             <p className="text-lg font-bold text-primary-text">{formatPrice(unitPrice)}</p>
@@ -311,7 +311,7 @@ export default function ProviderBilling() {
                   <p className="text-sm text-text truncate">
                     {p.kind === 'FEATURED'
                       ? `${t('billing.featured.title')} · ${t('billing.featured.daysValue', { count: p.days })}`
-                      : `${p.plan} · ${t('billing.monthsValue', { count: p.months })}`}
+                      : `${getPlanLabel(p.plan, t)} · ${t('billing.monthsValue', { count: p.months })}`}
                   </p>
                   {p.kind === 'FEATURED' && (
                     /* Null once the listing is deleted — the receipt outlives it. */

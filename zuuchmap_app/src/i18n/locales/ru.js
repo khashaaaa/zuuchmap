@@ -28,7 +28,7 @@ export default {
     },
   nav: {
     myPosts: 'Мои объявления', myPostsShort: 'Объявления', categories: 'Категории', browse: 'Поиск', map: 'Карта',
-    saved: 'Избранное', profile: 'Профиль', logout: 'Выйти',
+    saved: 'Избранное', profile: 'Профиль', logout: 'Выйти', logoutConfirmMessage: 'Вы уверены, что хотите выйти?',
   },
   auth: {
       guestTitle: 'Войдите, чтобы продолжить',
@@ -111,6 +111,7 @@ export default {
   filter: {
     title: 'Фильтр', category: 'Категория', priceRange: 'Диапазон цен', status: 'Статус', sortBy: 'Сортировка',
     allCategories: 'Все категории',
+    specs: 'Характеристики', subcategory: 'Подкатегория', min: 'Мин.', max: 'Макс.',
     allStatuses: 'Все статусы', all: 'Все', minPrice: 'Мин. цена', maxPrice: 'Макс. цена', clearAll: 'Сбросить фильтры',
     resultsFound: 'Найдено объявлений: {{count}}',
     searchPlaceholder: 'Поиск объявлений...', searchNoResults: 'Ничего не найдено',
@@ -223,6 +224,8 @@ export default {
     noPending: 'Очередь пуста', noPendingDesc: 'Все объявления проверены.',
     reviewPost: 'Проверка объявления', poster: 'Автор',
     rejectNotice: 'Причина будет отправлена автору. Будьте конкретны.',
+    rejectFieldLabel: 'Какое поле? (необязательно)', rejectFieldNone: 'Не указано',
+    rejectFieldHint: 'Автор увидит это поле выделенным при редактировании.',
     approveError: 'Не удалось одобрить объявление.',
     rejectError: 'Не удалось отклонить объявление.',
     editPost: 'Изменить', editDone: 'Готово',

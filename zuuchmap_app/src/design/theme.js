@@ -75,6 +75,13 @@ const darkColors = {
         amber: 'rgba(245, 166, 35, 0.3)',
     },
 
+    // <Switch> colours. The thumb is light in BOTH palettes: it used to be
+    // `surface`, which in dark is the sheet's own ground, so the off state was
+    // a near-black pill on black and the on state half a pill. The off track
+    // is a step above `border.dark` for the same reason — a border tone is
+    // tuned to be a hairline, not a filled shape.
+    switch: { thumb: '#ECEDEE', track: '#5F646B' },
+
     opacity: {
         overlay: 'rgba(0, 0, 0, 0.6)',
         overlayLight: 'rgba(0, 0, 0, 0.4)',
@@ -155,6 +162,8 @@ const lightColors = {
         focus: '#E8890C',
         amber: 'rgba(232, 137, 12, 0.3)',
     },
+
+    switch: { thumb: '#FFFFFF', track: '#C9C6BE' },
 
     opacity: {
         overlay: 'rgba(0, 0, 0, 0.4)',
@@ -264,11 +273,55 @@ const hslToRgb = (h, s, l) => {
 const toHex = ([r, g, b]) =>
     '#' + [r, g, b].map((v) => Math.round(Math.min(1, Math.max(0, v)) * 255).toString(16).padStart(2, '0')).join('').toUpperCase();
 
+// Google map styling. POI labels are off in both themes (a marketplace map
+// has its own pins). The dark variant exists because a light map is the one
+// full-bleed white surface in an otherwise dark app — the map tab and every
+// listing's location preview lit the whole screen. Grounds are the dark
+// palette's own (`background` / `surface`), so the map reads as part of the
+// app; pins keep their white ring, which separates on either ground.
+// Only `mapType: 'standard'` honours a custom style; satellite ignores it.
+const MAP_STYLE_BASE = [
+    { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+    { featureType: 'poi.business', stylers: [{ visibility: 'off' }] },
+    { featureType: 'transit', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+];
+const MAP_STYLE_DARK = [
+    { elementType: 'geometry', stylers: [{ color: '#1F2124' }] },
+    { elementType: 'labels.text.fill', stylers: [{ color: '#9AA0A6' }] },
+    { elementType: 'labels.text.stroke', stylers: [{ color: '#17181A' }] },
+    { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+    { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#4A4E54' }] },
+    { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#C4C7C5' }] },
+    { featureType: 'landscape.natural', elementType: 'geometry', stylers: [{ color: '#1B1D20' }] },
+    { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#1D2A22' }] },
+    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#34373C' }] },
+    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#1F2124' }] },
+    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#4A4E54' }] },
+    { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#A8ACB1' }] },
+    { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#2A2D31' }] },
+    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0F1B26' }] },
+    { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#5F7A91' }] },
+    ...MAP_STYLE_BASE,
+];
+export const mapStyleFor = (isDark) => (isDark ? MAP_STYLE_DARK : MAP_STYLE_BASE);
+
 /** `#RRGGBB` + alpha -> an `rgba()` string, for tinted fills built from a category colour. */
 export const withAlpha = (hex, alpha) => {
     if (typeof hex !== 'string') return hex;
     const [r, g, b] = hexToRgb(hex);
     return `rgba(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)}, ${alpha})`;
+};
+
+/**
+ * The same tint as `withAlpha(hex, alpha)` would give over `ground`, as an
+ * OPAQUE hex. For any tinted surface that also carries `elevation.*`: Android
+ * draws an elevation shadow through a translucent fill, so in the light theme
+ * (where elevation is a shadow, not a hairline) an amber tint came out a muddy
+ * tan with a paler square in the middle.
+ */
+export const tintOn = (hex, alpha, ground) => {
+    const f = hexToRgb(hex), g = hexToRgb(ground);
+    return toHex(f.map((v, i) => v * alpha + g[i] * (1 - alpha)));
 };
 
 const toneCache = new Map();

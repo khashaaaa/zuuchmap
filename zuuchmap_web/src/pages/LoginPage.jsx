@@ -1,3 +1,4 @@
+import { useDocumentMeta } from '@/hooks/useDocumentMeta'
 import { useState } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { motion, useReducedMotion } from 'framer-motion'
@@ -15,6 +16,7 @@ import { apiErrorMessage } from '@/lib/utils'
 export default function LoginPage() {
   const shouldReduceMotion = useReducedMotion()
   const { t } = useTranslation()
+  useDocumentMeta({ title: t('auth.title') })
   const [phone, setPhone] = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
@@ -23,7 +25,7 @@ export default function LoginPage() {
   // affordance sets this; nothing used to read it, so someone who tapped Save
   // on a listing verified their number and landed on a dashboard, with the
   // listing they had come for nowhere on the screen.
-  const from = useLocation().state?.from
+  const { from, reason } = useLocation().state ?? {}
 
   function routeFor(user) {
     if (!user.type) return '/onboarding'
@@ -76,6 +78,10 @@ export default function LoginPage() {
         </div>
         <div className="bg-surface border border-border/20 shadow-card rounded-card p-6 md:p-8">
           <h2 className="text-sm font-semibold text-text mb-1">{t('auth.title')}</h2>
+          {/* Why the visitor is here, when a guest action sent them: the tap
+              used to land on a bare sign-in form with nothing connecting it to
+              the Save or Book button they had just pressed. */}
+          {reason && <p className="text-sm text-text mb-2">{t(reason)}</p>}
           <p className="text-xs text-muted mb-4">{t('auth.startHint')}</p>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>

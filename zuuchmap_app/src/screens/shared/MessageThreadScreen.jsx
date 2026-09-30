@@ -17,13 +17,8 @@ import messageService, {
 } from '../../services/api/messageService';
 import { showErrorModal } from '../../utils/errorManager';
 import { maybeAskForPush } from '../../utils/pushPrompt';
+import { formatDate, formatTime } from '../../utils/displayUtils';
 
-const pad = (n) => String(n).padStart(2, '0');
-/** Built by hand — RN's JSC has no full ICU on Android, so Intl silently falls back to en-US there. */
-const clock = (value) => {
-    const d = new Date(value);
-    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
 
 /** Page 0 is the newest page — that is where the live tail (and optimistic rows) live. */
 const patchNewest = (old, fn) => {
@@ -139,7 +134,17 @@ const MessageThreadScreen = ({ navigation, route }) => {
 
     const retry = useCallback((m) => send.mutate({ body: m.body, tempId: m.id }), [send]);
 
-    const renderItem = ({ item }) => (
+    // A bubble carries the time only, so a thread that spans days needs the
+    // day said once, above the first message of each — without it an August
+    // conversation read 00:14 → 21:38 → 17:55 → 00:49 and looked out of order.
+    // `ordered` is newest-first, so the message *above* a row is index + 1.
+    const renderItem = ({ item, index }) => {
+        const day = formatDate(item.date_created);
+        const above = ordered[index + 1];
+        const startsDay = !above || formatDate(above.date_created) !== day;
+        return (
+        <View>
+        {startsDay && <Text style={styles.daySeparator}>{day}</Text>}
         <View style={[styles.bubbleRow, item.mine ? styles.bubbleRowMine : styles.bubbleRowTheirs]}>
             <TouchableOpacity
                 disabled={!item.failed}
@@ -160,11 +165,13 @@ const MessageThreadScreen = ({ navigation, route }) => {
                     {item.body}
                 </Text>
                 <Text style={[styles.bubbleTime, { color: item.mine ? colors.onPrimary : colors.text.tertiary }]}>
-                    {item.failed ? t('messages.retry') : item.pending ? t('messages.sending') : clock(item.date_created)}
+                    {item.failed ? t('messages.retry') : item.pending ? t('messages.sending') : formatTime(item.date_created)}
                 </Text>
             </TouchableOpacity>
         </View>
-    );
+        </View>
+        );
+    };
 
     const loadOlder = hasNextPage && !isLoading ? (
         <TouchableOpacity
@@ -282,6 +289,7 @@ const createStyles = (colors) => StyleSheet.create({
         paddingVertical: spacing.sm,
         gap: spacing.xxs,
     },
+    daySeparator: { ...typography.styles.micro, color: colors.text.tertiary, alignSelf: 'center', paddingVertical: spacing.sm },
     loadOlder: { alignSelf: 'center', paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
     loadOlderText: { ...typography.styles.label, color: colors.text.link },
     bubbleText: { ...typography.styles.body },

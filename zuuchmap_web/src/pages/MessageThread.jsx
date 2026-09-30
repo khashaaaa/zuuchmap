@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -8,7 +8,8 @@ import ErrorState from '@/components/ErrorState'
 import Button from '@/components/Button'
 import { messagesApi } from '@/lib/api'
 import { useAuthStore } from '@/store'
-import { formatTime } from '@/lib/utils'
+import { formatDate, formatTime } from '@/lib/utils'
+import { useDocumentMeta } from '@/hooks/useDocumentMeta'
 
 const PAGE_SIZE = 30
 
@@ -44,6 +45,7 @@ export default function MessageThread() {
     queryKey: ['conversation', id],
     queryFn: () => messagesApi.detail(id),
   })
+  useDocumentMeta({ title: thread?.other_party?.given_name || t('messages.title') })
 
   const messagesKey = ['conversation', id, 'messages']
   const {
@@ -163,8 +165,14 @@ export default function MessageThread() {
             {[0, 1, 2].map((i) => <div key={i} className="h-10 rounded-card bg-surface2 animate-pulse" />)}
           </div>
         ) : (
-          messages.map((m) => (
-            <div key={m.id} className={`flex ${m.mine ? 'justify-end' : 'justify-start'}`}>
+          messages.map((m, i) => (
+            <Fragment key={m.id}>
+            {/* A bubble carries the time only; the day is said once, above
+                the first message of each. */}
+            {(i === 0 || formatDate(messages[i - 1].date_created) !== formatDate(m.date_created)) && (
+              <p className="text-center text-[10px] text-muted py-1">{formatDate(m.date_created)}</p>
+            )}
+            <div className={`flex ${m.mine ? 'justify-end' : 'justify-start'}`}>
               <div
                 role={m.failed ? 'button' : undefined}
                 tabIndex={m.failed ? 0 : undefined}
@@ -180,6 +188,7 @@ export default function MessageThread() {
                 </p>
               </div>
             </div>
+            </Fragment>
           ))
         )}
         <div ref={bottomRef} />

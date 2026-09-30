@@ -101,6 +101,23 @@ export const formatDate = (date) => {
 }
 
 /**
+ * The value an `<input type="date">` wants — `YYYY-MM-DD` in the viewer's own
+ * calendar day, the same day `formatDate` prints.
+ *
+ * The listing form used to take the first ten characters of the API's ISO
+ * string, which is the *UTC* day: a window stored as 4 Sep 00:14 in Ulaanbaatar
+ * is 3 Sep 16:14Z, so the form opened on the 3rd beside a detail page saying
+ * the 4th — and saving it moved the listing's dates back a day. The app sends
+ * a full timestamp, so any listing posted there before 08:00 was affected.
+ */
+export const toDateInputValue = (date) => {
+  if (!date) return ''
+  const d = new Date(date)
+  if (Number.isNaN(d.getTime())) return ''
+  return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-')
+}
+
+/**
  * `HH:MM`, 24-hour — the same rule `formatDate` follows, and for the same
  * reason.
  *
@@ -514,10 +531,27 @@ export const hideBrokenImage = (e) => { e.currentTarget.style.visibility = 'hidd
  * codes (BAYANZURKH, ULAANBAATAR) and were being printed raw on every card and
  * detail page; the i18n keys have existed all along.
  */
-export const getLocationLabel = (post, t) => [
+/** Plan codes are enum values, not copy — `PROVIDER` was printed raw on billing. */
+export const getPlanLabel = (plan, t) => (
+  plan === 'PROVIDER' ? t('admin.planProvider')
+  : plan === 'FREE' || !plan ? t('admin.planFree')
+  : plan
+)
+
+export const getRegionLabel = (post, t) => [
   post?.district && t(`district.${post.district}`, { defaultValue: post.district }),
   post?.province && t(`province.${post.province}`, { defaultValue: post.province }),
 ].filter(Boolean).join(', ')
+
+/**
+ * What a card says about where a listing is — the same precedence as the app's
+ * `LocationRow`: the place the provider named, then the address they typed, and
+ * only then the region. The web used to print the region alone, so a listing
+ * read "Хөвсгөл" here and "Хатгал тосгон орчим" on a phone, and the address the
+ * form collects was shown nowhere at all.
+ */
+export const getLocationLabel = (post, t) =>
+  post?.location || post?.address || getRegionLabel(post, t)
 
 /**
  * The signed-in shell scrolls an inner <main> (AppLayout pins the page at

@@ -5,12 +5,12 @@ import { useTranslation } from 'react-i18next'
 import {
   MapPin, Eye, Phone, Mail, Globe,
   ArrowLeft, Heart, Building2, Pencil, Trash2, Calendar, CalendarRange,
-  ChevronLeft, ChevronRight, MessageSquare, Flag } from 'lucide-react'
+  ChevronLeft, ChevronRight, MessageSquare, Flag, ExternalLink, Navigation } from 'lucide-react'
 import { MapContainer, TileLayer, Marker } from 'react-leaflet'
 import { tileLayerProps } from '@/lib/mapTiles'
 import 'leaflet/dist/leaflet.css'
 import { postsApi, likesApi } from '@/lib/api'
-import { formatDate, formatPriceParts, getImageUrl, getCompanyLogoUrl, getPostTitle, getPostCategory, getCategoryColor, getFieldLabel, getOptionLabel, getSubcategoryLabel, goBack, normalizeWebsiteUrl, withAlpha, toneForTheme, hideBrokenImage, getLocationLabel, telHref, getThumbUrl, fallbackToFullImage } from '@/lib/utils'
+import { formatDate, formatPriceParts, groupThousands, getImageUrl, getCompanyLogoUrl, getPostTitle, getPostCategory, getCategoryColor, getFieldLabel, getOptionLabel, getSubcategoryLabel, goBack, normalizeWebsiteUrl, withAlpha, toneForTheme, hideBrokenImage, getLocationLabel, getRegionLabel, telHref, getThumbUrl, fallbackToFullImage } from '@/lib/utils'
 import { categoryPin } from '@/lib/mapPin'
 import UserAvatar from '@/components/UserAvatar'
 import AlertBanner from '@/components/AlertBanner'
@@ -49,7 +49,11 @@ function attrDisplay(def, v, t) {
   }
   if (Array.isArray(v)) return v.map((x) => getOptionLabel(x, t)).join(', ')
   if (def?.type === 'select') return getOptionLabel(v, t)
-  return def?.unit ? `${v} ${def.unit}` : String(v)
+  // A whole number that carries a unit is a quantity — a salary, a weight — and
+  // is grouped like a price. Without a unit it may be a year, and "2,013" is
+  // wrong; with a decimal point the grouping rule does not apply.
+  if (def?.unit) return `${/^\d+$/.test(String(v)) ? groupThousands(v) : v} ${def.unit}`
+  return String(v)
 }
 
 export default function PostDetail() {
@@ -65,6 +69,7 @@ export default function PostDetail() {
   const [searchParams] = useSearchParams()
   const wantsReview = searchParams.get('review') === '1'
   const reviewRef = useRef(null)
+  const actionsRef = useRef(null)
   const qc = useQueryClient()
   const { token, user: currentUser, isAdmin } = useAuthStore()
   const [reportOpen, setReportOpen] = useState(false)
@@ -213,12 +218,36 @@ export default function PostDetail() {
     && (!post.expires_at || new Date(post.expires_at) > new Date())
   const priceParts = formatPriceParts(post.price_amount, post.price_unit, t)
   const location = getLocationLabel(post, t)
+  // The address the provider typed, with the region beside it — neither was on
+  // this page at all, only a map. Skips whichever the header line already says.
+  const region = getRegionLabel(post, t)
+  const addressLine = [
+    post.address !== location && post.address,
+    // A typed address usually names its own aimag or district already.
+    region !== location && !region.split(', ').every((part) => post.address?.includes(part)) && region,
+  ].filter(Boolean).join(' · ')
+  // What the badge beside the title says. A listing that is not approved says
+  // so; an approved one shows its lifecycle, as the app does — every public
+  // listing used to wear "Зөвшөөрсөн", which is the moderation queue's word and
+  // tells a visitor nothing. A lapsed window outranks a stale ACTIVE.
+  const lapsed = !!post.expires_at && new Date(post.expires_at) <= new Date()
+  const badgeStatus = post.approval_status !== 'APPROVED'
+    ? post.approval_status
+    : lapsed ? 'EXPIRED' : (post.status ?? 'ACTIVE')
+  const needsVerdict = isAdmin && (isPendingApproval || !!post.pending_revision)
+  // Phones get the page's primary action pinned to the bottom edge: the action
+  // card sits after the description, the map and the reviews in a single
+  // column, which put the price and the phone number ~2,100px down the page.
+  const showCallBar = !isOwner && !isAdmin && !!post.contact_phone
+  const canBookHere = !isOwner && !isAdmin && schema?.has_rental_status && post.user && isBookable
+  const hasMobileBar = showCallBar || needsVerdict
+  const signIn = (reason) => navigate('/login', { state: { from: `/posts/${id}`, reason } })
   const title = getPostTitle(post, t)
   const isDark = theme !== 'light'
   const catColor = getCategoryColor(getPostCategory(post), schemas)
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6">
+    <div className={`max-w-5xl mx-auto px-4 py-6 ${hasMobileBar ? 'pb-28 lg:pb-6' : ''}`}>
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <button onClick={() => goBack(navigate, isAdmin ? '/admin/posts' : '/browse')} className="flex items-center gap-1.5 text-sm text-muted hover:text-text transition-colors">
@@ -382,8 +411,17 @@ export default function PostDetail() {
                   <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-text break-words">{editedTitle || getPostTitle(post, t)}</h1>
                 )}
               </div>
-              <StatusBadge status={post.approval_status} />
+              <StatusBadge status={badgeStatus} />
             </div>
+
+            {/* The price, on phones, where the eye already is. Desktop has it
+                in the sticky card beside the title. */}
+            {priceParts && (
+              <p className="lg:hidden flex flex-wrap items-baseline gap-x-1 text-2xl font-extrabold text-text tabular-nums leading-none">
+                <span>{priceParts.amount}</span>
+                {priceParts.unit && <span className="text-sm font-normal text-muted whitespace-nowrap">/{priceParts.unit}</span>}
+              </p>
+            )}
 
             <div className="flex flex-wrap gap-3 text-sm text-muted">
               {location && <span className="flex items-center gap-1"><MapPin size={13} /> {location}</span>}
@@ -469,6 +507,7 @@ export default function PostDetail() {
                 <p className="text-sm text-muted font-medium mb-2 flex items-center gap-1.5">
                   <MapPin size={14} /> {t('posts.location')}
                 </p>
+                {addressLine && <p className="text-sm text-text mb-2 break-words">{addressLine}</p>}
                 <div className="h-40 rounded-lg overflow-hidden border border-border/50">
                   <MapContainer center={[Number(post.latitude), Number(post.longitude)]} zoom={14} style={{ height: '100%', width: '100%' }} zoomControl={false}>
                     <TileLayer
@@ -480,6 +519,24 @@ export default function PostDetail() {
                       icon={categoryPin(getCategoryColor(getPostCategory(post), schemas))}
                     />
                   </MapContainer>
+                </div>
+                {/* The embedded map shows where; these hand the pin to a maps
+                    app that can route to it — the app's two map actions. */}
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                  <a
+                    href={`https://maps.google.com/maps?q=${post.latitude},${post.longitude}`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-primary-text hover:underline"
+                  >
+                    <ExternalLink size={13} /> {t('posts.openInMaps')}
+                  </a>
+                  <a
+                    href={`https://www.google.com/maps/dir/?api=1&destination=${post.latitude},${post.longitude}&travelmode=driving`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-primary-text hover:underline"
+                  >
+                    <Navigation size={13} /> {t('posts.navigate')}
+                  </a>
                 </div>
               </InfoSection>
             )}
@@ -529,6 +586,7 @@ export default function PostDetail() {
                 <ProviderReviews
                   providerId={post.user.id}
                   canReview={Boolean(token) && !isOwner && !isAdmin && currentUser?.type === 'CUSTOMER'}
+                  onRequireAuth={token ? undefined : () => signIn('auth.guestReview')}
                 />
               </div>
             )}
@@ -536,7 +594,7 @@ export default function PostDetail() {
         </div>
 
         {/* Action sidebar — sticky on desktop */}
-        <div className="w-full lg:w-80 shrink-0 lg:sticky lg:top-(--sticky-offset) space-y-4">
+        <div ref={actionsRef} className="w-full lg:w-80 shrink-0 lg:sticky lg:top-(--sticky-offset) space-y-4 scroll-mt-20">
           <div
             className="bg-surface border border-border/20 shadow-card rounded-card p-5 md:p-6 space-y-4"
             style={catColor ? { borderTop: `3px solid ${catColor}` } : undefined}
@@ -584,7 +642,7 @@ export default function PostDetail() {
                 the main way people arrive, so offer the account instead of
                 silently withholding the feature. */}
             {!token && (
-              <Button variant="outline" className="w-full" onClick={() => navigate('/login', { state: { from: `/posts/${id}` } })}>
+              <Button variant="outline" className="w-full" onClick={() => signIn('auth.guestSave')}>
                 <Heart size={14} /> {t('common.save')}
               </Button>
             )}
@@ -667,13 +725,13 @@ export default function PostDetail() {
                 <Button
                   variant="secondary"
                   className="flex-1"
-                  onClick={() => navigate('/login', { state: { from: `/posts/${id}` } })}
+                  onClick={() => signIn('auth.guestMessage')}
                 >
                   <MessageSquare size={14} /> {t('messages.messageProvider')}
                 </Button>
                 <Button
                   variant="outline"
-                  onClick={() => navigate('/login', { state: { from: `/posts/${id}` } })}
+                  onClick={() => signIn('auth.guestReport')}
                   aria-label={t('report.action')}
                 >
                   <Flag size={14} /> {t('report.action')}
@@ -689,7 +747,7 @@ export default function PostDetail() {
               <div className="pt-4 border-t border-border/50">
                 <Button
                   className="w-full"
-                  onClick={() => navigate('/login', { state: { from: `/posts/${id}` } })}
+                  onClick={() => signIn('auth.guestBook')}
                 >
                   <CalendarRange size={14} /> {t('booking.book')}
                 </Button>
@@ -727,6 +785,44 @@ export default function PostDetail() {
       />
 
       <ReportModal open={reportOpen} onClose={() => setReportOpen(false)} postId={post.id} />
+
+      {hasMobileBar && (
+        <div className="lg:hidden fixed inset-x-0 bottom-0 z-30 bg-surface border-t border-border/40 shadow-card px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex gap-2">
+          {showCallBar && (
+            <Button
+              href={telHref(post.contact_phone)}
+              size="lg"
+              className="flex-1 tabular-nums"
+              onClick={() => track('contact.revealed', { post_id: post.id, category: post.category })}
+            >
+              <Phone size={16} /> {post.contact_phone}
+            </Button>
+          )}
+          {/* Booking and messaging live in the action card; this only takes
+              the reader to it. */}
+          {showCallBar && (
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={() => actionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            >
+              {canBookHere
+                ? <><CalendarRange size={16} /> {t('booking.book')}</>
+                : <><MessageSquare size={16} /> <span className="sr-only">{t('messages.messageProvider')}</span></>}
+            </Button>
+          )}
+          {needsVerdict && (
+            <>
+              <Button size="lg" className="flex-1" onClick={() => mod.setApproveOpen(true)}>
+                {post.pending_revision ? t('admin.approveEdit') : t('admin.approve')}
+              </Button>
+              <Button size="lg" variant="danger" className="flex-1" onClick={() => mod.setRejectOpen(true)}>
+                {post.pending_revision ? t('admin.rejectEdit') : t('admin.reject')}
+              </Button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }

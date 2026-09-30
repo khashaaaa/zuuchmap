@@ -47,7 +47,7 @@ export const confirmLogout = ({ t, navigation, phoneNumber, userType, name, prof
     const { showErrorModal, hideErrorModal } = require('./errorManager');
     showErrorModal(
         t('nav.logout'),
-        t('common.confirm'),
+        t('nav.logoutConfirmMessage'),
         [
             { text: t('common.cancel') },
             {

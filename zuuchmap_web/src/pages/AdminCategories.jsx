@@ -5,7 +5,7 @@ import { useApiMutation } from '@/hooks/useApiMutation'
 import { useTranslation } from 'react-i18next'
 import { Plus, Pencil, X, ChevronUp, ChevronDown, ToggleLeft, ToggleRight, Tag } from 'lucide-react'
 import { categoryApi } from '@/lib/api'
-import { PRICE_UNITS, CATEGORY_COLORS, getCategoryColor } from '@/lib/utils'
+import { PRICE_UNITS, CATEGORY_COLORS, getCategoryColor, getCategoryIcon } from '@/lib/utils'
 import { SCHEMA_LOCALES, SCHEMA_LOCALE_LABELS } from '@/i18n'
 import PageHeader from '@/components/PageHeader'
 import ErrorState from '@/components/ErrorState'
@@ -399,7 +399,9 @@ export default function AdminCategories() {
                 <tr key={schema.key} className="border-b border-border/50 last:border-b-0 hover:bg-surface2/50 transition-colors">
                   <td className={cellPad}>
                     <div className="flex items-center gap-2">
-                      {schema.icon && <span>{schema.icon}</span>}
+                      {/* The glyph, not its Ionicons name — the name is only
+                          what the form stores. */}
+                      {(() => { const Icon = getCategoryIcon(schema.icon); return Icon ? <Icon size={16} className="text-muted shrink-0" aria-label={schema.icon} /> : null })()}
                       <code className="text-xs bg-surface2 px-1.5 py-0.5 rounded text-muted">{schema.key}</code>
                     </div>
                   </td>

@@ -61,11 +61,11 @@ export default function AppLayout() {
               aria-modal="true"
               aria-label={t('nav.menu')}
               tabIndex={-1}
-              initial={{ x: -240 }}
+              initial={{ x: -256 }}
               animate={{ x: 0 }}
-              exit={{ x: -240 }}
+              exit={{ x: -256 }}
               transition={shouldReduceMotion ? { duration: 0 } : { type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed left-0 top-0 h-full z-[60] lg:hidden"
+              className="fixed left-0 top-0 h-full z-[60] lg:hidden outline-none!"
 
             >
               <AppSidebar onNavigate={() => setMobileOpen(false)} />

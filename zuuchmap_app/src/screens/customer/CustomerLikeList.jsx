@@ -21,7 +21,7 @@ import LikeButton from '../../components/LikeButton';
 import PostCard from '../../components/PostCard';
 import EmptyState from '../../components/EmptyState';
 import ScreenError from '../../components/ScreenError';
-import { ScreenLayout, SkeletonItem, SkeletonCrossfade } from '../../components';
+import { ScreenLayout, SkeletonItem, SkeletonCrossfade, CategoryBadge } from '../../components';
 import { useToggleLike } from '../../hooks/useToggleLike';
 import { showErrorModal, isPostLogoutStraggler } from '../../utils/errorManager';
 import { logger } from '../../utils/logger';
@@ -190,11 +190,9 @@ const CustomerLikeList = ({ navigation }) => {
                 statusOverlay
                 memoKey={`${i18n.language}-${isDark}-${item.status}-${item.approval_status}-${categoryLabel(item.post_type || item.category)}`}
                 actions={<LikeButton liked size="small" onToggle={() => handleUnlike(item)} />}
-                badges={
-                    <Text style={[styles.categoryText, { color: colors.text.secondary }]}>
-                        {categoryLabel(item.post_type || item.category)}
-                    </Text>
-                }
+                // The same chip Browse puts on this card — a saved listing is
+                // the listing the customer just saw there.
+                badges={<CategoryBadge postType={item.post_type || item.category} showIcon={true} />}
                 footer={(
                     <>
                         <View style={styles.locationContainer}>
@@ -331,11 +329,6 @@ const createStyles = (colors) => StyleSheet.create({
     listContainer: {
         padding: spacing.lg,
     },
-    categoryText: {
-        ...typography.styles.small,
-        color: colors.text.secondary,
-        marginBottom: spacing.xs,
-    },
     locationContainer: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -351,7 +344,6 @@ const createStyles = (colors) => StyleSheet.create({
     likedAtText: {
         ...typography.styles.small,
         color: colors.text.tertiary,
-        fontStyle: 'italic',
     },
     loadingFooter: {
         paddingVertical: spacing.lg,

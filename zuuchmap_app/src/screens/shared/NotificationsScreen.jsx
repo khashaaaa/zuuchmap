@@ -139,8 +139,8 @@ const NotificationsScreen = ({ navigation }) => {
                     onValueChange={toggleSound}
                     // Without both halves Android falls back to the platform
                     // accent, which painted a blue thumb on the amber track.
-                    trackColor={{ false: colors.border.light, true: colors.primary }}
-                    thumbColor={colors.surface}
+                    trackColor={{ false: colors.switch.track, true: colors.primary }}
+                    thumbColor={colors.switch.thumb}
                     accessibilityLabel={t('notifications.sound')}
                 />
             </View>

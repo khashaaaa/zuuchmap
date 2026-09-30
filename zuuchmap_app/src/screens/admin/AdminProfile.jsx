@@ -114,11 +114,6 @@ const AdminProfile = ({ navigation }) => {
                     </View>
 
                     <ProfileSection>
-                        <ProfileActionRow
-                            icon="heart-outline"
-                            text={t('posts.savedTitle')}
-                            onPress={() => navigation.navigate('CustomerLikeList')}
-                        />
                         {/* Account administration and the analytics summary.
                             Rows rather than tabs: both are look-ups, not queues
                             you return to, and a sixth tab would not fit a phone

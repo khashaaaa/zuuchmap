@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet } from '../../design/theme';
+import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet, tintOn } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 import postService from '../../services/api/postService';
@@ -38,6 +38,12 @@ import NotificationBell from '../../components/NotificationBell';
 // Browse pages through the API. The engine caps `limit` at 100 (post.service.ts),
 // so the list must page — a single fetch silently truncated the marketplace.
 const PAGE_SIZE = 20;
+
+// A saved search stores attribute filters under the `/posts` query names
+// (`attr.<key>`); the filter sheet edits them by bare field key.
+const bareAttrs = (attrs) => Object.fromEntries(
+    Object.entries(attrs || {}).map(([k, v]) => [k.replace(/^attr\./, ''), v]),
+);
 
 const CustomerPostList = ({ route, navigation }) => {
     const { colors, styles: gStyles, isDark } = useAppTheme();
@@ -87,11 +93,14 @@ const CustomerPostList = ({ route, navigation }) => {
         // here hid the RENTED rows and put "131 listings" on the phone against
         // "145" on the laptop for the same marketplace.
         status: '',
+        // Values for the category's `filterable` schema fields, by field key.
+        attrs: bareAttrs(routeAttrs),
     });
     // Price inputs are debounced: every keystroke would otherwise start a new
     // server query and reset paging.
     const debouncedPriceMin = useDebounce(filters.priceMin, 400);
     const debouncedPriceMax = useDebounce(filters.priceMax, 400);
+    const debouncedAttrs = useDebounce(filters.attrs, 400);
 
     const bottomPadding = useMemo(() => {
         const tabBarHeight = Platform.OS === 'ios' ? 88 : 65;
@@ -114,14 +123,16 @@ const CustomerPostList = ({ route, navigation }) => {
             approval_status: 'APPROVED',
             limit: PAGE_SIZE,
             category: isFilterMode ? getPostType : (filters.category || undefined),
-            subcategory: isFilterMode ? (routeSubcategory || undefined) : undefined,
+            subcategory: isFilterMode
+                ? (routeSubcategory || undefined)
+                : ((filters.category && filters.subcategory) || undefined),
             q: q || undefined,
         };
         // Location and attributes apply in both modes: a saved search opens
         // with a category (filter mode) and still means "in this province".
         if (filters.province) params.province = filters.province;
         if (filters.district) params.district = filters.district;
-        if (routeAttrs && Object.keys(routeAttrs).length) params.attrs = routeAttrs;
+        if (Object.values(debouncedAttrs).some(Boolean)) params.attrs = debouncedAttrs;
         if (!isFilterMode) {
             if (filters.sort) params.sort = filters.sort;
             if (debouncedPriceMin) params.price_min = debouncedPriceMin;
@@ -131,8 +142,8 @@ const CustomerPostList = ({ route, navigation }) => {
         }
         return params;
     }, [
-        isFilterMode, getPostType, routeSubcategory, routeAttrs, debouncedSearchQuery,
-        filters.category, filters.province, filters.district, filters.sort, filters.status,
+        isFilterMode, getPostType, routeSubcategory, debouncedAttrs, debouncedSearchQuery,
+        filters.category, filters.subcategory, filters.province, filters.district, filters.sort, filters.status,
         debouncedPriceMin, debouncedPriceMax,
     ]);
 
@@ -255,9 +266,10 @@ const CustomerPostList = ({ route, navigation }) => {
             subcategory: routeSubcategory || '',
             province: routeProvince || '',
             district: routeDistrict || '',
+            attrs: bareAttrs(routeAttrs),
         }));
         setSearchQuery(routeQuery || '');
-    }, [routeCategory, routeSubcategory, routeProvince, routeDistrict, routeQuery]);
+    }, [routeCategory, routeSubcategory, routeProvince, routeDistrict, routeQuery, routeAttrs]);
 
     const clearFilters = useCallback(() => {
         setFilters({
@@ -269,17 +281,21 @@ const CustomerPostList = ({ route, navigation }) => {
             province: '',
             district: '',
             status: '',
+            attrs: isFilterMode ? bareAttrs(routeAttrs) : {},
         });
         setSearchQuery('');
-    }, [isFilterMode, routeCategory, routeSubcategory]);
+    }, [isFilterMode, routeCategory, routeSubcategory, routeAttrs]);
 
     const activeFiltersCount = useMemo(() => {
         if (isFilterMode) return searchQuery ? 1 : 0;
+        const { attrs, ...scalar } = filters;
         const nonDefaultFilters = {
-            ...filters,
+            ...scalar,
             sort: '', // an ordering, not a filter — the badge counts narrowing only
         };
-        return Object.values(nonDefaultFilters).filter(v => v && v !== '').length + (searchQuery ? 1 : 0);
+        return Object.values(nonDefaultFilters).filter(v => v && v !== '').length
+            + Object.values(attrs).filter(Boolean).length
+            + (searchQuery ? 1 : 0);
     }, [isFilterMode, filters, searchQuery]);
 
     // --- Render helpers ---
@@ -475,6 +491,10 @@ const CustomerPostList = ({ route, navigation }) => {
                 province: filters.province,
                 district: filters.district,
                 q: debouncedSearchQuery.trim(),
+                // Stored under the `/posts` query names, as the web stores them.
+                attrs: Object.fromEntries(
+                    Object.entries(filters.attrs).filter(([, v]) => v).map(([k, v]) => [`attr.${k}`, v]),
+                ),
             }}
         />
     );
@@ -489,6 +509,7 @@ const CustomerPostList = ({ route, navigation }) => {
                 filters={filters}
                 setFilters={setFilters}
                 categoryOptions={categoryOptions}
+                schema={categorySchemas.find((c) => c.key === filters.category)}
             />
         );
     };
@@ -512,7 +533,7 @@ const CustomerPostList = ({ route, navigation }) => {
                                 { borderColor: colors.border.medium, backgroundColor: colors.background },
                                 !filters.category && { backgroundColor: colors.primary, borderColor: colors.primary },
                             ]}
-                            onPress={() => setFilters(prev => ({ ...prev, category: '' }))}
+                            onPress={() => setFilters(prev => ({ ...prev, category: '', subcategory: '', attrs: {} }))}
                             activeOpacity={interactions.activeOpacity}
                             hitSlop={{ top: 6, bottom: 6 }}
                         >
@@ -535,7 +556,7 @@ const CustomerPostList = ({ route, navigation }) => {
                                         { borderColor: colors.border.medium, backgroundColor: colors.background },
                                         isActive && { backgroundColor: colors.primary, borderColor: colors.primary },
                                     ]}
-                                    onPress={() => setFilters(prev => ({ ...prev, category: isActive ? '' : cat.key }))}
+                                    onPress={() => setFilters(prev => ({ ...prev, category: isActive ? '' : cat.key, subcategory: '', attrs: {} }))}
                                     activeOpacity={interactions.activeOpacity}
                                     hitSlop={{ top: 6, bottom: 6 }}
                                 >
@@ -577,13 +598,14 @@ const CustomerPostList = ({ route, navigation }) => {
                         style={[
                             styles.filterRowBtn,
                             {
-                                backgroundColor: activeFiltersCount > 0 ? colors.opacity.background.primary : colors.surface,
+                                // Opaque: this button has elevation (see `tintOn`).
+                                backgroundColor: activeFiltersCount > 0 ? tintOn(colors.primary, 0.16, colors.surface) : colors.surface,
                                 borderColor: activeFiltersCount > 0 ? colors.primary : colors.border.light,
                             },
                         ]}
                         activeOpacity={interactions.activeOpacity}
                     >
-                        <Ionicons name="options-outline" size={20} color={activeFiltersCount > 0 ? colors.primary : colors.text.secondary} />
+                        <Ionicons name="options-outline" size={20} color={activeFiltersCount > 0 ? colors.iconAccent : colors.text.secondary} />
                         {activeFiltersCount > 0 && (
                             <View style={styles.filterBadge}>
                                 <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
@@ -750,7 +772,7 @@ const createStyles = (colors) => StyleSheet.create({
         ...colors.elevation.sm,
         marginBottom: spacing.lg,
         padding: spacing.lg,
-        backgroundColor: colors.opacity.background.success,
+        backgroundColor: tintOn(colors.success, 0.14, colors.surface),
         borderRadius: radius.lg,
         flexDirection: 'row',
         alignItems: 'center',

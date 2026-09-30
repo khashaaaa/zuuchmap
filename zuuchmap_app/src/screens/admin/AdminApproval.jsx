@@ -74,7 +74,9 @@ const AdminApproval = ({ navigation }) => {
 
                     <Button
                         icon="shield-checkmark-outline"
-                        title={totalPending > 0 ? `${totalPending} ${t('posts.approve')}` : t('common.noData')}
+                        // Names the destination, not a verdict: "36 Зөвшөөрөх" read as
+                        // approve-all, and this only opens the queue.
+                        title={totalPending > 0 ? `${t('admin.reviewPost')} (${totalPending})` : t('common.noData')}
                         onPress={() => navigation.navigate('AdminPostList')}
                         disabled={totalPending === 0}
                         fullWidth

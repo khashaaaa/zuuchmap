@@ -7,7 +7,7 @@ import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet'
 import { tileLayerProps } from '@/lib/mapTiles'
 import 'leaflet/dist/leaflet.css'
 import { postsApi } from '@/lib/api'
-import { getCategoryLabel, getSubcategoryLabel, getFieldLabel, getPostCategory, getCategoryColor, getImageUrl, goBack, PRICE_UNITS, PROVINCES, DISTRICTS, apiErrorMessage, hideBrokenImage, normalizeWebsiteUrl, getThumbUrl, fallbackToFullImage, sortByLabel } from '@/lib/utils'
+import { getCategoryLabel, getSubcategoryLabel, getFieldLabel, getPostCategory, getCategoryColor, getImageUrl, goBack, toDateInputValue, PRICE_UNITS, PROVINCES, DISTRICTS, apiErrorMessage, hideBrokenImage, normalizeWebsiteUrl, getThumbUrl, fallbackToFullImage, sortByLabel } from '@/lib/utils'
 import { categoryPin } from '@/lib/mapPin'
 import AlertBanner from '@/components/AlertBanner'
 import { useThemeStore } from '@/store'
@@ -244,8 +244,8 @@ export default function ProviderPostForm() {
         subcategory: draft.subcategory ?? '',
         latitude: draft.latitude ?? '',
         longitude: draft.longitude ?? '',
-        available_from: post.available_from ? post.available_from.slice(0, 10) : '',
-        available_until: post.available_until ? post.available_until.slice(0, 10) : '',
+        available_from: toDateInputValue(post.available_from),
+        available_until: toDateInputValue(post.available_until),
         status: post.status ?? 'ACTIVE',
         attributes: buildAttributes(schemas.find((s) => s.key === post.category), draft.attributes ?? {}),
       })

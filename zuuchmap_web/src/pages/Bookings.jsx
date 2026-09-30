@@ -133,7 +133,10 @@ export default function Bookings({ mode }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [confirmCancelId, setConfirmCancelId] = useState(null)
-  const [tab, setTab] = useState('pending')
+  // `null` until the visitor picks one: the page then opens on the first tab
+  // that has anything in it, instead of an empty "pending (0)" beside a
+  // "history (3)".
+  const [pickedTab, setTab] = useState(null)
 
   const { data: bookings = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['bookings', mode],
@@ -172,6 +175,7 @@ export default function Bookings({ mode }) {
   const counts = Object.fromEntries(
     Object.entries(TAB_STATUSES).map(([key, statuses]) => [key, bookings.filter((b) => statuses.includes(b.status)).length])
   )
+  const tab = pickedTab ?? Object.keys(TAB_STATUSES).find((key) => counts[key] > 0) ?? 'pending'
   const filtered = bookings.filter((b) => TAB_STATUSES[tab].includes(b.status))
 
   return (

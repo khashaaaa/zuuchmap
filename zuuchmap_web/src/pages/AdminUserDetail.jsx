@@ -126,7 +126,7 @@ export default function AdminUserDetail() {
       {(user.is_admin !== true || user.id === currentUser?.id) && (
         <div className="mt-4">
           <Button variant="danger-outline" onClick={() => setConfirmDelete(true)}>
-            <Trash2 size={14} /> {t('admin.deleteUser')}
+            <Trash2 size={14} /> {t('common.delete')}
           </Button>
         </div>
       )}

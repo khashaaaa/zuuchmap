@@ -303,11 +303,18 @@ export class AdminService {
     const cached = this.cache.get<object>('admin:stats');
     if (cached) return cached;
 
+    // "Pending" here is the depth of the moderation queue, so it has to use
+    // the queue's own predicate (see getPendingPosts): an edit parked on a
+    // live post waits for a verdict just as a new post does. Counting only
+    // approval_status told the admin 36 while the list behind it held 52.
+    const QUEUED =
+      "(post.approval_status = 'PENDING' OR post.pending_revision IS NOT NULL)";
+
     const [postCounts, userCounts, byCategory] = await Promise.all([
       this.postRepository
         .createQueryBuilder('post')
         .select(
-          "SUM(CASE WHEN post.approval_status = 'PENDING' THEN 1 ELSE 0 END)",
+          `SUM(CASE WHEN ${QUEUED} THEN 1 ELSE 0 END)`,
           'pending',
         )
         .addSelect(
@@ -337,7 +344,7 @@ export class AdminService {
         .select('post.category', 'postType')
         .addSelect('COUNT(*)', 'total')
         .addSelect(
-          "SUM(CASE WHEN post.approval_status = 'PENDING' THEN 1 ELSE 0 END)",
+          `SUM(CASE WHEN ${QUEUED} THEN 1 ELSE 0 END)`,
           'pending',
         )
         .addSelect(

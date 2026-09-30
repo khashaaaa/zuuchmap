@@ -38,7 +38,7 @@ const FUNNEL_STAGES = [
  * which is the one table here that names a decision rather than describing the
  * past.
  */
-const AdminAnalytics = () => {
+const AdminAnalytics = ({ navigation }) => {
     const insets = useSafeAreaInsets();
     const { colors } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
@@ -57,6 +57,7 @@ const AdminAnalytics = () => {
 
     const totals = data?.totals ?? {};
     const funnel = data?.funnel ?? {};
+    const funnelMax = Math.max(0, ...FUNNEL_STAGES.map(([key]) => Number(funnel[key]) || 0));
 
     // Category keys come back raw; the label is schema-driven and localized, so
     // never hardcode a category name here.
@@ -71,7 +72,7 @@ const AdminAnalytics = () => {
     const maxCategoryPosts = Math.max(1, ...categories.map((c) => c.posts || 0));
 
     return (
-        <ScreenLayout title={t('analytics.title')} error={isError} onRetry={refetch}>
+        <ScreenLayout title={t('analytics.title')} onBack={() => navigation.goBack()} error={isError} onRetry={refetch}>
             <View style={styles.tabs} accessibilityRole="tablist">
                 {RANGES.map((value) => (
                     <SelectionPop key={value} selected={days === value}>
@@ -118,8 +119,11 @@ const AdminAnalytics = () => {
                         {FUNNEL_STAGES.map(([key, labelKey]) => {
                             const value = funnel[key] ?? 0;
                             // Each stage as a share of the widest one, so the
-                            // drop-off is visible without a chart library.
-                            const share = funnel.visited ? Math.round((value / funnel.visited) * 100) : 0;
+                            // drop-off is visible without a chart library. The
+                            // widest is not always `visited`: a returning user
+                            // can verify without a counted visit, and dividing
+                            // by visits drew 6, 11 and 13 as three full bars.
+                            const share = funnelMax ? Math.round((value / funnelMax) * 100) : 0;
                             return (
                                 <View key={key} style={styles.barRow}>
                                     <Text style={styles.barLabel} numberOfLines={1}>{t(labelKey)}</Text>
@@ -194,7 +198,7 @@ const createStyles = (colors) => StyleSheet.create({
     sectionHint: { ...typography.styles.small, color: colors.text.tertiary, marginTop: 2, marginBottom: spacing.sm },
     sectionBody: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, gap: spacing.sm },
     barRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-    barLabel: { ...typography.styles.caption, color: colors.text.secondary, width: '32%' },
+    barLabel: { ...typography.styles.caption, color: colors.text.secondary, width: '44%' },
     barTrack: { flex: 1, height: 8, borderRadius: radius.pill, backgroundColor: colors.border.light, overflow: 'hidden' },
     barFill: { height: '100%', borderRadius: radius.pill, backgroundColor: colors.primary },
     barValue: { ...typography.styles.caption, color: colors.text.primary, minWidth: 48, textAlign: 'right' },

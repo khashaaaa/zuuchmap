@@ -22,7 +22,7 @@ import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import { ScreenHeader, ScreenLoading, WizardSteps, PostHealthRing, DraftResumeBanner } from '../../components';
 import ImageUploadSection from '../../components/ImageUploadSection';
 import { ContactSection, LocationSection, StatusSection } from '../../components/PostFormSections';
-import DynamicForm, { fieldLabel, FieldHighlight } from '../../components/DynamicForm';
+import DynamicForm, { fieldLabel, FieldHighlight, BASE_FIELD_LABELS } from '../../components/DynamicForm';
 import Button from '../../components/Button';
 import FormField from '../../components/FormField';
 import { PressableScale } from '../../components';
@@ -45,14 +45,6 @@ import { formatDate } from '../../utils/displayUtils';
 // Drafts live in `utils/draftStorage` — written as the provider types (see the
 // autosave effect), offered back through <DraftResumeBanner>, cleared on submit.
 
-// Which base field an admin's `rejection_field` points at, for the reason card.
-const BASE_FIELD_LABELS = {
-    title: 'form.postTitle',
-    details: 'form.postDetails',
-    price: 'form.priceAmount',
-    images: 'posts.rejectedFieldImages',
-    location: 'posts.rejectedFieldLocation',
-};
 const rejectedFieldLabel = (key, schema, t, lng) => {
     if (!key) return null;
     if (BASE_FIELD_LABELS[key]) return t(BASE_FIELD_LABELS[key]);
@@ -347,7 +339,15 @@ const ProviderPostForm = ({ route, navigation }) => {
         if (Object.keys(errors).length > 0) {
             // No dialog: FormField already shows each message in place, and we
             // scroll to the first one. A modal only added a tap before the fix.
-            const firstErrorField = Object.keys(errors).find(field => errors[field]);
+            // First in *reading* order, not in the order validateForm happens
+            // to test them: photos sit above the title on create and below it
+            // on edit, and the phone number is last on both.
+            const order = [
+                ...(isEdit ? ['title', 'images'] : ['images', 'title']),
+                ...Object.keys(errors).filter((k) => k.startsWith('attributes.')),
+                'contact_phone',
+            ];
+            const firstErrorField = order.find((field) => errors[field]) ?? Object.keys(errors)[0];
             if (firstErrorField) {
                 // Dynamic-field errors are keyed 'attributes.<key>', but inputRefs are keyed by the raw field key
                 const refKey = firstErrorField.startsWith('attributes.')
@@ -517,6 +517,12 @@ const ProviderPostForm = ({ route, navigation }) => {
                         judges the listing by, so it comes before the typing. */}
                     {!isEdit && (
                         <FieldHighlight active={highlightKey === 'images'} scrollViewRef={scrollViewRef}>
+                            {/* Registered beside the inputs so a missing photo
+                                can be scrolled to: it has no ref of its own,
+                                and submitting from the bottom of the form used
+                                to leave the provider there with the only error
+                                a screen and a half above. */}
+                            <View collapsable={false} ref={(ref) => { inputRefs.current.images = ref; }}>
                             <ImageUploadSection
                                 images={formData.images}
                                 onImagesChange={(images) => updateFormData('images', images)}
@@ -526,6 +532,7 @@ const ProviderPostForm = ({ route, navigation }) => {
                                 isEdit={false}
                                 photoFirst
                             />
+                            </View>
                         </FieldHighlight>
                     )}
 
@@ -583,6 +590,7 @@ const ProviderPostForm = ({ route, navigation }) => {
 
                     {isEdit && (
                         <FieldHighlight active={highlightKey === 'images'} scrollViewRef={scrollViewRef}>
+                            <View collapsable={false} ref={(ref) => { inputRefs.current.images = ref; }}>
                             <ImageUploadSection
                                 images={formData.images}
                                 onImagesChange={(images) => updateFormData('images', images)}
@@ -591,6 +599,7 @@ const ProviderPostForm = ({ route, navigation }) => {
                                 error={formErrors.images}
                                 isEdit
                             />
+                            </View>
                         </FieldHighlight>
                     )}
 

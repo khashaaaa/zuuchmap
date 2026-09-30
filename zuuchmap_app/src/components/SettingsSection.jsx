@@ -86,9 +86,11 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacing.lg,
         paddingVertical: spacing.lg,
     },
+    // Same role as the row labels in the card above it. As an 11px overline in
+    // caps, "ХЭЛ" — three letters whose capitals are their lowercase shapes —
+    // read as a stray lowercase word.
     sectionTitle: {
-        ...typography.styles.overline,
-        textTransform: 'uppercase',
+        ...typography.styles.bodyMedium,
     },
     headerRight: {
         flexDirection: 'row',

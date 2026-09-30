@@ -1,11 +1,51 @@
-import { useId } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 
 export default function TabBar({ tabs, value, onChange, className = '' }) {
   const indicatorId = useId()
   const shouldReduceMotion = useReducedMotion()
+  // The row scrolls sideways on a phone, and nothing said so: the last tab was
+  // simply cut at the edge ("Түүх (") and read as a rendering fault. Fade the
+  // side that has more behind it.
+  const rowRef = useRef(null)
+  const [more, setMore] = useState({ left: false, right: false })
+  useEffect(() => {
+    const el = rowRef.current
+    if (!el) return undefined
+    const measure = () => {
+      const left = el.scrollLeft > 1
+      const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 1
+      setMore((prev) => (prev.left === left && prev.right === right ? prev : { left, right }))
+    }
+    measure()
+    el.addEventListener('scroll', measure, { passive: true })
+    window.addEventListener('resize', measure)
+    return () => {
+      el.removeEventListener('scroll', measure)
+      window.removeEventListener('resize', measure)
+    }
+  }, [tabs.length])
+  // Keep the selected tab on screen: a page that opens on its third tab
+  // otherwise selects one that is past the edge.
+  useEffect(() => {
+    const el = rowRef.current
+    const active = el?.querySelector('[aria-selected="true"]')
+    if (!el || !active) return
+    const left = active.offsetLeft - 8
+    const right = active.offsetLeft + active.offsetWidth + 8
+    if (left < el.scrollLeft) el.scrollLeft = left
+    else if (right > el.scrollLeft + el.clientWidth) el.scrollLeft = right - el.clientWidth
+  }, [value, tabs.length])
+  const fade = more.left || more.right
+    ? `linear-gradient(to right, ${more.left ? 'transparent, black 2rem' : 'black'}, ${more.right ? 'black calc(100% - 2rem), transparent' : 'black'})`
+    : undefined
   return (
-    <div role="tablist" className={`flex gap-1 bg-surface2 rounded-lg p-1 w-fit max-w-full overflow-x-auto ${className}`}>
+    <div
+      ref={rowRef}
+      role="tablist"
+      style={fade ? { maskImage: fade, WebkitMaskImage: fade } : undefined}
+      className={`flex gap-1 bg-surface2 rounded-lg p-1 w-fit max-w-full overflow-x-auto ${className}`}
+    >
       {tabs.map((tab) => (
         <button
           type="button"

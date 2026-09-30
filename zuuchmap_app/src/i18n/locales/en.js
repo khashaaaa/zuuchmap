@@ -28,7 +28,7 @@ export default {
     },
   nav: {
     myPosts: 'My posts', myPostsShort: 'Posts', categories: 'Categories', browse: 'Browse', map: 'Map',
-    saved: 'Saved', profile: 'Profile', logout: 'Log out',
+    saved: 'Saved', profile: 'Profile', logout: 'Log out', logoutConfirmMessage: 'Are you sure you want to log out?',
   },
   auth: {
       guestTitle: 'Sign in to continue',
@@ -112,6 +112,7 @@ export default {
   filter: {
     title: 'Filter', category: 'Category', priceRange: 'Price range', status: 'Status', sortBy: 'Sort by',
     allCategories: 'All categories',
+    specs: 'Specifications', subcategory: 'Subcategory', min: 'Min', max: 'Max',
     allStatuses: 'All statuses', all: 'All', minPrice: 'Min price', maxPrice: 'Max price', clearAll: 'Clear filters',
     resultsFound: '{{count}} posts found',
     searchPlaceholder: 'Search posts...', searchNoResults: 'No results found',
@@ -224,6 +225,8 @@ export default {
     noPending: 'Nothing pending', noPendingDesc: 'Every post has been reviewed.',
     reviewPost: 'Review post', poster: 'Poster',
     rejectNotice: 'Reason will be sent to the poster. Be specific.',
+    rejectFieldLabel: 'Which field? (optional)', rejectFieldNone: 'Not specific',
+    rejectFieldHint: 'The provider sees this field highlighted when editing.',
     approveError: 'Failed to approve the post.',
     rejectError: 'Failed to reject the post.',
     editPost: 'Edit', editDone: 'Done',

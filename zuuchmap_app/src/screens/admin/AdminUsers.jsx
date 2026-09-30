@@ -1,13 +1,13 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { View, Text, FlatList, TouchableOpacity, RefreshControl, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, RefreshControl, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { spacing, typography, radius, interactions, isTablet } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
-import { ScreenLayout, EmptyState, SkeletonItem, SelectionPop, BaseModal, SearchInput } from '../../components';
+import { ScreenLayout, EmptyState, SkeletonItem, SelectionPop, BottomSheetModal, SearchInput } from '../../components';
 import Button from '../../components/Button';
 import adminService from '../../services/api/adminService';
 import { formatDate } from '../../utils/displayUtils';
@@ -29,12 +29,18 @@ const PLAN_MONTHS = [1, 3, 12];
  * account behind either one. Every endpoint here already existed and already
  * had a web caller; only the mobile surface was missing.
  */
-const AdminUsers = () => {
+const AdminUsers = ({ navigation }) => {
     const insets = useSafeAreaInsets();
     const { colors } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
     const { t } = useTranslation();
     const qc = useQueryClient();
+    // Plan codes are enum values, not copy — same mapping as BillingScreen.
+    const planLabel = useCallback((plan) => (
+        plan === 'PROVIDER' ? t('posts.planProvider')
+        : plan === 'FREE' ? t('posts.planFree')
+        : (plan ?? '')
+    ), [t]);
 
     const [search, setSearch] = useState('');
     const [typeFilter, setTypeFilter] = useState('');
@@ -107,7 +113,7 @@ const AdminUsers = () => {
             <View style={styles.rowMeta}>
                 <Text style={styles.type}>{item.type ? t(`onboarding.${item.type.toLowerCase()}`) : '—'}</Text>
                 {item.plan && item.plan !== 'FREE' ? (
-                    <Text style={styles.plan}>{item.plan}</Text>
+                    <Text style={styles.plan}>{planLabel(item.plan)}</Text>
                 ) : null}
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.text.tertiary} />
@@ -115,7 +121,7 @@ const AdminUsers = () => {
     ), [styles, colors, t]);
 
     return (
-        <ScreenLayout title={t('admin.users')} error={isError} onRetry={refetch}>
+        <ScreenLayout title={t('admin.users')} onBack={() => navigation.goBack()} error={isError} onRetry={refetch}>
             <View style={styles.controls}>
                 <SearchInput
                     value={search}
@@ -161,21 +167,25 @@ const AdminUsers = () => {
                 />
             )}
 
-            <BaseModal visible={!!selected} onClose={() => setSelected(null)} variant="bottomSheet">
+            <BottomSheetModal
+                visible={!!selected}
+                onClose={() => setSelected(null)}
+                title={selected ? (selected.given_name || t('common.user')) : undefined}
+            >
                 {selected && (
-                    <ScrollView contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled">
-                        <Text style={styles.sheetTitle} numberOfLines={1}>
-                            {selected.given_name || t('common.user')}
-                        </Text>
+                    <View style={styles.sheet}>
                         <Text style={styles.sheetPhone}>+976 {selected.phone_number}</Text>
 
                         <View style={styles.detailGrid}>
                             <Detail styles={styles} label={t('admin.userType')} value={selected.type ? t(`onboarding.${selected.type.toLowerCase()}`) : '—'} />
-                            <Detail styles={styles} label={t('billing.currentPlan')} value={selected.plan || 'FREE'} />
+                            <Detail styles={styles} label={t('billing.currentPlan')} value={planLabel(selected.plan || 'FREE')} />
                             <Detail styles={styles} label={t('profile.memberSince')} value={selected.date_created ? formatDate(selected.date_created) : '—'} />
                             <Detail styles={styles} label={t('admin.verified')} value={selected.is_verified ? t('common.yes') : t('common.no')} />
                         </View>
 
+                        {/* Providers only: a plan is a posting quota, and a
+                            customer has nothing to spend one on. */}
+                        {selected.type === 'PROVIDER' && (<>
                         {/* Phase 1 fulfils subscriptions by hand: this grants a
                             plan, it does not take money. */}
                         <Text style={styles.sectionLabel}>{t('admin.grantPlan')}</Text>
@@ -192,6 +202,7 @@ const AdminUsers = () => {
                                 />
                             ))}
                         </View>
+                        </>)}
                         {selected.plan && selected.plan !== 'FREE' ? (
                             <Button
                                 title={t('admin.revokePlan')}
@@ -205,16 +216,16 @@ const AdminUsers = () => {
                         {/* An admin cannot delete themselves out of the console. */}
                         {!selected.is_admin && (
                             <Button
-                                title={t('admin.deleteUser')}
+                                title={t('common.delete')}
                                 variant="danger"
                                 style={styles.deleteButton}
                                 disabled={deleteMut.isPending}
                                 onPress={() => confirmDelete(selected)}
                             />
                         )}
-                    </ScrollView>
+                    </View>
                 )}
-            </BaseModal>
+            </BottomSheetModal>
         </ScreenLayout>
     );
 };
@@ -239,8 +250,7 @@ const createStyles = (colors) => StyleSheet.create({
     rowMeta: { alignItems: 'flex-end', gap: 2 },
     type: { ...typography.styles.small, color: colors.text.secondary },
     plan: { ...typography.styles.badge, color: colors.text.link },
-    sheet: { padding: spacing.lg, gap: spacing.sm },
-    sheetTitle: { ...typography.styles.h3, color: colors.text.primary },
+    sheet: { gap: spacing.sm },
     sheetPhone: { ...typography.styles.caption, color: colors.text.secondary, marginBottom: spacing.sm },
     detailGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.sm },
     detailItem: { minWidth: '40%', gap: 2 },

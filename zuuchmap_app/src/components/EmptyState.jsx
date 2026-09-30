@@ -110,8 +110,12 @@ const createStyles = (colors) => StyleSheet.create({
         borderColor: colors.border.light,
     },
     iconContainerInvitation: {
-        // Elevation spread first so its border stays the amber selected ring.
-        ...colors.elevation.selected,
+        // The amber selected ring only — not `elevation.selected`. Its light
+        // variant carries a shadow, and Android draws an elevation shadow
+        // *through* a translucent fill: the tint showed a dark octagon behind
+        // the icon.
+        borderWidth: 1,
+        borderColor: colors.primary,
         backgroundColor: colors.opacity.background.primary,
     },
     eyebrow: {

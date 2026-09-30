@@ -170,7 +170,7 @@ const MapFilterModal = ({
 
     const titleComponent = (
         <View style={styles.headerLeft}>
-            <Text style={{ ...typography.styles.title, color: colors.text.primary, }}>{t('common.filter')}</Text>
+            <Text style={{ ...typography.styles.title, color: colors.text.primary, }}>{t('filter.title')}</Text>
             {activeFilterCount > 0 && (
                 <View style={styles.filterCountBadge}>
                     <Text style={styles.filterCountText}>
@@ -186,7 +186,6 @@ const MapFilterModal = ({
             visible={visible}
             onClose={onClose}
             title={titleComponent}
-            showCloseButton={false}
             footer={
                 <View style={styles.modalFooterButtons}>
                     <Button
@@ -242,8 +241,8 @@ const MapFilterModal = ({
                         onValueChange={(enabled) =>
                             setPriceRange(prev => ({ ...prev, enabled }))
                         }
-                        trackColor={{ false: colors.border.medium, true: colors.primary }}
-                        thumbColor={colors.surface}
+                        trackColor={{ false: colors.switch.track, true: colors.primary }}
+                        thumbColor={colors.switch.thumb}
                     />
                 </View>
 
@@ -311,8 +310,8 @@ const MapFilterModal = ({
                             onValueChange={(enabled) =>
                                 setLocationFilter(prev => ({ ...prev, enabled }))
                             }
-                            trackColor={{ false: colors.border.medium, true: colors.primary }}
-                            thumbColor={colors.surface}
+                            trackColor={{ false: colors.switch.track, true: colors.primary }}
+                            thumbColor={colors.switch.thumb}
                         />
                     </View>
 

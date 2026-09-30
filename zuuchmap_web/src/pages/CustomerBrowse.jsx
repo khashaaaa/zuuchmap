@@ -60,6 +60,7 @@ export default function CustomerBrowse() {
   const district = searchParams.get('district') ?? ''
   const search = searchParams.get('q') ?? ''
   const sort = searchParams.get('sort') ?? ''
+  const status = searchParams.get('status') ?? ''
   const priceMin = searchParams.get('price_min') ?? ''
   const priceMax = searchParams.get('price_max') ?? ''
   const priceFilters = useMemo(() => ({ min: priceMin, max: priceMax }), [priceMin, priceMax])
@@ -180,6 +181,8 @@ export default function CustomerBrowse() {
   if (district) queryParams.district = district
   if (search) queryParams.q = search
   if (sort) queryParams.sort = sort
+  // Enum values are uppercase server-side; the URL carries lowercase, as the app's chips do.
+  if (status) queryParams.status = status.toUpperCase()
   if (priceFilters.min) queryParams.price_min = priceFilters.min
   if (priceFilters.max) queryParams.price_max = priceFilters.max
   if (category) {
@@ -270,7 +273,7 @@ export default function CustomerBrowse() {
   const schema = useMemo(() => schemas.find((s) => s.key === category), [schemas, category])
   const filterFields = useMemo(() => schema?.fields?.filter((f) => f.filterable) ?? [], [schema])
 
-  const activeFilters = [category, subcat, province, district, search, sort, priceMin, priceMax]
+  const activeFilters = [category, subcat, province, district, search, sort, status, priceMin, priceMax]
     .filter(Boolean).length + Object.values(attrFilters).filter(Boolean).length
   const hasFilters = activeFilters > 0
 
@@ -396,6 +399,17 @@ export default function CustomerBrowse() {
             )}
           </div>
 
+          {/* Available vs rented — the app's filter sheet has always had this;
+              the same marketplace has to be narrowable the same way here. */}
+          <div className="py-4 space-y-3">
+            <p className={overline}>{t('filter.status')}</p>
+            <Input as="select" value={status} onChange={(e) => setParams({ status: e.target.value })} aria-label={t('filter.status')}>
+              <option value="">{t('filter.allStatuses')}</option>
+              <option value="active">{t('status.active')}</option>
+              <option value="rented">{t('status.rented')}</option>
+            </Input>
+          </div>
+
           {hasFilters && (
             <div className="pt-4 space-y-2">
               {canSaveSearch && (
@@ -507,7 +521,7 @@ export default function CustomerBrowse() {
                       // does, and come back here afterwards.
                       if (!isAuthed) {
                         toast.info(t('auth.guestSave'))
-                        return navigate('/login', { state: { from: returnTo } })
+                        return navigate('/login', { state: { from: returnTo, reason: 'auth.guestSave' } })
                       }
                       likeMut.mutate({ postId: post.id, postType, isLiked: saved })
                     }}

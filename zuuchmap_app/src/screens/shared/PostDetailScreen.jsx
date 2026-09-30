@@ -19,7 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet, animations, toneForTheme, withAlpha, dimensions } from '../../design/theme';
+import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet, animations, toneForTheme, withAlpha, dimensions, mapStyleFor } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useTranslation } from 'react-i18next';
@@ -31,7 +31,7 @@ import { StatusBadge, StatTile, PressableScale, SkeletonItem, AvailabilityStrip,
 import LikeButton from '../../components/LikeButton';
 import { Button } from '../../components';
 import { TextInput } from '../../components';
-import { formatPriceParts, formatDate, formatDateTime, getProvinceLabel, getDistrictLabel } from '../../utils/displayUtils';
+import { formatPriceParts, formatDate, formatDateTime, getProvinceLabel, getDistrictLabel, groupThousands } from '../../utils/displayUtils';
 import { normalizePostType, getPostTypeConfig, getPostTitle, getSchemaLabel, getSubcategoryLabel } from '../../utils/postUtils';
 import { normalizeWebsiteUrl } from '../../utils/formUtils';
 import { processPostImages } from '../../utils/imageUtils';
@@ -40,6 +40,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { invalidatePostData } from '../../services/queryClient';
 import { track } from '../../services/analytics';
 import categoryService from '../../services/api/categoryService';
+import { fieldLabel, BASE_FIELD_LABELS } from '../../components/DynamicForm';
 import BookingRequestModal from '../../components/BookingRequestModal';
 import ReviewSection from '../../components/ReviewSection';
 import {
@@ -254,6 +255,7 @@ const PostDetailScreen = ({ route, navigation }) => {
         approving, rejecting,
         showRejectModal, setShowRejectModal,
         rejectReason, setRejectReason,
+        rejectField, setRejectField,
         handleApprove, handleRejectConfirm,
     } = usePostModeration({ post, enabled: isAdmin, onDone: () => navigation.goBack() });
 
@@ -497,6 +499,12 @@ const PostDetailScreen = ({ route, navigation }) => {
     }
 
     const postTypeConfig = getPostTypeConfig(postType, colors, schema ? [schema] : []);
+
+    const rejectFieldOptions = isAdmin ? [
+        { key: '', label: t('admin.rejectFieldNone') },
+        ...Object.entries(BASE_FIELD_LABELS).map(([key, labelKey]) => ({ key, label: t(labelKey) })),
+        ...(schema?.fields ?? []).map((f) => ({ key: f.key, label: fieldLabel(f, t, i18n.language) })),
+    ] : [];
     const postTitle = getPostTitle(post, postType);
     const bottomPadding = safeAreaHelpers.getBottomSafeArea(insets) + 80;
     const originalTitle = post.name || post.title || '';
@@ -596,10 +604,14 @@ const PostDetailScreen = ({ route, navigation }) => {
                             {schema ? getSchemaLabel(schema) : t('category.' + postType, { defaultValue: postType })}
                         </Text>
                     </View>
+                    {/* A listing that has not been approved says so, ahead of
+                        its lifecycle status: a post waiting in the moderation
+                        queue wore a green "Идэвхтэй" here, which reads as live
+                        to the admin about to rule on it and to its owner. */}
                     {post.status && (
                         <View style={styles.heroStatusWrap}>
                             <StatusBadge
-                                status={post.status}
+                                status={post.approval_status && post.approval_status !== 'APPROVED' ? post.approval_status : post.status}
                                 variant="inline"
                                 position="relative"
                                 showIndicator={false}
@@ -659,7 +671,12 @@ const PostDetailScreen = ({ route, navigation }) => {
                                     {canLike && (
                                         <LikeButton
                                             liked={liked}
-                                            count={likeStats.total_likes}
+                                            // A guest has no stats: the query is
+                                            // JWT-only and never fires, so its
+                                            // default would print "0" on a listing
+                                            // with saves. The web hides the count
+                                            // in the same case; so does this.
+                                            count={currentUserId ? likeStats.total_likes : undefined}
                                             size="large"
                                             disabled={toggleLike.isPending}
                                             onToggle={handleToggleLike}
@@ -810,6 +827,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                             <MapView
                                 style={styles.map}
                                 provider={PROVIDER_GOOGLE}
+                                customMapStyle={mapStyleFor(isDark)}
                                 initialRegion={{
                                     latitude: parseFloat(post.latitude),
                                     longitude: parseFloat(post.longitude),
@@ -860,8 +878,11 @@ const PostDetailScreen = ({ route, navigation }) => {
                                     ? (value === true ? t('common.yes') : t('common.no'))
                                     : fieldDef?.type === 'select' && typeof value === 'string'
                                         ? t('attrs.' + value.toLowerCase().replace(/_([a-z])/g, (_, c) => c.toUpperCase()), { defaultValue: value })
+                                        // A whole number with a unit is a quantity
+                                        // (a salary, a weight) and is grouped like
+                                        // a price; without one it may be a year.
                                         : fieldDef?.unit
-                                            ? `${value} ${fieldDef.unit}`
+                                            ? `${/^\d+$/.test(String(value)) ? groupThousands(value) : value} ${fieldDef.unit}`
                                             : value;
                                 if (Array.isArray(value)) {
                                     return (
@@ -1220,6 +1241,27 @@ const PostDetailScreen = ({ route, navigation }) => {
                             numberOfLines={3}
                             containerStyle={styles.reasonInput}
                         />
+                        {/* Which field the reason is about — optional. Sent as
+                            `field_key` so the owner's edit form highlights it,
+                            the same pick the web's reject dialog offers. */}
+                        <Text style={[styles.rejectFieldLabel, { color: colors.text.secondary }]}>{t('admin.rejectFieldLabel')}</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rejectFieldRow} keyboardShouldPersistTaps="handled">
+                            {rejectFieldOptions.map((opt) => (
+                                <TouchableOpacity
+                                    key={opt.key || 'none'}
+                                    onPress={() => setRejectField(opt.key)}
+                                    style={[
+                                        styles.reasonChip,
+                                        { borderColor: colors.border.light, backgroundColor: colors.surfaceLight },
+                                        rejectField === opt.key && { borderColor: colors.danger, backgroundColor: colors.opacity.background.danger },
+                                    ]}
+                                    activeOpacity={interactions.activeOpacity}
+                                >
+                                    <Text style={[styles.reasonChipText, { color: rejectField === opt.key ? colors.danger : colors.text.secondary }]}>{opt.label}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                        <Text style={[styles.rejectFieldHint, { color: colors.text.secondary }]}>{t('admin.rejectFieldHint')}</Text>
                         <View style={styles.modalActions}>
                             <TouchableOpacity
                                 style={[styles.modalCancel, { borderColor: colors.border.light }]}
@@ -1646,6 +1688,9 @@ const createStyles = (colors, width) => StyleSheet.create({
     reasonChip: { borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: spacing.sm, minHeight: 40, justifyContent: 'center' },
     reasonChipText: { ...typography.styles.micro },
     reasonInput: { marginBottom: spacing.md },
+    rejectFieldLabel: { ...typography.styles.caption, marginBottom: spacing.xs },
+    rejectFieldRow: { gap: spacing.xs },
+    rejectFieldHint: { ...typography.styles.micro, marginTop: spacing.xs, marginBottom: spacing.md },
     modalActions: { flexDirection: 'row', gap: spacing.md },
     modalCancel: {
         flex: 1,

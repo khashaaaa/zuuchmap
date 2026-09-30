@@ -269,7 +269,12 @@ const postService = {
   },
   adminEditPost: async (postId, updates) => apiClient.patch(API_CONFIG.ENDPOINTS.ADMIN.EDIT_POST(postId), updates),
   approvePost: async (postId) => apiClient.put(API_CONFIG.ENDPOINTS.ADMIN.APPROVE(postId)),
-  rejectPost: async (postId, reason) => apiClient.put(API_CONFIG.ENDPOINTS.ADMIN.REJECT(postId), { reason }),
+  // `fieldKey` names the field the reason is about, so the owner's edit form
+  // can point at it (post.rejection_field) — optional, same as the web's.
+  rejectPost: async (postId, reason, fieldKey) => apiClient.put(
+    API_CONFIG.ENDPOINTS.ADMIN.REJECT(postId),
+    { reason, ...(fieldKey ? { field_key: fieldKey } : {}) },
+  ),
   getAdminStats: async () => apiClient.get(API_CONFIG.ENDPOINTS.ADMIN.STATS),
 };
 

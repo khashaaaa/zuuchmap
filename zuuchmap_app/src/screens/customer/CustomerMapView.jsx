@@ -6,13 +6,14 @@ import {
     ActivityIndicator,
     Switch,
     Platform,
+    PixelRatio,
     StyleSheet,
 } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing, typography, radius, interactions, toneForTheme, animations, isTablet } from '../../design/theme';
+import { spacing, typography, radius, interactions, toneForTheme, animations, isTablet, mapStyleFor, withAlpha } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
@@ -62,11 +63,16 @@ function uiReducer(state, action) {
 // iOS; Android needs the style array.
 const FIRST_FIX_RADIUS_KM = 25;
 
-const MAP_STYLE_NO_POI = [
-    { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
-    { featureType: 'poi.business', stylers: [{ visibility: 'off' }] },
-    { featureType: 'transit', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
-];
+// react-native-maps 1.20.1 (the version Expo SDK 54 pins) never learns a custom
+// marker's size under the new architecture on Android: `MapMarker.createDrawable`
+// falls back to a fixed 100x100 *pixel* bitmap and draws the child into it from
+// the top-left. Anything larger is cut off on the right and bottom — at this
+// density a 46dp cluster pill lost a third of itself, and no amount of styling
+// the child changes the bitmap. So a marker has to fit in 100px, which is a
+// different number of dp on every screen.
+const MARKER_MAX_DP = Platform.OS === 'android' ? Math.floor(100 / PixelRatio.get()) : 64;
+const PIN_SIZE = Math.min(32, MARKER_MAX_DP);
+const CLUSTER_SIZE = Math.min(40, MARKER_MAX_DP);
 
 const DEFAULT_REGION = {
     latitude: 47.9184,
@@ -458,6 +464,7 @@ const CustomerMapView = ({ navigation, route }) => {
         // may be a schema colour that was never tuned for a white ring, so the
         // count itself sits on a white disc — legible on any hue.
         const tint = getMarkerColor(cluster.dominant);
+        const label = count > 999 ? '999+' : String(count);
         return (
             <Marker
                 key={id}
@@ -466,9 +473,17 @@ const CustomerMapView = ({ navigation, route }) => {
                 tracksViewChanges={tracksMarkers}
                 accessibilityLabel={t('map.clusterLabel', { count })}
             >
-                <View style={[styles.clusterMarkerContainer, { backgroundColor: tint, minWidth: count > 99 ? 52 : count > 9 ? 44 : 40 }]}>
+                {/* A fixed circle, never a pill that widens with the count —
+                    see MARKER_MAX_DP. The type steps down instead. */}
+                <View style={[styles.clusterMarkerContainer, { backgroundColor: tint }]}>
                     <View style={styles.clusterDisc}>
-                        <Text style={[styles.clusterText, { color: toneForTheme(tint, false) }]}>{count > 999 ? '999+' : count}</Text>
+                        <Text
+                            style={[styles.clusterText, label.length > 2 && { fontSize: label.length > 3 ? 10 : 12 }, { color: toneForTheme(tint, false) }]}
+                            numberOfLines={1}
+                            allowFontScaling={false}
+                        >
+                            {label}
+                        </Text>
                     </View>
                 </View>
             </Marker>
@@ -558,7 +573,9 @@ const CustomerMapView = ({ navigation, route }) => {
                     showsCompass={true}
                     showsTraffic={mapPreferences.showTraffic}
                     showsPointsOfInterest={false}
-                    customMapStyle={MAP_STYLE_NO_POI}
+                    customMapStyle={mapStyleFor(isDark)}
+                    loadingBackgroundColor={colors.background}
+                    loadingIndicatorColor={colors.iconAccent}
                     mapType={mapPreferences.mapType}
                     toolbarEnabled={false}
                     pitchEnabled={true}
@@ -574,7 +591,7 @@ const CustomerMapView = ({ navigation, route }) => {
 
                 {loading && (
                     <View style={styles.loadingOverlay}>
-                        <ActivityIndicator size="large" color={MAP_OVERLAY.icon} />
+                        <ActivityIndicator size="large" color={colors.iconAccent} />
                         <Text style={styles.loadingText}>{t('common.loading')}</Text>
                     </View>
                 )}
@@ -593,7 +610,7 @@ const CustomerMapView = ({ navigation, route }) => {
                                 accessibilityRole="button"
                                 accessibilityLabel={t('map.title')}
                             >
-                                <Ionicons name="locate" size={20} color={MAP_OVERLAY.icon} />
+                                <Ionicons name="locate" size={20} color={colors.iconAccent} />
                             </PressableScale>
 
                             <PressableScale
@@ -602,7 +619,7 @@ const CustomerMapView = ({ navigation, route }) => {
                                 accessibilityRole="button"
                                 accessibilityLabel={t('map.autoFit')}
                             >
-                                <Ionicons name="expand" size={20} color={MAP_OVERLAY.icon} />
+                                <Ionicons name="expand" size={20} color={colors.iconAccent} />
                             </PressableScale>
 
                             {carouselPosts && (
@@ -656,8 +673,8 @@ const CustomerMapView = ({ navigation, route }) => {
                     <Switch
                         value={mapPreferences.clusterMarkers}
                         onValueChange={(value) => updatePreference('clusterMarkers', value)}
-                        trackColor={{ false: colors.border.medium, true: colors.primary }}
-                        thumbColor={colors.surface}
+                        trackColor={{ false: colors.switch.track, true: colors.primary }}
+                        thumbColor={colors.switch.thumb}
                     />
                 </View>
 
@@ -666,8 +683,8 @@ const CustomerMapView = ({ navigation, route }) => {
                     <Switch
                         value={mapPreferences.autoFitMarkers}
                         onValueChange={(value) => updatePreference('autoFitMarkers', value)}
-                        trackColor={{ false: colors.border.medium, true: colors.primary }}
-                        thumbColor={colors.surface}
+                        trackColor={{ false: colors.switch.track, true: colors.primary }}
+                        thumbColor={colors.switch.thumb}
                     />
                 </View>
 
@@ -676,8 +693,8 @@ const CustomerMapView = ({ navigation, route }) => {
                     <Switch
                         value={mapPreferences.showTraffic}
                         onValueChange={(value) => updatePreference('showTraffic', value)}
-                        trackColor={{ false: colors.border.medium, true: colors.primary }}
-                        thumbColor={colors.surface}
+                        trackColor={{ false: colors.switch.track, true: colors.primary }}
+                        thumbColor={colors.switch.thumb}
                     />
                 </View>
             </BottomSheetModal>
@@ -694,18 +711,15 @@ const CustomerMapView = ({ navigation, route }) => {
     );
 };
 
-// Map furniture sits on Google's tiles, which do not change with the app
-// theme — so these colours are fixed in both modes (same idiom as the map
-// pins' white ring / the web `.map-pin`). Amber is the dark-palette primary
-// (the brightest accent); icons on white use the light chart amber, the
-// darkest amber that still clears 3:1 on white.
+// Pins and the count badge are fixed in both modes: a white ring separates a
+// category colour from either map ground (same idiom as the web `.map-pin`),
+// and amber is the dark-palette primary, the brightest accent. The *chrome*
+// around the map — the two round buttons and the loading scrim — follows the
+// app theme, now that the tiles do too (`mapStyleFor`).
 const MAP_OVERLAY = {
     accent: '#F5A623',
     onAccent: '#1A1200',
     surface: '#FFFFFF',
-    icon: '#C87206',
-    text: '#1A1C1E',
-    scrim: 'rgba(255, 255, 255, 0.75)',
     shadow: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
@@ -749,10 +763,11 @@ const createStyles = (colors) => StyleSheet.create({
     map: {
         flex: 1,
     },
+    // No shadow on either marker: there is no room in the bitmap for one (see
+    // MARKER_MAX_DP), and the white ring already separates on both grounds.
     singleMarkerContainer: {
-        ...MAP_OVERLAY.shadow,
-        width: 32,
-        height: 32,
+        width: PIN_SIZE,
+        height: PIN_SIZE,
         borderRadius: radius.full,
         justifyContent: 'center',
         alignItems: 'center',
@@ -760,24 +775,23 @@ const createStyles = (colors) => StyleSheet.create({
         borderColor: MAP_OVERLAY.surface,
     },
     clusterMarkerContainer: {
-        ...MAP_OVERLAY.shadow,
         backgroundColor: MAP_OVERLAY.accent,
         borderRadius: radius.full,
-        height: 40,
-        padding: 4,
+        width: CLUSTER_SIZE,
+        height: CLUSTER_SIZE,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 2,
         borderColor: MAP_OVERLAY.surface,
     },
+    // Explicit size: 2dp white border + a 3dp ring of the category colour.
     clusterDisc: {
-        flex: 1,
-        alignSelf: 'stretch',
+        width: CLUSTER_SIZE - 10,
+        height: CLUSTER_SIZE - 10,
         borderRadius: radius.full,
         backgroundColor: MAP_OVERLAY.surface,
         justifyContent: 'center',
         alignItems: 'center',
-        paddingHorizontal: spacing.xs,
     },
     clusterText: { ...typography.styles.labelStrong, fontVariant: ['tabular-nums'] },
     offlineBanner: {
@@ -793,14 +807,14 @@ const createStyles = (colors) => StyleSheet.create({
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: MAP_OVERLAY.scrim,
+        backgroundColor: withAlpha(colors.background, 0.75),
         justifyContent: 'center',
         alignItems: 'center',
     },
     loadingText: {
         marginTop: spacing.sm,
         ...typography.styles.caption,
-        color: MAP_OVERLAY.text,
+        color: colors.text.primary,
     },
     floatingButton: {
         ...MAP_OVERLAY.shadow,
@@ -808,7 +822,9 @@ const createStyles = (colors) => StyleSheet.create({
         width: 48,
         height: 48,
         borderRadius: radius.full,
-        backgroundColor: MAP_OVERLAY.surface,
+        backgroundColor: colors.surface,
+        borderWidth: 1,
+        borderColor: colors.border.light,
         justifyContent: 'center',
         alignItems: 'center',
     },

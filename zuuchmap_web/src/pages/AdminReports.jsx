@@ -9,6 +9,7 @@ import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
 import Button from '@/components/Button'
 import { reportsApi } from '@/lib/api'
+import { formatDateTime } from '@/lib/utils'
 
 const TABS = ['OPEN', 'RESOLVED', 'DISMISSED']
 

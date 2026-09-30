@@ -152,6 +152,15 @@ jobs:
         working-directory: zuuchmap_web
         run: npm run lint
 
+      # The one lint rule that IS a gate. An identifier that is used and never
+      # imported builds, passes every test that does not render that branch, and
+      # white-screens the page at runtime — `getImageUrl` took down the admin
+      # moderation list for three weeks and `formatDateTime` the report queue,
+      # both sitting in the advisory output above among forty unrelated findings.
+      - name: Undefined identifiers
+        working-directory: zuuchmap_web
+        run: npm run lint:undef
+
       - name: Tests
         working-directory: zuuchmap_web
         run: npm test

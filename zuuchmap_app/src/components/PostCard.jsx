@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import PressableScale from './PressableScale';
 import CategoryBadge from './CategoryBadge';
 import StatusBadge from './StatusBadge';
-import { spacing, typography, radius } from '../design/theme';
+import { spacing, typography, radius, tintOn } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
 
 /**
@@ -116,7 +116,8 @@ const createStyles = (colors) => StyleSheet.create({
     },
     emphasizedCard: {
         ...colors.elevation.selected,
-        backgroundColor: colors.opacity.background.primaryLight,
+        // Opaque, because the card is elevated (see `tintOn`).
+        backgroundColor: tintOn(colors.primary, 0.08, colors.surface),
     },
     imageContainer: {
         width: 96,

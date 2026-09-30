@@ -8,6 +8,8 @@ import { useAppTheme } from '../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 import { provinces as PROVINCE_CODES, districts as DISTRICT_CODES } from '../config/app.config';
 import { sortByLabel } from '../utils/displayUtils';
+import { getSubcategoryLabel } from '../utils/postUtils';
+import { fieldLabel, optionLabel } from './DynamicForm';
 
 const SORT_OPTIONS = [
     { value: '' },
@@ -29,7 +31,7 @@ const STATUS_OPTIONS = [
  * different vocabulary from MapFilterModal (multi-select categories, a price
  * slider, a radius, applied on confirm), so the two stay separate.
  */
-const BrowseFilterSheet = ({ visible, onClose, onClear, filters, setFilters, categoryOptions }) => {
+const BrowseFilterSheet = ({ visible, onClose, onClear, filters, setFilters, categoryOptions, schema }) => {
     const { colors } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
     const { t, i18n } = useTranslation();
@@ -43,6 +45,28 @@ const BrowseFilterSheet = ({ visible, onClose, onClear, filters, setFilters, cat
     const districtCodes = useMemo(
         () => sortByLabel(DISTRICT_CODES, (c) => t(`district.${c}`, { defaultValue: c })),
         [t, i18n.language],
+    );
+
+    // The chosen category's own narrowing: its subcategories and whichever
+    // fields the admin marked `filterable`. Schema-driven, like the web's.
+    const subcategories = schema?.subcategories ?? [];
+    const filterFields = useMemo(() => schema?.fields?.filter((f) => f.filterable) ?? [], [schema]);
+    const setAttr = (key, value) => setFilters((prev) => ({ ...prev, attrs: { ...prev.attrs, [key]: value } }));
+    const inputStyle = [styles.locationInput, {
+        backgroundColor: colors.background,
+        borderColor: colors.border.light,
+        color: colors.text.primary,
+    }];
+    const chip = (key, label, isActive, onPress) => (
+        <SelectionPop key={key} selected={isActive}>
+            <TouchableOpacity
+                style={[styles.filterOption, isActive && styles.filterOptionActive]}
+                onPress={onPress}
+                activeOpacity={interactions.activeOpacity}
+            >
+                <Text style={[styles.filterOptionText, isActive && styles.filterOptionTextActive]}>{label}</Text>
+            </TouchableOpacity>
+        </SelectionPop>
     );
 
     return (
@@ -79,7 +103,10 @@ const BrowseFilterSheet = ({ visible, onClose, onClear, filters, setFilters, cat
                                 styles.filterOption,
                                 filters.category === cat.value && styles.filterOptionActive,
                             ]}
-                            onPress={() => setFilters(prev => ({ ...prev, category: cat.value }))}
+                            // Subcategory and attribute filters belong to the category being left.
+                            onPress={() => setFilters(prev => (prev.category === cat.value
+                                ? prev
+                                : { ...prev, category: cat.value, subcategory: '', attrs: {} }))}
                             activeOpacity={interactions.activeOpacity}
                         >
                             <Text style={[
@@ -93,6 +120,66 @@ const BrowseFilterSheet = ({ visible, onClose, onClear, filters, setFilters, cat
                 ))}
             </View>
         </View>
+
+        {subcategories.length > 0 && (
+            <View style={styles.filterSection}>
+                <Text style={[styles.filterLabel, { color: colors.text.secondary }]}>{t('filter.subcategory')}</Text>
+                <View style={styles.filterOptionsContainer}>
+                    {chip('all', t('filter.all'), !filters.subcategory, () => setFilters(prev => ({ ...prev, subcategory: '' })))}
+                    {subcategories.map((sub) => chip(
+                        sub.value,
+                        getSubcategoryLabel(sub.value, schema) || sub.value,
+                        filters.subcategory === sub.value,
+                        () => setFilters(prev => ({ ...prev, subcategory: sub.value })),
+                    ))}
+                </View>
+            </View>
+        )}
+
+        {filterFields.length > 0 && (
+            <View style={styles.filterSection}>
+                <Text style={[styles.filterLabel, { color: colors.text.secondary }]}>{t('filter.specs')}</Text>
+                {filterFields.map((f) => (
+                    <View key={f.key} style={styles.attrField}>
+                        <Text style={[styles.attrLabel, { color: colors.text.secondary }]}>{fieldLabel(f, t, i18n.language)}</Text>
+                        {f.type === 'select' ? (
+                            <View style={styles.filterOptionsContainer}>
+                                {chip('all', t('filter.all'), !filters.attrs[f.key], () => setAttr(f.key, ''))}
+                                {(f.options ?? []).map((o) => chip(
+                                    o, optionLabel(o, t), filters.attrs[f.key] === o, () => setAttr(f.key, o),
+                                ))}
+                            </View>
+                        ) : f.type === 'number' ? (
+                            <View style={styles.priceRangeRow}>
+                                <TextInput
+                                    style={[inputStyle, styles.priceRangeInput]}
+                                    value={String(filters.attrs[`${f.key}_min`] ?? '')}
+                                    onChangeText={(text) => setAttr(`${f.key}_min`, text.replace(/[^0-9.]/g, ''))}
+                                    placeholder={t('filter.min')}
+                                    placeholderTextColor={colors.text.placeholder}
+                                    keyboardType="decimal-pad"
+                                />
+                                <TextInput
+                                    style={[inputStyle, styles.priceRangeInput]}
+                                    value={String(filters.attrs[`${f.key}_max`] ?? '')}
+                                    onChangeText={(text) => setAttr(`${f.key}_max`, text.replace(/[^0-9.]/g, ''))}
+                                    placeholder={t('filter.max')}
+                                    placeholderTextColor={colors.text.placeholder}
+                                    keyboardType="decimal-pad"
+                                />
+                            </View>
+                        ) : (
+                            <TextInput
+                                style={inputStyle}
+                                value={String(filters.attrs[f.key] ?? '')}
+                                onChangeText={(text) => setAttr(f.key, text)}
+                                placeholderTextColor={colors.text.placeholder}
+                            />
+                        )}
+                    </View>
+                ))}
+            </View>
+        )}
 
         <View style={styles.filterSection}>
             <Text style={[styles.filterLabel, { color: colors.text.secondary }]}>{t('filter.sortBy')}</Text>
@@ -275,6 +362,13 @@ const createStyles = (colors) => StyleSheet.create({
         lineHeight: undefined,
         color: colors.text.primary,
         backgroundColor: colors.background,
+    },
+    attrField: {
+        marginBottom: spacing.md,
+    },
+    attrLabel: {
+        ...typography.styles.caption,
+        marginBottom: spacing.xs,
     },
     priceRangeRow: {
         flexDirection: 'row',

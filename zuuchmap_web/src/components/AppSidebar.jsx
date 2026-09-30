@@ -72,7 +72,7 @@ function NavItem({ to, label, icon: Icon, end, onClick, indicatorId, badge }) {
             />
           )}
           <Icon size={18} className="relative shrink-0" />
-          <span className="relative flex-1 truncate">{label}</span>
+          <span className="relative flex-1 truncate" title={label}>{label}</span>
           {badge > 0 && (
             <span className="relative shrink-0 min-w-5 h-5 px-1.5 rounded-full bg-danger text-on-color text-[11px] font-semibold leading-5 text-center">
               {badge > 99 ? '99+' : badge}
@@ -112,7 +112,7 @@ export default function AppSidebar({ onNavigate }) {
 
   return (
     <aside
-      className="flex flex-col w-60 h-full bg-surface border-r border-border/20 shadow-card shrink-0"
+      className="flex flex-col w-64 h-full bg-surface border-r border-border/20 shadow-card shrink-0"
     >
       <div className="h-14 px-4 flex flex-col justify-center border-b border-border/50 overflow-hidden">
         <h1 className="text-lg md:text-xl font-bold text-primary-text tracking-tight leading-tight">ZuuchMap</h1>

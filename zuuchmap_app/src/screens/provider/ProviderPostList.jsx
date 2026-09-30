@@ -12,6 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet, withAlpha } from '../../design/theme';
+import { useCategorySchemas } from '../../hooks/useCategorySchemas';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
@@ -45,6 +46,8 @@ const PostItem = React.memo(({
     // sees nothing of that closure.
     locale,
     isDark,
+    // Whether the category takes booking requests at all (`has_rental_status`).
+    bookable,
 }) => {
     const styles = useMemo(() => createStyles(colors), [colors]);
     const imageUri = getPostImage(item);
@@ -96,7 +99,7 @@ const PostItem = React.memo(({
             imageUri={imageUri ? getFixedImageUrl(imageUri) : null}
             title={title}
             price={item.price_amount ? formatPrice(item.price_amount, item.price_unit) : (item.price || null)}
-            memoKey={`${locale}-${isDark}-${isLoading}-${item.approval_status}-${item.rejection_reason}-${!!item.pending_revision}-${item.expires_at}-${stat?.views}-${stat?.likes}-${stat?.bookings_pending}-${stat?.bookings_accepted}`}
+            memoKey={`${locale}-${isDark}-${isLoading}-${item.approval_status}-${item.rejection_reason}-${!!item.pending_revision}-${item.expires_at}-${stat?.views}-${stat?.likes}-${stat?.bookings_pending}-${stat?.bookings_accepted}-${bookable}`}
             badges={<>
                 <CategoryBadge postType={item.post_type || item.category || 'construction'} showIcon={true} />
                 {!!item.featured_until && new Date(item.featured_until) > new Date() && (
@@ -166,10 +169,15 @@ const PostItem = React.memo(({
                         <Ionicons name="heart-outline" size={13} color={colors.text.tertiary} />
                         <Text style={styles.attentionText}>{stat.likes}</Text>
                     </View>
-                    <View style={styles.attentionItem}>
-                        <Ionicons name="calendar-outline" size={13} color={colors.text.tertiary} />
-                        <Text style={styles.attentionText}>{stat.bookings_pending + stat.bookings_accepted}</Text>
-                    </View>
+                    {/* Only where a request can exist: a job or a material
+                        listing has no booking flow, so its "0" was not a quiet
+                        week, it was a number that could never move. */}
+                    {bookable && (
+                        <View style={styles.attentionItem}>
+                            <Ionicons name="calendar-outline" size={13} color={colors.text.tertiary} />
+                            <Text style={styles.attentionText}>{stat.bookings_pending + stat.bookings_accepted}</Text>
+                        </View>
+                    )}
                 </View>
             )}
 
@@ -190,6 +198,7 @@ const PostItem = React.memo(({
         prevProps.item.expires_at === nextProps.item.expires_at &&
         prevProps.isLoading === nextProps.isLoading &&
         prevProps.colors === nextProps.colors &&
+        prevProps.bookable === nextProps.bookable &&
         prevProps.stat?.views === nextProps.stat?.views &&
         prevProps.stat?.likes === nextProps.stat?.likes &&
         prevProps.stat?.bookings_pending === nextProps.stat?.bookings_pending &&
@@ -254,6 +263,11 @@ const ProviderPostList = ({ navigation }) => {
         staleTime: 60_000,
     });
     const plan = serverStats?.plan ?? null;
+    const schemas = useCategorySchemas();
+    const bookableKeys = useMemo(
+        () => new Set(schemas.filter((c) => c.has_rental_status).map((c) => c.key)),
+        [schemas],
+    );
     const atQuota = Boolean(plan && plan.posts_active >= plan.post_limit);
 
 
@@ -504,9 +518,10 @@ const ProviderPostList = ({ navigation }) => {
             stat={statsById.get(item.id)}
             locale={i18n.language}
             isDark={isDark}
+            bookable={bookableKeys.has(item.category)}
         />
         </View>
-    ), [handlePostPress, handleEditPost, handleDeletePost, handleRenewPost, handleFeaturePost, isLoading, getPostTitleWrapped, colors, t, statsById, i18n.language, isDark]);
+    ), [handlePostPress, handleEditPost, handleDeletePost, handleRenewPost, handleFeaturePost, isLoading, getPostTitleWrapped, colors, t, statsById, i18n.language, isDark, bookableKeys]);
 
     if (queryError && posts.length === 0) {
         return (

@@ -16,6 +16,7 @@ import TabBar from '@/components/TabBar'
 import Button from '@/components/Button'
 import DensityToggle from '@/components/DensityToggle'
 import { useTableDensity } from '@/hooks/useTableDensity'
+import { useCategories } from '@/hooks/useCategories'
 import { toast } from 'sonner'
 import { useMinDisplayTime } from '@/hooks/useMinDisplayTime'
 import { useApiMutation } from '@/hooks/useApiMutation'
@@ -63,6 +64,10 @@ export default function ProviderPosts() {
     staleTime: 60_000,
   })
   const statsById = new Map((myStats?.posts ?? []).map((s) => [s.id, s]))
+  // The booking-request count only means something where a request can exist:
+  // a job or a material listing has no booking flow, so its "0" could never move.
+  const { data: schemas = [] } = useCategories()
+  const bookableKeys = new Set(schemas.filter((c) => c.has_rental_status).map((c) => c.key))
   const plan = myStats?.plan
   const quotaUsed = plan ? Math.min(plan.posts_active / Math.max(plan.post_limit, 1), 1) : 0
   const atQuota = plan && plan.posts_active >= plan.post_limit
@@ -262,7 +267,7 @@ export default function ProviderPosts() {
                       <>
                         <span className="flex items-center gap-1" title={t('posts.stats.views')}><Eye size={12} aria-hidden="true" /> {stat.views}</span>
                         <span className="flex items-center gap-1" title={t('posts.stats.saves')}><Heart size={12} aria-hidden="true" /> {stat.likes}</span>
-                        <span className="flex items-center gap-1" title={t('posts.stats.requests')}><CalendarRange size={12} aria-hidden="true" /> {stat.bookings_pending + stat.bookings_accepted}</span>
+                        {bookableKeys.has(getPostCategory(post)) && <span className="flex items-center gap-1" title={t('posts.stats.requests')}><CalendarRange size={12} aria-hidden="true" /> {stat.bookings_pending + stat.bookings_accepted}</span>}
                       </>
                     )}
                     {expiry && <span className={`flex items-center gap-1 ${expiry.cls}`}><Timer size={12} /> {expiry.text}</span>}
@@ -372,7 +377,7 @@ export default function ProviderPosts() {
                           <span className="flex items-center gap-2.5 text-xs text-muted tabular-nums whitespace-nowrap">
                             <span className="flex items-center gap-1" title={t('posts.stats.views')}><Eye size={11} aria-hidden="true" /> {stat.views}</span>
                             <span className="flex items-center gap-1" title={t('posts.stats.saves')}><Heart size={11} aria-hidden="true" /> {stat.likes}</span>
-                            <span className="flex items-center gap-1" title={t('posts.stats.requests')}><CalendarRange size={11} aria-hidden="true" /> {stat.bookings_pending + stat.bookings_accepted}</span>
+                            {bookableKeys.has(getPostCategory(post)) && <span className="flex items-center gap-1" title={t('posts.stats.requests')}><CalendarRange size={11} aria-hidden="true" /> {stat.bookings_pending + stat.bookings_accepted}</span>}
                           </span>
                         ) : <span className="text-muted text-xs">—</span>}
                       </td>

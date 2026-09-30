@@ -57,7 +57,7 @@ export default function ProviderDashboard() {
         {chartData.length === 0 ? (
           <p className="text-base text-muted text-center py-6">{t('posts.noMyPosts')}</p>
         ) : (
-          <BarList data={chartData} label={t('posts.postViewsChart')} />
+          <BarList data={chartData} label={t('posts.postViewsChart')} stacked />
         )}
       </div>
       <div className="flex items-center justify-between mb-4">

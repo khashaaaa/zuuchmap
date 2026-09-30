@@ -236,15 +236,19 @@ export function ColumnChart({ data = [], label, unit }) {
  * colour-coded everywhere else (categories), the bar wears that identity.
  * It is still one measure per bar — hue is identity here, never magnitude.
  */
-export function BarList({ data = [], label, emptyLabel }) {
+// `stacked` puts the label on its own line above the bar. For rows named by
+// free text (listing titles) rather than a short category: beside the bar they
+// were cut to "Ус, дулаан, ариутгах тат…" — twice, for two different listings —
+// with 900px of track to their right.
+export function BarList({ data = [], label, emptyLabel, stacked = false }) {
   if (!data.length) return <ChartEmpty label={emptyLabel} />
   const max = Math.max(...data.map((d) => d.value), 1)
 
   return (
     <ul className="space-y-2.5" aria-label={label}>
       {data.map((d) => (
-        <li key={d.key} title={`${d.label} — ${d.value}${d.secondary != null ? ` · ${d.secondary}` : ''}`} className="grid grid-cols-[minmax(6rem,9rem)_1fr_auto] items-center gap-3">
-          <span className="text-xs text-muted truncate">{d.label}</span>
+        <li key={d.key} title={`${d.label} — ${d.value}${d.secondary != null ? ` · ${d.secondary}` : ''}`} className={stacked ? 'grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1' : 'grid grid-cols-[minmax(6rem,9rem)_1fr_auto] items-center gap-3'}>
+          <span className={`text-xs text-muted truncate ${stacked ? 'col-span-2' : ''}`}>{d.label}</span>
           <span className="relative h-2.5 rounded-full bg-surface2 overflow-hidden">
             <span
               className={`block h-full rounded-full ${d.color ? '' : 'bg-chart'}`}
@@ -272,17 +276,19 @@ export function BarList({ data = [], label, emptyLabel }) {
  * from the stage above, which is the number an operator actually acts on.
  */
 export function Funnel({ stages = [] }) {
-  const top = stages[0]?.value ?? 0
+  // The widest stage, which is not always the first: a returning user can
+  // verify without a counted visit, so dividing by visits printed 122% and 144%
+  // beside bars that had all hit the end of the track.
+  const top = Math.max(0, ...stages.map((s) => s.value))
   if (!top) return <ChartEmpty />
 
   return (
     <ol className="space-y-2.5">
       {stages.map((stage, i) => {
-        // Conversion is measured against the top of the funnel ("of everyone
-        // who reached step 1, how many got here") — a monotonic 0–100%. Measuring
-        // against the previous stage produced >100% when steps aren't strict
-        // prerequisites, and 0/0 read as 100%. `top` is > 0 (early return).
-        const pct = i === 0 ? null : Math.round((stage.value / top) * 100)
+        // A share of the widest stage, so always 0–100%. Measuring against the
+        // previous stage produced >100% when steps aren't strict prerequisites,
+        // and 0/0 read as 100%. `top` is > 0 (early return).
+        const pct = stage.value === top ? null : Math.round((stage.value / top) * 100)
         return (
           <li key={stage.key} title={`${stage.label} — ${stage.value}${pct != null ? ` (${pct}%)` : ''}`} className="grid grid-cols-[minmax(7rem,10rem)_1fr_auto] items-center gap-3">
             <span className="text-xs text-muted truncate">{stage.label}</span>

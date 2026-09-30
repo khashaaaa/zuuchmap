@@ -133,6 +133,10 @@ export default function AdminUsers() {
                             : t('admin.planNoExpiry')}
                         </span>
                       </div>
+                    ) : user.type !== 'PROVIDER' ? (
+                      // A plan is a posting quota. A customer has nothing to
+                      // spend one on, so the grant buttons are not offered.
+                      <span className="text-muted">—</span>
                     ) : (
                       <div className="flex gap-1">
                         {[1, 3, 12].map((months) => (

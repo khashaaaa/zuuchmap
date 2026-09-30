@@ -9,6 +9,7 @@ import { useAppTheme } from '../../hooks/useAppTheme';
 import { spacing, typography } from '../../design/theme';
 import { useQuery } from '@tanstack/react-query';
 import reportService, { REPORTS_KEY } from '../../services/api/reportService';
+import postService from '../../services/api/postService';
 
 import AdminApproval from './AdminApproval';
 import AdminProfile from './AdminProfile';
@@ -27,6 +28,16 @@ const AdminDashboard = () => {
         queryKey: [...REPORTS_KEY, 'count'],
         queryFn: reportService.countOpen,
         refetchInterval: 60 * 1000,
+    });
+    // Queue-depth badge. Same key and fetcher as AdminApproval, so the two
+    // share one cache entry and the socket's `['admin']` invalidation moves
+    // both. The more urgent of the two queues was the one with no count.
+    const { data: pendingPosts = 0 } = useQuery({
+        queryKey: ['admin', 'stats'],
+        queryFn: async () => (await postService.getAdminStats()).data,
+        staleTime: 30 * 1000,
+        refetchInterval: 60 * 1000,
+        select: (stats) => stats?.totals?.pending ?? 0,
     });
 
     return (
@@ -76,7 +87,7 @@ const AdminDashboard = () => {
                 <Tab.Screen
                     name="Approval"
                     component={AdminApproval}
-                    options={{ tabBarLabel: t('admin.pendingPostsShort') }}
+                    options={{ tabBarLabel: t('admin.pendingPostsShort'), tabBarBadge: pendingPosts > 0 ? pendingPosts : undefined }}
                 />
                 <Tab.Screen
                     name="Reports"

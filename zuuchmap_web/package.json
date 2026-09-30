@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
+    "lint:undef": "eslint src -f json | node -e \"let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const hits=JSON.parse(s).flatMap(f=>f.messages.filter(m=>m.ruleId==='no-undef'||m.fatal).map(m=>f.filePath+':'+m.line+'  '+m.message));hits.forEach(h=>console.error(h));process.exit(hits.length?1:0)})\"",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"

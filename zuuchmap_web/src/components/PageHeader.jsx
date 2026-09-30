@@ -1,8 +1,12 @@
 import { ArrowLeft } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useDocumentMeta } from '@/hooks/useDocumentMeta'
 
 export default function PageHeader({ title, description, action, icon: Icon, onBack }) {
   const { t } = useTranslation()
+  // Every signed-in page shared the landing page's tab title, so five open
+  // tabs were five identical labels. The heading is the page's name already.
+  useDocumentMeta({ title: typeof title === 'string' ? title : undefined })
 
   return (
     <div className="mb-6">

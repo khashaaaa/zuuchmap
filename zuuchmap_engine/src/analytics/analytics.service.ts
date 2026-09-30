@@ -167,7 +167,7 @@ export class AnalyticsService {
            (SELECT COUNT(*)::int FROM "user" WHERE type = 'CUSTOMER') AS customers,
            (SELECT COUNT(*)::int FROM "post") AS posts,
            (SELECT COUNT(*)::int FROM "post" WHERE approval_status = 'APPROVED') AS approved_posts,
-           (SELECT COUNT(*)::int FROM "post" WHERE approval_status = 'PENDING') AS pending_posts,
+           (SELECT COUNT(*)::int FROM "post" WHERE approval_status = 'PENDING' OR pending_revision IS NOT NULL) AS pending_posts,
            (SELECT COALESCE(SUM(views), 0)::int FROM "post") AS post_views,
            (SELECT COUNT(*)::int FROM "booking") AS bookings,
            (SELECT COUNT(*)::int FROM "booking" WHERE status = 'ACCEPTED') AS accepted_bookings`),

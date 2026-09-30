@@ -48,7 +48,7 @@ export function Stars({ value, size = 14, onSelect }) {
 const REVIEW_PREVIEW = 5
 
 // Rating summary + review list + own-review form for a provider
-export default function ProviderReviews({ providerId, canReview }) {
+export default function ProviderReviews({ providerId, canReview, onRequireAuth }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [rating, setRating] = useState(0)
@@ -98,6 +98,12 @@ export default function ProviderReviews({ providerId, canReview }) {
         <span className="text-sm font-semibold text-text">{count ? average.toFixed(1) : '—'}</span>
         <span className="text-xs text-muted">{t('review.count', { count })}</span>
       </div>
+
+      {/* A signed-out visitor gets the named sign-in prompt, as for save,
+          message, report and book — not an absent form. */}
+      {!canReview && onRequireAuth && (
+        <Button size="sm" variant="outline" onClick={onRequireAuth}>{t('auth.guestReview')}</Button>
+      )}
 
       {canReview && (
         <div className="bg-surface2 rounded-lg p-3 space-y-2">

@@ -269,7 +269,7 @@ export default function AdminPosts() {
                           rides along because a first-time poster and someone with
                           three prior rejections deserve different scrutiny. */}
                       <div className="flex items-center gap-3 min-w-0">
-                        {getImageUrl(post.images?.[0])
+                        {post.images?.[0]
                           ? <img
                               src={getThumbUrl(post.images[0])}
                               alt=""

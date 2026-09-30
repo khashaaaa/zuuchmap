@@ -28,7 +28,7 @@ export default {
     },
   nav: {
     myPosts: '我的发布', myPostsShort: '发布', categories: '分类', browse: '浏览', map: '地图',
-    saved: '收藏', profile: '个人资料', logout: '退出登录',
+    saved: '收藏', profile: '个人资料', logout: '退出登录', logoutConfirmMessage: '确定要退出登录吗？',
   },
   auth: {
       guestTitle: '请先登录',
@@ -111,6 +111,7 @@ export default {
   filter: {
     title: '筛选', category: '分类', priceRange: '价格区间', status: '状态', sortBy: '排序',
     allCategories: '所有分类',
+    specs: '规格', subcategory: '子分类', min: '最低', max: '最高',
     allStatuses: '所有状态', all: '全部', minPrice: '最低价', maxPrice: '最高价', clearAll: '清除筛选',
     resultsFound: '找到 {{count}} 条信息',
     searchPlaceholder: '搜索信息...', searchNoResults: '未找到结果',
@@ -223,6 +224,8 @@ export default {
     noPending: '没有待审核内容', noPendingDesc: '所有信息都已审核完毕。',
     reviewPost: '审核信息', poster: '发布者',
     rejectNotice: '原因将发送给发布者，请写具体。',
+    rejectFieldLabel: '哪个字段？（可选）', rejectFieldNone: '不指定',
+    rejectFieldHint: '发布者编辑时会看到该字段被突出显示。',
     approveError: '通过信息失败。',
     rejectError: '拒绝信息失败。',
     editPost: '编辑', editDone: '完成',

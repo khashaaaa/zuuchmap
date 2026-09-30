@@ -34,7 +34,7 @@ export default function ProfilePage() {
     // Gated on the token as well as the role: a JWT-only endpoint must never
     // be asked for on behalf of a visitor with no session — the answer is a
     // 401 that the response interceptor reads as a session ending.
-    enabled: Boolean(token) && !isProvider,
+    enabled: Boolean(token) && isCustomer,
   })
 
   const totalPosts = myPosts?.length ?? 0
@@ -49,11 +49,13 @@ export default function ProfilePage() {
         <StatCard label={t('profile.activePosts')} value={activePosts} color="text-success" />
       </div>
     )
-  } else {
+  } else if (isCustomer) {
+    // Customers only. An admin cannot save a listing, so theirs was a tile
+    // that read "Хадгалсан 0" and could never read anything else.
     stats = (
       <div className="grid grid-cols-1 gap-3 mb-4">
         <StatCard label={t('nav.saved')} value={likedCount} />
-        {isCustomer && <SavedSearches />}
+        <SavedSearches />
       </div>
     )
   }

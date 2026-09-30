@@ -30,7 +30,7 @@ const StatTile = ({ label, value, icon, emphasis = false, ready = true, loading 
         <View style={[styles.tile, style]}>
             <View style={styles.labelRow}>
                 {icon && <Ionicons name={icon} size={12} color={colors.text.tertiary} />}
-                <Text style={styles.label} numberOfLines={1}>{label}</Text>
+                <Text style={styles.label} numberOfLines={2}>{label}</Text>
             </View>
             {loading
                 ? <ActivityIndicator size="small" color={colors.iconAccent} />
@@ -48,14 +48,22 @@ const StatTile = ({ label, value, icon, emphasis = false, ready = true, loading 
 };
 
 const createStyles = (colors) => StyleSheet.create({
+    // Label to the top, number to the bottom: when one label in a row of tiles
+    // wraps and its neighbours do not, the numbers still share a baseline.
     tile: {
         alignItems: 'center',
-        justifyContent: 'center',
+        justifyContent: 'space-between',
         minHeight: 56,
     },
+    // The row is capped at the tile's width and the label shrinks inside it.
+    // Without both, a long overline ("ГИШҮҮН БОЛСОН" in a three-up row at
+    // 360dp) laid out at its natural width and ran into the next tile's.
     labelRow: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
+        maxWidth: '100%',
+        paddingHorizontal: spacing.xxs,
         gap: spacing.xxs,
         marginBottom: spacing.xs,
     },
@@ -64,6 +72,7 @@ const createStyles = (colors) => StyleSheet.create({
         textTransform: 'uppercase',
         color: colors.text.tertiary,
         textAlign: 'center',
+        flexShrink: 1,
     },
     value: {
         ...typography.styles.h1,

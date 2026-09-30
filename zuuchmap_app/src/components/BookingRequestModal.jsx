@@ -1,26 +1,27 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { View, Text, Modal, TouchableOpacity, TextInput, ScrollView, StyleSheet, Platform, KeyboardAvoidingView } from 'react-native';
+import { View, Text, TextInput, StyleSheet, Platform } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { spacing, typography, radius, interactions, safeAreaHelpers } from '../design/theme';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { spacing, typography, radius } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
 import bookingService from '../services/api/bookingService';
 import { invalidatePostData, queryClient } from '../services/queryClient';
 import { showInfoModal, getErrorMessage } from '../utils/errorManager';
 import { track } from '../services/analytics';
+import { formatDate } from '../utils/displayUtils';
+import BottomSheetModal from './BottomSheetModal';
 import Button from './Button';
 import PressableScale from './PressableScale';
 
 // Local calendar date, not UTC: `toISOString()` in UTC+8 rolls the date back
 // a day for any time before 08:00 and would submit the wrong booking window.
+// This is the wire format only — anything shown goes through `formatDate`.
 const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 const BookingRequestModal = ({ visible, onClose, postId, availableFrom, availableUntil }) => {
     const { colors, styles: gStyles } = useAppTheme();
-    const insets = useSafeAreaInsets();
     const styles = useMemo(() => createStyles(colors), [colors]);
     const { t } = useTranslation();
 
@@ -112,36 +113,17 @@ const BookingRequestModal = ({ visible, onClose, postId, availableFrom, availabl
     };
 
     return (
-        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.overlay}>
-                <View style={[styles.sheet, { paddingBottom: safeAreaHelpers.getBottomSafeArea(insets) + spacing.lg }]}>
-                    <View style={styles.header}>
-                        <Text style={styles.title}>{t('booking.request')}</Text>
-                        <TouchableOpacity
-                            onPress={onClose}
-                            activeOpacity={interactions.activeOpacityLight}
-                            hitSlop={interactions.hitSlop}
-                            accessibilityRole="button"
-                            accessibilityLabel={t('common.close')}
-                        >
-                            <Ionicons name="close" size={24} color={colors.text.secondary} />
-                        </TouchableOpacity>
-                    </View>
-
-                    <ScrollView
-                        keyboardShouldPersistTaps="handled"
-                        showsVerticalScrollIndicator={false}
-                        contentContainerStyle={styles.scrollBody}
-                    >
+        <BottomSheetModal visible={visible} onClose={onClose} title={t('booking.request')}>
+            <View style={styles.scrollBody}>
 
                     <View style={styles.dateRow}>
                         <PressableScale style={styles.dateBox} onPress={() => setPickerFor('start')} accessibilityRole="button">
                             <Text style={styles.dateLabel}>{t('booking.startDate')}</Text>
-                            <Text style={styles.dateValue}>{fmt(startDate)}</Text>
+                            <Text style={styles.dateValue}>{formatDate(startDate)}</Text>
                         </PressableScale>
                         <PressableScale style={styles.dateBox} onPress={() => setPickerFor('end')} accessibilityRole="button">
                             <Text style={styles.dateLabel}>{t('booking.endDate')}</Text>
-                            <Text style={styles.dateValue}>{fmt(endDate)}</Text>
+                            <Text style={styles.dateValue}>{formatDate(endDate)}</Text>
                         </PressableScale>
                     </View>
 
@@ -164,7 +146,7 @@ const BookingRequestModal = ({ visible, onClose, postId, availableFrom, availabl
                             <Text style={styles.busyTitle}>{t('booking.datesTakenTitle')}</Text>
                             {busyRanges.slice(0, 4).map((r) => (
                                 <Text key={`${r.start_date}-${r.end_date}`} style={styles.busyRange}>
-                                    {r.start_date} — {r.end_date}
+                                    {formatDate(r.start_date)} — {formatDate(r.end_date)}
                                 </Text>
                             ))}
                         </View>
@@ -195,27 +177,13 @@ const BookingRequestModal = ({ visible, onClose, postId, availableFrom, availabl
                         loading={mut.isPending}
                         fullWidth
                     />
-                    </ScrollView>
-                </View>
-            </KeyboardAvoidingView>
-        </Modal>
+            </View>
+        </BottomSheetModal>
     );
 };
 
 const createStyles = (colors) => StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: colors.opacity.overlay, justifyContent: 'flex-end' },
-    sheet: {
-        ...colors.elevation.lg,
-        maxHeight: '85%',
-        backgroundColor: colors.surface,
-        borderTopLeftRadius: radius.modal,
-        borderTopRightRadius: radius.modal,
-        padding: spacing.lg,
-        gap: spacing.md,
-    },
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     scrollBody: { gap: spacing.md },
-    title: { ...typography.styles.title, color: colors.text.primary },
     dateRow: { flexDirection: 'row', gap: spacing.md },
     dateBox: {
         flex: 1,

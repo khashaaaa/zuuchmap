@@ -304,8 +304,8 @@ table { font-variant-numeric: tabular-nums; }
   background: var(--color-surface2);
   color: var(--color-text);
   border: 1px solid var(--color-border-strong);
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  border-radius: var(--radius-inset);
+  box-shadow: var(--shadow-card);
 }
 .leaflet-popup-tip-container .leaflet-popup-tip { background: var(--color-surface2); }
 .leaflet-bar a {

@@ -214,7 +214,7 @@ function Thumbs({ urls, dim }) {
           alt=""
           loading="lazy"
           onError={hideBrokenImage}
-          className={`w-14 h-14 rounded-md object-cover bg-surface2 ${dim ? 'opacity-60 grayscale' : ''}`}
+          className={`w-14 h-14 rounded-inset object-cover bg-surface2 ${dim ? 'opacity-60 grayscale' : ''}`}
         />
       ))}
     </div>

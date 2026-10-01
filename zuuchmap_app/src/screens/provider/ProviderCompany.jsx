@@ -529,7 +529,7 @@ const createStyles = (colors) => StyleSheet.create({
     logoCard: {
         ...colors.elevation.md,
         backgroundColor: colors.surface,
-        borderRadius: radius.xxl,
+        borderRadius: radius.card,
         padding: spacing.xl,
         flexDirection: 'row',
         alignItems: 'center',
@@ -551,7 +551,7 @@ const createStyles = (colors) => StyleSheet.create({
     logoPickerButton: {
         width: 80,
         height: 80,
-        borderRadius: radius.lg,
+        borderRadius: radius.inset,
         backgroundColor: colors.background,
         justifyContent: 'center',
         alignItems: 'center',
@@ -561,7 +561,7 @@ const createStyles = (colors) => StyleSheet.create({
     logoPlaceholder: {
         width: 80,
         height: 80,
-        borderRadius: radius.lg,
+        borderRadius: radius.inset,
         backgroundColor: colors.background,
         justifyContent: 'center',
         alignItems: 'center',
@@ -576,7 +576,7 @@ const createStyles = (colors) => StyleSheet.create({
     logoImage: {
         width: 76,
         height: 76,
-        borderRadius: radius.lg,
+        borderRadius: radius.inset,
         backgroundColor: colors.border.light,
     },
     logoDisplayContainer: {
@@ -585,7 +585,7 @@ const createStyles = (colors) => StyleSheet.create({
     logoDisplay: {
         width: 80,
         height: 80,
-        borderRadius: radius.lg,
+        borderRadius: radius.inset,
         backgroundColor: colors.border.light,
     },
     removeLogoButton: {
@@ -594,7 +594,7 @@ const createStyles = (colors) => StyleSheet.create({
         top: -8,
         right: -8,
         backgroundColor: colors.surface,
-        borderRadius: radius.lg,
+        borderRadius: radius.pill,
     },
     logoInfo: {
         flex: 1,
@@ -628,13 +628,13 @@ const createStyles = (colors) => StyleSheet.create({
     formCard: {
         ...colors.elevation.md,
         backgroundColor: colors.surface,
-        borderRadius: radius.xxl,
+        borderRadius: radius.card,
         padding: spacing.xl,
     },
     infoCard: {
         ...colors.elevation.md,
         backgroundColor: colors.surface,
-        borderRadius: radius.xxl,
+        borderRadius: radius.card,
         padding: spacing.lg,
     },
     infoItem: {

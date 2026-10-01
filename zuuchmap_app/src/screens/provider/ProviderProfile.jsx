@@ -309,9 +309,9 @@ const styles = StyleSheet.create({
         padding: spacing.lg,
     },
     companyHeader: { flexDirection: 'row', alignItems: 'center' },
-    companyLogo: { width: 48, height: 48, borderRadius: radius.lg, marginRight: spacing.md },
+    companyLogo: { width: 48, height: 48, borderRadius: radius.inset, marginRight: spacing.md },
     companyIconContainer: {
-        width: 48, height: 48, borderRadius: radius.lg,
+        width: 48, height: 48, borderRadius: radius.inset,
         justifyContent: 'center', alignItems: 'center', marginRight: spacing.md,
     },
     companyInfo: { flex: 1 },
@@ -329,7 +329,7 @@ const styles = StyleSheet.create({
     createCompanySubtitle: { ...typography.styles.caption },
     statsSection: {
         flexDirection: 'row',
-        borderRadius: radius.xxl,
+        borderRadius: radius.card,
         padding: spacing.lg,
         marginBottom: spacing.xl,
     },

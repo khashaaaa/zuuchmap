@@ -422,7 +422,7 @@ const createStyles = (colors) => StyleSheet.create({
     profilePictureCard: {
         ...colors.elevation.md,
         backgroundColor: colors.surface,
-        borderRadius: radius.xxl,
+        borderRadius: radius.card,
         padding: spacing.xl,
         flexDirection: 'row',
         alignItems: 'center',
@@ -442,7 +442,7 @@ const createStyles = (colors) => StyleSheet.create({
     companyLogo: {
         width: 80,
         height: 80,
-        borderRadius: radius.lg,
+        borderRadius: radius.inset,
         backgroundColor: colors.border.light,
         borderWidth: 3,
         borderColor: colors.surface,
@@ -493,7 +493,7 @@ const createStyles = (colors) => StyleSheet.create({
     formCard: {
         ...colors.elevation.md,
         backgroundColor: colors.surface,
-        borderRadius: radius.xxl,
+        borderRadius: radius.card,
         padding: spacing.xl,
     },
     lastField: {

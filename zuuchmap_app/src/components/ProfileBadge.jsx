@@ -52,7 +52,7 @@ const createStyles = (colors) => StyleSheet.create({
         alignSelf: 'flex-start',
         paddingHorizontal: spacing.sm,
         paddingVertical: spacing.xs,
-        borderRadius: radius.lg,
+        borderRadius: radius.tag,
         gap: spacing.xs,
     },
     badgeText: {

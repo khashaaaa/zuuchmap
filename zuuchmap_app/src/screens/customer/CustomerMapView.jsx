@@ -464,7 +464,7 @@ const CustomerMapView = ({ navigation, route }) => {
         // may be a schema colour that was never tuned for a white ring, so the
         // count itself sits on a white disc — legible on any hue.
         const tint = getMarkerColor(cluster.dominant);
-        const label = count > 999 ? '999+' : String(count);
+        const label = count > 999 ? '1k+' : String(count);
         return (
             <Marker
                 key={id}
@@ -478,7 +478,7 @@ const CustomerMapView = ({ navigation, route }) => {
                 <View style={[styles.clusterMarkerContainer, { backgroundColor: tint }]}>
                     <View style={styles.clusterDisc}>
                         <Text
-                            style={[styles.clusterText, label.length > 2 && { fontSize: label.length > 3 ? 10 : 12 }, { color: toneForTheme(tint, false) }]}
+                            style={[styles.clusterText, label.length > 2 && styles.clusterTextLong, { color: toneForTheme(tint, false) }]}
                             numberOfLines={1}
                             allowFontScaling={false}
                         >
@@ -744,7 +744,7 @@ const createStyles = (colors) => StyleSheet.create({
         top: spacing.xxs,
         right: spacing.xxs,
         backgroundColor: colors.danger,
-        borderRadius: radius.md,
+        borderRadius: radius.badge,
         // Match the tablet type scale (x1.25) or the badge digit clips.
         minWidth: isTablet ? 20 : 16,
         minHeight: isTablet ? 20 : 16,
@@ -794,6 +794,9 @@ const createStyles = (colors) => StyleSheet.create({
         alignItems: 'center',
     },
     clusterText: { ...typography.styles.labelStrong, fontVariant: ['tabular-nums'] },
+    // Three characters at most (`1k+` past 999) so the 12px badge role fits the
+    // fixed disc; it is the type that steps down, never the circle that grows.
+    clusterTextLong: { ...typography.styles.badge },
     offlineBanner: {
         position: 'absolute',
         top: 0,
@@ -841,7 +844,7 @@ const createStyles = (colors) => StyleSheet.create({
     emptyCard: {
         ...colors.elevation.lg,
         backgroundColor: colors.surface,
-        borderRadius: radius.lg,
+        borderRadius: radius.card,
         paddingHorizontal: spacing.lg,
         paddingVertical: spacing.md,
         maxWidth: 340,

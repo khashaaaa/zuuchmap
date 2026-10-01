@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
     },
     optionCard: {
         borderWidth: 2,
-        borderRadius: radius.lg,
+        borderRadius: radius.card,
         padding: spacing.lg,
         // Content-driven: a fixed 120 clips the description at the current
         // type scale (same failure the saved-post cards had).

@@ -15,6 +15,7 @@ import { SHEET_MAX_WIDTH } from './BaseModal';
 
 import Button from './Button';
 import SelectionPop from './SelectionPop';
+import PressableScale from './PressableScale';
 import { spacing, typography, radius, interactions, toneForTheme } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useActiveCategorySchemas } from '../hooks/useCategorySchemas';
@@ -131,14 +132,15 @@ const MapFilterModal = ({
 
         return (
             <SelectionPop key={category.key} selected={isSelected}>
-            <TouchableOpacity
+            <PressableScale
                 style={[
                     styles.categoryItem,
                     { backgroundColor: colors.background },
                     isSelected && styles.categoryItemSelected
                 ]}
                 onPress={() => toggleCategory(category.key)}
-                activeOpacity={interactions.activeOpacity}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isSelected }}
             >
                 <View style={[
                     styles.categoryIcon,
@@ -163,7 +165,7 @@ const MapFilterModal = ({
                         color={toneForTheme(category.color, isDark)}
                     />
                 )}
-            </TouchableOpacity>
+            </PressableScale>
             </SelectionPop>
         );
     }, [selectedCategories, toggleCategory, styles, colors, isDark, t]);

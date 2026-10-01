@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { spacing, typography, radius, interactions, isTablet } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
-import { ScreenLayout, EmptyState, SkeletonItem, SelectionPop, BottomSheetModal, SearchInput } from '../../components';
+import { ScreenLayout, EmptyState, SkeletonItem, SelectionPop, BottomSheetModal, SearchInput, PressableScale } from '../../components';
 import Button from '../../components/Button';
 import adminService from '../../services/api/adminService';
 import { formatDate } from '../../utils/displayUtils';
@@ -97,10 +97,9 @@ const AdminUsers = ({ navigation }) => {
     };
 
     const renderItem = useCallback(({ item }) => (
-        <TouchableOpacity
+        <PressableScale
             style={[styles.row, colors.elevation.sm]}
             onPress={() => setSelected(item)}
-            activeOpacity={interactions.activeOpacity}
             accessibilityRole="button"
         >
             <View style={styles.rowMain}>
@@ -117,7 +116,7 @@ const AdminUsers = ({ navigation }) => {
                 ) : null}
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.text.tertiary} />
-        </TouchableOpacity>
+        </PressableScale>
     ), [styles, colors, t]);
 
     return (

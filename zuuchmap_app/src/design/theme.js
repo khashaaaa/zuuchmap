@@ -389,6 +389,7 @@ export const radius = {
     input: 12,
     card: 16,
     modal: 20,
+    inset: 8,       // nested: thumbnails, logos, tiles inside a card — the web's rounded-inset
     pill: 9999,     // chips, circles, round icon buttons
     avatar: 9999,
     badge: 9999,    // count bubbles (unread, filter count)

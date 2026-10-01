@@ -324,7 +324,7 @@ const createStyles = (colors) => StyleSheet.create({
     },
     imagePickerButton: {
         height: 120,
-        borderRadius: radius.lg,
+        borderRadius: radius.inset,
         borderWidth: 2,
         borderColor: colors.border.medium,
         borderStyle: 'dashed',
@@ -343,7 +343,7 @@ const createStyles = (colors) => StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         backgroundColor: colors.background,
-        borderRadius: radius.md,
+        borderRadius: radius.inset,
         borderWidth: 1,
         borderColor: colors.border.light,
         borderStyle: 'dashed',
@@ -368,7 +368,7 @@ const createStyles = (colors) => StyleSheet.create({
     image: {
         width: 100,
         height: 100,
-        borderRadius: radius.md,
+        borderRadius: radius.inset,
         backgroundColor: colors.border.light,
     },
     removeImageButton: {
@@ -377,7 +377,7 @@ const createStyles = (colors) => StyleSheet.create({
         top: -spacing.sm,
         right: -spacing.sm,
         backgroundColor: colors.surface,
-        borderRadius: radius.md,
+        borderRadius: radius.pill,
         padding: spacing.xs,
     },
     imageIndexBadge: {
@@ -386,7 +386,7 @@ const createStyles = (colors) => StyleSheet.create({
         bottom: -spacing.sm,
         left: -spacing.sm,
         backgroundColor: colors.primary,
-        borderRadius: radius.md,
+        borderRadius: radius.badge,
         width: 24,
         height: 24,
         justifyContent: 'center',

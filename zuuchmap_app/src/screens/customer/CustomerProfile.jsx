@@ -362,7 +362,7 @@ const styles = StyleSheet.create({
     editButton: { width: 36, height: 36, borderRadius: radius.button, justifyContent: 'center', alignItems: 'center' },
     statsSection: {
         flexDirection: 'row',
-        borderRadius: radius.xxl,
+        borderRadius: radius.card,
         padding: spacing.lg,
         marginBottom: spacing.xl,
     },

@@ -737,7 +737,7 @@ const createStyles = (colors) => StyleSheet.create({
         backgroundColor: colors.primary,
         paddingVertical: spacing.xxs,
         paddingHorizontal: spacing.xs,
-        borderRadius: radius.sm,
+        borderRadius: radius.tag,
     },
     // Paid placement.
     featuredBadge: {
@@ -748,7 +748,7 @@ const createStyles = (colors) => StyleSheet.create({
         backgroundColor: colors.primary,
         paddingVertical: spacing.xxs,
         paddingHorizontal: spacing.xs,
-        borderRadius: radius.sm,
+        borderRadius: radius.tag,
     },
     // Set in caps, which is exactly what `overline` is tuned for. Yoga defaults
     // flexShrink to 0: without it a long translation pushes the star out of
@@ -829,7 +829,7 @@ const createStyles = (colors) => StyleSheet.create({
         top: spacing.xs,
         right: spacing.xs,
         backgroundColor: colors.danger,
-        borderRadius: radius.md,
+        borderRadius: radius.badge,
         // Match the tablet type scale (x1.25) or the badge digit clips.
         minWidth: isTablet ? 20 : 16,
         minHeight: isTablet ? 20 : 16,
@@ -853,7 +853,7 @@ const createStyles = (colors) => StyleSheet.create({
         paddingHorizontal: spacing.md,
         paddingVertical: spacing.xs,
         minHeight: 36,
-        borderRadius: radius.xxl,
+        borderRadius: radius.pill,
         borderWidth: 1,
         alignItems: 'center',
         justifyContent: 'center',

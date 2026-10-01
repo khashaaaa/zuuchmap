@@ -24,7 +24,7 @@ import { CategoryService } from './category.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { createPostImageUploadInterceptor } from '../utils/uploader';
-import { visitorKey } from '../utils/visitor';
+import { ipKey, visitorKey } from '../utils/visitor';
 
 @Controller('posts')
 export class PostController {
@@ -195,13 +195,19 @@ export class PostController {
    * landing, browse and detail pages, and leaving it out made the view count
    * providers see — and that a paid plan advertises — a fraction of the truth.
    * Signed-in viewers still dedupe by account; everyone else by visitor key.
+   * Answers `{ counted }` so a client bumps its copy only for a view that was.
    */
   @Put(':id/views')
   @UseGuards(OptionalJwtAuthGuard)
   incrementViews(@Param('id', ParseIntPipe) id: number, @Req() req) {
+    const signedIn = Boolean(req.user?.id);
     return this.postService.incrementViews(id, {
       userId: req.user?.id ?? null,
-      visitorKey: req.user?.id ? null : visitorKey(req),
+      // A signed-in row takes only a key the client chose: an IP-derived one
+      // would claim a whole CGNAT address's worth of anonymous viewers.
+      visitorKey: visitorKey(req, { fallback: !signedIn }),
+      ipKey: signedIn ? null : ipKey(req),
+      audience: !(signedIn && isAdmin(req.user.phone_number)),
     });
   }
 

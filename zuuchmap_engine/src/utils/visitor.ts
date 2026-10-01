@@ -19,17 +19,39 @@ import type { Request } from 'express';
  * to an address, and truncated because 32 hex characters is already far more
  * collision headroom than a view counter needs.
  */
-export function visitorKey(req: Request): string | undefined {
+export function visitorKey(
+  req: Request,
+  { fallback = true }: { fallback?: boolean } = {},
+): string | undefined {
   const supplied = req.headers['x-visitor-id'];
   const raw =
     typeof supplied === 'string' &&
     supplied.length >= 8 &&
     supplied.length <= 128
       ? `id:${supplied}`
-      : fallback(req);
-  if (!raw) return undefined;
+      : fallback
+        ? ipAndAgent(req)
+        : undefined;
+  return raw ? hash(raw) : undefined;
+}
 
-  const salt = process.env.JWT_SECRET ?? 'zuuchmap';
+/**
+ * The connecting address alone, hashed. Not an identity — a whole carrier can
+ * share it — but the one thing a client cannot rotate per request, so it is
+ * what caps how many fresh anonymous viewers one source can add to a post.
+ */
+export function ipKey(req: Request): string | undefined {
+  const ip = clientIp(req);
+  return ip ? hash(`ip:${ip}`) : undefined;
+}
+
+// Its own salt so rotating JWT_SECRET does not re-count every past anonymous
+// visitor. Falls back to JWT_SECRET, which is what keys were salted with
+// before VIEW_KEY_SALT existed — set VIEW_KEY_SALT to that value before
+// rotating the secret.
+function hash(raw: string): string {
+  const salt =
+    process.env.VIEW_KEY_SALT || process.env.JWT_SECRET || 'zuuchmap';
   return crypto
     .createHash('sha256')
     .update(`${salt}:${raw}`)
@@ -37,11 +59,15 @@ export function visitorKey(req: Request): string | undefined {
     .slice(0, 32);
 }
 
-function fallback(req: Request): string | undefined {
+function clientIp(req: Request): string | undefined {
   // nginx always overwrites X-Real-IP with the connecting socket address, so
   // unlike X-Forwarded-For it cannot be spoofed to mint fresh view counts.
   const realIp = req.headers['x-real-ip'];
-  const ip = (typeof realIp === 'string' && realIp) || req.ip;
+  return (typeof realIp === 'string' && realIp) || req.ip || undefined;
+}
+
+function ipAndAgent(req: Request): string | undefined {
+  const ip = clientIp(req);
   if (!ip) return undefined;
   const ua =
     typeof req.headers['user-agent'] === 'string'

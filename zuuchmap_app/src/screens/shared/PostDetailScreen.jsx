@@ -403,21 +403,27 @@ const PostDetailScreen = ({ route, navigation }) => {
 
     const viewIncrementRef = useRef(false);
 
+    // Not an admin: moderation is not audience, and the engine refuses it too.
+    // The owner (provider mode) still sends — the engine records their device
+    // without counting it, so a signed-out look at their own post is not a view.
     useEffect(() => {
-        if (!isProvider && !isAdmin) {
-            const timer = setTimeout(() => {
-                if (!viewIncrementRef.current) incrementViews();
-            }, 2000);
-            return () => clearTimeout(timer);
-        }
+        if (isAdmin) return undefined;
+        const timer = setTimeout(() => {
+            if (!viewIncrementRef.current) incrementViews();
+        }, 2000);
+        return () => clearTimeout(timer);
     }, []);
 
     const incrementViews = async () => {
         if (viewIncrementRef.current) return;
         try {
             viewIncrementRef.current = true;
-            await postService.incrementViews(postId);
-            qc.setQueryData(['post', postId], (prev) => prev ? { ...prev, views: (prev.views || 0) + 1 } : prev);
+            const res = await postService.incrementViews(postId);
+            // Only a view the engine counted: a repeat visit is deduped there,
+            // and bumping anyway showed the viewer one more each time.
+            if (res?.data?.counted) {
+                qc.setQueryData(['post', postId], (prev) => prev ? { ...prev, views: (prev.views || 0) + 1 } : prev);
+            }
         } catch {
             viewIncrementRef.current = false;
         }

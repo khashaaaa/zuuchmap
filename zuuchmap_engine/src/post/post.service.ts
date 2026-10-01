@@ -1111,8 +1111,11 @@ export class PostService {
    * dashboard's headline number partly a reflection of the provider checking on
    * it, which is exactly the number they are trying to read.
    */
-  async incrementViews(postId: number, viewer: Viewer): Promise<void> {
-    await this.viewedpostService.countView(viewer, postId);
+  incrementViews(
+    postId: number,
+    viewer: Viewer,
+  ): Promise<{ counted: boolean }> {
+    return this.viewedpostService.countView(viewer, postId);
   }
 
   /**
@@ -1363,7 +1366,10 @@ export class PostService {
     // Photos uploaded for a revision that was never approved are referenced by
     // nothing else, so they have to go with the post or they stay in R2 forever.
     const orphans = Array.from(
-      new Set([...(post.images ?? []), ...(post.pending_revision?.images ?? [])]),
+      new Set([
+        ...(post.images ?? []),
+        ...(post.pending_revision?.images ?? []),
+      ]),
     );
     if (orphans.length) {
       await deleteMultipleImages(orphans);
@@ -1429,7 +1435,9 @@ export class PostService {
         .set({ status: Status.EXPIRED })
         .whereInIds(due.map((p) => p.id))
         .execute();
-      this.logger.log(`expireOldPosts: marked ${due.length} post(s) as EXPIRED`);
+      this.logger.log(
+        `expireOldPosts: marked ${due.length} post(s) as EXPIRED`,
+      );
       invalidatePostReadCaches();
 
       await this.notifyExpiry(

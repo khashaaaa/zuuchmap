@@ -87,7 +87,7 @@ Required env: `PG_*` `JWT_SECRET` `ADMIN_PHONES` `R2_*` `PROG_PORT` `PUBLIC_ENGI
 - `ALLOWED_ORIGIN` — comma-separated; gates HTTP CORS and the socket's polling preflight. List every host (a bare apex blocks `www.`). A websocket upgrade is not origin-checked — both clients connect websocket-only and the handshake JWT is the gate.
 - `VERIFY_MN_API_KEY` `VERIFY_MN_BASE_URL` `VERIFY_MN_TIMEOUT_MS` · `VERIFY_TTL_MS` (5m) · `VERIFY_RATE_LIMIT` (5) + `RATE_TTL_MS` (1h) per phone.
 - `THROTTLER_TTL` / `THROTTLER_LIMIT` — global per-IP default; `auth/verify/start` is 3/min.
-- `ANALYTICS_RETENTION_DAYS` · `SENTRY_DSN` · `REDIS_URL` (required for more than one pm2 instance) · `SMTP_*` · `PUBLIC_WEB_URL`.
+- `ANALYTICS_RETENTION_DAYS` · `VIEW_KEY_SALT` (set to the current `JWT_SECRET` before rotating it) · `SENTRY_DSN` · `REDIS_URL` (required for more than one pm2 instance) · `SMTP_*` · `PUBLIC_WEB_URL`.
 - `QPAY_USERNAME` `QPAY_PASSWORD` `QPAY_INVOICE_CODE` — unset ⇒ `/payments/invoice` answers 503.
 - `PLAN_PRICE_PROVIDER_MNT` — **default is a placeholder**. `FEATURED_PRICE_PER_DAY_MNT` — **no default**; unset ⇒ placement is not for sale.
 - `VAPID_PUBLIC_KEY` `VAPID_PRIVATE_KEY` `VAPID_SUBJECT` — browser push; the public half is served by `GET /user/push/vapid-key`.
@@ -151,7 +151,7 @@ GET  /seo/sitemap.xml  GET /seo/post/:id   sitemap index; OG tags for crawlers
 
 - **List items go through `listItem`** (`utils/public-user.ts`): no `details`, no moderation fields (`pending_revision` `previous_snapshot` `rejection_reason` `rejection_field`). Same on `/similar` and `GET /like`. Items carry `busy_dates[]` (14d) for `has_rental_status` categories.
 - **Likes key on `post_id` alone.** `:type` in the URL is accepted and ignored; `likedpost.post_type` is a denormalised copy of `post.category`, written from the post on insert.
-- **Owners never count their own views.** Clients send `X-Visitor-Id` (`web/lib/visitor.js`, the app's `getAnonId()`); without it the engine falls back to hashed IP+UA.
+- **Views** (`viewedpost.service.ts` `countView`): one per viewer per post, ever; only live (approved, unexpired) posts; never the owner or an admin — their row is recorded uncounted so the same device signed out stays uncounted. Clients send `X-Visitor-Id` (`web/lib/visitor.js`, the app's `getAnonId()`), also on signed-in rows; without it the engine falls back to hashed IP+UA. Anonymous viewers are capped at 30 per address per post per day (`ip_key`). Keys are salted with `VIEW_KEY_SALT`, falling back to `JWT_SECRET`.
 
 ### Behaviour
 

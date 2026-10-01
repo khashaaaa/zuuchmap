@@ -121,11 +121,14 @@ export default function PostDetail() {
   // Signed out too. The engine dedupes an anonymous viewer on the X-Visitor-Id
   // every request already carries; gating this on a token meant the web counted
   // nobody who had not signed in, which is most of the people who look.
+  // Not an admin: this page is also the moderation view, and the engine would
+  // refuse it anyway. The owner still sends — the engine records their device
+  // without counting it, so a signed-out look at their own post is not a view.
   useEffect(() => {
-    if (!post?.id) return
+    if (!post?.id || isAdmin) return
     const timer = setTimeout(() => postsApi.view(post.id).catch(() => {}), 2000)
     return () => clearTimeout(timer)
-  }, [post?.id])
+  }, [post?.id, isAdmin])
 
   // The same id set browse keeps — one request for the session rather than a
   // `like/check` per listing opened, and already in cache when arriving from a

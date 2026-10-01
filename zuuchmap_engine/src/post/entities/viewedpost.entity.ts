@@ -25,11 +25,16 @@ export class Viewedpost {
   user_id: string | null;
 
   /**
-   * Hashed, salted, non-identifying key for an anonymous viewer — see
-   * `utils/visitor.ts`. Null for a signed-in view.
+   * Hashed, salted, non-identifying key for the viewer's device — see
+   * `utils/visitor.ts`. Set on signed-in rows too when the client sent one, so
+   * the same device is one viewer either side of signing in.
    */
   @Column({ nullable: true, type: 'varchar', length: 64 })
   visitor_key: string | null;
+
+  /** Hashed connecting address, anonymous rows only — caps them per source. */
+  @Column({ nullable: true, type: 'varchar', length: 32 })
+  ip_key: string | null;
 
   @Column()
   post_type: string;

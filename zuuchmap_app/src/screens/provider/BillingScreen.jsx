@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { spacing, typography, radius, isTablet, interactions } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
-import { ScreenLayout, PressableScale } from '../../components';
+import { ScreenLayout, PressableScale, SkeletonItem } from '../../components';
 import paymentService, { CATALOGUE_KEY, PAYMENTS_KEY } from '../../services/api/paymentService';
 import { useProfile, PROFILE_KEY } from '../../hooks/useProfile';
 import { formatPrice, formatDate } from '../../utils/displayUtils';
@@ -45,9 +45,9 @@ const BillingScreen = ({ navigation, route }) => {
     const featuredPostTitle = route?.params?.postTitle ?? null;
     const featuredExpiresAt = route?.params?.expiresAt ?? null;
 
-    const { data: catalogue } = useQuery({ queryKey: CATALOGUE_KEY, queryFn: paymentService.catalogue });
-    const { data: history = [] } = useQuery({ queryKey: PAYMENTS_KEY, queryFn: paymentService.mine });
-    const { data: profile } = useProfile();
+    const { data: catalogue, isLoading: catalogueLoading } = useQuery({ queryKey: CATALOGUE_KEY, queryFn: paymentService.catalogue });
+    const { data: history = [], isLoading: historyLoading } = useQuery({ queryKey: PAYMENTS_KEY, queryFn: paymentService.mine });
+    const { data: profile, isLoading: profileLoading } = useProfile();
 
     const paidPlan = catalogue?.plans?.find((p) => p.plan === 'PROVIDER');
     const freePlan = catalogue?.plans?.find((p) => p.plan === 'FREE');
@@ -144,6 +144,15 @@ const BillingScreen = ({ navigation, route }) => {
         <ScreenLayout title={t('billing.title')} onBack={() => navigation.goBack()}>
 
             <ScrollView contentContainerStyle={styles.content}>
+                {/* Until the ladder and the plan are in, skeletons — the cards
+                    below fall back to 0₮ and default limits, which on a payment
+                    screen read as real prices. */}
+                {catalogueLoading || profileLoading ? (
+                    <>
+                        <SkeletonItem variant="booking" />
+                        <SkeletonItem variant="booking" />
+                    </>
+                ) : (<>
                 <View style={styles.card}>
                     <Text style={styles.overline}>{t('billing.currentPlan')}</Text>
                     <Text style={styles.planName}>{planLabel(profile?.plan ?? 'FREE')}</Text>
@@ -357,9 +366,12 @@ const BillingScreen = ({ navigation, route }) => {
                         </PressableScale>
                     </View>
                 )}
+                </>)}
 
                 <Text style={styles.sectionTitle}>{t('billing.history')}</Text>
-                {history.length === 0 ? (
+                {historyLoading ? (
+                    <SkeletonItem variant="booking" />
+                ) : history.length === 0 ? (
                     <Text style={styles.meta}>{t('billing.noHistory')}</Text>
                 ) : (
                     history.map((p) => (

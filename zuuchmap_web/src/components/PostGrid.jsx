@@ -12,7 +12,7 @@ const COLS = {
   4: 'grid-cols-1 @md:grid-cols-2 @2xl:grid-cols-3 @4xl:grid-cols-4',
 }
 
-export default function PostGrid({ isLoading, isError, onRetry, isEmpty, emptyState, cols = 4, skeletonCount, className = '', children }) {
+export default function PostGrid({ isLoading, isStale = false, isError, onRetry, isEmpty, emptyState, cols = 4, skeletonCount, className = '', children }) {
   const colsClass = COLS[cols] ?? COLS[4]
   const count = skeletonCount ?? cols * 2
   const showSkeleton = useMinDisplayTime(isLoading)
@@ -35,9 +35,11 @@ export default function PostGrid({ isLoading, isError, onRetry, isEmpty, emptySt
 
   if (isEmpty) return emptyState ?? null
 
+  // `isStale`: the previous results held on screen while a new query is in
+  // flight. Dimmed, so they do not read as the answer to the new filter.
   return (
-    <div className="@container">
-      <div className={`grid ${colsClass} gap-4 ${className}`}>{children}</div>
+    <div className="@container" aria-busy={isStale || undefined}>
+      <div className={`grid ${colsClass} gap-4 transition-opacity duration-200 ${isStale ? 'opacity-50' : ''} ${className}`}>{children}</div>
     </div>
   )
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { View, Text, FlatList, TouchableOpacity, RefreshControl, StyleSheet } from 'react-native';
@@ -45,6 +45,11 @@ const AdminUsers = ({ navigation }) => {
     const [search, setSearch] = useState('');
     const [typeFilter, setTypeFilter] = useState('');
     const [selected, setSelected] = useState(null);
+    // The sheet slides out after `selected` clears; it keeps the last user's
+    // content for that, rather than collapsing to an empty sheet mid-exit.
+    const lastSelected = useRef(null);
+    if (selected) lastSelected.current = selected;
+    const shownUser = selected ?? lastSelected.current;
 
     const { data: users = [], isLoading, isRefetching, isError, refetch } = useQuery({
         queryKey: ADMIN_USERS_KEY,
@@ -169,22 +174,22 @@ const AdminUsers = ({ navigation }) => {
             <BottomSheetModal
                 visible={!!selected}
                 onClose={() => setSelected(null)}
-                title={selected ? (selected.given_name || t('common.user')) : undefined}
+                title={shownUser ? (shownUser.given_name || t('common.user')) : undefined}
             >
-                {selected && (
+                {shownUser && (
                     <View style={styles.sheet}>
-                        <Text style={styles.sheetPhone}>+976 {selected.phone_number}</Text>
+                        <Text style={styles.sheetPhone}>+976 {shownUser.phone_number}</Text>
 
                         <View style={styles.detailGrid}>
-                            <Detail styles={styles} label={t('admin.userType')} value={selected.type ? t(`onboarding.${selected.type.toLowerCase()}`) : '—'} />
-                            <Detail styles={styles} label={t('billing.currentPlan')} value={planLabel(selected.plan || 'FREE')} />
-                            <Detail styles={styles} label={t('profile.memberSince')} value={selected.date_created ? formatDate(selected.date_created) : '—'} />
-                            <Detail styles={styles} label={t('admin.verified')} value={selected.is_verified ? t('common.yes') : t('common.no')} />
+                            <Detail styles={styles} label={t('admin.userType')} value={shownUser.type ? t(`onboarding.${shownUser.type.toLowerCase()}`) : '—'} />
+                            <Detail styles={styles} label={t('billing.currentPlan')} value={planLabel(shownUser.plan || 'FREE')} />
+                            <Detail styles={styles} label={t('profile.memberSince')} value={shownUser.date_created ? formatDate(shownUser.date_created) : '—'} />
+                            <Detail styles={styles} label={t('admin.verified')} value={shownUser.is_verified ? t('common.yes') : t('common.no')} />
                         </View>
 
                         {/* Providers only: a plan is a posting quota, and a
                             customer has nothing to spend one on. */}
-                        {selected.type === 'PROVIDER' && (<>
+                        {shownUser.type === 'PROVIDER' && (<>
                         {/* Phase 1 fulfils subscriptions by hand: this grants a
                             plan, it does not take money. */}
                         <Text style={styles.sectionLabel}>{t('admin.grantPlan')}</Text>
@@ -197,29 +202,29 @@ const AdminUsers = ({ navigation }) => {
                                     variant="secondary"
                                     style={styles.planButton}
                                     disabled={planMut.isPending}
-                                    onPress={() => planMut.mutate({ id: selected.id, plan: 'PROVIDER', months })}
+                                    onPress={() => planMut.mutate({ id: shownUser.id, plan: 'PROVIDER', months })}
                                 />
                             ))}
                         </View>
                         </>)}
-                        {selected.plan && selected.plan !== 'FREE' ? (
+                        {shownUser.plan && shownUser.plan !== 'FREE' ? (
                             <Button
                                 title={t('admin.revokePlan')}
                                 size="sm"
                                 variant="secondary"
                                 disabled={planMut.isPending}
-                                onPress={() => planMut.mutate({ id: selected.id, plan: 'FREE', months: 1 })}
+                                onPress={() => planMut.mutate({ id: shownUser.id, plan: 'FREE', months: 1 })}
                             />
                         ) : null}
 
                         {/* An admin cannot delete themselves out of the console. */}
-                        {!selected.is_admin && (
+                        {!shownUser.is_admin && (
                             <Button
                                 title={t('common.delete')}
                                 variant="danger"
                                 style={styles.deleteButton}
                                 disabled={deleteMut.isPending}
-                                onPress={() => confirmDelete(selected)}
+                                onPress={() => confirmDelete(shownUser)}
                             />
                         )}
                     </View>

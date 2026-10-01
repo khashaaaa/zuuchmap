@@ -191,7 +191,7 @@ export default function CustomerBrowse() {
     }
   }
 
-  const { data, isLoading, isError, refetch, dataUpdatedAt } = useQuery({
+  const { data, isLoading, isError, refetch, dataUpdatedAt, isPlaceholderData } = useQuery({
     queryKey: ['posts', queryParams],
     queryFn: () => postsApi.getAll(queryParams),
     // v5 form of keepPreviousData — the old boolean was silently ignored and
@@ -478,6 +478,7 @@ export default function CustomerBrowse() {
         </div>
         <PostGrid
           isLoading={isLoading}
+          isStale={isPlaceholderData}
           isError={isError}
           onRetry={refetch}
           isEmpty={posts.length === 0}

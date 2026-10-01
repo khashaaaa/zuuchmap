@@ -25,6 +25,7 @@ import { useTranslation } from 'react-i18next';
 import postService from '../../services/api/postService';
 import likeService from '../../services/api/likeService';
 import { getUserId } from '../../services/api/authHelpers';
+import { getPostThumbUrl } from '../../config/api.config';
 import { ScreenLayout } from '../../components';
 import { StatusBadge, StatTile, PressableScale, SkeletonItem, AvailabilityStrip, ProviderCredentials, SimilarPostsDrawer } from '../../components';
 import LikeButton from '../../components/LikeButton';
@@ -135,7 +136,7 @@ const PaginationDot = ({ active, styles }) => {
 
 // Icon-only secondary action for the pinned footer — a labelled square that
 // leaves the single amber primary as the only full button in the bar.
-const IconAction = ({ icon, onPress, label, danger = false, colors, styles }) => (
+const IconAction = ({ icon, onPress, label, danger = false, busy = false, colors, styles }) => (
     <PressableScale
         style={[
             styles.iconAction,
@@ -144,10 +145,14 @@ const IconAction = ({ icon, onPress, label, danger = false, colors, styles }) =>
                 : { borderColor: colors.border.medium, backgroundColor: colors.surface },
         ]}
         onPress={onPress}
+        disabled={busy}
         accessibilityRole="button"
         accessibilityLabel={label}
+        accessibilityState={{ busy }}
     >
-        <Ionicons name={icon} size={22} color={danger ? colors.danger : colors.text.primary} />
+        {busy
+            ? <ActivityIndicator size="small" color={danger ? colors.danger : colors.iconAccent} />
+            : <Ionicons name={icon} size={22} color={danger ? colors.danger : colors.text.primary} />}
     </PressableScale>
 );
 
@@ -169,8 +174,25 @@ const HeroImage = ({ uri, failed, onFailed, config, isDark, colors, styles, noIm
         );
     }
 
+    // Drawn bottom-up: spinner, then the card-sized thumb the list already
+    // cached, then the full photo on top. A full-size image paints nothing
+    // until it has loaded, so the thumb shows through at once instead of a
+    // blank box with a spinner.
     return (
         <View>
+            {loading && (
+                <View style={[styles.postImage, styles.heroFallback, styles.heroLoading, { backgroundColor: colors.surface }]}>
+                    <ActivityIndicator size="small" color={colors.iconAccent} />
+                </View>
+            )}
+            {loading && (
+                <Image
+                    source={{ uri: getPostThumbUrl(uri) }}
+                    style={[styles.postImage, styles.heroLoading]}
+                    resizeMode="cover"
+                    fadeDuration={0}
+                />
+            )}
             <Image
                 source={{ uri }}
                 style={styles.postImage}
@@ -178,11 +200,6 @@ const HeroImage = ({ uri, failed, onFailed, config, isDark, colors, styles, noIm
                 onLoadEnd={() => setLoading(false)}
                 onError={() => { setLoading(false); onFailed(); }}
             />
-            {loading && (
-                <View style={[styles.postImage, styles.heroFallback, styles.heroLoading, { backgroundColor: colors.surface }]}>
-                    <ActivityIndicator size="small" color={colors.iconAccent} />
-                </View>
-            )}
         </View>
     );
 };
@@ -337,7 +354,9 @@ const PostDetailScreen = ({ route, navigation }) => {
             showErrorModal(t('common.error'), t('posts.deleteError'));
         },
     });
-    const loading = isLoading || deletion.isPending;
+    // Not `|| deletion.isPending`: that swapped the whole post for the loading
+    // skeleton mid-delete, which read as a reload. The delete button spins instead.
+    const loading = isLoading;
 
     // Category behavior flags — bookable categories show the request button.
     // The failure is surfaced rather than swallowed: `.catch(() => null)` made a
@@ -448,8 +467,15 @@ const PostDetailScreen = ({ route, navigation }) => {
         );
     };
 
+    // Opening the thread is a round trip; without a busy state the button gave
+    // no sign of life on a slow network, and a second tap pushed the thread twice.
+    const [openingThread, setOpeningThread] = useState(false);
+    const openingRef = useRef(false);
     const handleMessage = async () => {
+        if (openingRef.current) return;
         if (!(await ensureAuth(navigation, 'auth.guestMessage'))) return;
+        openingRef.current = true;
+        setOpeningThread(true);
         try {
             const thread = await messageService.open(post.id);
             navigation.navigate('MessageThread', {
@@ -458,6 +484,9 @@ const PostDetailScreen = ({ route, navigation }) => {
             });
         } catch (error) {
             showErrorModal(t('common.error'), getErrorMessage(error) || t('messages.failed'));
+        } finally {
+            openingRef.current = false;
+            setOpeningThread(false);
         }
     };
 
@@ -589,7 +618,9 @@ const PostDetailScreen = ({ route, navigation }) => {
                                 keyExtractor={(_, i) => i.toString()}
                                 onMomentumScrollEnd={e => {
                                     setCurrentImageIndex(
-                                        Math.floor(e.nativeEvent.contentOffset.x / e.nativeEvent.layoutMeasurement.width)
+                                        // round, not floor: Android settles a hair short of the
+                                        // page (1079.99 of 1080), which floor read as the page before.
+                                        Math.round(e.nativeEvent.contentOffset.x / e.nativeEvent.layoutMeasurement.width)
                                     );
                                 }}
                                 renderItem={({ item, index }) => (
@@ -999,6 +1030,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                                 label={t('messages.title')}
                                 value={t('messages.messageProvider')}
                                 onPress={handleMessage}
+                                busy={openingThread}
                                 colors={colors}
                                 styles={styles}
                             />
@@ -1141,6 +1173,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                             onPress={handleDelete}
                             label={t('common.delete')}
                             danger
+                            busy={deletion.isPending}
                             colors={colors}
                             styles={styles}
                         />
@@ -1181,6 +1214,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                             <IconAction
                                 icon="chatbubble-outline"
                                 onPress={handleMessage}
+                                busy={openingThread}
                                 label={t('messages.messageProvider')}
                                 colors={colors}
                                 styles={styles}
@@ -1209,6 +1243,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                                 icon="chatbubble-outline"
                                 title={t('messages.messageProvider')}
                                 onPress={handleMessage}
+                                loading={openingThread}
                                 variant="primary"
                                 size="medium"
                                 style={styles.footerBtn}

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { track } from '../../services/analytics';
 import {
     View,
@@ -9,11 +9,12 @@ import {
     RefreshControl,
     Platform,
     ActivityIndicator,
+    Animated,
     StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet, tintOn } from '../../design/theme';
+import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet, tintOn, animations } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 import postService from '../../services/api/postService';
@@ -22,7 +23,8 @@ import { getPostImageUrl } from '../../config/api.config';
 import LikeButton from '../../components/LikeButton';
 import { ensureAuth } from '../../utils/requireAuth';
 import PostCard from '../../components/PostCard';
-import { ScreenLayout, CategoryBadge, SkeletonItem, EmptyState, LocationRow, SelectionPop, AvailabilityStrip, OfflineBanner, SavedSearchSheet, BrowseFilterSheet } from '../../components';
+import { ScreenLayout, CategoryBadge, SkeletonItem, EmptyState, LocationRow, SelectionPop, AvailabilityStrip, OfflineBanner, SavedSearchSheet, BrowseFilterSheet, FadeSlideIn } from '../../components';
+import { useListEntrance } from '../../components/FadeSlideIn';
 import ScreenError from '../../components/ScreenError';
 import SearchInput from '../../components/SearchInput';
 import { getFixedImageUrl, getPostPrice, getPostImage, getPostTitle as getPostTitleUtil, categoryToPostType, getSchemaLabel } from '../../utils/postUtils';
@@ -158,6 +160,7 @@ const CustomerPostList = ({ route, navigation }) => {
         fetchNextPage,
         hasNextPage,
         isFetchingNextPage,
+        isPlaceholderData,
     } = useInfiniteQuery({
         queryKey: ['posts', 'browse', queryFilters],
         initialPageParam: 1,
@@ -185,6 +188,17 @@ const CustomerPostList = ({ route, navigation }) => {
         // scrolled to the top once the results landed.
         placeholderData: keepPreviousData,
     });
+
+    // The previous results stay on screen while a new filter or search loads
+    // (`keepPreviousData`). Dimmed, so they do not read as the answer to it.
+    const staleDim = useRef(new Animated.Value(1)).current;
+    useEffect(() => {
+        Animated.timing(staleDim, {
+            toValue: isPlaceholderData ? 0.45 : 1,
+            duration: animations.duration.fast,
+            useNativeDriver: true,
+        }).start();
+    }, [isPlaceholderData, staleDim]);
 
     const posts = useMemo(() => (data?.pages ?? []).flatMap((pg) => pg.items), [data]);
     const totalCount = data?.pages?.[0]?.total ?? 0;
@@ -329,6 +343,7 @@ const CustomerPostList = ({ route, navigation }) => {
         return map;
     }, [categorySchemas]);
 
+    const entrance = useListEntrance();
     const renderPostItem = useCallback(({ item, index }) => {
         // Every item carries post_type — the query function copies it from
         // `category` above. The `|| 'construction'` that used to stand in here
@@ -342,7 +357,7 @@ const CustomerPostList = ({ route, navigation }) => {
         // Only the heart whose request is in flight is held; the rest stay tappable.
         const pending = toggleLike.isPending && toggleLike.variables?.post_id === item.id;
         return (
-            <View style={isTablet && { flex: 1 }}>
+            <FadeSlideIn style={isTablet && { flex: 1 }} {...entrance(item.id, index)}>
                 <PostCard
                     item={item}
                     onPress={handlePostPress}
@@ -394,9 +409,9 @@ const CustomerPostList = ({ route, navigation }) => {
                 >
                     {!!rentalByKey[item.post_type] && Array.isArray(item.busy_dates) && <AvailabilityStrip busyDates={item.busy_dates} size="sm" />}
                 </PostCard>
-            </View>
+            </FadeSlideIn>
         );
-    }, [handlePostPress, likedPostsStatus, isCustomer, isGuest, handleToggleLike, toggleLike.isPending, toggleLike.variables, colors, styles, emphasisByKey, rentalByKey, t, i18n.language]);
+    }, [entrance, handlePostPress, likedPostsStatus, isCustomer, isGuest, handleToggleLike, toggleLike.isPending, toggleLike.variables, colors, styles, emphasisByKey, rentalByKey, t, i18n.language]);
 
     const keyExtractor = useCallback((item) => item.id.toString(), []);
 
@@ -675,7 +690,8 @@ const CustomerPostList = ({ route, navigation }) => {
             {renderSaveSearchSheet()}
             <OfflineBanner visible={Boolean(firstPage?.fromCache)} cachedAt={firstPage?.cachedAt} />
 
-            <FlatList
+            <Animated.FlatList
+                style={{ opacity: staleDim }}
                 data={posts}
                 keyboardShouldPersistTaps="handled"
                 renderItem={renderPostItem}

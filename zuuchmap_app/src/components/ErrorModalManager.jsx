@@ -18,14 +18,20 @@ const ErrorModalManager = forwardRef((_, ref) => {
     }));
 
     const current = queue[0];
+    // The modal fades out after `visible` drops, and with the queue empty it
+    // used to fade out showing its defaults — every dismissed dialog flashed
+    // "Something went wrong / OK". It keeps the last item's content instead.
+    const lastShown = useRef(null);
+    if (current) lastShown.current = current;
+    const shown = current ?? lastShown.current;
 
     return (
         <ErrorModal
             visible={!!current}
-            title={current?.title}
-            message={current?.message}
-            buttons={current?.buttons}
-            type={current?.type}
+            title={shown?.title}
+            message={shown?.message}
+            buttons={shown?.buttons}
+            type={shown?.type}
             onClose={hide}
         />
     );

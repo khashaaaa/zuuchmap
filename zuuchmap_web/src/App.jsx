@@ -1,4 +1,4 @@
-import { useEffect, lazy, Suspense } from 'react'
+import { useEffect, useState, useSyncExternalStore, lazy as reactLazy, Suspense } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuthStore, useThemeStore } from './store'
 import AppLayout from './components/AppLayout'
@@ -20,6 +20,38 @@ import Button from './components/Button'
 import { useDocumentMeta } from './hooks/useDocumentMeta'
 import { useTranslation } from 'react-i18next'
 import { SearchX } from 'lucide-react'
+
+// Chunks in flight. The router renders navigations in a transition, so a page
+// whose chunk is still downloading leaves the old one on screen and the click
+// looks dead; <ChunkProgress> shows a top bar for that wait.
+let chunksPending = 0
+const chunkListeners = new Set()
+const setChunks = (d) => { chunksPending += d; chunkListeners.forEach((l) => l()) }
+const lazy = (load) => reactLazy(() => {
+  setChunks(1)
+  return load().finally(() => setChunks(-1))
+})
+
+function ChunkProgress() {
+  const { t } = useTranslation()
+  const pending = useSyncExternalStore(
+    (l) => { chunkListeners.add(l); return () => chunkListeners.delete(l) },
+    () => chunksPending > 0,
+  )
+  // Shown only past 150ms, so a cached chunk never flashes it.
+  const [show, setShow] = useState(false)
+  useEffect(() => {
+    if (!pending) { setShow(false); return }
+    const id = setTimeout(() => setShow(true), 150)
+    return () => clearTimeout(id)
+  }, [pending])
+  if (!show) return null
+  return (
+    <div role="progressbar" aria-label={t('common.loading')} className="fixed top-0 inset-x-0 z-[2000] h-0.5 overflow-hidden bg-primary/20">
+      <div className="h-full w-1/3 bg-primary chunk-progress" />
+    </div>
+  )
+}
 
 // Everything else is route-split. Before this, all 41 routes lived in one
 // 1.07MB chunk — an anonymous visitor downloaded the whole admin console and
@@ -154,6 +186,7 @@ export default function App() {
     /* Pages inside the app shell get a boundary in AppLayout; this one catches
        the public routes (login, verify, browse, listing, policy). */
     <ErrorBoundary queryClient={queryClient}>
+    <ChunkProgress />
     <Suspense fallback={<RouteFallback />}>
       <Routes>
         {/* Public */}

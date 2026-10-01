@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { interactions } from '../design/theme';
 import PressableScale from './PressableScale';
@@ -25,8 +25,8 @@ export const DetailItem = React.memo(({ icon, label, children, colors, styles })
     </View>
 ));
 
-export const ContactRow = React.memo(({ icon, label, value, onPress, colors, styles }) => (
-    <PressableScale style={styles.contactRow} onPress={onPress}>
+export const ContactRow = React.memo(({ icon, label, value, onPress, busy = false, colors, styles }) => (
+    <PressableScale style={styles.contactRow} onPress={onPress} disabled={busy} accessibilityState={{ busy }}>
         <View style={[styles.contactIcon, { backgroundColor: colors.surfaceLight }]}>
             <Ionicons name={icon} size={20} color={colors.text.secondary} />
         </View>
@@ -34,7 +34,9 @@ export const ContactRow = React.memo(({ icon, label, value, onPress, colors, sty
             <Text style={[styles.contactLabel, { color: colors.text.secondary }]}>{label}</Text>
             <Text style={[styles.contactText, { color: colors.text.primary }]}>{value}</Text>
         </View>
-        <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} />
+        {busy
+            ? <ActivityIndicator size="small" color={colors.iconAccent} />
+            : <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} />}
     </PressableScale>
 ));
 

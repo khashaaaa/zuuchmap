@@ -176,6 +176,11 @@ html[data-theme="light"] {
   }
 }
 
+/* Route-chunk progress bar (App.jsx ChunkProgress): a third-width segment
+   sliding across. Reduced motion parks it, which still reads as "busy". */
+@keyframes chunk-progress { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+.chunk-progress { animation: chunk-progress 1.1s ease-in-out infinite; }
+
 /* Skeleton loading tile: surface2 base with a light sweep. Under reduced
    motion the global block collapses the sweep to a single instant pass, which
    parks the highlight off-canvas — leaving a calm static tile. */

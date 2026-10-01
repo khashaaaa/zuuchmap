@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
     View,
@@ -22,7 +22,8 @@ import NotificationBell from '../../components/NotificationBell';
 import PostCard from '../../components/PostCard';
 import CategoryBadge from '../../components/CategoryBadge';
 import UnreachableBanner from '../../components/UnreachableBanner';
-import { ScreenLayout, SkeletonItem, EmptyState, StatusBadge } from '../../components';
+import { ScreenLayout, SkeletonItem, EmptyState, StatusBadge, FadeSlideIn } from '../../components';
+import { useListEntrance } from '../../components/FadeSlideIn';
 import { formatPrice, formatDate } from '../../utils/displayUtils';
 import { getPostTitle, getFixedImageUrl, getPostImage } from '../../utils/postUtils';
 import { showErrorModal, showInfoModal, showActionSheet } from '../../utils/errorManager';
@@ -216,7 +217,20 @@ const ProviderPostList = ({ navigation }) => {
     const { t, i18n } = useTranslation();
     const insets = useSafeAreaInsets();
     const listBottom = useListBottomPadding();
-    const [isLoading, setIsLoading] = useState(false);
+    // The one post with an edit/delete/renew in flight. A single boolean here
+    // spun every card's menu at once and re-rendered the whole list; delete and
+    // renew showed nothing at all and could be fired twice.
+    const [busyId, setBusyId] = useState(null);
+    const busyRef = useRef(null);
+    const runBusy = useCallback(async (id, fn) => {
+        if (busyRef.current) return;
+        busyRef.current = id;
+        setBusyId(id);
+        try { await fn(); } finally {
+            busyRef.current = null;
+            setBusyId(null);
+        }
+    }, []);
     const [refreshing, setRefreshing] = useState(false);
 
     // `/posts/mine` is capped server-side (post.service.ts findByUser), so the
@@ -329,10 +343,8 @@ const ProviderPostList = ({ navigation }) => {
         });
     }, [navigation]);
 
-    const handleEditPost = useCallback(async (post) => {
+    const handleEditPost = useCallback((post) => runBusy(post.id, async () => {
         try {
-            setIsLoading(true);
-
             const response = await postService.getById(post.id);
 
             if (response.data) {
@@ -354,10 +366,8 @@ const ProviderPostList = ({ navigation }) => {
             } else {
                 showErrorModal(t('common.error'), t('posts.loadError'));
             }
-        } finally {
-            setIsLoading(false);
         }
-    }, [navigation, handleAuthError, t]);
+    }), [navigation, handleAuthError, t, runBusy]);
 
     const handleDeletePost = useCallback((post) => {
         showErrorModal(
@@ -368,10 +378,13 @@ const ProviderPostList = ({ navigation }) => {
                 {
                     text: t('common.delete'),
                     style: 'destructive',
-                    onPress: async () => {
+                    onPress: () => runBusy(post.id, async () => {
                         try {
                             await postService.deletePost(post.id);
                             invalidatePostData();
+                            // Held until this list has refetched, so the card's
+                            // spinner lasts until the post is gone from it.
+                            await refetch();
                         } catch (error) {
                             if (error.code === 'AUTH_TOKEN_MISSING' ||
                                 error.response?.status === 401 ||
@@ -391,11 +404,11 @@ const ProviderPostList = ({ navigation }) => {
                                 );
                             }
                         }
-                    }
+                    }),
                 }
             ]
         );
-    }, [refetch, handleAuthError, t]);
+    }, [refetch, handleAuthError, t, runBusy]);
 
     /**
      * Reopen a lapsed post's window.
@@ -405,10 +418,11 @@ const ProviderPostList = ({ navigation }) => {
      * make — so a listing that lapsed needed an admin before it could exist
      * again. The content is already approved; this just moves the date.
      */
-    const handleRenewPost = useCallback(async (post) => {
+    const handleRenewPost = useCallback((post) => runBusy(post.id, async () => {
         try {
             await postService.renew(post.id);
             invalidatePostData();
+            await refetch();
             showInfoModal(t('posts.renewed'), t('posts.renewedDesc'));
         } catch (error) {
             if (error.response?.status === 401 || error.response?.status === 403) {
@@ -425,7 +439,7 @@ const ProviderPostList = ({ navigation }) => {
                     : t('posts.renewError'),
             );
         }
-    }, [handleAuthError, t]);
+    }), [handleAuthError, t, runBusy, refetch]);
 
     /**
      * Hand one listing to the till. The billing screen owns the QR and the
@@ -504,8 +518,9 @@ const ProviderPostList = ({ navigation }) => {
 
     // Listing-quality score needs each post's schema (field count, has_price).
 
+    const entrance = useListEntrance();
     const renderPostItem = useCallback(({ item, index }) => (
-        <View style={isTablet && { flex: 1 }}>
+        <FadeSlideIn style={isTablet && { flex: 1 }} {...entrance(item.id, index)}>
         <PostItem
             item={item}
             onPress={handlePostPress}
@@ -513,7 +528,7 @@ const ProviderPostList = ({ navigation }) => {
             onDelete={handleDeletePost}
             onRenew={handleRenewPost}
             onFeature={handleFeaturePost}
-            isLoading={isLoading || item.isDeleting}
+            isLoading={busyId === item.id}
             getPostTitle={getPostTitleWrapped}
             colors={colors}
             t={t}
@@ -522,8 +537,8 @@ const ProviderPostList = ({ navigation }) => {
             isDark={isDark}
             bookable={bookableKeys.has(item.category)}
         />
-        </View>
-    ), [handlePostPress, handleEditPost, handleDeletePost, handleRenewPost, handleFeaturePost, isLoading, getPostTitleWrapped, colors, t, statsById, i18n.language, isDark, bookableKeys]);
+        </FadeSlideIn>
+    ), [entrance, handlePostPress, handleEditPost, handleDeletePost, handleRenewPost, handleFeaturePost, busyId, getPostTitleWrapped, colors, t, statsById, i18n.language, isDark, bookableKeys]);
 
     if (queryError && posts.length === 0) {
         return (

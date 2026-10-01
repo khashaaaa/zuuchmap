@@ -32,7 +32,7 @@ export default function ProfilePage() {
   // `getLiked().length`, which rode the default limit of 20 — so a customer
   // with more saves than that was told "20" here and shown a different, larger
   // number by the app's profile, which has always read the total.
-  const { data: likedCount = 0 } = useQuery({
+  const { data: likedCount } = useQuery({
     queryKey: ['liked-count'],
     queryFn: likesApi.count,
     // Gated on the token as well as the role: a JWT-only endpoint must never
@@ -41,8 +41,10 @@ export default function ProfilePage() {
     enabled: Boolean(token) && isCustomer,
   })
 
-  const totalPosts = postCounts?.totalPosts ?? 0
-  const activePosts = postCounts?.activePosts ?? 0
+  // Undefined until the count lands: StatCard reads that as "—", where a
+  // default of 0 flashed a wrong number first.
+  const totalPosts = postCounts?.totalPosts
+  const activePosts = postCounts?.activePosts
 
   let stats
   if (isProvider) {

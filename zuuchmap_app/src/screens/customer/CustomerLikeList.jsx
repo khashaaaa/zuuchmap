@@ -21,7 +21,8 @@ import LikeButton from '../../components/LikeButton';
 import PostCard from '../../components/PostCard';
 import EmptyState from '../../components/EmptyState';
 import ScreenError from '../../components/ScreenError';
-import { ScreenLayout, SkeletonItem, SkeletonCrossfade, CategoryBadge } from '../../components';
+import { ScreenLayout, SkeletonItem, SkeletonCrossfade, CategoryBadge, FadeSlideIn } from '../../components';
+import { useListEntrance } from '../../components/FadeSlideIn';
 import { useToggleLike } from '../../hooks/useToggleLike';
 import { showErrorModal, isPostLogoutStraggler } from '../../utils/errorManager';
 import { logger } from '../../utils/logger';
@@ -182,9 +183,10 @@ const CustomerLikeList = ({ navigation }) => {
         return getPostImageUrl(raw);
     };
 
+    const entrance = useListEntrance();
     const renderPostItem = useCallback(({ item, index }) => (
             // Same two-up grid as CustomerPostList — it is the same card.
-            <View style={isTablet && { flex: 1 }}>
+            <FadeSlideIn style={isTablet && { flex: 1 }} {...entrance(`${item.post_type}-${item.id}`, index)}>
             <PostCard
                 item={item}
                 onPress={handlePostPress}
@@ -221,10 +223,10 @@ const CustomerLikeList = ({ navigation }) => {
                     </>
                 )}
             />
-            </View>
+            </FadeSlideIn>
     // styles/colors/t must be deps — a stale closure here kept rendering the
     // old palette after a theme switch (and old strings after a locale switch).
-    ), [handlePostPress, handleUnlike, styles, colors, t, isAuthenticated, categoryLabel, isRental]);
+    ), [entrance, handlePostPress, handleUnlike, styles, colors, t, isAuthenticated, categoryLabel, isRental]);
 
     const renderEmptyState = () => {
         if (!authChecked) {
@@ -323,7 +325,7 @@ const CustomerLikeList = ({ navigation }) => {
                     />
                 }
                 onEndReached={handleLoadMore}
-                onEndReachedThreshold={0.1}
+                onEndReachedThreshold={0.4}
                 ListFooterComponent={renderFooter}
                 showsVerticalScrollIndicator={false}
                 initialNumToRender={10}

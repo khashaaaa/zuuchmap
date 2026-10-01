@@ -42,12 +42,12 @@ export default function ProviderBilling() {
   // an empty picker on a page about plans would be noise.
   const featuredPostId = Number(params.get('post')) || null
 
-  const { data: catalogue } = useQuery({
+  const { data: catalogue, isLoading: catalogueLoading } = useQuery({
     queryKey: ['payments', 'catalogue'],
     queryFn: paymentsApi.catalogue,
   })
-  const { data: profile } = useProfile()
-  const { data: history = [] } = useQuery({ queryKey: ['payments', 'mine'], queryFn: paymentsApi.mine })
+  const { data: profile, isLoading: profileLoading } = useProfile()
+  const { data: history = [], isLoading: historyLoading } = useQuery({ queryKey: ['payments', 'mine'], queryFn: paymentsApi.mine })
   // Same key and fetcher as the posts list, so arriving from it is a cache hit
   // rather than a second round trip for a title we were just shown.
   const { data: myPosts = [] } = useQuery({
@@ -153,6 +153,15 @@ export default function ProviderBilling() {
         onBack={() => goBack(navigate, '/provider')}
       />
 
+      {/* Until the ladder and the plan are in, a skeleton — the cards below
+          fall back to 0₮ and default limits, which on a payment page read as
+          real prices. */}
+      {catalogueLoading || profileLoading ? (
+        <div className="space-y-6 mb-6" aria-busy="true">
+          <div className="h-24 skeleton rounded-card" />
+          <div className="h-56 skeleton rounded-card" />
+        </div>
+      ) : (<>
       <section className="rounded-card bg-surface p-4 mb-6">
         <p className="text-xs font-semibold text-muted">{t('billing.currentPlan')}</p>
         <p className="text-xl font-bold text-text mt-1">{getPlanLabel(profile?.plan, t)}</p>
@@ -298,10 +307,15 @@ export default function ProviderBilling() {
           )}
         </section>
       )}
+      </>)}
 
       <section>
         <h2 className="text-sm font-semibold text-text mb-2">{t('billing.history')}</h2>
-        {history.length === 0 ? (
+        {historyLoading ? (
+          <div className="space-y-2" aria-busy="true">
+            {[0, 1].map((i) => <div key={i} className="h-16 skeleton rounded-card" />)}
+          </div>
+        ) : history.length === 0 ? (
           <p className="text-sm text-muted">{t('billing.noHistory')}</p>
         ) : (
           <ul className="space-y-2">

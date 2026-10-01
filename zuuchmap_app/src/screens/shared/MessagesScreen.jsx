@@ -1,12 +1,13 @@
 import React, { useMemo, useCallback } from 'react';
-import { View, Text, FlatList, StyleSheet, RefreshControl } from 'react-native';
+import { View, Text, FlatList, StyleSheet, RefreshControl, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { spacing, typography, radius, isTablet } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import ScreenError from '../../components/ScreenError';
-import { ScreenLayout, EmptyState, SkeletonItem, PressableScale } from '../../components';
+import { ScreenLayout, EmptyState, SkeletonItem, PressableScale, FadeSlideIn } from '../../components';
+import { useListEntrance } from '../../components/FadeSlideIn';
 import { SkeletonCrossfade } from '../../components/SkeletonItem';
 import ThumbImage from '../../components/ThumbImage';
 import messageService, { inboxCursor, CONVERSATIONS_KEY } from '../../services/api/messageService';
@@ -21,9 +22,10 @@ import { useListBottomPadding } from '../../hooks/useListBottomPadding';
  * excavator and about a truck is asking two different questions, and merging
  * them into one thread loses which listing is being discussed.
  */
-const ThreadRow = ({ item, index, onPress, styles, colors, t }) => {
+const ThreadRow = ({ item, entrance, onPress, styles, colors, t }) => {
     const image = item.post?.images?.[0] ? getPostImageUrl(item.post.images[0]) : null;
     return (
+        <FadeSlideIn {...entrance}>
             <PressableScale style={styles.row} onPress={() => onPress(item)} accessibilityRole="button">
                 <View style={styles.thumb}>
                     {image ? (
@@ -60,6 +62,7 @@ const ThreadRow = ({ item, index, onPress, styles, colors, t }) => {
                     </Text>
                 </View>
             </PressableScale>
+        </FadeSlideIn>
     );
 };
 
@@ -68,6 +71,7 @@ const MessagesScreen = ({ navigation }) => {
     const styles = useMemo(() => createStyles(colors), [colors]);
     const { t } = useTranslation();
     const listBottom = useListBottomPadding();
+    const entrance = useListEntrance();
 
     const {
         data, isLoading, isRefetching, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage,
@@ -126,7 +130,7 @@ const MessagesScreen = ({ navigation }) => {
                         renderItem={({ item, index }) => (
                             <ThreadRow
                                 item={item}
-                                index={index}
+                                entrance={entrance(item.id, index)}
                                 onPress={open}
                                 styles={styles}
                                 colors={colors}
@@ -137,6 +141,11 @@ const MessagesScreen = ({ navigation }) => {
                         contentContainerStyle={[styles.list, { paddingBottom: listBottom }]}
                         onEndReached={() => { if (hasNextPage && !isFetchingNextPage) fetchNextPage(); }}
                         onEndReachedThreshold={0.5}
+                        ListFooterComponent={isFetchingNextPage ? (
+                            <View style={styles.listFooter}>
+                                <ActivityIndicator size="small" color={colors.iconAccent} />
+                            </View>
+                        ) : null}
                         refreshControl={
                             <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.iconAccent} />
                         }
@@ -148,6 +157,7 @@ const MessagesScreen = ({ navigation }) => {
 };
 
 const createStyles = (colors) => StyleSheet.create({
+    listFooter: { paddingVertical: spacing.md, alignItems: 'center' },
     list: { padding: spacing.lg, ...(isTablet ? { maxWidth: 680, alignSelf: 'center', width: '100%' } : {}) },
     row: {
         ...colors.elevation.sm,

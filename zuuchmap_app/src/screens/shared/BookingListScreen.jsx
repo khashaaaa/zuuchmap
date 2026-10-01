@@ -8,7 +8,8 @@ import { useTranslation } from 'react-i18next';
 import { spacing, typography, radius, isTablet, withAlpha, interactions } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import Button from '../../components/Button';
-import { ScreenLayout, EmptyState, SkeletonItem, SkeletonCrossfade, PressableScale, BookingTimeline } from '../../components';
+import { ScreenLayout, EmptyState, SkeletonItem, SkeletonCrossfade, PressableScale, BookingTimeline, FadeSlideIn } from '../../components';
+import { useListEntrance } from '../../components/FadeSlideIn';
 import ScreenError from '../../components/ScreenError';
 import { successHaptic } from '../../utils/haptics';
 import bookingService from '../../services/api/bookingService';
@@ -87,6 +88,7 @@ const BookingListScreen = ({ route, navigation }) => {
         ]);
     }, [t, actionMut]);
 
+    const entrance = useListEntrance();
     const renderItem = ({ item, index }) => {
         const other = isProviderView ? item.customer : item.provider;
         const status = STATUS_COLORS(colors, isDark)[item.status]
@@ -98,6 +100,7 @@ const BookingListScreen = ({ route, navigation }) => {
         const anyBusy = Boolean(busyAction);
 
         return (
+            <FadeSlideIn {...entrance(item.id, index)}>
             <PressableScale
                 style={[
                     styles.card,
@@ -198,6 +201,7 @@ const BookingListScreen = ({ route, navigation }) => {
                     </View>
                 )}
             </PressableScale>
+            </FadeSlideIn>
         );
     };
 

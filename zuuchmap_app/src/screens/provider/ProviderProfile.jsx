@@ -34,7 +34,7 @@ const ProviderProfile = ({ navigation }) => {
     const [companyImageError, setCompanyImageError] = useState(false);
 
     const { data: profileData = null, isLoading, isRefetching, refetch: refetchProfile, error: profileError } = useProfile();
-    const { data: postsRes, refetch: refetchPosts, isRefetching: isRefetchingPosts } = useQuery({
+    const { data: postsRes, refetch: refetchPosts, isRefetching: isRefetchingPosts, isLoading: postsLoading } = useQuery({
         queryKey: ['posts', 'mine', 'summary'],
         queryFn: () => userService.getUserPosts().catch(() => null),
         staleTime: 60 * 1000,
@@ -201,6 +201,7 @@ const ProviderProfile = ({ navigation }) => {
                         value={profile?.totalPosts || 0}
                         icon="document-outline"
                         ready={!!profile}
+                        loading={postsLoading}
                         style={styles.statItem}
                     />
                     <StatTile
@@ -208,6 +209,7 @@ const ProviderProfile = ({ navigation }) => {
                         value={profile?.activePosts || 0}
                         icon="pulse-outline"
                         ready={!!profile}
+                        loading={postsLoading}
                         emphasis
                         style={styles.statItem}
                     />

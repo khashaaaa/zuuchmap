@@ -44,7 +44,10 @@ export default function ImageLightbox({ images, index, title, onClose, onStep, o
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
+      {/* Keyed per frame — see the detail hero: a reused <img> kept one dead
+          photo's hidden state for every frame after it. */}
       <img
+        key={index}
         src={getImageUrl(images[index])}
         alt={title}
         className="max-w-full max-h-full object-contain"

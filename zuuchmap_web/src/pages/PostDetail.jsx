@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import {
   MapPin, Eye, Phone, Mail, Globe,
   ArrowLeft, Heart, Building2, Pencil, Trash2, Calendar, CalendarRange,
-  ChevronLeft, ChevronRight, MessageSquare, Flag, ExternalLink, Navigation } from 'lucide-react'
+  ChevronLeft, ChevronRight, MessageSquare, Flag, ExternalLink, Navigation, Loader2 } from 'lucide-react'
 import { MapContainer, TileLayer, Marker } from 'react-leaflet'
 import { tileLayerProps } from '@/lib/mapTiles'
 import 'leaflet/dist/leaflet.css'
@@ -80,6 +80,7 @@ export default function PostDetail() {
 
   const [activeImg, setActiveImg] = useState(0)
   const [zoomed, setZoomed] = useState(false)
+  const [openingThread, setOpeningThread] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
 
   const { data: post, isLoading, isError, error, refetch, isPlaceholderData } = useQuery({
@@ -201,6 +202,13 @@ export default function PostDetail() {
     if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return
     stepImage(dx < 0 ? 1 : -1)
   }
+
+  // Warm the neighbours so a step paints at once instead of after a download.
+  const images = post?.images
+  useEffect(() => {
+    if (!images || images.length < 2) return
+    for (const d of [1, -1]) new Image().src = getImageUrl(images[(activeImg + d + images.length) % images.length])
+  }, [images, activeImg])
 
   if (isLoading) return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-3">
@@ -334,9 +342,22 @@ export default function PostDetail() {
                     type="button"
                     onClick={() => setZoomed(true)}
                     aria-label={t('posts.viewImage', { index: activeImg + 1 })}
-                    className="block w-full h-full cursor-zoom-in"
+                    className="block w-full h-full cursor-zoom-in bg-cover bg-center"
+                    style={{ backgroundImage: `url("${getThumbUrl(post.images[activeImg])}")` }}
                   >
-                    <img src={getImageUrl(post.images[activeImg])} alt={title} className="w-full h-full object-cover" onError={hideBrokenImage} />
+                    {/* Keyed per frame: `hideBrokenImage` hides the element, and a
+                        reused <img> carried one dead photo's hidden state onto
+                        every frame after it. The list's cached thumb sits
+                        underneath, so the frame is never blank while the full
+                        size arrives. */}
+                    <img
+                      key={activeImg}
+                      src={getImageUrl(post.images[activeImg])}
+                      alt={title}
+                      className="w-full h-full object-cover opacity-0 transition-opacity duration-200"
+                      onLoad={(e) => { e.currentTarget.style.opacity = 1 }}
+                      onError={hideBrokenImage}
+                    />
                   </button>
                   {post.images.length > 1 && (
                     <>
@@ -716,16 +737,25 @@ export default function PostDetail() {
                 <Button
                   variant="outline"
                   className="w-full"
+                  disabled={openingThread}
+                  aria-busy={openingThread}
                   onClick={async () => {
+                    // Opening the thread is a round trip; without a busy state a
+                    // second click opened it twice.
+                    setOpeningThread(true)
                     try {
                       const thread = await messagesApi.open(post.id)
                       navigate(`/messages/${thread.id}`)
                     } catch {
                       toast.error(t('messages.failed'))
+                    } finally {
+                      setOpeningThread(false)
                     }
                   }}
                 >
-                  <MessageSquare size={14} /> {t('messages.messageProvider')}
+                  {openingThread
+                    ? <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+                    : <MessageSquare size={14} />} {t('messages.messageProvider')}
                 </Button>
                 {/* Reporting is the rare action: a quiet link, not a button
                     that out-weighed "message" beside it and squeezed it to

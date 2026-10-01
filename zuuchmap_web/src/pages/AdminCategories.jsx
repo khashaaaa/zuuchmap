@@ -221,7 +221,7 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
           {tab === 'subcategories' && (
             <div className="space-y-2">
               {form.subcategories.map((sub, i) => (
-                <div key={i} className="p-2 bg-surface2 rounded-lg space-y-2">
+                <div key={i} className="p-2 bg-surface2 rounded-inset space-y-2">
                   <div className="flex gap-2 items-center">
                     <div className="flex flex-col shrink-0">
                       <button onClick={() => moveSubcat(i, -1)} disabled={i === 0} aria-label={t('common.moveUp')} className="text-muted hover:text-text disabled:opacity-30 p-1"><ChevronUp size={13} /></button>
@@ -246,7 +246,7 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
           {tab === 'fields' && (
             <div className="space-y-3">
               {form.fields.map((fld, i) => (
-                <div key={i} className="p-3 bg-surface2 rounded-lg space-y-2 relative">
+                <div key={i} className="p-3 bg-surface2 rounded-inset space-y-2 relative">
                   <div className="absolute top-1 right-1 flex items-center">
                     <button onClick={() => moveField(i, -1)} disabled={i === 0} aria-label={t('common.moveUp')} className="min-w-[36px] min-h-touch flex items-center justify-center text-muted hover:text-text disabled:opacity-30 rounded-btn transition-colors"><ChevronUp size={14} /></button>
                     <button onClick={() => moveField(i, 1)} disabled={i === form.fields.length - 1} aria-label={t('common.moveDown')} className="min-w-[36px] min-h-touch flex items-center justify-center text-muted hover:text-text disabled:opacity-30 rounded-btn transition-colors"><ChevronDown size={14} /></button>

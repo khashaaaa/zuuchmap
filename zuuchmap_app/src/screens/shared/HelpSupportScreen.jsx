@@ -97,10 +97,10 @@ const styles = StyleSheet.create({
     ...(isTablet ? { maxWidth: 680, alignSelf: 'center', width: '100%' } : {}),
   },
 
-  card: { borderRadius: radius.xl, padding: spacing.lg, },
+  card: { borderRadius: radius.card, padding: spacing.lg, },
   contactRow: { flexDirection: 'row', alignItems: 'center', minHeight: 44, paddingVertical: spacing.sm },
   hoursRow: { flexDirection: 'row', alignItems: 'center', minHeight: 44, paddingVertical: spacing.sm },
-  contactIcon: { width: 36, height: 36, borderRadius: radius.full, justifyContent: 'center', alignItems: 'center', marginRight: spacing.md },
+  contactIcon: { width: 36, height: 36, borderRadius: radius.pill, justifyContent: 'center', alignItems: 'center', marginRight: spacing.md },
   contactText: { flex: 1 },
   contactLabel: { ...typography.styles.small, marginBottom: spacing.xxs },
   contactValue: { ...typography.styles.bodyMedium },

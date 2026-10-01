@@ -74,7 +74,7 @@ function NavItem({ to, label, icon: Icon, end, onClick, indicatorId, badge }) {
           <Icon size={18} className="relative shrink-0" />
           <span className="relative flex-1 truncate" title={label}>{label}</span>
           {badge > 0 && (
-            <span className="relative shrink-0 min-w-5 h-5 px-1.5 rounded-full bg-danger text-on-color text-[11px] font-semibold leading-5 text-center">
+            <span className="relative shrink-0 min-w-5 h-5 px-1.5 rounded-full bg-danger text-on-color text-xs font-semibold leading-5 text-center">
               {badge > 99 ? '99+' : badge}
             </span>
           )}
@@ -128,7 +128,7 @@ export default function AppSidebar({ onNavigate }) {
         <h1 className="text-lg md:text-xl font-bold text-primary-text tracking-tight leading-tight">ZuuchMap</h1>
         {/* One line, ellipsized — the EN tagline is long enough to wrap and
             spill past the fixed-height header into the nav below otherwise. */}
-        <p className="text-[11px] leading-tight text-muted truncate">{t('landing.footerTagline')}</p>
+        <p className="text-xs leading-tight text-muted truncate">{t('landing.footerTagline')}</p>
       </div>
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {nav.map((item) => (

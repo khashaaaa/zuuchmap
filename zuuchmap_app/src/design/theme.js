@@ -383,16 +383,16 @@ export const radius = {
     xl: 16,
     xxl: 20,
     xxxl: 24,
-    full: 9999,
 
     // Semantic radius values - use these instead of hardcoded numbers
     button: 12,
     input: 12,
     card: 16,
     modal: 20,
-    pill: 9999,
+    pill: 9999,     // chips, circles, round icon buttons
     avatar: 9999,
-    badge: 9999,
+    badge: 9999,    // count bubbles (unread, filter count)
+    tag: 6,         // status and category labels — the web's rounded-md
 };
 
 /**

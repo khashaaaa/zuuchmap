@@ -36,7 +36,7 @@ function BookingCard({ booking, mode, onAccept, onDecline, onRequestCancel, busy
       <div className="flex items-start gap-3">
         {booking.post?.images?.[0] && (
           <Link to={`/posts/${booking.post.id}`} className="shrink-0">
-            <img src={getThumbUrl(booking.post.images[0])} alt="" loading="lazy" className="w-14 h-14 rounded-lg object-cover" onError={fallbackToFullImage(booking.post.images[0])} />
+            <img src={getThumbUrl(booking.post.images[0])} alt="" loading="lazy" className="w-14 h-14 rounded-inset object-cover" onError={fallbackToFullImage(booking.post.images[0])} />
           </Link>
         )}
         <div className="flex-1 min-w-0">
@@ -75,7 +75,7 @@ function BookingCard({ booking, mode, onAccept, onDecline, onRequestCancel, busy
               </span>
             </span>
             {isPending && !other?.phone_number && (
-              <span className="text-[11px] text-muted italic">{t('booking.timelinePhoneAfterAccept')}</span>
+              <span className="text-xs text-muted italic">{t('booking.timelinePhoneAfterAccept')}</span>
             )}
           </div>
         </div>
@@ -83,9 +83,9 @@ function BookingCard({ booking, mode, onAccept, onDecline, onRequestCancel, busy
 
       <BookingTimeline booking={booking} className="pt-1" />
 
-      {booking.message && <p className="text-xs text-muted bg-surface2 rounded-lg p-2.5 break-words">{booking.message}</p>}
+      {booking.message && <p className="text-xs text-muted bg-surface2 rounded-inset p-2.5 break-words">{booking.message}</p>}
       {booking.response_message && (
-        <p className="text-xs text-muted bg-surface2 rounded-lg p-2.5 break-words">
+        <p className="text-xs text-muted bg-surface2 rounded-inset p-2.5 break-words">
           <span className="font-medium">{t('booking.responseMessage')}:</span> {booking.response_message}
         </p>
       )}

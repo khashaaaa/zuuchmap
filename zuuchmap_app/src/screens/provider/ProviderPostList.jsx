@@ -144,7 +144,7 @@ const PostItem = React.memo(({
                 )}
             </>}
             actions={
-                <TouchableOpacity
+                <TouchableOpacity activeOpacity={interactions.activeOpacity}
                     style={styles.menuButton}
                     onPress={handleMenuPress}
                     disabled={isLoading}

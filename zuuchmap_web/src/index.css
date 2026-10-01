@@ -36,12 +36,21 @@
      min-w-touch. */
   --spacing-touch: 44px;
 
+  /* The app's `overline` role (11/14): uppercase micro-labels above a value or
+     section. Everything else small is text-xs, the app's 12px micro/badge. */
+  --text-overline: 0.6875rem;
+  --text-overline--line-height: 0.875rem;
+
   --color-primary: #F5A623;
   --color-on-primary: #1A1200;   /* text on primary fills */
   --color-on-color: #101113;     /* text on semantic fills */
   /* Primary as TEXT on normal grounds (prices, links, active nav). Mirrors
      app text.link — the fill colour fails AA as light-theme text. */
   --color-primary-text: #F5A623;
+  /* Primary as text on photography (a dark gradient over an image). Not
+     overridden in light: the ground is the photo, not the theme, and
+     primary-text's light tone is unreadable on it. */
+  --color-primary-on-media: #F5A623;
   --color-background: #17181A;
   --color-surface: #1F2124;
   /* Raised/inset ground one step off surface; maps to different app tokens
@@ -81,6 +90,7 @@
   --radius-btn:   0.75rem;   /* 12px */
   --radius-card:  1rem;      /* 16px */
   --radius-modal: 1.25rem;   /* 20px */
+  --radius-inset: 0.5rem;    /* 8px — nested: thumbnails, icon tiles, panels inside a card */
 
 }
 
@@ -287,7 +297,7 @@ table { font-variant-numeric: tabular-nums; }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-muted); }
 
 /* Leaflet theme */
-.leaflet-container { background: var(--color-surface); border-radius: 0.5rem; }
+.leaflet-container { background: var(--color-surface); border-radius: var(--radius-inset); }
 /* OSM has no dark style; its light tiles are inverted under the dark theme (lib/mapTiles.js). */
 .map-tiles-dark { filter: invert(1) hue-rotate(180deg) brightness(0.82) contrast(0.9) saturate(0.6); }
 .leaflet-popup-content-wrapper {

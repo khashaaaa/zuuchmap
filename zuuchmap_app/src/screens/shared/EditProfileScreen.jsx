@@ -454,7 +454,7 @@ const createStyles = (colors) => StyleSheet.create({
         right: -4,
         width: 28,
         height: 28,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
         backgroundColor: colors.primary,
         justifyContent: 'center',
         alignItems: 'center',

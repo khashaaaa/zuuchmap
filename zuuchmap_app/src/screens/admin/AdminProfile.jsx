@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
     editBtn: {
         width: 36,
         height: 36,
-        borderRadius: radius.lg,
+        borderRadius: radius.button,
         justifyContent: 'center',
         alignItems: 'center',
     },

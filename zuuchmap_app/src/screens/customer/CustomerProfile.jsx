@@ -344,7 +344,7 @@ const styles = StyleSheet.create({
     },
     profileHeader: { marginBottom: spacing.xl },
     profileCard: {
-        borderRadius: radius.xxl,
+        borderRadius: radius.card,
         padding: spacing.xl,
         flexDirection: 'row',
         alignItems: 'center',
@@ -359,7 +359,7 @@ const styles = StyleSheet.create({
     guestSubtitle: { ...typography.styles.caption },
     phoneContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm },
     userPhone: { ...typography.styles.caption, marginLeft: spacing.xs },
-    editButton: { width: 36, height: 36, borderRadius: radius.xl, justifyContent: 'center', alignItems: 'center' },
+    editButton: { width: 36, height: 36, borderRadius: radius.button, justifyContent: 'center', alignItems: 'center' },
     statsSection: {
         flexDirection: 'row',
         borderRadius: radius.xxl,
@@ -368,7 +368,7 @@ const styles = StyleSheet.create({
     },
     statItem: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     statIconContainer: {
-        width: 40, height: 40, borderRadius: radius.full,
+        width: 40, height: 40, borderRadius: radius.pill,
         justifyContent: 'center', alignItems: 'center', marginBottom: spacing.sm,
     },
     statValue: { ...typography.styles.h2, marginBottom: spacing.xs, fontVariant: ['tabular-nums'] },

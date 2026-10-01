@@ -167,7 +167,7 @@ const createStyles = (colors) => StyleSheet.create({
     listing: { ...typography.styles.caption, color: colors.text.tertiary },
     preview: { ...typography.styles.body, color: colors.text.secondary },
     badge: {
-        minWidth: 24, height: 24, borderRadius: radius.full,
+        minWidth: 24, height: 24, borderRadius: radius.pill,
         paddingHorizontal: spacing.xs,
         alignItems: 'center', justifyContent: 'center',
     },

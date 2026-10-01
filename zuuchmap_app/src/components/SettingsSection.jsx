@@ -6,6 +6,7 @@ import { useAppContext } from '../context/AppContext';
 import { LANGUAGES } from '../i18n';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { spacing, typography, radius, interactions } from '../design/theme';
+import PressableScale from './PressableScale';
 
 export default function SettingsSection() {
     const { t } = useTranslation();
@@ -17,10 +18,11 @@ export default function SettingsSection() {
 
     return (
         <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border.light }]}>
-            <TouchableOpacity
+            <PressableScale
                 style={styles.accordionHeader}
                 onPress={() => setIsOpen(prev => !prev)}
-                activeOpacity={interactions.activeOpacityLight}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: isOpen }}
             >
                 <Text style={[styles.sectionTitle, { color: colors.text.primary }]}>
                     {t('settings.language')}
@@ -38,7 +40,7 @@ export default function SettingsSection() {
                         style={styles.chevron}
                     />
                 </View>
-            </TouchableOpacity>
+            </PressableScale>
 
             {isOpen && (
                 <View style={styles.langGrid}>

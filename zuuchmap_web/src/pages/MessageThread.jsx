@@ -183,7 +183,7 @@ export default function MessageThread() {
             {/* A bubble carries the time only; the day is said once, above
                 the first message of each. */}
             {(i === 0 || formatDate(messages[i - 1].date_created) !== formatDate(m.date_created)) && (
-              <p className="text-center text-[10px] text-muted py-1">{formatDate(m.date_created)}</p>
+              <p className="text-center text-xs text-muted py-1">{formatDate(m.date_created)}</p>
             )}
             <div className={`flex ${m.mine ? 'justify-end' : 'justify-start'}`}>
               <div
@@ -196,7 +196,7 @@ export default function MessageThread() {
                 } ${m.pending ? 'opacity-60' : ''} ${m.failed ? 'opacity-60 ring-2 ring-danger cursor-pointer' : ''}`}
               >
                 <p className="text-sm whitespace-pre-wrap break-words">{m.body}</p>
-                <p className={`text-[10px] mt-1 ${m.mine ? 'text-on-primary/70' : 'text-muted'}`}>
+                <p className={`text-xs mt-1 ${m.mine ? 'text-on-primary/70' : 'text-muted'}`}>
                   {m.failed ? t('messages.retry') : m.pending ? t('messages.sending') : formatTime(m.date_created)}
                 </p>
               </div>

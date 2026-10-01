@@ -113,11 +113,11 @@ const styles = StyleSheet.create({
     ...(isTablet ? { maxWidth: 680, alignSelf: 'center', width: '100%' } : {}),
   },
 
-  warningCard: { borderWidth: 1, borderRadius: radius.xl, padding: spacing.lg, flexDirection: 'row', gap: spacing.md },
+  warningCard: { borderWidth: 1, borderRadius: radius.card, padding: spacing.lg, flexDirection: 'row', gap: spacing.md },
   warningIcon: { marginTop: spacing.xxs },
   warningTitle: { ...typography.styles.labelStrong, marginBottom: spacing.xs },
   warningText: { ...typography.styles.body },
-  card: { borderRadius: radius.xl, padding: spacing.lg, },
+  card: { borderRadius: radius.card, padding: spacing.lg, },
   sectionTitle: { ...typography.styles.title, marginBottom: spacing.sm },
   sectionText: { ...typography.styles.body },
   deleteBtn: { marginTop: spacing.sm },

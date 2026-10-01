@@ -303,7 +303,7 @@ const createStyles = (colors) => StyleSheet.create({
     locationIcon: {
         width: 40,
         height: 40,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
         backgroundColor: colors.opacity.background.primary,
         justifyContent: 'center',
         alignItems: 'center',

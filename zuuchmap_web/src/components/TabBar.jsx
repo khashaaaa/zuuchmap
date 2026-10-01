@@ -44,7 +44,7 @@ export default function TabBar({ tabs, value, onChange, className = '' }) {
       ref={rowRef}
       role="tablist"
       style={fade ? { maskImage: fade, WebkitMaskImage: fade } : undefined}
-      className={`flex gap-1 bg-surface2 rounded-lg p-1 w-fit max-w-full overflow-x-auto ${className}`}
+      className={`flex gap-1 bg-surface2 rounded-inset p-1 w-fit max-w-full overflow-x-auto ${className}`}
     >
       {tabs.map((tab) => (
         <button

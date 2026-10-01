@@ -151,7 +151,7 @@ export default function AdminDashboard() {
     { icon: UserSearch, label: t('admin.totalCustomers'), value: stats?.totalCustomers, color: 'text-muted' },
   ]
 
-  const overline = 'text-[11px] font-semibold uppercase tracking-wider text-muted mb-2'
+  const overline = 'text-overline font-semibold uppercase tracking-wider text-muted mb-2'
 
   return (
     <div>

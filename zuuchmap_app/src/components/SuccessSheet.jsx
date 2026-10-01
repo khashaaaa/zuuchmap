@@ -57,7 +57,7 @@ const createStyles = (colors) => StyleSheet.create({
     checkDisc: {
         width: 88,
         height: 88,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
         backgroundColor: colors.opacity.background.success,
         justifyContent: 'center',
         alignItems: 'center',

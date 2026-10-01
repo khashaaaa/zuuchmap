@@ -350,7 +350,7 @@ export default function ProviderPostForm() {
   // own; the danger border stays until the provider edits the field.
   const fieldWrap = (key) => ({
     id: `field-${key}`,
-    className: `rounded-lg transition-shadow duration-500 motion-reduce:transition-none ${
+    className: `rounded-inset transition-shadow duration-500 motion-reduce:transition-none ${
       highlightKey === key ? 'ring-2 ring-danger/60 ring-offset-2 ring-offset-surface' : ''
     } ${rejectedField === key ? 'border-l-2 border-danger pl-3 -ml-3' : ''}`,
   })
@@ -597,7 +597,7 @@ export default function ProviderPostForm() {
           {existingImages.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {existingImages.map((img) => (
-                <div key={img} className="relative w-20 h-20 rounded-lg overflow-hidden">
+                <div key={img} className="relative w-20 h-20 rounded-inset overflow-hidden">
                   <img src={getThumbUrl(img)} alt="" loading="lazy" className="w-full h-full object-cover" onError={fallbackToFullImage(img)} />
                   <button type="button" onClick={() => removeExisting(img)} aria-label={t('common.delete')} className="absolute top-1 right-1 bg-black/60 text-white rounded-full min-w-[28px] min-h-[28px] flex items-center justify-center">
                     <X size={14} />
@@ -609,7 +609,7 @@ export default function ProviderPostForm() {
           {newImages.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {newImages.map((f, i) => (
-                <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden">
+                <div key={i} className="relative w-20 h-20 rounded-inset overflow-hidden">
                   <img src={newImageUrls[i]} alt="" className="w-full h-full object-cover" onError={hideBrokenImage} />
                   <button type="button" onClick={() => removeNew(i)} aria-label={t('common.delete')} className="absolute top-1 right-1 bg-black/60 text-white rounded-full min-w-[28px] min-h-[28px] flex items-center justify-center">
                     <X size={14} />
@@ -657,7 +657,7 @@ export default function ProviderPostForm() {
             <div className="text-xs text-muted mb-1.5 flex items-center gap-1">
               <MapPin size={12} /> {t('posts.pinOnMap')}
             </div>
-            <div className="rounded-lg overflow-hidden border border-border/50">
+            <div className="rounded-inset overflow-hidden border border-border/50">
               <LocationPicker lat={lat} lng={lng} color={getCategoryColor(form.category, schemas)} onChange={(la, lo) => setForm((f) => ({ ...f, latitude: String(la), longitude: String(lo) }))} />
             </div>
             <p className="text-xs text-muted mt-1">

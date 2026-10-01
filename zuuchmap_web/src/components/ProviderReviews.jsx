@@ -106,7 +106,7 @@ export default function ProviderReviews({ providerId, canReview, onRequireAuth }
       )}
 
       {canReview && (
-        <div className="bg-surface2 rounded-lg p-3 space-y-2">
+        <div className="bg-surface2 rounded-inset p-3 space-y-2">
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted">{t('review.yourRating')}</span>
             <Stars value={rating} size={18} onSelect={setRating} />
@@ -124,7 +124,7 @@ export default function ProviderReviews({ providerId, canReview, onRequireAuth }
       ) : (
         <div className="space-y-2">
           {(showAll ? reviews : reviews.slice(0, REVIEW_PREVIEW)).map((r) => (
-            <div key={r.id} className="flex items-start gap-2.5 bg-surface2 rounded-lg p-3">
+            <div key={r.id} className="flex items-start gap-2.5 bg-surface2 rounded-inset p-3">
               <UserAvatar src={r.author?.profile_picture} name={r.author?.given_name} size="sm" />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">

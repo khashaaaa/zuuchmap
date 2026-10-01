@@ -54,7 +54,7 @@ const MapClusterCarousel = ({ posts, onPressPost, onClose, onActiveChange, botto
                         ? t('map.carouselCounter', { index: active + 1, count: posts.length })
                         : t('map.postsAtLocation', { count: 1 })}
                 </Text>
-                <TouchableOpacity
+                <TouchableOpacity activeOpacity={interactions.activeOpacity}
                     onPress={onClose}
                     hitSlop={interactions.hitSlop}
                     accessibilityRole="button"
@@ -93,14 +93,14 @@ const createStyles = (colors) => StyleSheet.create({
         paddingLeft: spacing.md,
         paddingRight: spacing.xs,
         paddingVertical: spacing.xs,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
         backgroundColor: colors.surface,
         borderWidth: 1,
         borderColor: colors.border.light,
     },
     counter: { ...typography.styles.label, color: colors.text.secondary, fontVariant: ['tabular-nums'] },
     closeBtn: {
-        width: 24, height: 24, borderRadius: radius.full,
+        width: 24, height: 24, borderRadius: radius.pill,
         alignItems: 'center', justifyContent: 'center',
         backgroundColor: colors.surfaceLight,
     },

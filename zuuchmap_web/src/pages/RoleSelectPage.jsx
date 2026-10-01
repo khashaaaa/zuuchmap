@@ -82,7 +82,7 @@ export default function RoleSelectPage() {
                 style={!isSelected ? { backgroundColor: withAlpha(hue, isDark ? 0.08 : 0.05) } : undefined}
               >
                 <span
-                  className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isSelected ? 'bg-primary text-on-primary' : ''}`}
+                  className={`w-10 h-10 rounded-inset flex items-center justify-center shrink-0 ${isSelected ? 'bg-primary text-on-primary' : ''}`}
                   style={!isSelected ? { backgroundColor: withAlpha(hue, 0.15), color: toneForTheme(hue, isDark) } : undefined}
                 >
                   <Icon size={20} />

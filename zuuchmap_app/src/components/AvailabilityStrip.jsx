@@ -99,7 +99,7 @@ const createStyles = (colors) => StyleSheet.create({
     legendRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: spacing.sm },
     summary: { ...typography.styles.label, color: colors.text.primary },
     legend: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-    legendDot: { width: 8, height: 8, borderRadius: radius.full, borderWidth: 1 },
+    legendDot: { width: 8, height: 8, borderRadius: radius.pill, borderWidth: 1 },
     legendText: { ...typography.styles.small, color: colors.text.tertiary },
 });
 

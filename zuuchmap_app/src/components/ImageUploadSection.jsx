@@ -269,7 +269,7 @@ const createStyles = (colors) => StyleSheet.create({
     heroIcon: {
         width: 56,
         height: 56,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: colors.opacity.background.primary,
@@ -297,7 +297,7 @@ const createStyles = (colors) => StyleSheet.create({
         justifyContent: 'center',
         gap: spacing.sm,
         minHeight: 48,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
         backgroundColor: colors.primary,
     },
     heroPrimaryText: {
@@ -310,7 +310,7 @@ const createStyles = (colors) => StyleSheet.create({
         justifyContent: 'center',
         gap: spacing.sm,
         minHeight: 48,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
         borderWidth: 1,
         borderColor: colors.border.medium,
     },

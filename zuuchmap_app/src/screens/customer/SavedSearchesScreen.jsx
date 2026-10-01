@@ -155,7 +155,7 @@ const createStyles = (colors) => StyleSheet.create({
     },
     cardHead: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
     iconWrap: {
-        width: 36, height: 36, borderRadius: radius.full,
+        width: 36, height: 36, borderRadius: radius.pill,
         alignItems: 'center', justifyContent: 'center',
     },
     cardBody: { flex: 1, gap: spacing.xxs },

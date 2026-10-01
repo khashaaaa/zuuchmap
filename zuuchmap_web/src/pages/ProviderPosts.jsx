@@ -232,9 +232,9 @@ export default function ProviderPosts() {
               <div key={post.id} className="surface-card p-3">
                 <Link to={`/provider/posts/${post.id}`} className="flex items-start gap-3 group">
                   {post.images?.[0] ? (
-                    <img src={getThumbUrl(post.images[0])} alt="" loading="lazy" className="w-14 h-14 rounded-lg object-cover shrink-0" onError={fallbackToFullImage(post.images[0])} />
+                    <img src={getThumbUrl(post.images[0])} alt="" loading="lazy" className="w-14 h-14 rounded-inset object-cover shrink-0" onError={fallbackToFullImage(post.images[0])} />
                   ) : (
-                    <div className="w-14 h-14 rounded-lg bg-surface2 shrink-0" />
+                    <div className="w-14 h-14 rounded-inset bg-surface2 shrink-0" />
                   )}
                   <div className="min-w-0 flex-1">
                     <p className="text-text group-hover:text-primary-text transition-colors font-medium line-clamp-2 leading-tight">
@@ -346,9 +346,9 @@ export default function ProviderPosts() {
                       <td className={cellPad}>
                         <Link to={`/provider/posts/${post.id}`} className="flex items-center gap-3 group">
                           {post.images?.[0] ? (
-                            <img src={getThumbUrl(post.images[0])} alt="" loading="lazy" className="w-10 h-10 rounded-lg object-cover shrink-0" onError={fallbackToFullImage(post.images[0])} />
+                            <img src={getThumbUrl(post.images[0])} alt="" loading="lazy" className="w-10 h-10 rounded-inset object-cover shrink-0" onError={fallbackToFullImage(post.images[0])} />
                           ) : (
-                            <div className="w-10 h-10 rounded-lg bg-surface2 shrink-0" />
+                            <div className="w-10 h-10 rounded-inset bg-surface2 shrink-0" />
                           )}
                           <div className="min-w-0">
                             <p className="text-text group-hover:text-primary-text transition-colors font-medium line-clamp-1">

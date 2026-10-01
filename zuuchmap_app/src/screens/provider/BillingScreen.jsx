@@ -228,7 +228,7 @@ const BillingScreen = ({ navigation, route }) => {
                                 <Text style={styles.meta} accessibilityLiveRegion="polite">
                                     {t('billing.waitingForPayment')}
                                 </Text>
-                                <TouchableOpacity onPress={() => setInvoice(null)} hitSlop={interactions.hitSlop}>
+                                <TouchableOpacity activeOpacity={interactions.activeOpacity} onPress={() => setInvoice(null)} hitSlop={interactions.hitSlop}>
                                     <Text style={styles.cancelText}>{t('billing.cancel')}</Text>
                                 </TouchableOpacity>
                             </View>

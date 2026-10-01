@@ -23,12 +23,12 @@ export default function StatCard({ icon: Icon, label, value, color = 'text-prima
     >
       {lead ? (
         <div className="text-left">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted mb-1">{label}</p>
+          <p className="text-overline font-semibold uppercase tracking-wider text-muted mb-1">{label}</p>
           <p className={`text-4xl md:text-5xl font-extrabold tabular-nums ${color}`}><StatValue value={value} /></p>
         </div>
       ) : Icon ? (
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 md:w-10 md:h-10 rounded-lg bg-surface2 flex items-center justify-center shrink-0">
+          <div className="w-9 h-9 md:w-10 md:h-10 rounded-inset bg-surface2 flex items-center justify-center shrink-0">
             <Icon size={18} className={color} />
           </div>
           <div>

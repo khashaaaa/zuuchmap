@@ -277,7 +277,7 @@ export default function CustomerBrowse() {
   const hasFilters = activeFilters > 0
 
   const activeColor = category ? getCategoryColor(category, schemas) : null
-  const overline = 'text-[11px] font-semibold uppercase tracking-wider text-muted'
+  const overline = 'text-overline font-semibold uppercase tracking-wider text-muted'
 
   // One document per category landing (`/browse?category=x` is what the
   // sitemap advertises), and plain browse otherwise. Other filters are
@@ -305,7 +305,7 @@ export default function CustomerBrowse() {
         <SlidersHorizontal size={15} className="text-muted" aria-hidden="true" />
         {t('common.filter')}
         {activeFilters > 0 && (
-          <span className="min-w-[20px] h-5 px-1.5 grid place-items-center rounded-full bg-primary text-on-primary text-[11px] font-semibold tabular-nums">
+          <span className="min-w-[20px] h-5 px-1.5 grid place-items-center rounded-full bg-primary text-on-primary text-xs font-semibold tabular-nums">
             {activeFilters}
           </span>
         )}

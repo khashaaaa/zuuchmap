@@ -143,7 +143,7 @@ export default function ProviderCompany() {
       <div className="max-w-md">
         <PageHeader title={t('company.title')} action={<Button variant="outline" onClick={() => setEditing(true)}>{t('common.edit')}</Button>} />
         <div className="bg-surface border border-border/20 shadow-card rounded-card p-5 md:p-6 space-y-3">
-          {company.logo && <img src={getCompanyLogoUrl(company.logo)} alt="" className="w-16 h-16 rounded-lg object-cover" onError={hideBrokenImage} />}
+          {company.logo && <img src={getCompanyLogoUrl(company.logo)} alt="" className="w-16 h-16 rounded-inset object-cover" onError={hideBrokenImage} />}
           <div>
             <p className="font-semibold text-text text-lg">{company.name}</p>
             {company.description && <p className="text-sm text-muted mt-1">{company.description}</p>}
@@ -183,7 +183,7 @@ export default function ProviderCompany() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="flex items-center gap-3">
           <label className="relative cursor-pointer">
-            <div className="w-16 h-16 rounded-lg bg-surface2 border border-border/50 overflow-hidden flex items-center justify-center">
+            <div className="w-16 h-16 rounded-inset bg-surface2 border border-border/50 overflow-hidden flex items-center justify-center">
               {logoUrl ? <img src={logoUrl} alt="" className="w-full h-full object-cover" onError={hideBrokenImage} /> :
                company?.logo ? <img src={getCompanyLogoUrl(company.logo)} alt="" className="w-full h-full object-cover" onError={hideBrokenImage} /> :
                <Building size={20} className="text-muted" />}

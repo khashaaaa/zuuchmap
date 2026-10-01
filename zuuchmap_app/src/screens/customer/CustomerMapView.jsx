@@ -515,7 +515,7 @@ const CustomerMapView = ({ navigation, route }) => {
                 showBack={false}
                 rightComponent={
                     <View style={styles.mapHeaderActions}>
-                        <TouchableOpacity
+                        <TouchableOpacity activeOpacity={interactions.activeOpacity}
                             style={styles.mapHeaderBtn}
                             onPress={() => dispatchUi({ type: 'SHOW_FILTER' })}
                             hitSlop={interactions.hitSlop}
@@ -534,7 +534,7 @@ const CustomerMapView = ({ navigation, route }) => {
                             )}
                         </TouchableOpacity>
 
-                        <TouchableOpacity
+                        <TouchableOpacity activeOpacity={interactions.activeOpacity}
                             style={styles.mapHeaderBtn}
                             onPress={() => dispatchUi({ type: 'SHOW_SETTINGS' })}
                             hitSlop={interactions.hitSlop}
@@ -544,7 +544,7 @@ const CustomerMapView = ({ navigation, route }) => {
                             <Ionicons name="settings-outline" size={20} color={colors.iconAccent} />
                         </TouchableOpacity>
 
-                        <TouchableOpacity
+                        <TouchableOpacity activeOpacity={interactions.activeOpacity}
                             style={styles.mapHeaderBtn}
                             onPress={onRefresh}
                             disabled={refreshing}
@@ -768,7 +768,7 @@ const createStyles = (colors) => StyleSheet.create({
     singleMarkerContainer: {
         width: PIN_SIZE,
         height: PIN_SIZE,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 2,
@@ -776,7 +776,7 @@ const createStyles = (colors) => StyleSheet.create({
     },
     clusterMarkerContainer: {
         backgroundColor: MAP_OVERLAY.accent,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
         width: CLUSTER_SIZE,
         height: CLUSTER_SIZE,
         justifyContent: 'center',
@@ -788,7 +788,7 @@ const createStyles = (colors) => StyleSheet.create({
     clusterDisc: {
         width: CLUSTER_SIZE - 10,
         height: CLUSTER_SIZE - 10,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
         backgroundColor: MAP_OVERLAY.surface,
         justifyContent: 'center',
         alignItems: 'center',
@@ -821,7 +821,7 @@ const createStyles = (colors) => StyleSheet.create({
         position: 'absolute',
         width: 48,
         height: 48,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
         backgroundColor: colors.surface,
         borderWidth: 1,
         borderColor: colors.border.light,

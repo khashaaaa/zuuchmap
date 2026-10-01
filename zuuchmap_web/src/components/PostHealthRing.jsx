@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 
-const SIZES = { sm: { px: 36, stroke: 3.5, text: 'text-[10px]' }, md: { px: 64, stroke: 5, text: 'text-base' } }
+const SIZES = { sm: { px: 36, stroke: 3.5, text: 'text-xs' }, md: { px: 64, stroke: 5, text: 'text-base' } }
 
 /**
  * Circular completeness gauge. `health` is the result of computePostHealth;

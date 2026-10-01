@@ -84,7 +84,7 @@ const createStyles = (colors) => StyleSheet.create({
         gap: spacing.xs,
         paddingHorizontal: spacing.md,
         paddingVertical: spacing.xs + 2,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
         backgroundColor: colors.surface,
         borderWidth: 1,
         borderColor: colors.border.light,

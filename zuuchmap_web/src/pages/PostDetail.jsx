@@ -347,7 +347,7 @@ export default function PostDetail() {
                         type="button"
                         onClick={() => stepImage(-1)}
                         aria-label={t('posts.viewImage', { index: ((activeImg - 1 + post.images.length) % post.images.length) + 1 })}
-                        className="absolute left-2 top-1/2 -translate-y-1/2 min-w-touch min-h-touch flex items-center justify-center rounded-full bg-scrim text-white hover:bg-black/70 transition-colors"
+                        className="absolute left-2 top-1/2 -translate-y-1/2 min-w-touch min-h-touch flex items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/70 transition-colors"
                       >
                         <ChevronLeft size={20} />
                       </button>
@@ -355,11 +355,11 @@ export default function PostDetail() {
                         type="button"
                         onClick={() => stepImage(1)}
                         aria-label={t('posts.viewImage', { index: ((activeImg + 1) % post.images.length) + 1 })}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 min-w-touch min-h-touch flex items-center justify-center rounded-full bg-scrim text-white hover:bg-black/70 transition-colors"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 min-w-touch min-h-touch flex items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/70 transition-colors"
                       >
                         <ChevronRight size={20} />
                       </button>
-                      <span className="absolute bottom-2 right-2 rounded-btn bg-scrim px-2 py-0.5 text-xs font-medium text-white tabular-nums">
+                      <span className="absolute bottom-2 right-2 rounded-btn bg-black/60 px-2 py-0.5 text-xs font-medium text-white tabular-nums">
                         {activeImg + 1} / {post.images.length}
                       </span>
                     </>
@@ -382,7 +382,7 @@ export default function PostDetail() {
                     onClick={() => setActiveImg(i)}
                     aria-label={t('posts.viewImage', { index: i + 1 })}
                     aria-pressed={i === activeImg}
-                    className={`shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-surface2 border-2 transition-colors ${i === activeImg ? '' : 'border-transparent'}`}
+                    className={`shrink-0 w-16 h-16 rounded-inset overflow-hidden bg-surface2 border-2 transition-colors ${i === activeImg ? '' : 'border-transparent'}`}
                     style={i === activeImg ? { borderColor: catColor || 'var(--color-primary)' } : undefined}
                   >
                     <img src={getThumbUrl(img)} alt="" loading="lazy" className="w-full h-full object-cover" onError={fallbackToFullImage(img)} />
@@ -508,7 +508,7 @@ export default function PostDetail() {
                       if (v === undefined || v === null || v === '') return null
                       if (Array.isArray(v) && v.length === 0) return null
                       return (
-                        <div key={k} className="bg-surface2 rounded-lg px-3 py-2">
+                        <div key={k} className="bg-surface2 rounded-inset px-3 py-2">
                           <p className="text-xs text-muted">
                             {getFieldLabel(def ?? { key: k, label: k.replace(/_/g, ' ') }, t)}
                           </p>
@@ -528,7 +528,7 @@ export default function PostDetail() {
                   <MapPin size={14} /> {t('posts.location')}
                 </p>
                 {addressLine && <p className="text-sm text-text mb-2 break-words">{addressLine}</p>}
-                <div className="h-40 rounded-lg overflow-hidden border border-border/50">
+                <div className="h-40 rounded-inset overflow-hidden border border-border/50">
                   <MapContainer center={[Number(post.latitude), Number(post.longitude)]} zoom={14} style={{ height: '100%', width: '100%' }} zoomControl={false}>
                     <TileLayer
                       key={theme}
@@ -577,10 +577,10 @@ export default function PostDetail() {
                   </div>
                 </div>
                 {post.user.company && (
-                  <div className="flex items-start gap-3 bg-surface2 rounded-lg p-3">
+                  <div className="flex items-start gap-3 bg-surface2 rounded-inset p-3">
                     {post.user.company.logo
-                      ? <img src={getCompanyLogoUrl(post.user.company.logo)} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" onError={hideBrokenImage} />
-                      : <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0"><Building2 size={18} className="text-primary-text" /></div>}
+                      ? <img src={getCompanyLogoUrl(post.user.company.logo)} alt="" className="w-10 h-10 rounded-inset object-cover shrink-0" onError={hideBrokenImage} />
+                      : <div className="w-10 h-10 rounded-inset bg-primary/10 flex items-center justify-center shrink-0"><Building2 size={18} className="text-primary-text" /></div>}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-text">{post.user.company.name}</p>
                       {post.user.company.phone_number && (
@@ -623,7 +623,7 @@ export default function PostDetail() {
                 unit steps back — one glance answers "how much, per what". */}
             {priceParts && (
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted mb-1">{t('posts.priceLabel')}</p>
+                <p className="text-overline font-semibold uppercase tracking-wider text-muted mb-1">{t('posts.priceLabel')}</p>
                 {/* Amount and unit are separate flex items, so a long Mongolian
                     unit drops to its own line instead of overrunning the card —
                     inline they had no break opportunity between them (no

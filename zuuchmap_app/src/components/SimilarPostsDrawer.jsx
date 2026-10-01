@@ -145,7 +145,7 @@ const createStyles = (colors) => StyleSheet.create({
         gap: spacing.xs,
         paddingHorizontal: spacing.sm,
         paddingVertical: spacing.xxs + 1,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
     },
     pillText: { ...typography.styles.badge, color: colors.text.onColor, flexShrink: 1 },
     body: { padding: spacing.md, gap: spacing.xs },

@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { spacing, typography, radius, interactions } from '../design/theme';
+import { spacing, typography, radius } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
+import PressableScale from './PressableScale';
 
 /**
  * Wrapper for a profile section (card-style block).
@@ -72,13 +73,9 @@ export const ProfileActionRow = ({
     ];
     if (onPress) {
         return (
-            <TouchableOpacity
-                style={rowStyle}
-                onPress={onPress}
-                activeOpacity={interactions.activeOpacity}
-            >
+            <PressableScale style={rowStyle} onPress={onPress} accessibilityRole="button">
                 {content}
-            </TouchableOpacity>
+            </PressableScale>
         );
     }
     return <View style={rowStyle}>{content}</View>;
@@ -96,7 +93,7 @@ const styles = StyleSheet.create({
     sectionIconContainer: {
         width: 32,
         height: 32,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: spacing.sm,

@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
         alignSelf: 'flex-start',
         paddingHorizontal: spacing.sm,
         paddingVertical: spacing.xs,
-        borderRadius: radius.sm,
+        borderRadius: radius.tag,
         gap: spacing.xs,
     },
     badgeSmall: {

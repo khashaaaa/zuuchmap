@@ -13,7 +13,7 @@ const writeCollapsed = (v) => {
 
 function Key({ children }) {
   return (
-    <kbd className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 rounded-md border border-border/50 bg-surface2 text-[11px] font-medium text-text shadow-[inset_0_-1px_0_rgba(0,0,0,0.25)]">
+    <kbd className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 rounded-md border border-border/50 bg-surface2 text-xs font-medium text-text shadow-[inset_0_-1px_0_rgba(0,0,0,0.25)]">
       {children}
     </kbd>
   )
@@ -48,7 +48,7 @@ export default function KeyboardHints({ hints }) {
         </button>
       ) : (
         <div className="pointer-events-auto bg-surface/95 backdrop-blur border border-border/30 shadow-card rounded-card px-3 py-2 flex items-center gap-4">
-          <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted">
+          <span className="flex items-center gap-1.5 text-overline uppercase tracking-wide text-muted">
             <Keyboard size={13} className="text-primary-text" /> {t('admin.hotkeyTitle')}
           </span>
           <ul className="flex items-center gap-3">

@@ -89,7 +89,7 @@ const BookingTimeline = ({ status, startDate, endDate, style }) => {
                             <View style={[
                                 styles.dot,
                                 { backgroundColor: s.fill, borderColor: s.ring },
-                                isActive && !terminal && { ...styles.dotActive, shadowColor: colors.primary, backgroundColor: colors.primary },
+                                isActive && !terminal && { backgroundColor: colors.primary },
                                 isActive && terminal && { backgroundColor: colors.danger },
                             ]}>
                                 {s.icon ? (
@@ -148,26 +148,21 @@ const styles = StyleSheet.create({
     dot: {
         width: DOT,
         height: DOT,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
         borderWidth: 2,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    dotActive: {
-        shadowOpacity: 0.45,
-        shadowRadius: 6,
-        shadowOffset: { width: 0, height: 0 },
-    },
     dotCore: {
         width: 6,
         height: 6,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
     },
     track: {
         flex: 1,
         height: 2,
         marginHorizontal: spacing.xxs,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
     },
     // The segment into the last stop is drawn in two pieces; butt them together.
     trackJoinRight: { marginRight: 0, borderTopRightRadius: 0, borderBottomRightRadius: 0 },

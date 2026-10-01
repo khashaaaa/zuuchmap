@@ -280,7 +280,7 @@ const styles = StyleSheet.create({
     themeToggle: {
         width: 36,
         height: 36,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -353,7 +353,7 @@ const styles = StyleSheet.create({
     breathingDot: {
         width: 10,
         height: 10,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
     },
     manualHint: { ...typography.styles.small, textAlign: 'center' },
     costNote: {

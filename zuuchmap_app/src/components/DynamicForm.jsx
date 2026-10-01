@@ -202,7 +202,7 @@ const MultiSelectField = ({ field, value, onChange, error }) => {
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: on }}
                 style={[
-                  { paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.full, borderWidth: 1 },
+                  { paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.pill, borderWidth: 1 },
                   on
                     ? { ...colors.elevation.selected, borderColor: colors.primary, backgroundColor: colors.primary }
                     : { borderColor: colors.border.light, backgroundColor: colors.surface },

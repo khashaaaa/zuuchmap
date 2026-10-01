@@ -127,7 +127,7 @@ export default function AdminUsers() {
                         </button>
                         {/* Without the date, a granted plan is a word with no
                             end — the admin cannot tell renewal from expiry. */}
-                        <span className="text-[11px] text-muted whitespace-nowrap">
+                        <span className="text-xs text-muted whitespace-nowrap">
                           {user.plan_expires_at
                             ? `${t('admin.planExpires')} ${formatDate(user.plan_expires_at)}`
                             : t('admin.planNoExpiry')}

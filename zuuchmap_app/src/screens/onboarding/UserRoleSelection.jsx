@@ -295,7 +295,7 @@ const styles = StyleSheet.create({
     themeToggle: {
         width: 36,
         height: 36,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -340,7 +340,7 @@ const styles = StyleSheet.create({
     optionIcon: {
         width: 48,
         height: 48,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: spacing.md,

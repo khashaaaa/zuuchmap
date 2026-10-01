@@ -91,7 +91,7 @@ function PostCard({ post, actions, to }) {
           {/* Paid placement marker. Sits top-LEFT because top-right is the
               StatusBadge slot. Bounded width — the label is translated. */}
           {featured && (
-            <span className="absolute top-2 left-2 max-w-[70%] truncate px-2 py-0.5 rounded-md text-[11px] font-semibold bg-primary text-on-primary">
+            <span className="absolute top-2 left-2 max-w-[70%] truncate px-2 py-0.5 rounded-md text-xs font-semibold bg-primary text-on-primary">
               {t('admin.featured')}
             </span>
           )}
@@ -99,7 +99,7 @@ function PostCard({ post, actions, to }) {
               CustomerPostList badge (danger fill, caps label over the photo). */}
           {emphasized && (
             <div className="absolute inset-x-0 bottom-0 bg-danger px-2 py-0.5 text-center">
-              <span className="block text-[10px] font-semibold uppercase tracking-wider text-on-color truncate">
+              <span className="block text-overline font-semibold uppercase tracking-wider text-on-color truncate">
                 {getCategoryLabel(category, t, schemas)}
               </span>
             </div>

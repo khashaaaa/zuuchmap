@@ -101,7 +101,7 @@ const createStyles = (colors) => StyleSheet.create({
     iconContainer: {
         width: 96,
         height: 96,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
         backgroundColor: colors.surface,
         justifyContent: 'center',
         alignItems: 'center',

@@ -85,7 +85,7 @@ export default function AppHeader({ onMenuClick }) {
           >
             <Bell size={18} />
             {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center bg-danger text-on-color text-[10px] font-bold rounded-full">
+              <span className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center bg-danger text-on-color text-xs font-bold rounded-full">
                 {unreadCount > 9 ? '9+' : unreadCount}
               </span>
             )}

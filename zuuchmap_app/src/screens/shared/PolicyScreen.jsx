@@ -53,7 +53,7 @@ const styles = StyleSheet.create({
     ...(isTablet ? { maxWidth: 680, alignSelf: 'center', width: '100%' } : {}),
   },
 
-  card: { borderRadius: radius.xl, padding: spacing.lg, },
+  card: { borderRadius: radius.card, padding: spacing.lg, },
   effective: { ...typography.styles.small, marginBottom: spacing.sm },
   intro: { ...typography.styles.body },
   sectionTitle: { ...typography.styles.title, marginBottom: spacing.sm },

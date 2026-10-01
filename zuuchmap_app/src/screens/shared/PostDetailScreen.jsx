@@ -758,7 +758,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                                 <Text style={[styles.adminInfoValue, { color: colors.text.primary }]} numberOfLines={2}>{r.detail || '—'}</Text>
                             </View>
                         ))}
-                        <TouchableOpacity
+                        <TouchableOpacity activeOpacity={interactions.activeOpacity}
                             onPress={() => navigation.navigate('AdminDashboard', { screen: 'Reports' })}
                             hitSlop={{ top: 8, bottom: 8 }}
                             style={{ paddingTop: spacing.sm }}
@@ -1353,14 +1353,14 @@ const createStyles = (colors, width) => StyleSheet.create({
         flexDirection: 'row',
     },
     dot: {
-        width: 8, height: 8, borderRadius: radius.full,
+        width: 8, height: 8, borderRadius: radius.pill,
         backgroundColor: colors.opacity.whiteOverlay,
         margin: spacing.xxs,
         overflow: 'hidden',
     },
     dotFill: {
         ...StyleSheet.absoluteFillObject,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
         backgroundColor: colors.text.onMedia,
     },
     noImage: {
@@ -1524,7 +1524,7 @@ const createStyles = (colors, width) => StyleSheet.create({
     detailsGrid: { gap: spacing.md },
     detailItem: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: spacing.sm, minHeight: 52 },
     detailIcon: {
-        width: 36, height: 36, borderRadius: radius.full,
+        width: 36, height: 36, borderRadius: radius.pill,
         backgroundColor: colors.opacity.background.primary,
         justifyContent: 'center', alignItems: 'center',
         marginRight: spacing.md,
@@ -1559,7 +1559,7 @@ const createStyles = (colors, width) => StyleSheet.create({
         paddingVertical: spacing.sm,
     },
     availIcon: {
-        width: 36, height: 36, borderRadius: radius.full,
+        width: 36, height: 36, borderRadius: radius.pill,
         backgroundColor: colors.opacity.background.primary,
         justifyContent: 'center', alignItems: 'center',
         marginRight: spacing.md,
@@ -1580,7 +1580,7 @@ const createStyles = (colors, width) => StyleSheet.create({
         paddingVertical: spacing.sm,
     },
     contactIcon: {
-        width: 40, height: 40, borderRadius: radius.full,
+        width: 40, height: 40, borderRadius: radius.pill,
         backgroundColor: colors.opacity.background.primary,
         justifyContent: 'center', alignItems: 'center',
         marginRight: spacing.md,
@@ -1605,7 +1605,7 @@ const createStyles = (colors, width) => StyleSheet.create({
         paddingVertical: spacing.sm,
     },
     metaIcon: {
-        width: 36, height: 36, borderRadius: radius.full,
+        width: 36, height: 36, borderRadius: radius.pill,
         backgroundColor: colors.opacity.background.primary,
         justifyContent: 'center', alignItems: 'center',
         marginRight: spacing.md,

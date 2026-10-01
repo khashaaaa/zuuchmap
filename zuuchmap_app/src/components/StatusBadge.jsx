@@ -69,7 +69,7 @@ const createStyles = (colors) => StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: spacing.xs,
         paddingVertical: spacing.xxs,
-        borderRadius: radius.sm,
+        borderRadius: radius.tag,
         gap: spacing.xs,
         alignSelf: 'flex-start',
     },
@@ -95,7 +95,7 @@ const createStyles = (colors) => StyleSheet.create({
     indicator: {
         width: 6,
         height: 6,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
         backgroundColor: colors.text.onColor,
     },
     icon: {

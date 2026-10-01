@@ -44,7 +44,7 @@ const ScreenError = ({
 const styles = StyleSheet.create({
     container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.xxl },
     iconContainer: {
-        width: 80, height: 80, borderRadius: radius.full,
+        width: 80, height: 80, borderRadius: radius.pill,
         justifyContent: 'center', alignItems: 'center', marginBottom: spacing.xl,
     },
     title: { ...typography.styles.h2, marginBottom: spacing.sm },

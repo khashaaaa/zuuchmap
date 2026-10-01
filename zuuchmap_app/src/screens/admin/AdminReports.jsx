@@ -148,7 +148,7 @@ const createStyles = (colors) => StyleSheet.create({
     tab: { height: 36, paddingHorizontal: spacing.md, borderRadius: radius.pill, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
     tabText: { ...typography.styles.label, includeFontPadding: false },
     list: { padding: spacing.lg, maxWidth: isTablet ? 720 : undefined, alignSelf: isTablet ? 'center' : 'stretch', width: '100%' },
-    card: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md, gap: spacing.xs },
+    card: { backgroundColor: colors.surface, borderRadius: radius.card, padding: spacing.md, marginBottom: spacing.md, gap: spacing.xs },
     cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.sm },
     reason: { ...typography.styles.title, color: colors.text.primary, flex: 1 },
     date: { ...typography.styles.small, color: colors.text.tertiary },

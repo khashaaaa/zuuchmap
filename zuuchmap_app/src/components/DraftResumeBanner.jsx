@@ -61,7 +61,7 @@ const createStyles = (colors) => StyleSheet.create({
     iconWrap: {
         width: 36,
         height: 36,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: colors.opacity.background.primary,
@@ -73,14 +73,14 @@ const createStyles = (colors) => StyleSheet.create({
     primary: {
         paddingVertical: spacing.sm,
         paddingHorizontal: spacing.lg,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
         backgroundColor: colors.primary,
     },
     primaryText: { ...typography.styles.labelStrong, color: colors.onPrimary },
     secondary: {
         paddingVertical: spacing.sm,
         paddingHorizontal: spacing.lg,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
         borderWidth: 1,
         borderColor: colors.border.medium,
     },

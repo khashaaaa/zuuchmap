@@ -140,13 +140,13 @@ const styles = StyleSheet.create({
     },
     burst: {
         position: 'absolute',
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
     },
     particle: {
         position: 'absolute',
         width: 5,
         height: 5,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
     },
     likeCount: {
         marginLeft: spacing.xs,

@@ -141,7 +141,7 @@ export default function CustomerMap() {
           <SlidersHorizontal size={16} aria-hidden="true" />
           {t('common.filter')}
           {filterCount > 0 && (
-            <span className="ml-0.5 min-w-[18px] h-[18px] px-1 grid place-items-center rounded-full bg-primary text-on-primary text-[11px] font-semibold tabular-nums">
+            <span className="ml-0.5 min-w-[18px] h-[18px] px-1 grid place-items-center rounded-full bg-primary text-on-primary text-xs font-semibold tabular-nums">
               {filterCount}
             </span>
           )}

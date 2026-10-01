@@ -541,7 +541,7 @@ const createStyles = (colors) => StyleSheet.create({
         right: spacing.sm,
         width: 36,
         height: 36,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
         justifyContent: 'center',
         alignItems: 'center',
     },

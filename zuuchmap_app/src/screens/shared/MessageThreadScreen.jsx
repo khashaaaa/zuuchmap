@@ -196,7 +196,7 @@ const MessageThreadScreen = ({ navigation, route }) => {
     };
 
     const loadOlder = hasNextPage && !isLoading ? (
-        <TouchableOpacity
+        <TouchableOpacity activeOpacity={interactions.activeOpacity}
             onPress={() => fetchNextPage()}
             disabled={isFetchingNextPage}
             hitSlop={interactions.hitSlop}
@@ -351,7 +351,7 @@ const createStyles = (colors) => StyleSheet.create({
         ...typography.styles.body,
     },
     sendBtn: {
-        width: 42, height: 42, borderRadius: radius.full,
+        width: 42, height: 42, borderRadius: radius.pill,
         alignItems: 'center', justifyContent: 'center',
     },
 });

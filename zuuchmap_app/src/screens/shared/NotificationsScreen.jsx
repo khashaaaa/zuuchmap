@@ -3,7 +3,7 @@ import { View, Text, SectionList, TouchableOpacity, StyleSheet, Switch } from 'r
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { ScreenLayout, EmptyState } from '../../components';
+import { ScreenLayout, EmptyState, PressableScale } from '../../components';
 import { spacing, typography, radius, withAlpha, interactions, isTablet } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useAppContext } from '../../context/AppContext';
@@ -56,9 +56,9 @@ function NotifItem({ item, colors, onPress }) {
     // Rows without a target (generic info) stay plain views.
     if (!onPress) return <View style={itemStyle}>{content}</View>;
     return (
-        <TouchableOpacity style={itemStyle} onPress={onPress} activeOpacity={interactions.activeOpacityLight}>
+        <PressableScale style={itemStyle} onPress={onPress} accessibilityRole="button">
             {content}
-        </TouchableOpacity>
+        </PressableScale>
     );
 }
 
@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
     iconWrap: {
         width: 36,
         height: 36,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
         alignItems: 'center',
         justifyContent: 'center',
         marginTop: spacing.xxs,

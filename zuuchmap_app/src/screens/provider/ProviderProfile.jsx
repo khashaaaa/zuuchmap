@@ -291,7 +291,7 @@ const styles = StyleSheet.create({
     },
     profileHeader: { marginBottom: spacing.xl },
     profileCard: {
-        borderRadius: radius.xxl,
+        borderRadius: radius.card,
         padding: spacing.xl,
         flexDirection: 'row',
         alignItems: 'center',
@@ -302,7 +302,7 @@ const styles = StyleSheet.create({
     profileName: { ...typography.styles.h3, marginBottom: spacing.xs },
     phoneContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm },
     profilePhone: { ...typography.styles.caption, marginLeft: spacing.xs },
-    editButton: { width: 36, height: 36, borderRadius: radius.xl, justifyContent: 'center', alignItems: 'center' },
+    editButton: { width: 36, height: 36, borderRadius: radius.button, justifyContent: 'center', alignItems: 'center' },
     companySection: { marginBottom: spacing.xl },
     companyCard: {
         borderRadius: radius.card,

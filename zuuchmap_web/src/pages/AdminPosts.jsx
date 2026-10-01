@@ -275,9 +275,9 @@ export default function AdminPosts() {
                               alt=""
                               loading="lazy"
                               onError={fallbackToFullImage(post.images[0])}
-                              className="w-11 h-11 rounded-lg object-cover shrink-0 bg-surface2"
+                              className="w-11 h-11 rounded-inset object-cover shrink-0 bg-surface2"
                             />
-                          : <div className="w-11 h-11 rounded-lg bg-surface2 shrink-0 flex items-center justify-center" aria-hidden="true">
+                          : <div className="w-11 h-11 rounded-inset bg-surface2 shrink-0 flex items-center justify-center" aria-hidden="true">
                               <ImageOff size={14} className="text-muted" />
                             </div>}
                         <div className="min-w-0">

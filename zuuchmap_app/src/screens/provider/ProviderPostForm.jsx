@@ -785,7 +785,7 @@ const createStyles = (colors) => StyleSheet.create({
         gap: spacing.xxs,
         paddingVertical: spacing.xxs,
         paddingHorizontal: spacing.sm,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
         backgroundColor: withAlpha(colors.danger, 0.12),
     },
     rejectFieldText: { ...typography.styles.label, color: colors.danger },
@@ -807,7 +807,7 @@ const createStyles = (colors) => StyleSheet.create({
     infoIcon: {
         width: 32,
         height: 32,
-        borderRadius: radius.full,
+        borderRadius: radius.pill,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: spacing.md,

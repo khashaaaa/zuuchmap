@@ -38,7 +38,7 @@ function RibbonCard({ post, t }) {
       <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/75 to-transparent" aria-hidden="true" />
       <div className="absolute inset-x-0 bottom-0 p-3">
         <p className="text-sm font-semibold text-white line-clamp-1">{title}</p>
-        {price && <p className="text-xs font-bold text-primary mt-0.5 tabular-nums">{price}</p>}
+        {price && <p className="text-xs font-bold text-primary-on-media mt-0.5 tabular-nums">{price}</p>}
       </div>
     </Link>
   )
@@ -232,7 +232,7 @@ export default function LandingPage() {
           {/* The trust claim is the argument for using this over a Facebook
               group — it gets its own panel, not a footnote. */}
           <div className="mt-10 max-w-2xl rounded-card border border-border/20 bg-surface p-5 flex items-start gap-4">
-            <span className="w-9 h-9 rounded-lg bg-success/10 text-success flex items-center justify-center shrink-0" aria-hidden="true">
+            <span className="w-9 h-9 rounded-inset bg-success/10 text-success flex items-center justify-center shrink-0" aria-hidden="true">
               <ShieldCheck size={18} />
             </span>
             <div>

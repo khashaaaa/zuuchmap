@@ -858,7 +858,7 @@ const createStyles = (colors) => StyleSheet.create({
         backgroundColor: MAP_OVERLAY.accent,
         paddingHorizontal: spacing.md,
         paddingVertical: spacing.sm,
-        borderRadius: radius.xxl,
+        borderRadius: radius.pill,
     },
     postCountText: {
         color: MAP_OVERLAY.onAccent,

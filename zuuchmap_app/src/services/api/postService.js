@@ -239,6 +239,9 @@ const postService = {
   },
 
   // Attention stats (views / saves / booking requests) for the provider's posts.
+  /** Landing counters `{ total, provinces, by_category }` — public, cached 5m server-side. */
+  getPublicStats: async () => (await apiClient.get(API_CONFIG.ENDPOINTS.POSTS.PUBLIC_STATS)).data,
+
   getMyStats: async () => (await apiClient.get(API_CONFIG.ENDPOINTS.POSTS.MINE_STATS)).data,
 
   getById: async (postId, incrementView = false) => {

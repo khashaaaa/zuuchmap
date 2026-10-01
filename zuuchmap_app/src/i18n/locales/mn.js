@@ -58,6 +58,7 @@ export default {
     title: 'Нэвтрэх',
     phoneTitle: 'Утасны дугаараа оруулна уу',
     phoneSubtitle: 'ZuuchMap-д тавтай морилно уу',
+    liveStats: '{{listings}} идэвхтэй зар · {{provinces}} аймаг',
     welcomeBack: 'Тавтай морилно уу',
     continueDifferent: 'Өөр дугаараар нэвтрэх',
     phoneLabel: '+976',

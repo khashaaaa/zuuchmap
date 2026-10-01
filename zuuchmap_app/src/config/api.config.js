@@ -51,6 +51,7 @@ export const API_CONFIG = {
       MAP: '/posts/map',
       MINE: '/posts/mine',
       MINE_STATS: '/posts/mine/stats',
+      PUBLIC_STATS: '/posts/stats',
       CREATE: '/posts',
       GET: (id) => `/posts/${id}`,
       UPDATE: (id) => `/posts/${id}`,

@@ -7,18 +7,23 @@ import {
     KeyboardAvoidingView,
     Platform,
     StyleSheet,
-    Image,
 } from 'react-native';
+import { useQuery } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useKeyboardOverlap } from '../../hooks/useKeyboardOverlap';
 import { Ionicons } from '@expo/vector-icons';
-import { spacing, typography, radius, interactions, isTablet } from '../../design/theme';
+import { spacing, typography, radius, interactions, isTablet, tintOn, toneForTheme } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { useAppContext } from '../../context/AppContext';
 import { useTranslation } from 'react-i18next';
 import userService from '../../services/api/userService';
+import postService from '../../services/api/postService';
+import { useActiveCategorySchemas } from '../../hooks/useCategorySchemas';
+import { getPostTypeConfig } from '../../utils/postUtils';
+import { groupThousands } from '../../utils/displayUtils';
+import Avatar from '../../components/Avatar';
 import { saveUserInfo, getUserInfo } from '../../services/api/authHelpers';
 import { API_CONFIG } from '../../config/api.config';
 import { getErrorMessage, showErrorModal } from '../../utils/errorManager';
@@ -27,6 +32,56 @@ import { track } from '../../services/analytics';
 import Button from '../../components/Button';
 import FadeSlideIn from '../../components/FadeSlideIn';
 import { navigateToDashboard } from '../../utils/navigationUtils';
+
+const TILE = 52;
+const TILE_GAP = 10;
+const MAX_ROWS = 3;
+const WALL_MARGIN = spacing.xxl;
+
+/**
+ * Every live category as a tile, laid in brick bond: courses alternate short
+ * and long, so each sits offset by half a tile (13 categories lay 4/5/4).
+ * Data-driven like every other category surface — a new vertical joins the
+ * wall without a release. `maxHeight` is what the headline and form leave;
+ * whole courses are dropped to fit it, because a first visit opens with the
+ * keyboard up and the title must not be the thing that gives way.
+ */
+const CategoryWall = ({ schemas, colors, isDark, maxHeight }) => {
+    const [width, setWidth] = useState(0);
+    let rows = [];
+    if (width && maxHeight > 0 && schemas.length) {
+        const long = Math.min(5, Math.floor((width + TILE_GAP) / (TILE + TILE_GAP)));
+        const fit = Math.min(MAX_ROWS, Math.floor((maxHeight + TILE_GAP) / (TILE + TILE_GAP)));
+        for (let i = 0, r = 0; r < fit && i < schemas.length; r++) {
+            const n = r % 2 === 0 ? long - 1 : long;
+            rows.push(schemas.slice(i, i + n));
+            i += n;
+        }
+    }
+    return (
+        <View
+            style={styles.wall}
+            onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+            accessible={false}
+            importantForAccessibility="no-hide-descendants"
+        >
+            {rows.map((row, r) => (
+                <View key={r} style={styles.wallRow}>
+                    {row.map((schema, i) => {
+                        const { iconName, color } = getPostTypeConfig(schema.key, colors, schemas);
+                        return (
+                            <FadeSlideIn key={schema.key} index={r * 5 + i} stagger={35}>
+                                <View style={[styles.tile, { backgroundColor: tintOn(color, isDark ? 0.22 : 0.14, colors.background) }]}>
+                                    <Ionicons name={iconName} size={24} color={toneForTheme(color, isDark)} />
+                                </View>
+                            </FadeSlideIn>
+                        );
+                    })}
+                </View>
+            ))}
+        </View>
+    );
+};
 
 const PhoneNumber = ({ navigation }) => {
     const [phoneNumber, setPhoneNumber] = useState('');
@@ -41,6 +96,15 @@ const PhoneNumber = ({ navigation }) => {
     const keyboard = useKeyboardOverlap();
     const { setThemeMode } = useAppContext();
     const { t } = useTranslation();
+    const schemas = useActiveCategorySchemas();
+    const [headerH, setHeaderH] = useState(0);
+    const [headlineH, setHeadlineH] = useState(0);
+    // Optional garnish: absent until it loads, and never blocks the form.
+    const { data: stats } = useQuery({
+        queryKey: ['posts', 'public-stats'],
+        queryFn: postService.getPublicStats,
+        staleTime: 5 * 60 * 1000,
+    });
 
     useEffect(() => {
         let mounted = true;
@@ -171,24 +235,39 @@ const PhoneNumber = ({ navigation }) => {
                             <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={colors.iconAccent} />
                         </TouchableOpacity>
                     </View>
-                    <FadeSlideIn style={styles.header}>
-                        {savedUser?.profilePicture ? (
-                            <Image
-                                source={{ uri: savedUser.profilePicture }}
-                                style={[styles.avatar, { backgroundColor: colors.opacity.background.primary }]}
-                            />
-                        ) : (
-                            <View style={[styles.iconContainer, { backgroundColor: colors.opacity.background.primary }]}>
-                                <Ionicons name={savedUser ? 'person-outline' : 'call-outline'} size={64} color={colors.iconAccent} />
-                            </View>
-                        )}
-                        <Text style={[styles.title, { color: colors.text.primary }]}>
-                            {savedUser ? t('auth.welcomeBack') : t('auth.phoneTitle')}
-                        </Text>
-                        <Text style={[styles.subtitle, { color: colors.text.secondary }]}>
-                            {savedUser ? (savedUser.name || savedUser.phoneNumber) : t('auth.phoneSubtitle')}
-                        </Text>
-                    </FadeSlideIn>
+                    <View style={styles.header} onLayout={(e) => setHeaderH(e.nativeEvent.layout.height)}>
+                        <CategoryWall
+                            schemas={schemas}
+                            colors={colors}
+                            isDark={isDark}
+                            maxHeight={headerH - headlineH - WALL_MARGIN}
+                        />
+                        <View style={styles.headline} onLayout={(e) => setHeadlineH(e.nativeEvent.layout.height)}>
+                        <FadeSlideIn style={styles.headline}>
+                            <Text style={[styles.title, { color: colors.text.primary }]}>
+                                {savedUser ? t('auth.welcomeBack') : t('auth.phoneTitle')}
+                            </Text>
+                            {savedUser ? (
+                                <View style={[styles.who, { backgroundColor: colors.surface, borderColor: colors.border.light }]}>
+                                    <Avatar uri={savedUser.profilePicture} size={28} />
+                                    <Text style={[styles.whoName, { color: colors.text.primary }]} numberOfLines={1}>
+                                        {savedUser.name || savedUser.phoneNumber}
+                                    </Text>
+                                </View>
+                            ) : (
+                                <Text style={[styles.subtitle, { color: colors.text.secondary }]}>{t('auth.phoneSubtitle')}</Text>
+                            )}
+                            {stats?.total > 0 && (
+                                <View style={styles.stats}>
+                                    <View style={[styles.liveDot, { backgroundColor: colors.success }]} />
+                                    <Text style={[styles.statsText, { color: colors.text.secondary }]}>
+                                        {t('auth.liveStats', { listings: groupThousands(stats.total), provinces: stats.provinces })}
+                                    </Text>
+                                </View>
+                            )}
+                        </FadeSlideIn>
+                        </View>
+                    </View>
 
                     <View style={styles.form}>
                         <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border.medium }]}>
@@ -265,23 +344,56 @@ const styles = StyleSheet.create({
     },
     header: {
         flex: 1,
-        alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: spacing.xxxl,
+        marginBottom: spacing.xxl,
     },
-    iconContainer: {
-        width: 120,
-        height: 120,
-        borderRadius: radius.pill,
+    wall: {
+        gap: TILE_GAP,
+        marginBottom: WALL_MARGIN,
+    },
+    wallRow: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        gap: TILE_GAP,
+    },
+    tile: {
+        width: TILE,
+        height: TILE,
+        borderRadius: radius.lg,
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: spacing.lg,
     },
-    avatar: {
-        width: 120,
-        height: 120,
+    headline: {
+        alignItems: 'center',
+    },
+    who: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+        maxWidth: '100%',
+        paddingVertical: spacing.xs,
+        paddingLeft: spacing.xs,
+        paddingRight: spacing.md,
         borderRadius: radius.pill,
-        marginBottom: spacing.lg,
+        borderWidth: 1,
+    },
+    whoName: {
+        ...typography.styles.labelStrong,
+        flexShrink: 1,
+    },
+    stats: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+        marginTop: spacing.md,
+    },
+    liveDot: {
+        width: 6,
+        height: 6,
+        borderRadius: radius.pill,
+    },
+    statsText: {
+        ...typography.styles.caption,
     },
     differentAccount: {
         ...typography.styles.labelStrong,

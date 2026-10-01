@@ -52,6 +52,7 @@ export default {
     cost: 'Ваш оператор спишет 150₮ за это SMS. Повторно оно понадобится только на новом устройстве.',
     title: 'Вход',
     phoneTitle: 'Введите номер телефона', phoneSubtitle: 'Добро пожаловать в ZuuchMap',
+    liveStats: 'Объявлений: {{listings}} · Аймаков: {{provinces}}',
     welcomeBack: 'С возвращением', continueDifferent: 'Использовать другой номер',
     phoneLabel: '+976', phonePlaceholder: '8-значный номер', phoneError: 'Введите 8-значный номер', continue: 'Продолжить',
     sending: 'Отправка...',

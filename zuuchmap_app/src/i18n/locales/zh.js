@@ -52,6 +52,7 @@ export default {
     cost: '运营商对此条短信收取 150₮。只有在新设备上登录时才需再次验证。',
     title: '登录',
     phoneTitle: '输入您的手机号', phoneSubtitle: '欢迎使用 ZuuchMap',
+    liveStats: '{{listings}} 条在线信息 · {{provinces}} 个省',
     welcomeBack: '欢迎回来', continueDifferent: '使用其他号码',
     phoneLabel: '+976', phonePlaceholder: '8位号码', phoneError: '请输入8位号码', continue: '继续',
     sending: '发送中...',

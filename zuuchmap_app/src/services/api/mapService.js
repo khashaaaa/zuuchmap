@@ -73,22 +73,6 @@ const mapService = {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   },
 
-  calculateBounds: (coordinates) => {
-    if (!coordinates?.length) return null;
-    let minLat = coordinates[0].latitude, maxLat = coordinates[0].latitude;
-    let minLng = coordinates[0].longitude, maxLng = coordinates[0].longitude;
-    coordinates.forEach(c => {
-      minLat = Math.min(minLat, c.latitude); maxLat = Math.max(maxLat, c.latitude);
-      minLng = Math.min(minLng, c.longitude); maxLng = Math.max(maxLng, c.longitude);
-    });
-    return {
-      latitude: (minLat + maxLat) / 2,
-      longitude: (minLng + maxLng) / 2,
-      latitudeDelta: (maxLat - minLat) * 1.1 || 0.05,
-      longitudeDelta: (maxLng - minLng) * 1.1 || 0.05,
-    };
-  },
-
   saveMapPreferences: async (prefs) => {
     await cacheManager.setStorage(API_CONFIG.STORAGE_KEYS.MAP_PREFERENCES, prefs).catch(() => {});
   },

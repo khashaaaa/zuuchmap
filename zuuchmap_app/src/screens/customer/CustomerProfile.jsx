@@ -4,7 +4,6 @@ import {
     View,
     Text,
     TouchableOpacity,
-    ActivityIndicator,
     ScrollView,
     RefreshControl,
     StyleSheet,
@@ -16,7 +15,7 @@ import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 import { useProfile } from '../../hooks/useProfile';
 import likeService from '../../services/api/likeService';
-import { ScreenLayout, SettingsSection, PressableScale, FadeSlideIn, Avatar } from '../../components';
+import { ScreenLayout, SettingsSection, PressableScale, FadeSlideIn, Avatar, StatTile } from '../../components';
 import { ProfileSection, ProfileActionRow } from '../../components';
 import { ProfileBadge } from '../../components';
 import { showErrorModal, isPostLogoutStraggler } from '../../utils/errorManager';
@@ -244,31 +243,27 @@ const CustomerProfile = ({ navigation }) => {
 
                 <FadeSlideIn index={0}>
                 <View style={[styles.statsSection, colors.elevation.md, { backgroundColor: colors.surface }]}>
+                    {/* StatTile, as on the provider profile: the two profiles
+                        rendered the same kind of fact in two different designs. */}
                     <PressableScale
                         style={styles.statItem}
                         onPress={() => navigation.navigate('CustomerLikeList')}
                         accessibilityRole="button"
                     >
-                        <View style={[styles.statIconContainer, { backgroundColor: colors.opacity.background.primary }]}>
-                            <Ionicons name="heart-outline" size={20} color={colors.iconAccent} />
-                        </View>
-                        {loading_liked_count ? (
-                            <ActivityIndicator size="small" color={colors.iconAccent} />
-                        ) : (
-                            <Text style={[styles.statValue, { color: colors.text.primary }]}>
-                                {likedCountDisplay}
-                            </Text>
-                        )}
-                        <Text style={[styles.statLabel, { color: colors.text.secondary }]}>{t('nav.saved')}</Text>
+                        <StatTile
+                            label={t('nav.saved')}
+                            value={likedCountDisplay}
+                            icon="heart-outline"
+                            loading={loading_liked_count}
+                            emphasis
+                        />
                     </PressableScale>
-
-                    <View style={styles.statItem}>
-                        <View style={[styles.statIconContainer, { backgroundColor: colors.opacity.background.primary }]}>
-                            <Ionicons name="calendar-outline" size={20} color={colors.iconAccent} />
-                        </View>
-                        <Text style={[styles.statValue, { color: colors.text.primary }]}>{user?.memberSince || '—'}</Text>
-                        <Text style={[styles.statLabel, { color: colors.text.secondary }]}>{t('profile.memberSince')}</Text>
-                    </View>
+                    <StatTile
+                        label={t('profile.memberSince')}
+                        value={user?.memberSince || '—'}
+                        icon="calendar-outline"
+                        style={styles.statItem}
+                    />
                 </View>
                 </FadeSlideIn>
 
@@ -366,13 +361,7 @@ const styles = StyleSheet.create({
         padding: spacing.lg,
         marginBottom: spacing.xl,
     },
-    statItem: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    statIconContainer: {
-        width: 40, height: 40, borderRadius: radius.pill,
-        justifyContent: 'center', alignItems: 'center', marginBottom: spacing.sm,
-    },
-    statValue: { ...typography.styles.h2, marginBottom: spacing.xs, fontVariant: ['tabular-nums'] },
-    statLabel: { ...typography.styles.small, textAlign: 'center' },
+    statItem: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto' },
 });
 
 export default CustomerProfile;

@@ -51,8 +51,36 @@ export const gridCluster = (posts, viewport) => {
     else cells.set(key, [post])
   }
 
+  // Neighbouring cells can hold pins a few metres apart across a cell edge,
+  // and their two badges were drawn on top of each other. Merge any group
+  // whose centroid falls within ¾ of a cell of a larger one; largest first,
+  // ties by key, so both clients merge the same way.
+  const centroidOf = (group) => {
+    let la = 0
+    let ln = 0
+    for (const p of group) {
+      const c = coordsOf(p)
+      la += c.latitude
+      ln += c.longitude
+    }
+    return { lat: la / group.length, lng: ln / group.length }
+  }
+  const ordered = [...cells]
+    .map(([key, group]) => ({ key, group, ...centroidOf(group) }))
+    .sort((a, b) => b.group.length - a.group.length || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
+  const merged = []
+  for (const g of ordered) {
+    const host = merged.find(
+      (m) => Math.abs(m.lat - g.lat) < cellLat * 0.75 && Math.abs(m.lng - g.lng) < cellLng * 0.75,
+    )
+    if (host) {
+      host.group.push(...g.group)
+      Object.assign(host, centroidOf(host.group))
+    } else merged.push(g)
+  }
+
   const out = []
-  for (const [key, group] of cells) {
+  for (const { key, group } of merged) {
     if (group.length === 1) {
       const post = group[0]
       out.push({

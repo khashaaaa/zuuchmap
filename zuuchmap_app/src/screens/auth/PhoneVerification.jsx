@@ -153,14 +153,14 @@ const PhoneVerification = ({ route, navigation }) => {
                 <View style={styles.content}>
                     <View style={styles.topRow}>
                         <TouchableOpacity
-                            style={styles.backButton}
+                            style={[styles.themeToggle, { backgroundColor: colors.opacity.background.primary }]}
                             onPress={() => navigation.goBack()}
                             accessibilityRole="button"
                             accessibilityLabel={t('common.back')}
                             activeOpacity={interactions.activeOpacityLight}
                             hitSlop={interactions.hitSlop}
                         >
-                            <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
+                            <Ionicons name="arrow-back" size={20} color={colors.iconAccent} />
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={[styles.themeToggle, { backgroundColor: colors.opacity.background.primary }]}
@@ -276,7 +276,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: spacing.lg,
     },
-    backButton: { padding: spacing.sm },
     themeToggle: {
         width: 36,
         height: 36,

@@ -550,6 +550,10 @@ function agree(contract, sets) {
     { id: 5, category: 'jobvacancy', latitude: 47.9302, longitude: 106.9402 },
     { id: 6, category: 'transport', latitude: 49.6548, longitude: 100.2329 },
     { id: 7, category: 'sos', latitude: 43.5708, longitude: 104.4250 },
+    // Two pins 40 m apart either side of a cell edge at the default region:
+    // the grid splits them, the merge pass must put them back in one badge.
+    { id: 10, category: 'vehiclerent', latitude: 47.9100, longitude: 106.9578571 },
+    { id: 11, category: 'vehiclerent', latitude: 47.9100, longitude: 106.9582571 },
     // Coordinates that must be skipped rather than clustered at (0,0).
     { id: 8, category: 'toolrent', latitude: null, longitude: 106.9 },
     { id: 9, category: 'toolrent', latitude: 'not-a-number', longitude: 106.9 },
@@ -598,7 +602,12 @@ function agree(contract, sets) {
 
     // The two bad-coordinate rows must be dropped, not clustered at (0,0).
     const total = webFn(RAW, { latDelta: 9, lngDelta: 18 }).reduce((n, c) => n + c.count, 0);
-    if (total !== 7) fail('mapCluster', `posts with a missing or non-numeric coordinate must be skipped — expected 7 pins, got ${total}`);
+    if (total !== 9) fail('mapCluster', `posts with a missing or non-numeric coordinate must be skipped — expected 9 pins, got ${total}`);
+
+    // The straddling pair must render as one badge, not two stacked ones.
+    const straddle = webFn(RAW, { latDelta: 0.0922, lngDelta: 0.0421 })
+      .filter((c) => c.posts.some((p) => p.id === 10 || p.id === 11));
+    if (straddle.length !== 1) fail('mapCluster', `two pins across a cell edge drew ${straddle.length} badges — the merge pass should join them`);
   }
 }
 

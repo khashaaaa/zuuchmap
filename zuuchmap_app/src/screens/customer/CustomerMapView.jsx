@@ -63,6 +63,13 @@ function uiReducer(state, action) {
 // iOS; Android needs the style array.
 const FIRST_FIX_RADIUS_KM = 25;
 
+// Room around a fitted frame for what is drawn over it: the post-count badge
+// top-left, the round buttons bottom-right, and half a cluster badge on every
+// side. A bounds box padded by 10% put edge badges half off the screen.
+// In dp on both platforms in this react-native-maps (1.20): scaling it by the
+// pixel ratio, as older versions needed on Android, zoomed out to half a continent.
+const FIT_PADDING = { top: 96, right: 72, bottom: 120, left: 48 };
+
 // react-native-maps 1.20.1 (the version Expo SDK 54 pins) never learns a custom
 // marker's size under the new architecture on Android: `MapMarker.createDrawable`
 // falls back to a fixed 100x100 *pixel* bitmap and draws the child into it from
@@ -103,8 +110,30 @@ const gridCluster = (posts, region) => {
         const cell = cells.get(key);
         if (cell) cell.push(post); else cells.set(key, [post]);
     }
+    // Neighbouring cells can hold pins a few metres apart across a cell edge,
+    // and their two badges were drawn on top of each other. Merge any group
+    // whose centroid falls within ¾ of a cell of a larger one; largest first,
+    // ties by key, so both clients merge the same way (web `mapCluster.js`).
+    const centroidOf = (group) => {
+        let la = 0, ln = 0;
+        for (const p of group) { la += p.coordinates.latitude; ln += p.coordinates.longitude; }
+        return { lat: la / group.length, lng: ln / group.length };
+    };
+    const ordered = [...cells]
+        .map(([key, group]) => ({ key, group, ...centroidOf(group) }))
+        .sort((a, b) => b.group.length - a.group.length || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+    const merged = [];
+    for (const g of ordered) {
+        const host = merged.find(
+            (m) => Math.abs(m.lat - g.lat) < cellLat * 0.75 && Math.abs(m.lng - g.lng) < cellLng * 0.75,
+        );
+        if (host) {
+            host.group.push(...g.group);
+            Object.assign(host, centroidOf(host.group));
+        } else merged.push(g);
+    }
     const out = [];
-    for (const [key, group] of cells) {
+    for (const { key, group } of merged) {
         if (group.length === 1) {
             const post = group[0];
             out.push({ posts: group, coordinate: post.coordinates, count: 1, id: `single-${post.post_type}-${post.id}`, dominant: post.post_type });
@@ -329,9 +358,12 @@ const CustomerMapView = ({ navigation, route }) => {
             filteredPosts, userLocation, FIRST_FIX_RADIUS_KM,
         );
         if (nearby.length === 0) return;
-        mapRef.current.animateToRegion(
-            { ...userLocation, latitudeDelta: 0.02, longitudeDelta: 0.02 },
-            animations.duration.camera,
+        // Frame the user together with what is near them: a fixed 2 km box
+        // around the user usually held none of the listings that justified
+        // moving there, so the map opened on an empty street.
+        mapRef.current.fitToCoordinates(
+            [userLocation, ...nearby.map((p) => p.coordinates)],
+            { edgePadding: FIT_PADDING, animated: true },
         );
     }, [mapReady, userLocation, loading, filteredPosts]);
 
@@ -379,9 +411,15 @@ const CustomerMapView = ({ navigation, route }) => {
     }, [refetchPosts]);
 
     const fitToMarkers = useCallback(() => {
-        if (clusters.length === 0 || !mapRef.current || !mapReady) return;
+        if (!mapRef.current || !mapReady) return;
 
-        const coordinates = clusters.map(cluster => cluster.coordinate);
+        // The listings themselves, not the clusters on screen: a cluster's
+        // centroid depends on the current zoom, so fitting centroids framed
+        // a different area each time the button was pressed.
+        const coordinates = filteredPosts
+            .map((p) => p.coordinates)
+            .filter((c) => Number.isFinite(c?.latitude) && Number.isFinite(c?.longitude));
+        if (coordinates.length === 0) return;
         if (userLocation) {
             coordinates.push(userLocation);
         }
@@ -395,17 +433,8 @@ const CustomerMapView = ({ navigation, route }) => {
             return;
         }
 
-        const bounds = mapService.calculateBounds(coordinates);
-        if (bounds) {
-            const minDelta = 0.005;
-            const adjustedBounds = {
-                ...bounds,
-                latitudeDelta: Math.max(bounds.latitudeDelta, minDelta),
-                longitudeDelta: Math.max(bounds.longitudeDelta, minDelta),
-            };
-            mapRef.current.animateToRegion(adjustedBounds, 1000);
-        }
-    }, [clusters, userLocation, mapReady]);
+        mapRef.current.fitToCoordinates(coordinates, { edgePadding: FIT_PADDING, animated: true });
+    }, [filteredPosts, userLocation, mapReady]);
 
     const updatePreference = useCallback(async (key, value) => {
         const newPrefs = { ...mapPreferences, [key]: value };

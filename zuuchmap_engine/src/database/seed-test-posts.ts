@@ -1877,6 +1877,7 @@ async function seedPosts(
   const ids: number[] = [];
   const perCategory: string[] = [];
   const usedTitles = new Map<string, Set<string>>();
+  const seenTitles = new Set<string>();
   // Paid providers own the bulk of the listings; the FREE long tail holds
   // one to three each. Live posts are only ever assigned within the owner's
   // quota, so the corpus agrees with what the create path would have allowed.
@@ -1974,7 +1975,7 @@ async function seedPosts(
       }
       const titleTpl = pick(fresh);
       used.add(titleTpl);
-      const title = titleTpl
+      let title = titleTpl
         .replace('{bm}', `${brand ?? ''} ${model ?? ''}`.trim())
         .replace(/\s+/g, ' ')
         .trim();
@@ -1983,6 +1984,11 @@ async function seedPosts(
       const place = PLACES[province];
       const district = province === 'ULAANBAATAR' ? pick(UB_DISTRICTS) : null;
       const address = addressFor(province, district);
+      // Title pools are a few lines per subcategory, so a large vertical
+      // repeats them. A repeat names where it is, the way a second listing of
+      // the same thing usually does: "… — Баянзүрх дүүрэг".
+      if (seenTitles.has(title)) title = `${title} — ${address.split(',')[0].trim()}`;
+      seenTitles.add(title);
       // A tenth of posts carry no coordinates — they must stay in browse and
       // stay off the map, rather than becoming a null pin.
       const located = rnd() >= 0.1;

@@ -12,6 +12,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useKeyboardOverlap } from '../../hooks/useKeyboardOverlap';
 import { Ionicons } from '@expo/vector-icons';
 import { spacing, typography, radius, interactions, isTablet } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
@@ -37,6 +38,7 @@ const PhoneNumber = ({ navigation }) => {
     const inputRef = useRef(null);
     const { colors, isDark } = useAppTheme();
     const insets = useSafeAreaInsets();
+    const keyboard = useKeyboardOverlap();
     const { setThemeMode } = useAppContext();
     const { t } = useTranslation();
 
@@ -122,14 +124,18 @@ const PhoneNumber = ({ navigation }) => {
         // top was, and the top row slid up under the status bar.
         <CustomSafeAreaView backgroundColor={colors.background}>
             <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                // See MessageThreadScreen: on Android the view's own frame is
-                // measured below the status bar, so without this the keyboard
-                // still covered the lower half of "Үргэлжлүүлэх".
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : insets.top}
+                behavior="padding"
+                // iOS only. Android pads by the measured overlap instead
+                // (useKeyboardOverlap): `height` shrank an already-resized
+                // window a second time and pushed the title under the status bar.
+                enabled={Platform.OS === 'ios'}
                 style={styles.flex1}
             >
-                <View style={styles.tabletCentering}>
+                <View
+                    ref={keyboard.ref}
+                    onLayout={keyboard.onLayout}
+                    style={[styles.tabletCentering, Platform.OS === 'android' && { paddingBottom: keyboard.overlap }]}
+                >
             {/* The window runs behind the navigation bar; without its inset the
                 "other number" link sat on the bar's edge. */}
             <View style={[styles.content, { paddingBottom: insets.bottom + spacing.lg }]}>

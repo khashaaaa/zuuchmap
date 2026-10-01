@@ -106,7 +106,7 @@ const UserRoleSelection = ({ route, navigation }) => {
             accessibilityRole="button"
             accessibilityLabel={t('common.back')}
         >
-            <Ionicons name="arrow-back" size={24} color={colors.iconAccent} />
+            <Ionicons name="arrow-back" size={20} color={colors.iconAccent} />
         </TouchableOpacity>
     ) : <View />;
 

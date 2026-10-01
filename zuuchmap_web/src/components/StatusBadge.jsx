@@ -30,7 +30,7 @@ export default function StatusBadge({ status, kind = 'post' }) {
   const cls = (kind === 'booking' ? BOOKING_CLS : POST_CLS)[status] ?? 'bg-surface2 text-muted border-border/50'
   const label = status ? t(`status.${status.toLowerCase()}`, { defaultValue: status }) : '—'
   return (
-    <span className={`inline-block px-2 py-0.5 text-xs rounded-md border font-medium ${cls}`}>
+    <span className={`inline-block whitespace-nowrap px-2 py-0.5 text-xs rounded-md border font-medium ${cls}`}>
       {label}
     </span>
   )
@@ -51,7 +51,7 @@ export function TypeBadge({ type }) {
   const cls = type === 'PROVIDER' ? 'bg-primary/10 text-primary-text border-primary/20' : 'bg-surface2 text-muted border-border/50'
   const label = type === 'PROVIDER' ? t('onboarding.provider') : type === 'CUSTOMER' ? t('onboarding.customer') : '—'
   return (
-    <span className={`inline-block px-2 py-0.5 text-xs rounded-md border font-medium ${cls}`}>
+    <span className={`inline-block whitespace-nowrap px-2 py-0.5 text-xs rounded-md border font-medium ${cls}`}>
       {label}
     </span>
   )

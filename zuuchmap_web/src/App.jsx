@@ -15,6 +15,11 @@ import { queryClient } from './lib/queryClient'
 import LandingPage from './pages/LandingPage'
 import PublicHeader from './components/PublicHeader'
 import PublicFooter from './components/PublicFooter'
+import EmptyState from './components/EmptyState'
+import Button from './components/Button'
+import { useDocumentMeta } from './hooks/useDocumentMeta'
+import { useTranslation } from 'react-i18next'
+import { SearchX } from 'lucide-react'
 
 // Everything else is route-split. Before this, all 41 routes lived in one
 // 1.07MB chunk — an anonymous visitor downloaded the whole admin console and
@@ -87,6 +92,31 @@ function PublicBrowse() {
       <div className="max-w-6xl w-full mx-auto px-4 py-6 flex-1">
         <CustomerBrowse />
       </div>
+      <PublicFooter />
+    </div>
+  )
+}
+
+/**
+ * An unknown address says so. It used to redirect to `/` without a word, so a
+ * mistyped or stale link (an old shared post URL) looked like the site had
+ * dropped the visitor on its front page for no reason.
+ */
+function NotFound() {
+  const { t } = useTranslation()
+  useDocumentMeta({ title: t('common.notFound') })
+  return (
+    <div className="min-h-screen bg-background flex flex-col">
+      <PublicHeader />
+      <main className="max-w-6xl w-full mx-auto px-4 py-6 flex-1">
+        <EmptyState
+          icon={SearchX}
+          as="h1"
+          title={t('common.notFound')}
+          description={t('common.notFoundHint')}
+          action={<Button to="/">{t('common.goHome')}</Button>}
+        />
+      </main>
       <PublicFooter />
     </div>
   )
@@ -192,7 +222,7 @@ export default function App() {
         </Route>
 
         <Route path="/" element={<RootRedirect />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>
     </ErrorBoundary>

@@ -49,8 +49,8 @@ export default function SchemaFormPreview({ schema }) {
             <FormSection title={t('posts.basicInfo')}>
               {schema?.subcategories?.length > 0 && (
                 <div>
-                  <label className="field-label">{t('posts.subcategory')}</label>
-                  <Input as="select" value="" onChange={noop} disabled>
+                  <label htmlFor="preview-1" className="field-label">{t('posts.subcategory')}</label>
+                  <Input id="preview-1" as="select" value="" onChange={noop} disabled>
                     <option value="">{t('common.select')}</option>
                     {schema.subcategories.map((s, i) => (
                       <option key={`${s.value}-${i}`} value={s.value}>{resolveSchemaLabel(s) || s.display || s.value || '…'}</option>
@@ -59,12 +59,12 @@ export default function SchemaFormPreview({ schema }) {
                 </div>
               )}
               <div>
-                <label className="field-label">{t('posts.title')} <span className="text-danger">*</span></label>
-                <Input value="" onChange={noop} placeholder={t('posts.title')} disabled />
+                <label htmlFor="preview-2" className="field-label">{t('posts.title')} <span className="text-danger">*</span></label>
+                <Input id="preview-2" value="" onChange={noop} placeholder={t('posts.title')} disabled />
               </div>
               <div>
-                <label className="field-label">{t('posts.details')}</label>
-                <Input as="textarea" value="" onChange={noop} rows={3} placeholder={t('posts.details')} className="resize-none" disabled />
+                <label htmlFor="preview-3" className="field-label">{t('posts.details')}</label>
+                <Input id="preview-3" as="textarea" value="" onChange={noop} rows={3} placeholder={t('posts.details')} className="resize-none" disabled />
               </div>
             </FormSection>
 
@@ -83,12 +83,12 @@ export default function SchemaFormPreview({ schema }) {
                 {schema.has_price && (
                   <div className="grid grid-cols-[1fr_auto] gap-2">
                     <div>
-                      <label className="field-label">{t('posts.priceAmount')}</label>
-                      <Input format="currency" value="" onChange={noop} placeholder="0" disabled />
+                      <label htmlFor="preview-4" className="field-label">{t('posts.priceAmount')}</label>
+                      <Input id="preview-4" format="currency" value="" onChange={noop} placeholder="0" disabled />
                     </div>
                     <div>
-                      <label className="field-label">{t('posts.priceUnit')}</label>
-                      <Input as="select" value={schema.default_price_unit || ''} onChange={noop} disabled>
+                      <label htmlFor="preview-5" className="field-label">{t('posts.priceUnit')}</label>
+                      <Input id="preview-5" as="select" value={schema.default_price_unit || ''} onChange={noop} disabled>
                         {!schema.default_price_unit && <option value="">—</option>}
                         {PRICE_UNITS.map((u) => <option key={u} value={u}>{t(`priceUnit.${u}`, { defaultValue: u })}</option>)}
                       </Input>
@@ -98,19 +98,19 @@ export default function SchemaFormPreview({ schema }) {
                 {schema.has_availability_dates && (
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="field-label">{t('posts.availableFrom')}</label>
-                      <Input type="date" value="" onChange={noop} disabled />
+                      <label htmlFor="preview-6" className="field-label">{t('posts.availableFrom')}</label>
+                      <Input id="preview-6" type="date" value="" onChange={noop} disabled />
                     </div>
                     <div>
-                      <label className="field-label">{t('posts.availableUntil')}</label>
-                      <Input type="date" value="" onChange={noop} disabled />
+                      <label htmlFor="preview-7" className="field-label">{t('posts.availableUntil')}</label>
+                      <Input id="preview-7" type="date" value="" onChange={noop} disabled />
                     </div>
                   </div>
                 )}
                 {schema.has_rental_status && (
                   <div>
-                    <label className="field-label">{t('common.status')}</label>
-                    <Input as="select" value="ACTIVE" onChange={noop} disabled>
+                    <label htmlFor="preview-8" className="field-label">{t('common.status')}</label>
+                    <Input id="preview-8" as="select" value="ACTIVE" onChange={noop} disabled>
                       {['ACTIVE', 'RENTED', 'EXPIRED'].map((s) => (
                         <option key={s} value={s}>{t(`status.${s.toLowerCase()}`, { defaultValue: s })}</option>
                       ))}
@@ -122,8 +122,8 @@ export default function SchemaFormPreview({ schema }) {
 
             <FormSection title={t('posts.contactInfo')}>
               <div>
-                <label className="field-label">{t('posts.contactPhone')} <span className="text-danger">*</span></label>
-                <Input type="tel" value="" onChange={noop} disabled />
+                <label htmlFor="preview-9" className="field-label">{t('posts.contactPhone')} <span className="text-danger">*</span></label>
+                <Input id="preview-9" type="tel" value="" onChange={noop} disabled />
               </div>
             </FormSection>
 

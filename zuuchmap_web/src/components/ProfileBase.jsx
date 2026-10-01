@@ -67,10 +67,11 @@ export default function ProfileBase({ stats = null, extraMenuItems = [] }) {
           [t('profile.address'), 'address', false, 'text'],
         ].map(([label, key, req, inputType]) => (
           <div key={key}>
-            <label className="field-label">
+            <label htmlFor={`profile-${key}`} className="field-label">
               {label}{req && <span className="text-danger"> *</span>}
             </label>
             <Input
+              id={`profile-${key}`}
               type={inputType}
               value={form[key]}
               required={Boolean(req)}
@@ -79,8 +80,8 @@ export default function ProfileBase({ stats = null, extraMenuItems = [] }) {
           </div>
         ))}
         <div>
-          <label className="field-label">{t('profile.phone')}</label>
-          <Input value={user?.phone_number ?? ''} disabled className="text-muted" />
+          <label htmlFor="profile-phone" className="field-label">{t('profile.phone')}</label>
+          <Input id="profile-phone" value={user?.phone_number ?? ''} disabled className="text-muted" />
         </div>
         <Button type="submit" size="lg" disabled={mut.isPending} className="w-full">
           {mut.isPending ? t('common.saving') : t('common.save')}

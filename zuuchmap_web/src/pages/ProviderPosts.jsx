@@ -330,10 +330,9 @@ export default function ProviderPosts() {
                   <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('posts.category')}</th>
                   <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('common.status')}</th>
                   <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('posts.statAttention')}</th>
-                  {/* The table's natural width is ~820px; beside the sidebar at
-                      1024 it has 736, which put the edit/delete column off-screen.
-                      Expiry is the column the phone cards already fold away. */}
-                  <th className="text-left px-4 py-3 text-xs text-muted font-medium hidden xl:table-cell">{t('posts.expires')}</th>
+                  {/* Expiry is not a column: at ~820px natural width the table
+                      overflowed beside the sidebar, and as a column it wrapped
+                      to three lines. It sits under the title instead. */}
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
@@ -367,6 +366,14 @@ export default function ProviderPosts() {
                                 {t('posts.editRejected', { reason: post.rejection_reason })}
                               </p>
                             )}
+                            {/* Under the title, not in a column: squeezed into
+                                one, "30 өдрийн дараа дуусна" wrapped to three
+                                lines and cost the title its width. */}
+                            {expiry && (
+                              <p className={`flex items-center gap-1 text-xs whitespace-nowrap ${expiry.cls || 'text-muted'}`}>
+                                <Timer size={11} /> {expiry.text}
+                              </p>
+                            )}
                           </div>
                         </Link>
                       </td>
@@ -378,14 +385,6 @@ export default function ProviderPosts() {
                             <span className="flex items-center gap-1" title={t('posts.stats.views')}><Eye size={11} aria-hidden="true" /> {stat.views}</span>
                             <span className="flex items-center gap-1" title={t('posts.stats.saves')}><Heart size={11} aria-hidden="true" /> {stat.likes}</span>
                             {bookableKeys.has(getPostCategory(post)) && <span className="flex items-center gap-1" title={t('posts.stats.requests')}><CalendarRange size={11} aria-hidden="true" /> {stat.bookings_pending + stat.bookings_accepted}</span>}
-                          </span>
-                        ) : <span className="text-muted text-xs">—</span>}
-                      </td>
-                      <td className={`${cellPad} hidden xl:table-cell`}>
-                        {expiry ? (
-
-                          <span className={`flex items-center gap-1 text-xs ${expiry.cls}`}>
-                            <Timer size={11} /> {expiry.text}
                           </span>
                         ) : <span className="text-muted text-xs">—</span>}
                       </td>

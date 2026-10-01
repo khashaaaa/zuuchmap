@@ -263,7 +263,7 @@ export default function PostDetail() {
     <div className={`max-w-5xl mx-auto px-4 py-6 ${hasMobileBar ? 'pb-28 lg:pb-6' : ''}`}>
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <button onClick={() => goBack(navigate, isAdmin ? '/admin/posts' : '/browse')} className="flex items-center gap-1.5 text-sm text-muted hover:text-text transition-colors">
+        <button onClick={() => goBack(navigate, isAdmin ? '/admin/posts' : '/browse')} className="flex items-center gap-1.5 py-2.5 -my-2.5 text-sm text-muted hover:text-text transition-colors">
           <ArrowLeft size={15} /> {t('common.back')}
         </button>
         <div className="flex items-center gap-2">
@@ -405,13 +405,17 @@ export default function PostDetail() {
 
           <div className="p-5 space-y-4">
             {/* Title + badges + status */}
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex-1 min-w-0">
+            {/* The status rides in the chip row: as a column beside the title
+                it took ~130px from it, and a phone wrapped the title to four
+                lines. */}
+            <div>
+              <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-1.5 mb-2">
                   <CategoryBadge category={getPostCategory(post)} />
                   {post.subcategory && (
                     <Chip>{getSubcategoryLabel(post.subcategory, t, schema)}</Chip>
                   )}
+                  <span className="ml-auto"><StatusBadge status={badgeStatus} /></span>
                 </div>
                 {isAdmin && editMode ? (
                   <Input
@@ -424,7 +428,6 @@ export default function PostDetail() {
                   <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-text break-words">{editedTitle || getPostTitle(post, t)}</h1>
                 )}
               </div>
-              <StatusBadge status={badgeStatus} />
             </div>
 
             {/* The price, on phones, where the eye already is. Desktop has it
@@ -542,18 +545,18 @@ export default function PostDetail() {
                 </div>
                 {/* The embedded map shows where; these hand the pin to a maps
                     app that can route to it — the app's two map actions. */}
-                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                <div className="mt-1 flex flex-wrap gap-x-4 text-sm">
                   <a
                     href={`https://maps.google.com/maps?q=${post.latitude},${post.longitude}`}
                     target="_blank" rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-primary-text hover:underline"
+                    className="inline-flex items-center gap-1 py-2.5 text-primary-text hover:underline"
                   >
                     <ExternalLink size={13} /> {t('posts.openInMaps')}
                   </a>
                   <a
                     href={`https://www.google.com/maps/dir/?api=1&destination=${post.latitude},${post.longitude}&travelmode=driving`}
                     target="_blank" rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-primary-text hover:underline"
+                    className="inline-flex items-center gap-1 py-2.5 text-primary-text hover:underline"
                   >
                     <Navigation size={13} /> {t('posts.navigate')}
                   </a>
@@ -709,10 +712,10 @@ export default function PostDetail() {
                 actually have, and it used to be answerable only by phone —
                 which left the platform with no record of what was agreed. */}
             {token && !isOwner && !isAdmin && post.user && (
-              <div className="pt-4 border-t border-border/50 flex flex-wrap gap-2">
+              <div className="pt-4 border-t border-border/50 flex flex-col items-center gap-2">
                 <Button
-                  variant="secondary"
-                  className="flex-1"
+                  variant="outline"
+                  className="w-full"
                   onClick={async () => {
                     try {
                       const thread = await messagesApi.open(post.id)
@@ -724,13 +727,16 @@ export default function PostDetail() {
                 >
                   <MessageSquare size={14} /> {t('messages.messageProvider')}
                 </Button>
-                <Button
-                  variant="outline"
+                {/* Reporting is the rare action: a quiet link, not a button
+                    that out-weighed "message" beside it and squeezed it to
+                    two lines on a phone. */}
+                <button
+                  type="button"
                   onClick={() => setReportOpen(true)}
-                  aria-label={t('report.action')}
+                  className="inline-flex items-center gap-1.5 min-h-9 px-2 text-sm text-muted hover:text-text transition-colors"
                 >
                   <Flag size={14} /> {t('report.action')}
-                </Button>
+                </button>
               </div>
             )}
 
@@ -741,21 +747,24 @@ export default function PostDetail() {
                 search is most likely to want. Offer the account instead of
                 withholding the feature silently. */}
             {!token && post.user && (
-              <div className="pt-4 border-t border-border/50 flex flex-wrap gap-2">
+              <div className="pt-4 border-t border-border/50 flex flex-col items-center gap-2">
                 <Button
-                  variant="secondary"
-                  className="flex-1"
+                  variant="outline"
+                  className="w-full"
                   onClick={() => signIn('auth.guestMessage')}
                 >
                   <MessageSquare size={14} /> {t('messages.messageProvider')}
                 </Button>
-                <Button
-                  variant="outline"
+                {/* Reporting is the rare action: a quiet link, not a button
+                    that out-weighed "message" beside it and squeezed it to
+                    two lines on a phone. */}
+                <button
+                  type="button"
                   onClick={() => signIn('auth.guestReport')}
-                  aria-label={t('report.action')}
+                  className="inline-flex items-center gap-1.5 min-h-9 px-2 text-sm text-muted hover:text-text transition-colors"
                 >
                   <Flag size={14} /> {t('report.action')}
-                </Button>
+                </button>
               </div>
             )}
 
@@ -892,7 +901,7 @@ function LikeButton({ post, liked }) {
     <button
       onClick={() => mutate(!optimistic)}
       disabled={isPending}
-      className={`flex items-center gap-2 px-4 py-2 rounded-btn border text-sm font-medium transition-colors disabled:opacity-50 ${
+      className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-btn border text-sm font-medium transition-colors disabled:opacity-50 ${
         optimistic ? 'bg-primary/15 text-primary-text border-primary/30' : 'border-border/50 text-muted hover:text-primary-text hover:border-primary/40'
       }`}
     >

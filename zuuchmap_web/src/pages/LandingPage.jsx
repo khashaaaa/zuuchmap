@@ -181,7 +181,7 @@ export default function LandingPage() {
             <h2 className="text-sm font-semibold text-muted uppercase tracking-wider">
               {t('posts.recentPosts')}
             </h2>
-            <Link to="/browse" className="text-sm text-primary-text hover:underline">
+            <Link to="/browse" className="py-2.5 -my-2.5 text-sm text-primary-text hover:underline">
               {t('common.viewAll')}
             </Link>
           </div>

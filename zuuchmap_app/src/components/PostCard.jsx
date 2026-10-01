@@ -74,7 +74,10 @@ const PostCard = ({
                     carries APPROVED posts, so this changes nothing there; it is
                     the saved list, where a customer keeps a listing the seller
                     may since have had refused, that had no way to say so. */}
-                {statusOverlay && (statusFlag || item.status) ? (
+                {/* A plain ACTIVE says nothing — every browse card is live —
+                    and stamped on every photo it drowned out the Rented and
+                    Expired badges that do mean something. No badge = live. */}
+                {statusOverlay && (statusFlag || (item.status !== 'ACTIVE' && item.status)) ? (
                     <StatusBadge status={statusFlag || item.status} variant="overlay" position="absolute" showIndicator={false} />
                 ) : null}
             </View>

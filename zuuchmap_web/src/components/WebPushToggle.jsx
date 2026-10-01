@@ -32,27 +32,30 @@ export default function WebPushToggle() {
         <p className="text-sm text-muted mt-0.5">
           {permission === 'denied' ? t('push.blocked') : t('push.description')}
         </p>
-      </div>
 
-      {permission !== 'denied' && (
-        <Button
-          size="sm"
-          variant={subscribed ? 'secondary' : 'primary'}
-          disabled={busy}
-          onClick={async () => {
-            if (subscribed) return unsubscribe()
-            const result = await subscribe()
-            // `not_configured` means the server has no VAPID keys — say so
-            // rather than leaving a button that silently does nothing.
-            if (!result.ok && result.reason === 'not_configured') {
-              // eslint-disable-next-line no-alert
-              window.alert(t('push.notConfigured'))
-            }
-          }}
-        >
-          {subscribed ? t('push.disable') : t('push.enable')}
-        </Button>
-      )}
+        {/* Under the copy, not beside it: as a third column the button left the
+            description ~110px on a phone, five lines for one sentence. */}
+        {permission !== 'denied' && (
+          <Button
+            size="sm"
+            className="mt-3"
+            variant={subscribed ? 'secondary' : 'primary'}
+            disabled={busy}
+            onClick={async () => {
+              if (subscribed) return unsubscribe()
+              const result = await subscribe()
+              // `not_configured` means the server has no VAPID keys — say so
+              // rather than leaving a button that silently does nothing.
+              if (!result.ok && result.reason === 'not_configured') {
+                // eslint-disable-next-line no-alert
+                window.alert(t('push.notConfigured'))
+              }
+            }}
+          >
+            {subscribed ? t('push.disable') : t('push.enable')}
+          </Button>
+        )}
+      </div>
     </section>
   )
 }

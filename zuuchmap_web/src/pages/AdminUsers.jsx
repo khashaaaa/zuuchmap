@@ -27,7 +27,7 @@ export default function AdminUsers() {
   const [typeFilter, setTypeFilter] = useState('')
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [density, toggleDensity] = useTableDensity()
-  const cellPad = density === 'compact' ? 'px-4 py-1.5' : 'px-4 py-3'
+  const cellPad = density === 'compact' ? 'px-2 sm:px-4 py-1.5' : 'px-2 sm:px-4 py-3'
   const qc = useQueryClient()
 
   const { data: users = [], isLoading, isError, refetch } = useQuery({
@@ -68,8 +68,9 @@ export default function AdminUsers() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t('admin.searchUsers')}
+          className="basis-full sm:basis-auto"
         />
-        <Input as="select" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="w-auto min-w-[130px]">
+        <Input as="select" value={typeFilter} aria-label={t('admin.allTypes')} onChange={(e) => setTypeFilter(e.target.value)} className="w-auto min-w-[130px]">
           <option value="">{t('admin.allTypes')}</option>
           <option value="PROVIDER">{t('onboarding.provider')}</option>
           <option value="CUSTOMER">{t('onboarding.customer')}</option>
@@ -89,15 +90,15 @@ export default function AdminUsers() {
       ) : (
         <div className="surface-card">
           <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[480px]">
+          <table className="w-full text-sm sm:min-w-[480px]">
             <thead>
               <tr className="border-b border-border/50">
-                <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('profile.title')}</th>
-                <th className="text-left px-4 py-3 text-xs text-muted font-medium hidden sm:table-cell">{t('common.phone')}</th>
-                <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('onboarding.title')}</th>
-                <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('admin.plan')}</th>
-                <th className="text-left px-4 py-3 text-xs text-muted font-medium hidden xl:table-cell">{t('common.date')}</th>
-                <th className="px-4 py-3" />
+                <th className="text-left px-2 sm:px-4 py-3 text-xs text-muted font-medium">{t('profile.title')}</th>
+                <th className="text-left px-2 sm:px-4 py-3 text-xs text-muted font-medium hidden sm:table-cell">{t('common.phone')}</th>
+                <th className="text-left px-2 sm:px-4 py-3 text-xs text-muted font-medium hidden sm:table-cell">{t('onboarding.title')}</th>
+                <th className="text-left px-2 sm:px-4 py-3 text-xs text-muted font-medium">{t('admin.plan')}</th>
+                <th className="text-left px-2 sm:px-4 py-3 text-xs text-muted font-medium hidden xl:table-cell">{t('common.date')}</th>
+                <th className="px-2 sm:px-4 py-3" />
               </tr>
             </thead>
             <tbody>
@@ -106,12 +107,19 @@ export default function AdminUsers() {
                   <td className={cellPad}>
                     <Link to={`/admin/users/${user.id}`} className="flex items-center gap-3 hover:text-primary-text transition-colors group">
                       <UserAvatar src={user.profile_picture} name={user.given_name} size="sm" />
-                      <span className="text-text group-hover:text-primary-text">{user.given_name ?? '—'}</span>
-                      <ChevronRight size={12} className="text-muted opacity-40 group-hover:opacity-100 transition-opacity" />
+                      {/* The phone is the only thing that tells two Ganbaatars
+                          apart; its own column is hidden on a phone, so it
+                          rides under the name there. */}
+                      <span className="min-w-0">
+                        <span className="block text-text group-hover:text-primary-text">{user.given_name ?? '—'}</span>
+                        <span className="block sm:hidden text-xs text-muted tabular-nums">{user.phone_number}</span>
+                        <span className="block sm:hidden mt-1"><TypeBadge type={user.type} /></span>
+                      </span>
+                      <ChevronRight size={12} className="hidden sm:block text-muted opacity-40 group-hover:opacity-100 transition-opacity" />
                     </Link>
                   </td>
                   <td className={`${cellPad} text-muted hidden sm:table-cell`}>{user.phone_number}</td>
-                  <td className={cellPad}>
+                  <td className={`${cellPad} hidden sm:table-cell`}>
                     <TypeBadge type={user.type} />
                   </td>
                   <td className={cellPad}>
@@ -138,7 +146,7 @@ export default function AdminUsers() {
                       // spend one on, so the grant buttons are not offered.
                       <span className="text-muted">—</span>
                     ) : (
-                      <div className="flex gap-1">
+                      <div className="flex flex-wrap gap-1">
                         {[1, 3, 12].map((months) => (
                           <button
                             key={months}

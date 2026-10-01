@@ -7,7 +7,7 @@ import { withAlpha, toneForTheme } from '@/lib/utils'
  * a filtered category with nothing in it stays that category's colour instead
  * of collapsing to the generic grey medallion.
  */
-export default function EmptyState({ icon: Icon = Inbox, title, description, action, tint }) {
+export default function EmptyState({ icon: Icon = Inbox, title, description, action, tint, as: Title = 'p' }) {
   const theme = useThemeStore((s) => s.theme)
   const isDark = theme !== 'light'
   const discStyle = tint ? { backgroundColor: withAlpha(tint, isDark ? 0.15 : 0.1) } : undefined
@@ -17,7 +17,7 @@ export default function EmptyState({ icon: Icon = Inbox, title, description, act
       <div className="w-14 h-14 rounded-full bg-surface2 flex items-center justify-center mb-4" style={discStyle}>
         <Icon size={24} className={tint ? undefined : 'text-muted'} style={iconStyle} />
       </div>
-      <p className="text-text font-medium">{title}</p>
+      <Title className="text-text font-medium">{title}</Title>
       {description && <p className="text-sm text-muted mt-1 max-w-xs">{description}</p>}
       {action && <div className="mt-4">{action}</div>}
     </div>

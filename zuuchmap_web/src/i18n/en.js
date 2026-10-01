@@ -88,6 +88,8 @@ export default {
     loadFailed: "Couldn't load this",
     loadFailedDesc: 'Check your connection.',
     goHome: 'Go home',
+    notFound: 'Page not found',
+    notFoundHint: 'This address is wrong or the page has been removed.',
     view: 'View',
   },
   status: {

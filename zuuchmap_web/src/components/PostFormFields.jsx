@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import Input from './Input'
 import { getFieldLabel, getOptionLabel } from '@/lib/utils'
 
@@ -16,11 +17,14 @@ export function DynamicField({ field, value, onChange, t, lng, disabled = false 
   // enforce, so the asterisk goes everywhere except there.
   const showRequired = field.required && field.type !== 'boolean'
   const lbl = <>{getFieldLabel(field, t)}{unit}{showRequired && <span className="text-danger"> *</span>}</>
+  // Ties the visible label to its control, so a screen reader names it and a
+  // tap on the label focuses it.
+  const id = useId()
 
   if (field.type === 'select') return (
     <div>
-      <label className="field-label">{lbl}</label>
-      <Input as="select" value={value} onChange={(e) => onChange(e.target.value)} required={field.required} disabled={disabled}>
+      <label htmlFor={id} className="field-label">{lbl}</label>
+      <Input as="select" id={id} value={value} onChange={(e) => onChange(e.target.value)} required={field.required} disabled={disabled}>
         <option value="">{t('common.select')}</option>
         {field.options?.map((opt) => <option key={opt} value={opt}>{getOptionLabel(opt, t)}</option>)}
       </Input>
@@ -29,9 +33,9 @@ export function DynamicField({ field, value, onChange, t, lng, disabled = false 
 
   if (field.type === 'boolean') return (
     <div>
-      <label className="field-label">{lbl}</label>
+      <p id={id} className="field-label">{lbl}</p>
       <label className="flex items-center gap-2 cursor-pointer">
-        <input type="checkbox" checked={value === true} disabled={disabled}
+        <input type="checkbox" aria-labelledby={id} checked={value === true} disabled={disabled}
           onChange={(e) => onChange(e.target.checked)}
           className="w-4 h-4 accent-primary" />
         <span className="text-sm text-text">{value === true ? t('common.yes') : t('common.no')}</span>
@@ -44,8 +48,8 @@ export function DynamicField({ field, value, onChange, t, lng, disabled = false 
     const toggle = (opt) => onChange(selected.includes(opt) ? selected.filter((s) => s !== opt) : [...selected, opt])
     return (
       <div>
-        <label className="field-label">{lbl}</label>
-        <div className="flex flex-wrap gap-2">
+        <p id={id} className="field-label">{lbl}</p>
+        <div role="group" aria-labelledby={id} className="flex flex-wrap gap-2">
           {field.options?.map((opt) => (
             <button key={opt} type="button" onClick={() => toggle(opt)} disabled={disabled}
               aria-pressed={selected.includes(opt)}
@@ -64,8 +68,8 @@ export function DynamicField({ field, value, onChange, t, lng, disabled = false 
 
   if (field.type === 'textarea') return (
     <div>
-      <label className="field-label">{lbl}</label>
-      <Input as="textarea" value={value} onChange={(e) => onChange(e.target.value)} required={field.required} rows={3}
+      <label htmlFor={id} className="field-label">{lbl}</label>
+      <Input as="textarea" id={id} value={value} onChange={(e) => onChange(e.target.value)} required={field.required} rows={3}
         placeholder={fieldPlaceholder(field, lng)} className="resize-none" disabled={disabled} />
     </div>
   )
@@ -73,8 +77,8 @@ export function DynamicField({ field, value, onChange, t, lng, disabled = false 
   const inputType = field.type === 'phone' ? 'tel' : field.type === 'text' ? 'text' : field.type
   return (
     <div>
-      <label className="field-label">{lbl}</label>
-      <Input type={inputType} value={value} onChange={(e) => onChange(e.target.value)}
+      <label htmlFor={id} className="field-label">{lbl}</label>
+      <Input id={id} type={inputType} value={value} onChange={(e) => onChange(e.target.value)}
         placeholder={fieldPlaceholder(field, lng)} required={field.required} disabled={disabled} />
     </div>
   )

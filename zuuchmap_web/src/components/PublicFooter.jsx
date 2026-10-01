@@ -11,11 +11,11 @@ export default function PublicFooter() {
         <p className="text-xs text-muted">
           ZuuchMap — {t('landing.footerTagline')}
         </p>
-        <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-muted">
-          <Link to="/browse" className="hover:text-text transition-colors">{t('landing.browse')}</Link>
-          <Link to="/privacy" className="hover:text-text transition-colors">{t('privacy.title')}</Link>
-          <Link to="/terms" className="hover:text-text transition-colors">{t('terms.title')}</Link>
-          <Link to="/help" className="hover:text-text transition-colors">{t('helpSupport.title')}</Link>
+        <nav className="flex flex-wrap items-center justify-center gap-x-4 text-xs text-muted">
+          <Link to="/browse" className="py-3 hover:text-text transition-colors">{t('landing.browse')}</Link>
+          <Link to="/privacy" className="py-3 hover:text-text transition-colors">{t('privacy.title')}</Link>
+          <Link to="/terms" className="py-3 hover:text-text transition-colors">{t('terms.title')}</Link>
+          <Link to="/help" className="py-3 hover:text-text transition-colors">{t('helpSupport.title')}</Link>
         </nav>
       </div>
     </footer>

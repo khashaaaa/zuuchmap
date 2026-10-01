@@ -22,7 +22,7 @@ export default function AvatarPicker({ previewUrl, profilePicture, name, onChang
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
-        className="flex items-center gap-1.5 text-xs text-primary-text hover:underline transition-colors"
+        className="flex items-center gap-1.5 py-2.5 -my-2.5 text-xs text-primary-text hover:underline transition-colors"
       >
         <Camera size={13} /> {t('profile.changePicture')}
       </button>

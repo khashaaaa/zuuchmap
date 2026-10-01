@@ -88,6 +88,8 @@ export default {
     loadFailed: 'Мэдээлэл ачаалж чадсангүй',
     loadFailedDesc: 'Холболтоо шалгана уу.',
     goHome: 'Нүүр хуудас руу',
+    notFound: 'Хуудас олдсонгүй',
+    notFoundHint: 'Энэ хаяг буруу эсвэл хуудас устсан байна.',
     view: 'Харах',
   },
   status: {

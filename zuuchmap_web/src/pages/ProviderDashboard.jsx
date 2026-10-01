@@ -62,7 +62,7 @@ export default function ProviderDashboard() {
       </div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-semibold text-text">{t('posts.recentPosts')}</h2>
-        <Link to="/provider/posts" className="text-sm text-primary-text hover:underline">{t('common.viewAll')}</Link>
+        <Link to="/provider/posts" className="py-2.5 -my-2.5 text-sm text-primary-text hover:underline">{t('common.viewAll')}</Link>
       </div>
       <PostGrid
         isLoading={isLoading}

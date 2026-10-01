@@ -66,8 +66,8 @@ export default function PublicHeader() {
             ))}
           </div>
           {token
-            ? <Button to={dashboardPath(user, isAdmin)} size="sm">{t('nav.dashboard')}</Button>
-            : <Button to="/login" size="sm">{t('auth.title')}</Button>}
+            ? <Button to={dashboardPath(user, isAdmin)} size="sm" className="min-h-9">{t('nav.dashboard')}</Button>
+            : <Button to="/login" size="sm" className="min-h-9">{t('auth.title')}</Button>}
         </div>
       </div>
     </header>

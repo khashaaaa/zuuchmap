@@ -135,6 +135,8 @@ export default function CustomerMap() {
 
   return (
     <>
+      {/* The map is the page; its heading is for screen readers only. */}
+      <h1 className="sr-only">{t('nav.map')}</h1>
       <div className="flex items-center gap-2 mb-3">
         <button type="button" onClick={() => setShowFilters(true)}
           className="relative inline-flex items-center gap-2 min-h-[40px] px-3 rounded-btn border border-border/20 bg-surface text-sm font-medium text-text hover:border-border transition-colors">

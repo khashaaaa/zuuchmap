@@ -113,6 +113,7 @@ export const adminApi = {
 export const usersApi = {
   getAll: () => client.get('/user').then(data),
   getProfile: () => client.get('/user/profile').then(data),
+  getPostCounts: () => client.get('/user/profile/posts').then(data),
   getById: (id) => client.get(`/user/${id}`).then(data),
   update: (id, form) => client.patch(`/user/${id}`, form, { headers: { 'Content-Type': 'multipart/form-data' } }).then(data),
   deleteAccount: () => client.delete('/user/account'),

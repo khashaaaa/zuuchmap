@@ -809,8 +809,15 @@ export class PostService {
    * the ACCEPTED bookings of the whole page, never per post. Bookings live in
    * their own module, which imports this one — so this reads the table directly
    * rather than closing a module cycle for one SELECT.
+   *
+   * A post its owner has marked RENTED gets no `busy_dates` at all: an empty
+   * array would render as "14 of 14 days free" beside the "Rented" badge,
+   * and booking refuses anything but ACTIVE. Every client hides the strip
+   * when the field is absent.
    */
-  async attachBusyDates<T extends Pick<Post, 'id' | 'category'>>(
+  async attachBusyDates<
+    T extends Pick<Post, 'id' | 'category'> & { status?: Post['status'] },
+  >(
     posts: T[],
     days = BUSY_DATES_DAYS,
   ): Promise<T[]> {
@@ -841,7 +848,7 @@ export class PostService {
       );
     const busy = expandBusyDates(rows, new Date(), days);
     for (const p of posts) {
-      if (rentalKeys.has(p.category))
+      if (rentalKeys.has(p.category) && p.status !== Status.RENTED)
         (p as any).busy_dates = busy.get(p.id) ?? [];
     }
     return posts;

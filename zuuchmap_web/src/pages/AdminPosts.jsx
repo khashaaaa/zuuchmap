@@ -24,19 +24,21 @@ import KeyboardHints from '@/components/KeyboardHints'
 import { useCategories } from '@/hooks/useCategories'
 import { invalidatePostQueries } from '@/lib/queryClient'
 
-const TAB_KEYS = ['APPROVED', 'PENDING', 'REJECTED']
+// The queue first: this is the review page, and it used to open on the
+// approved archive while the pending count sat on the dashboard.
+const TAB_KEYS = ['PENDING', 'APPROVED', 'REJECTED']
 
 const LIMIT = 50
 
 export default function AdminPosts() {
   const { t } = useTranslation()
-  const [tab, setTab] = useState('APPROVED')
+  const [tab, setTab] = useState('PENDING')
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState(new Set())
   const [rejectTarget, setRejectTarget] = useState(null)
   const [confirmBulk, setConfirmBulk] = useState(false)
   const [density, toggleDensity] = useTableDensity()
-  const cellPad = density === 'compact' ? 'px-4 py-1.5' : 'px-4 py-3'
+  const cellPad = density === 'compact' ? 'px-2 sm:px-4 py-1.5' : 'px-2 sm:px-4 py-3'
   const cellPadY = density === 'compact' ? 'py-1.5' : 'py-3'
   const qc = useQueryClient()
   const navigate = useNavigate()
@@ -215,7 +217,7 @@ export default function AdminPosts() {
           )}
           <div className="surface-card">
             <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[600px]">
+            <table className="w-full text-sm sm:min-w-[600px]">
               <thead>
                 <tr className="border-b border-border/50">
                   {tab === 'PENDING' && (
@@ -231,11 +233,11 @@ export default function AdminPosts() {
                       </div>
                     </th>
                   )}
-                  <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('nav.posts')}</th>
-                  <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('posts.category')}</th>
-                  <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('common.date')}</th>
-                  <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('common.status')}</th>
-                  <th className="px-4 py-3" />
+                  <th className="text-left px-2 sm:px-4 py-3 text-xs text-muted font-medium">{t('nav.posts')}</th>
+                  <th className="hidden sm:table-cell text-left px-2 sm:px-4 py-3 text-xs text-muted font-medium">{t('posts.category')}</th>
+                  <th className="hidden sm:table-cell text-left px-2 sm:px-4 py-3 text-xs text-muted font-medium">{t('common.date')}</th>
+                  <th className="hidden sm:table-cell text-left px-2 sm:px-4 py-3 text-xs text-muted font-medium">{t('common.status')}</th>
+                  <th className="px-2 sm:px-4 py-3" />
                 </tr>
               </thead>
               <tbody>
@@ -281,23 +283,24 @@ export default function AdminPosts() {
                               <ImageOff size={14} className="text-muted" />
                             </div>}
                         <div className="min-w-0">
-                          <Link to={`/admin/posts/${post.id}`} state={{ from: 'queue' }} className="block text-text hover:text-primary-text transition-colors font-medium line-clamp-1">
+                          <Link to={`/admin/posts/${post.id}`} state={{ from: 'queue' }} className="text-text hover:text-primary-text transition-colors font-medium line-clamp-1">
                             {getPostTitle(post, t)}
                           </Link>
                           {post.user && (
                             <Link
                               to={`/admin/users/${post.user.id}`}
-                              className="block text-xs text-muted hover:text-primary-text transition-colors line-clamp-1"
+                              className="text-xs text-muted hover:text-primary-text transition-colors line-clamp-1"
                             >
                               {post.user.given_name || post.user.phone_number || '—'}
                             </Link>
                           )}
                         </div>
                       </div>
+                      <div className="sm:hidden mt-1.5"><CategoryBadge category={getPostCategory(post)} /></div>
                     </td>
-                    <td className={cellPad}><CategoryBadge category={getPostCategory(post)} /></td>
-                    <td className={`${cellPad} text-muted`}>{formatDate(post.date_created)}</td>
-                    <td className={cellPad}><StatusBadge status={post.approval_status} /></td>
+                    <td className={`${cellPad} hidden sm:table-cell`}><CategoryBadge category={getPostCategory(post)} /></td>
+                    <td className={`${cellPad} hidden sm:table-cell text-muted`}>{formatDate(post.date_created)}</td>
+                    <td className={`${cellPad} hidden sm:table-cell`}><StatusBadge status={post.approval_status} /></td>
                     <td className={cellPad}>
                       <div className="flex items-center gap-1.5 justify-end">
                         {tab === 'PENDING' && (
@@ -322,7 +325,7 @@ export default function AdminPosts() {
                             </button>
                           </>
                         )}
-                        <Link to={`/admin/posts/${post.id}`} state={{ from: 'queue' }} title={t('common.view')} aria-label={`${t('common.view')}: ${getPostTitle(post, t)}`} className="min-w-touch min-h-touch flex items-center justify-center rounded-btn text-muted hover:text-primary-text hover:bg-primary/10 transition-colors">
+                        <Link to={`/admin/posts/${post.id}`} state={{ from: 'queue' }} title={t('common.view')} aria-label={`${t('common.view')}: ${getPostTitle(post, t)}`} className="min-w-touch min-h-touch hidden sm:flex items-center justify-center rounded-btn text-muted hover:text-primary-text hover:bg-primary/10 transition-colors">
                           <Eye size={16} />
                         </Link>
                       </div>

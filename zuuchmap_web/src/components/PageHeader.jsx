@@ -13,7 +13,7 @@ export default function PageHeader({ title, description, action, icon: Icon, onB
       {onBack && (
         <button
           onClick={onBack}
-          className="flex items-center gap-1.5 text-sm text-muted hover:text-text transition-colors mb-3"
+          className="flex items-center gap-1.5 py-2.5 -my-2.5 text-sm text-muted hover:text-text transition-colors mb-3"
         >
           <ArrowLeft size={15} /> {t('common.back')}
         </button>

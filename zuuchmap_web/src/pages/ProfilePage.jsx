@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Building2, Heart } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { postsApi, likesApi } from '@/lib/api'
+import { usersApi, likesApi } from '@/lib/api'
 import { useAuthStore } from '@/store'
 import ProfileBase from '@/components/ProfileBase'
 import StatCard from '@/components/StatCard'
@@ -18,9 +18,13 @@ export default function ProfilePage() {
   const isProvider = !isAdmin && user?.type === 'PROVIDER'
   const isCustomer = !isAdmin && user?.type === 'CUSTOMER'
 
-  const { data: myPosts } = useQuery({
-    queryKey: ['my-posts'],
-    queryFn: postsApi.getMine,
+  // The engine's counters (`countActivePosts`, the definition the quota is
+  // enforced against). Counting `getMine` here read expired posts as active
+  // and dropped RENTED ones, so the web said 21 where the app and the quota
+  // banner said 25. Keyed under 'my-posts' so post mutations invalidate it.
+  const { data: postCounts } = useQuery({
+    queryKey: ['my-posts', 'counts'],
+    queryFn: usersApi.getPostCounts,
     enabled: isProvider,
   })
 
@@ -37,9 +41,8 @@ export default function ProfilePage() {
     enabled: Boolean(token) && isCustomer,
   })
 
-  const totalPosts = myPosts?.length ?? 0
-  // Matches the engine's counter: approved AND active, not merely active.
-  const activePosts = myPosts?.filter((p) => p.approval_status === 'APPROVED' && p.status === 'ACTIVE').length ?? 0
+  const totalPosts = postCounts?.totalPosts ?? 0
+  const activePosts = postCounts?.activePosts ?? 0
 
   let stats
   if (isProvider) {

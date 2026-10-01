@@ -32,7 +32,7 @@ export function Stars({ value, size = 14, onSelect }) {
             onClick={() => onSelect(i)}
             aria-label={t('review.rateStars', { count: i })}
             aria-pressed={i <= value}
-            className="cursor-pointer rounded p-1.5 -m-0.5 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary"
+            className="cursor-pointer rounded p-2.5 -m-1 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary"
           >
             {star}
           </button>
@@ -112,7 +112,7 @@ export default function ProviderReviews({ providerId, canReview, onRequireAuth }
             <Stars value={rating} size={18} onSelect={setRating} />
           </div>
           <Input as="textarea" rows={2} value={comment} onChange={(e) => setComment(e.target.value)}
-            placeholder={t('review.comment')} className="resize-none bg-background" />
+            placeholder={t('review.comment')} aria-label={t('review.comment')} className="resize-none bg-background" />
           <Button size="sm" onClick={() => mut.mutate()} disabled={!rating || mut.isPending}>
             {mut.isPending ? t('common.saving') : t('review.submit')}
           </Button>
@@ -140,7 +140,7 @@ export default function ProviderReviews({ providerId, canReview, onRequireAuth }
             <button
               type="button"
               onClick={() => setShowAll(true)}
-              className="text-xs text-primary-text hover:underline"
+              className="py-2.5 -my-2.5 text-xs text-primary-text hover:underline"
             >
               {t('review.showAll', { count: reviews.length })}
             </button>

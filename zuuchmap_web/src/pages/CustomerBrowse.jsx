@@ -331,8 +331,8 @@ export default function CustomerBrowse() {
           <div className="py-4">
             <p className={`${overline} mb-2`}>{t('filter.price')}</p>
             <div className="flex gap-2">
-              <Input type="number" inputMode="numeric" value={priceInputs.min ?? ''} placeholder={t('filter.min')} onChange={(e) => handlePriceChange('min', e.target.value)} />
-              <Input type="number" inputMode="numeric" value={priceInputs.max ?? ''} placeholder={t('filter.max')} onChange={(e) => handlePriceChange('max', e.target.value)} />
+              <Input type="number" inputMode="numeric" value={priceInputs.min ?? ''} placeholder={t('filter.min')} aria-label={`${t('filter.price')} — ${t('filter.min')}`} onChange={(e) => handlePriceChange('min', e.target.value)} />
+              <Input type="number" inputMode="numeric" value={priceInputs.max ?? ''} placeholder={t('filter.max')} aria-label={`${t('filter.price')} — ${t('filter.max')}`} onChange={(e) => handlePriceChange('max', e.target.value)} />
             </div>
           </div>
 
@@ -358,7 +358,7 @@ export default function CustomerBrowse() {
             <div className="py-4 space-y-3">
               <p className={overline}>{t('filter.specs')}</p>
               {schema.subcategories?.length > 0 && (
-                <Input as="select" value={subcat} onChange={(e) => setParams({ subcategory: e.target.value })}>
+                <Input as="select" value={subcat} aria-label={t('posts.subcategory')} onChange={(e) => setParams({ subcategory: e.target.value })}>
                   <option value="">{t('posts.subcategory')}</option>
                   {schema.subcategories.map((sub) => (
                     <option key={sub.value} value={sub.value}>{getSubcategoryLabel(sub.value, t, schema)}</option>
@@ -368,13 +368,13 @@ export default function CustomerBrowse() {
               {filterFields.map((f) => f.type === 'boolean' ? (
                 // The engine matches a real JSON boolean: anything typed into a
                 // text box that was not exactly "true" filtered for false.
-                <Input as="select" key={f.key} value={attrInputs[f.key] ?? ''} onChange={(e) => handleAttrChange(f.key, e.target.value, true)}>
+                <Input as="select" key={f.key} value={attrInputs[f.key] ?? ''} aria-label={getFieldLabel(f, t)} onChange={(e) => handleAttrChange(f.key, e.target.value, true)}>
                   <option value="">{getFieldLabel(f, t)}</option>
                   <option value="true">{t('common.yes')}</option>
                   <option value="false">{t('common.no')}</option>
                 </Input>
               ) : (f.type === 'select' || f.type === 'multiselect') ? (
-                <Input as="select" key={f.key} value={attrInputs[f.key] ?? ''} onChange={(e) => handleAttrChange(f.key, e.target.value, true)}>
+                <Input as="select" key={f.key} value={attrInputs[f.key] ?? ''} aria-label={getFieldLabel(f, t)} onChange={(e) => handleAttrChange(f.key, e.target.value, true)}>
                   <option value="">{getFieldLabel(f, t)}</option>
                   {f.options?.map((o) => <option key={o} value={o}>{getOptionLabel(o, t)}</option>)}
                 </Input>
@@ -382,24 +382,24 @@ export default function CustomerBrowse() {
                 <div key={f.key}>
                   <p className="text-xs text-muted mb-1">{getFieldLabel(f, t)}</p>
                   <div className="flex gap-2">
-                    <Input type="number" inputMode="numeric" value={attrInputs[`${f.key}_min`] ?? ''} placeholder={t('filter.min')} onChange={(e) => handleAttrChange(`${f.key}_min`, e.target.value)} />
-                    <Input type="number" inputMode="numeric" value={attrInputs[`${f.key}_max`] ?? ''} placeholder={t('filter.max')} onChange={(e) => handleAttrChange(`${f.key}_max`, e.target.value)} />
+                    <Input type="number" inputMode="numeric" value={attrInputs[`${f.key}_min`] ?? ''} placeholder={t('filter.min')} aria-label={`${getFieldLabel(f, t)} — ${t('filter.min')}`} onChange={(e) => handleAttrChange(`${f.key}_min`, e.target.value)} />
+                    <Input type="number" inputMode="numeric" value={attrInputs[`${f.key}_max`] ?? ''} placeholder={t('filter.max')} aria-label={`${getFieldLabel(f, t)} — ${t('filter.max')}`} onChange={(e) => handleAttrChange(`${f.key}_max`, e.target.value)} />
                   </div>
                 </div>
               ) : (
-                <Input key={f.key} value={attrInputs[f.key] ?? ''} placeholder={getFieldLabel(f, t)} onChange={(e) => handleAttrChange(f.key, e.target.value)} />
+                <Input key={f.key} value={attrInputs[f.key] ?? ''} placeholder={getFieldLabel(f, t)} aria-label={getFieldLabel(f, t)} onChange={(e) => handleAttrChange(f.key, e.target.value)} />
               ))}
             </div>
           )}
 
           <div className="py-4 space-y-3">
             <p className={overline}>{t('filter.location')}</p>
-            <Input as="select" value={province} onChange={(e) => handleProvince(e.target.value)}>
+            <Input as="select" value={province} aria-label={t('common.province')} onChange={(e) => handleProvince(e.target.value)}>
               <option value="">{t('common.province')}</option>
               {sortByLabel(PROVINCES, (p) => t(`province.${p}`, { defaultValue: p }), ['ULAANBAATAR']).map((p) => <option key={p} value={p}>{t(`province.${p}`, { defaultValue: p })}</option>)}
             </Input>
             {province === 'ULAANBAATAR' && (
-              <Input as="select" value={district} onChange={(e) => setParams({ district: e.target.value })}>
+              <Input as="select" value={district} aria-label={t('common.district')} onChange={(e) => setParams({ district: e.target.value })}>
                 <option value="">{t('common.district')}</option>
                 {sortByLabel(DISTRICTS, (d) => t(`district.${d}`, { defaultValue: d })).map((d) => <option key={d} value={d}>{t(`district.${d}`, { defaultValue: d })}</option>)}
               </Input>

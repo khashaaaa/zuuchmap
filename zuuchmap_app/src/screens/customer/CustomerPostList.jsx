@@ -396,7 +396,7 @@ const CustomerPostList = ({ route, navigation }) => {
                         </>
                     )}
                 >
-                    {!!rentalByKey[item.post_type] && <AvailabilityStrip busyDates={item.busy_dates} size="sm" />}
+                    {!!rentalByKey[item.post_type] && Array.isArray(item.busy_dates) && <AvailabilityStrip busyDates={item.busy_dates} size="sm" />}
                 </PostCard>
             </View>
         );

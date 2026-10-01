@@ -11,6 +11,7 @@ import { API_CONFIG } from '../../config/api.config';
 import { hideErrorModal, showErrorModal, showWarningModal } from '../../utils/errorManager';
 import userService from '../../services/api/userService';
 import { logger } from '../../utils/logger';
+import { SIGNED_OUT_STATE } from '../../utils/navigationUtils';
 
 const AccountDeletionScreen = ({ navigation }) => {
   const { t } = useTranslation();
@@ -28,7 +29,7 @@ const AccountDeletionScreen = ({ navigation }) => {
         API_CONFIG.STORAGE_KEYS.PHONE_NUMBER,
         API_CONFIG.STORAGE_KEYS.USER_TYPE,
       ]);
-      navigation.reset({ index: 0, routes: [{ name: 'PhoneNumber' }] });
+      navigation.reset(SIGNED_OUT_STATE);
       await userService.logout(false);
     },
     onError: (error) => {

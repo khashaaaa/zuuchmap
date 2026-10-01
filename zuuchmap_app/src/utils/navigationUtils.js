@@ -7,10 +7,18 @@ export const navigationRef = createNavigationContainerRef();
 
 const AUTH_SCREENS = ['PhoneNumber', 'PhoneVerification', 'UserRoleSelection'];
 
+// Where every signed-out path lands: the sign-in screen with guest browsing
+// beneath it. With PhoneNumber alone as the root there was no back arrow and
+// Android back closed the app, so ending a session also ended browsing.
+export const SIGNED_OUT_STATE = {
+    index: 1,
+    routes: [{ name: 'CustomerDashboard' }, { name: 'PhoneNumber' }],
+};
+
 export const resetToLogin = () => {
     if (!navigationRef.isReady()) return;
     if (AUTH_SCREENS.includes(navigationRef.getCurrentRoute()?.name)) return;
-    navigationRef.reset({ index: 0, routes: [{ name: 'PhoneNumber' }] });
+    navigationRef.reset(SIGNED_OUT_STATE);
 };
 
 export const getDashboardScreen = (userType, isAdmin = false) => {
@@ -26,10 +34,7 @@ export const navigateToDashboard = (navigation, userType, isAdmin = false) => {
 };
 
 export const navigateToPhoneNumber = (navigation) => {
-    navigation.reset({
-        index: 0,
-        routes: [{ name: 'PhoneNumber' }],
-    });
+    navigation.reset(SIGNED_OUT_STATE);
 };
 
 export const navigateToProviderPostList = (navigation) => {
@@ -64,7 +69,7 @@ export const confirmLogout = ({ t, navigation, phoneNumber, userType, name, prof
                         // Resetting to the auth stack unmounts them, so the clear
                         // finds no active observers. logout() itself only needs the
                         // stored token, which is untouched until it runs.
-                        navigation.reset({ index: 0, routes: [{ name: 'PhoneNumber' }] });
+                        navigation.reset(SIGNED_OUT_STATE);
                         await userService.logout(true);
                     } catch (error) {
                         const { logger } = require('./logger');

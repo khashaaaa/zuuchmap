@@ -393,6 +393,10 @@ const PostDetailScreen = ({ route, navigation }) => {
 
     const canContact = !isAdmin
         && Boolean(post?.user) && post?.user?.id !== currentUserId;
+    // Which live action fills the footer's wide slot when booking is closed.
+    const unbookablePrimary = canBook && !isBookable
+        ? (canContact ? 'message' : post?.contact_phone ? 'call' : null)
+        : null;
 
     const { data: openReports = [] } = useQuery({
         queryKey: [...REPORTS_KEY, 'OPEN', { post_id: post?.id }],
@@ -1145,6 +1149,10 @@ const PostDetailScreen = ({ route, navigation }) => {
                     </>
                 ) : (
                     <>
+                        {/* A post that cannot be booked right now (RENTED,
+                            lapsed) used to spend the wide slot on a disabled
+                            "Unavailable" while message and call sat as bare
+                            icons. The next-best live action takes the slot. */}
                         {post.latitude && post.longitude && (
                             <IconAction
                                 icon="navigate-outline"
@@ -1154,7 +1162,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                                 styles={styles}
                             />
                         )}
-                        {canBook && post.contact_phone && (
+                        {canBook && post.contact_phone && unbookablePrimary !== 'call' && (
                             <IconAction
                                 icon="call-outline"
                                 onPress={handleCall}
@@ -1163,7 +1171,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                                 styles={styles}
                             />
                         )}
-                        {canContact && (
+                        {canContact && unbookablePrimary !== 'message' && (
                             <IconAction
                                 icon="chatbubble-outline"
                                 onPress={handleMessage}
@@ -1187,6 +1195,24 @@ const PostDetailScreen = ({ route, navigation }) => {
                                 title={t('common.retry')}
                                 onPress={() => refetchSchema()}
                                 variant="secondary"
+                                size="medium"
+                                style={styles.footerBtn}
+                            />
+                        ) : unbookablePrimary === 'message' ? (
+                            <Button
+                                icon="chatbubble-outline"
+                                title={t('messages.messageProvider')}
+                                onPress={handleMessage}
+                                variant="primary"
+                                size="medium"
+                                style={styles.footerBtn}
+                            />
+                        ) : unbookablePrimary === 'call' ? (
+                            <Button
+                                icon="call-outline"
+                                title={t('posts.call')}
+                                onPress={handleCall}
+                                variant="primary"
                                 size="medium"
                                 style={styles.footerBtn}
                             />

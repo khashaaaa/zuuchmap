@@ -68,7 +68,7 @@ export const HorizontalPostCard = React.memo(({ post, onPress, width = H_CARD_WI
                         <Text style={styles.place} numberOfLines={1}>{place}</Text>
                     </View>
                 ) : null}
-                {rental && <AvailabilityStrip busyDates={post.busy_dates} size="sm" style={styles.strip} />}
+                {rental && Array.isArray(post.busy_dates) && <AvailabilityStrip busyDates={post.busy_dates} size="sm" style={styles.strip} />}
             </View>
         </PressableScale>
     );

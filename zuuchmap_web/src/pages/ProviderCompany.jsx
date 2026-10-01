@@ -200,14 +200,14 @@ export default function ProviderCompany() {
         <ImageCropModal file={pendingLogo} onDone={(f) => { setPendingLogo(null); setLogo(f) }} onCancel={() => setPendingLogo(null)} />
         {formFields.map(([label, key, req, inputType, mode]) => (
           <div key={key}>
-            <label className="field-label">
+            <label htmlFor={`company-${key}`} className="field-label">
               {label}{req && <span className="text-danger"> *</span>}
             </label>
             {inputType === 'textarea' ? (
-              <Input as="textarea" rows={3} className="resize-none" value={form[key]} required={req}
+              <Input as="textarea" id={`company-${key}`} rows={3} className="resize-none" value={form[key]} required={req}
                 onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))} />
             ) : (
-              <Input type={inputType} inputMode={mode} value={form[key]} required={req}
+              <Input id={`company-${key}`} type={inputType} inputMode={mode} value={form[key]} required={req}
                 onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))} />
             )}
           </div>

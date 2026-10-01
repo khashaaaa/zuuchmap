@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { FileText, Users, CheckCircle, XCircle, UserCheck, UserSearch, Megaphone } from 'lucide-react'
@@ -169,14 +170,20 @@ export default function AdminDashboard() {
         <>
           <h2 className={overline}>{t('admin.postsSection')}</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 mb-6">
-            {/* The pending queue is the number an admin acts on — it leads. */}
-            <StatCard
-              lead
-              label={t('admin.pendingPosts')}
-              value={stats?.totals?.pending ?? 0}
-              color="text-text"
-              className="col-span-2"
-            />
+            {/* The pending queue is the number an admin acts on — it leads,
+                and it opens the queue. */}
+            <Link
+              to="/admin/posts"
+              className="col-span-2 block rounded-card transition-transform hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
+              <StatCard
+                lead
+                label={t('admin.pendingPosts')}
+                value={stats?.totals?.pending ?? 0}
+                color="text-text"
+                className="h-full"
+              />
+            </Link>
             {postStatCards.map(({ icon, label, value, color }) => (
               <StatCard key={label} icon={icon} label={label} value={value ?? 0} color={color} />
             ))}

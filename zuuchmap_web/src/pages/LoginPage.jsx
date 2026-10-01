@@ -168,11 +168,11 @@ export default function LoginPage() {
         {/* No middot separators: as their own flex items they get stranded at
             the end of a wrapped line. The four labels are long enough in mn
             that this row always wraps — gap alone carries the separation. */}
-        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5 mt-6 text-xs text-muted">
-          <Link to="/" className="whitespace-nowrap hover:text-text transition-colors">{t('landing.browse')}</Link>
-          <Link to="/privacy" className="whitespace-nowrap hover:text-text transition-colors">{t('privacy.title')}</Link>
-          <Link to="/terms" className="whitespace-nowrap hover:text-text transition-colors">{t('terms.title')}</Link>
-          <Link to="/help" className="whitespace-nowrap hover:text-text transition-colors">{t('helpSupport.title')}</Link>
+        <div className="flex flex-wrap items-center justify-center gap-x-5 mt-4 text-xs text-muted">
+          <Link to="/" className="whitespace-nowrap py-3 hover:text-text transition-colors">{t('landing.browse')}</Link>
+          <Link to="/privacy" className="whitespace-nowrap py-3 hover:text-text transition-colors">{t('privacy.title')}</Link>
+          <Link to="/terms" className="whitespace-nowrap py-3 hover:text-text transition-colors">{t('terms.title')}</Link>
+          <Link to="/help" className="whitespace-nowrap py-3 hover:text-text transition-colors">{t('helpSupport.title')}</Link>
         </div>
       </motion.div>
     </div>

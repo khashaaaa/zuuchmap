@@ -46,6 +46,7 @@ function LabelsEditor({ value = {}, onChange }) {
     <div className="grid grid-cols-2 gap-2">
       {LOCALES.map((lng) => (
         <Input key={lng} value={value?.[lng] ?? ''}
+          aria-label={SCHEMA_LOCALE_LABELS[lng]}
           placeholder={`${lng.toUpperCase()} — ${SCHEMA_LOCALE_LABELS[lng]}`}
           onChange={(e) => onChange({ ...(value ?? {}), [lng]: e.target.value })}  />
       ))}
@@ -141,40 +142,40 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
             <div className="space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="field-label">
+                  <label htmlFor="cat-key" className="field-label">
                     {t('admin.categoryKeyHint')}{isNew && <span className="text-danger"> *</span>}
                   </label>
-                  <Input value={form.key} onChange={(e) => setF('key', e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''))}
+                  <Input id="cat-key" value={form.key} onChange={(e) => setF('key', e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''))}
                     placeholder="vehiclerent" disabled={!isNew} className={`${errClass(!form.key)}`} />
                 </div>
                 <div>
-                  <label className="field-label">
+                  <label htmlFor="cat-label" className="field-label">
                     {t('admin.categoryLabel')} <span className="text-danger">*</span>
                   </label>
-                  <Input value={form.label} onChange={(e) => setF('label', e.target.value)} placeholder="Vehicle Rental" className={`${errClass(!form.label)}`} />
+                  <Input id="cat-label" value={form.label} onChange={(e) => setF('label', e.target.value)} placeholder="Vehicle Rental" className={`${errClass(!form.label)}`} />
                 </div>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="field-label">{t('admin.categoryIcon')}</label>
-                  <Input value={form.icon ?? ''} onChange={(e) => setF('icon', e.target.value)} placeholder="car-outline"  />
+                  <label htmlFor="cat-icon" className="field-label">{t('admin.categoryIcon')}</label>
+                  <Input id="cat-icon" value={form.icon ?? ''} onChange={(e) => setF('icon', e.target.value)} placeholder="car-outline"  />
                   <p className="text-xs text-muted mt-1">{t('admin.categoryIconHint')}</p>
                 </div>
                 <div>
-                  <label className="field-label">{t('admin.categoryColor')}</label>
+                  <label htmlFor="cat-color" className="field-label">{t('admin.categoryColor')}</label>
                   <div className="flex gap-2 items-center">
-                    <input type="color" value={form.color ?? DEFAULT_COLOR} onChange={(e) => setF('color', e.target.value)}
+                    <input id="cat-color" type="color" value={form.color ?? DEFAULT_COLOR} onChange={(e) => setF('color', e.target.value)}
                       className="w-10 h-10 rounded border border-border/50 cursor-pointer bg-surface2" />
                     <Input value={form.color ?? ''} onChange={(e) => setF('color', e.target.value)} className="flex-1" />
                   </div>
                 </div>
                 <div>
-                  <label className="field-label">{t('admin.categorySortOrder')}</label>
-                  <Input type="number" value={form.sort_order ?? 0} onChange={(e) => setF('sort_order', Number(e.target.value))}  />
+                  <label htmlFor="cat-sort" className="field-label">{t('admin.categorySortOrder')}</label>
+                  <Input id="cat-sort" type="number" value={form.sort_order ?? 0} onChange={(e) => setF('sort_order', Number(e.target.value))}  />
                 </div>
               </div>
               <div>
-                <label className="field-label">{t('admin.categoryTranslations')}</label>
+                <p className="field-label">{t('admin.categoryTranslations')}</p>
                 <LabelsEditor value={form.labels} onChange={(v) => setF('labels', v)} />
               </div>
               <label className="flex items-center gap-2 text-sm text-text cursor-pointer">
@@ -197,8 +198,8 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
                 </label>
                 {form.has_price && (
                   <div>
-                    <label className="field-label">{t('admin.defaultPriceUnit')}</label>
-                    <Input as="select" value={form.default_price_unit ?? ''} onChange={(e) => setF('default_price_unit', e.target.value)} className="w-auto">
+                    <label htmlFor="cat-price-unit" className="field-label">{t('admin.defaultPriceUnit')}</label>
+                    <Input as="select" id="cat-price-unit" value={form.default_price_unit ?? ''} onChange={(e) => setF('default_price_unit', e.target.value)} className="w-auto">
                       <option value="">—</option>
                       {PRICE_UNITS.map((u) => <option key={u} value={u}>{t(`priceUnit.${u}`, { defaultValue: u })}</option>)}
                     </Input>
@@ -209,8 +210,8 @@ function SchemaModal({ schema, onClose, onSave, isSaving }) {
                   {t('admin.emphasized')}
                 </label>
                 <div>
-                  <label className="field-label">{t('admin.postExpiryDays')}</label>
-                  <Input type="number" min="1" max="365" value={form.post_expiry_days ?? ''} placeholder="30"
+                  <label htmlFor="cat-expiry" className="field-label">{t('admin.postExpiryDays')}</label>
+                  <Input id="cat-expiry" type="number" min="1" max="365" value={form.post_expiry_days ?? ''} placeholder="30"
                     onChange={(e) => setF('post_expiry_days', e.target.value === '' ? null : Number(e.target.value))}
                     className="w-28" />
                 </div>
@@ -318,7 +319,7 @@ export default function AdminCategories() {
   const [editing, setEditing] = useState(null)
   const [confirmDeactivate, setConfirmDeactivate] = useState(null)
   const [density, toggleDensity] = useTableDensity()
-  const cellPad = density === 'compact' ? 'px-4 py-1.5' : 'px-4 py-3'
+  const cellPad = density === 'compact' ? 'px-2 sm:px-4 py-1.5' : 'px-2 sm:px-4 py-3'
 
   const { data: schemas = [], isLoading, isError, refetch } = useCategories({ admin: true })
 
@@ -383,21 +384,21 @@ export default function AdminCategories() {
       ) : (
         <div className="surface-card">
           <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[480px]">
+          <table className="w-full text-sm sm:min-w-[480px]">
             <thead>
               <tr className="border-b border-border/50">
-                <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('admin.categoryKey')}</th>
-                <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('admin.categoryLabel')}</th>
-                <th className="text-left px-4 py-3 text-xs text-muted font-medium hidden sm:table-cell">{t('admin.tabFields')}</th>
-                <th className="text-left px-4 py-3 text-xs text-muted font-medium hidden sm:table-cell">{t('admin.tabSubcategories')}</th>
-                <th className="text-left px-4 py-3 text-xs text-muted font-medium">{t('common.status')}</th>
-                <th className="px-4 py-3" />
+                <th className="text-left px-2 sm:px-4 py-3 text-xs text-muted font-medium hidden sm:table-cell">{t('admin.categoryKey')}</th>
+                <th className="text-left px-2 sm:px-4 py-3 text-xs text-muted font-medium">{t('admin.categoryLabel')}</th>
+                <th className="text-left px-2 sm:px-4 py-3 text-xs text-muted font-medium hidden sm:table-cell">{t('admin.tabFields')}</th>
+                <th className="text-left px-2 sm:px-4 py-3 text-xs text-muted font-medium hidden sm:table-cell">{t('admin.tabSubcategories')}</th>
+                <th className="text-left px-2 sm:px-4 py-3 text-xs text-muted font-medium">{t('common.status')}</th>
+                <th className="px-2 sm:px-4 py-3" />
               </tr>
             </thead>
             <tbody>
               {sorted.map((schema) => (
                 <tr key={schema.key} className="border-b border-border/50 last:border-b-0 hover:bg-surface2/50 transition-colors">
-                  <td className={cellPad}>
+                  <td className={`${cellPad} hidden sm:table-cell`}>
                     <div className="flex items-center gap-2">
                       {/* The glyph, not its Ionicons name — the name is only
                           what the form stores. */}

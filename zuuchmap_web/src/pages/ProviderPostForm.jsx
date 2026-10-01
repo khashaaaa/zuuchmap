@@ -441,10 +441,10 @@ export default function ProviderPostForm() {
 
   const field = (label, key, type = 'text', { required: req, hint, wrapKey, ...extra } = {}) => (
     <div {...(wrapKey ? fieldWrap(wrapKey) : {})}>
-      <label className="field-label">
+      <label htmlFor={`post-${key}`} className="field-label">
         {label}{req && <span className="text-danger"> *</span>}
       </label>
-      <Input type={type} value={form[key]} onChange={(e) => set(key, e.target.value)} required={req} {...extra} />
+      <Input id={`post-${key}`} type={type} value={form[key]} onChange={(e) => set(key, e.target.value)} required={req} {...extra} />
       {hint && <p className="text-xs text-muted mt-1">{hint}</p>}
     </div>
   )
@@ -560,8 +560,8 @@ export default function ProviderPostForm() {
         <FormSection title={t('posts.basicInfo')}>
           <div className={schema?.subcategories?.length > 0 ? 'grid grid-cols-1 sm:grid-cols-2 gap-3' : undefined}>
             <div>
-              <label className="field-label">{t('posts.category')} <span className="text-danger">*</span></label>
-              <Input as="select" value={form.category} onChange={(e) => handleCategoryChange(e.target.value)} required>
+              <label htmlFor="post-category" className="field-label">{t('posts.category')} <span className="text-danger">*</span></label>
+              <Input as="select" id="post-category" value={form.category} onChange={(e) => handleCategoryChange(e.target.value)} required>
                 <option value="">{t('common.select')}</option>
                 {schemas.filter((s) => s.active).map((s) => (
                   <option key={s.key} value={s.key}>{getCategoryLabel(s.key, t, schemas)}</option>
@@ -571,8 +571,8 @@ export default function ProviderPostForm() {
 
             {schema?.subcategories?.length > 0 && (
               <div>
-                <label className="field-label">{t('posts.subcategory')}</label>
-                <Input as="select" value={form.subcategory} onChange={(e) => set('subcategory', e.target.value)}>
+                <label htmlFor="post-subcategory" className="field-label">{t('posts.subcategory')}</label>
+                <Input as="select" id="post-subcategory" value={form.subcategory} onChange={(e) => set('subcategory', e.target.value)}>
                   <option value="">{t('common.select')}</option>
                   {schema.subcategories.map((sub) => (
                     <option key={sub.value} value={sub.value}>{getSubcategoryLabel(sub.value, t, schema)}</option>
@@ -584,8 +584,8 @@ export default function ProviderPostForm() {
 
           {field(t('posts.title'), 'title', 'text', { required: true, wrapKey: 'title' })}
           <div {...fieldWrap('details')}>
-            <label className="field-label">{t('posts.details')}</label>
-            <Input as="textarea" value={form.details} onChange={(e) => set('details', e.target.value)} rows={3} maxLength={2000} className="resize-none" />
+            <label htmlFor="post-details" className="field-label">{t('posts.details')}</label>
+            <Input as="textarea" id="post-details" value={form.details} onChange={(e) => set('details', e.target.value)} rows={3} maxLength={2000} className="resize-none" />
             <p className="text-xs text-muted text-right mt-1">{form.details?.length ?? 0}/2000</p>
           </div>
         </FormSection>
@@ -634,8 +634,8 @@ export default function ProviderPostForm() {
           <div {...fieldWrap('location')} className={`${fieldWrap('location').className} space-y-4`}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="field-label">{t('common.province')}</label>
-              <Input as="select" value={form.province}
+              <label htmlFor="post-province" className="field-label">{t('common.province')}</label>
+              <Input as="select" id="post-province" value={form.province}
                 onChange={(e) => { set('province', e.target.value); set('district', '') }}>
                 <option value="">{t('common.select')}</option>
                 {sortByLabel(PROVINCES, (p) => t(`province.${p}`, { defaultValue: p }), ['ULAANBAATAR']).map((p) => <option key={p} value={p}>{t(`province.${p}`, { defaultValue: p })}</option>)}
@@ -643,8 +643,8 @@ export default function ProviderPostForm() {
             </div>
             {form.province === 'ULAANBAATAR' ? (
               <div>
-                <label className="field-label">{t('common.district')}</label>
-                <Input as="select" value={form.district} onChange={(e) => set('district', e.target.value)}>
+                <label htmlFor="post-district" className="field-label">{t('common.district')}</label>
+                <Input as="select" id="post-district" value={form.district} onChange={(e) => set('district', e.target.value)}>
                   <option value="">{t('common.select')}</option>
                   {sortByLabel(DISTRICTS, (d) => t(`district.${d}`, { defaultValue: d })).map((d) => <option key={d} value={d}>{t(`district.${d}`, { defaultValue: d })}</option>)}
                 </Input>
@@ -706,8 +706,8 @@ export default function ProviderPostForm() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {field(t('posts.priceAmount'), 'price_amount', 'text', { format: 'currency', wrapKey: 'price' })}
                 <div>
-                  <label className="field-label">{t('posts.priceUnit')}</label>
-                  <Input as="select" value={form.price_unit} onChange={(e) => set('price_unit', e.target.value)}>
+                  <label htmlFor="post-price-unit" className="field-label">{t('posts.priceUnit')}</label>
+                  <Input as="select" id="post-price-unit" value={form.price_unit} onChange={(e) => set('price_unit', e.target.value)}>
                     {PRICE_UNITS.map((u) => <option key={u} value={u}>{t(`priceUnit.${u}`, { defaultValue: u })}</option>)}
                   </Input>
                 </div>
@@ -723,8 +723,8 @@ export default function ProviderPostForm() {
                 editing content — mirrors the app's StatusSection. */}
             {schema?.has_rental_status && (
               <div>
-                <label className="field-label">{t('common.status')}</label>
-                <Input as="select" value={form.status} onChange={(e) => set('status', e.target.value)}>
+                <label htmlFor="post-status" className="field-label">{t('common.status')}</label>
+                <Input as="select" id="post-status" value={form.status} onChange={(e) => set('status', e.target.value)}>
                   {['ACTIVE', 'RENTED', 'EXPIRED'].map((s) => (
                     <option key={s} value={s}>{t(`status.${s.toLowerCase()}`, { defaultValue: s })}</option>
                   ))}

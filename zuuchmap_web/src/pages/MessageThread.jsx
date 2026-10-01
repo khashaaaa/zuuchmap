@@ -152,7 +152,7 @@ export default function MessageThread() {
           <ArrowLeft size={18} className="text-text" />
         </button>
         <div className="min-w-0">
-          <p className="font-semibold text-text truncate">{thread?.other_party?.given_name || '—'}</p>
+          <h1 className="font-semibold text-text truncate">{thread?.other_party?.given_name || '—'}</h1>
           {thread?.post ? (
             <Link to={`/posts/${thread.post.id}`} className="text-xs text-primary-text hover:underline truncate block">
               {thread.post.title}
@@ -196,7 +196,7 @@ export default function MessageThread() {
                 } ${m.pending ? 'opacity-60' : ''} ${m.failed ? 'opacity-60 ring-2 ring-danger cursor-pointer' : ''}`}
               >
                 <p className="text-sm whitespace-pre-wrap break-words">{m.body}</p>
-                <p className={`text-xs mt-1 ${m.mine ? 'text-on-primary/70' : 'text-muted'}`}>
+                <p className={`text-xs mt-1 ${m.mine ? 'text-on-primary/80' : 'text-muted'}`}>
                   {m.failed ? t('messages.retry') : m.pending ? t('messages.sending') : formatTime(m.date_created)}
                 </p>
               </div>

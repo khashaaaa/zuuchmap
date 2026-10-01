@@ -46,6 +46,10 @@ const CustomerLikeList = ({ navigation }) => {
         const schema = schemas.find((s) => s.key === key);
         return schema ? getSchemaLabel(schema) : t('category.' + key, { defaultValue: key });
     }, [schemas, t]);
+    const isRental = useCallback(
+        (type) => !!schemas.find((s) => s.key === normalizePostType(type))?.has_rental_status,
+        [schemas],
+    );
     const qc = useQueryClient();
     // null = auth check in flight
     const [isAuthenticated, setIsAuthenticated] = useState(null);
@@ -78,6 +82,9 @@ const CustomerLikeList = ({ navigation }) => {
     });
 
     const posts = useMemo(() => (data?.pages ?? []).flatMap((p) => p.posts || []), [data]);
+    // The server's total, not what has loaded: the list pages by 20, so a 21st
+    // save read as "(20)" beside the profile's 21 until the user scrolled.
+    const total = data?.pages?.[0]?.total ?? posts.length;
     const refreshing = isRefetching && !loadingMore;
 
     useEffect(() => {
@@ -186,8 +193,13 @@ const CustomerLikeList = ({ navigation }) => {
                 // approved ones, so this list is the only place a customer meets
                 // a saved listing that has lapsed or been refused since — and it
                 // used to look exactly like one still on the market. The web
-                // card has badged the moderation state all along.
-                statusOverlay
+                // card has badged the moderation state all along. Available /
+                // rented only where renting exists; lapsed or refused always.
+                statusOverlay={
+                    (item.approval_status && item.approval_status !== 'APPROVED')
+                    || item.status === 'EXPIRED'
+                    || isRental(item.post_type || item.category)
+                }
                 memoKey={`${i18n.language}-${isDark}-${item.status}-${item.approval_status}-${categoryLabel(item.post_type || item.category)}`}
                 actions={<LikeButton liked size="small" onToggle={() => handleUnlike(item)} />}
                 // The same chip Browse puts on this card — a saved listing is
@@ -210,7 +222,7 @@ const CustomerLikeList = ({ navigation }) => {
             </View>
     // styles/colors/t must be deps — a stale closure here kept rendering the
     // old palette after a theme switch (and old strings after a locale switch).
-    ), [handlePostPress, handleUnlike, styles, colors, t, isAuthenticated, categoryLabel]);
+    ), [handlePostPress, handleUnlike, styles, colors, t, isAuthenticated, categoryLabel, isRental]);
 
     const renderEmptyState = () => {
         if (!authChecked) {
@@ -263,7 +275,7 @@ const CustomerLikeList = ({ navigation }) => {
 
     return (
         <ScreenLayout
-            title={`${t('posts.savedTitle')}${!pending && posts.length > 0 ? ` (${posts.length})` : ''}`}
+            title={`${t('posts.savedTitle')}${!pending && total > 0 ? ` (${total})` : ''}`}
             showBack={canGoBack}
             // Tab root here, pushed route from the profile — only the pushed
             // one has anywhere to go back to. See MessagesScreen.

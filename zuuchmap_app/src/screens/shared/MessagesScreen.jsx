@@ -39,21 +39,25 @@ const ThreadRow = ({ item, index, onPress, styles, colors, t }) => {
                         </Text>
                         <Text style={styles.time}>{formatInboxStamp(item.last_message_at)}</Text>
                     </View>
-                    <Text style={styles.listing} numberOfLines={1}>
-                        {item.post?.title || t('messages.deletedListing')}
-                    </Text>
+                    {/* The unread count sits under the date, not beside the
+                        body: a trailing badge pushed only the unread rows'
+                        dates inward, so the date column broke at every one. */}
+                    <View style={styles.subline}>
+                        <Text style={[styles.listing, styles.flexText]} numberOfLines={1}>
+                            {item.post?.title || t('messages.deletedListing')}
+                        </Text>
+                        {item.unread > 0 && (
+                            <View style={[styles.badge, { backgroundColor: colors.primary }]}>
+                                <Text style={[styles.badgeText, { color: colors.onPrimary }]}>
+                                    {item.unread > 99 ? '99+' : item.unread}
+                                </Text>
+                            </View>
+                        )}
+                    </View>
                     <Text style={styles.preview} numberOfLines={1}>
                         {item.last_message_preview || ''}
                     </Text>
                 </View>
-
-                {item.unread > 0 && (
-                    <View style={[styles.badge, { backgroundColor: colors.primary }]}>
-                        <Text style={[styles.badgeText, { color: colors.onPrimary }]}>
-                            {item.unread > 99 ? '99+' : item.unread}
-                        </Text>
-                    </View>
-                )}
             </PressableScale>
     );
 };
@@ -165,9 +169,11 @@ const createStyles = (colors) => StyleSheet.create({
     name: { ...typography.styles.title, color: colors.text.primary, flex: 1 },
     time: { ...typography.styles.small, color: colors.text.tertiary },
     listing: { ...typography.styles.caption, color: colors.text.tertiary },
+    subline: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 20 },
+    flexText: { flex: 1 },
     preview: { ...typography.styles.body, color: colors.text.secondary },
     badge: {
-        minWidth: 24, height: 24, borderRadius: radius.pill,
+        minWidth: 20, height: 20, borderRadius: radius.pill,
         paddingHorizontal: spacing.xs,
         alignItems: 'center', justifyContent: 'center',
     },

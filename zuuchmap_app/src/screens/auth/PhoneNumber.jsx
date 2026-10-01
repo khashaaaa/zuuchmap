@@ -193,7 +193,7 @@ const PhoneNumber = ({ navigation }) => {
                                 ref={inputRef}
                                 style={[styles.input, { color: colors.text.primary }]}
                                 value={phoneNumber}
-                                onChangeText={setPhoneNumber}
+                                onChangeText={(v) => setPhoneNumber(v.replace(/\D/g, ''))}
                                 placeholder={t('auth.phonePlaceholder')}
                                 placeholderTextColor={colors.text.placeholder}
                                 keyboardType="phone-pad"

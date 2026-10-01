@@ -354,7 +354,10 @@ const CustomerPostList = ({ route, navigation }) => {
                     title={getPostTitleUtil(item, item.post_type)}
                     price={getPostPrice(item)}
                     emphasized={!!emphasisLabel}
-                    statusOverlay
+                    // Available / rented is a rental fact: on a brick sale or a
+                    // job ad "Идэвхтэй" said nothing, on every card — the same
+                    // flag already gates the availability strip below.
+                    statusOverlay={!!rentalByKey[item.post_type]}
                     memoKey={`${liked}-${pending}-${isCustomer}-${isGuest}-${item.status}-${item.busy_dates}-${emphasisLabel}-${!!rentalByKey[item.post_type]}-${i18n.language}-${isDark}`}
                     actions={(isCustomer || isGuest) ? (
                         <LikeButton liked={liked} size="small" disabled={pending} onToggle={() => handleToggleLike(item, liked)} />

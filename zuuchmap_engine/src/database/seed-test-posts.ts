@@ -53,6 +53,7 @@ loadEnv({
 import { Client } from 'pg';
 import { createHash } from 'crypto';
 import { promises as fs } from 'fs';
+import * as fsSync from 'fs';
 import * as path from 'path';
 import * as sharp from 'sharp';
 import { CATEGORY_SEED } from '../post/category.service';
@@ -1016,61 +1017,88 @@ const REJECTIONS = [
   'Гарчиг дэх том үсэг, олон анхаарлын тэмдгийг арилгана уу.',
 ];
 
-const BOOKING_MESSAGES = [
-  'Сайн байна уу. Тухайн өдрүүдэд захиалах боломжтой юу? Байршил Баянзүрх дүүрэг.',
-  'Танай техник сул байвал 4 хоног авъя. Үнийн саналаа хэлнэ үү.',
-  'Хан-Уул дүүрэгт суурийн ухалт хийх ажилтай. Операторчтой авмаар байна.',
-  'Ажлын хэмжээ 300 м3 орчим. Хугацаа болон үнээ тохироод гэрээ хийе.',
-  'Өмнөговь руу явах шаардлагатай. Тээврийн зардлыг тусад нь тооцох уу?',
-  'Өглөө 08:00 цагаас эхэлж болох уу? Талбай бэлэн байгаа.',
+/**
+ * Booking requests by trade (null: any bookable listing). One shared pool sent
+ * a truck rental "we are digging a foundation, we want it with an operator".
+ */
+const BOOKING_MESSAGES: { cats: string[] | null; body: string }[] = [
+  { cats: null, body: 'Сайн байна уу. Тухайн өдрүүдэд захиалах боломжтой юу? Байршил Баянзүрх дүүрэг.' },
+  { cats: null, body: 'Өглөө 08:00 цагаас эхэлж болох уу? Талбай бэлэн байгаа.' },
+  { cats: ['machineryrent', 'miningsupport'], body: 'Танай техник сул байвал 4 хоног авъя. Үнийн саналаа хэлнэ үү.' },
+  { cats: ['machineryrent'], body: 'Хан-Уул дүүрэгт суурийн ухалт хийх ажилтай. Операторчтой авмаар байна.' },
+  { cats: ['construction', 'designservice', 'miningsupport'], body: 'Ажлын хэмжээ 300 м3 орчим. Хугацаа болон үнээ тохироод гэрээ хийе.' },
+  { cats: ['vehiclerent', 'transport', 'machineryrent'], body: 'Өмнөговь руу явах шаардлагатай. Тээврийн зардлыг тусад нь тооцох уу?' },
+  { cats: ['vehiclerent', 'transport'], body: 'Ачаа 3 тонн орчим, хот дотор 2 рейс хийнэ.' },
+  { cats: ['toolrent'], body: 'Барилгын талбай дээр 5 хоног хэрэгтэй. Хүргэлттэй юу?' },
+  { cats: ['winterservice'], body: 'Байгууллагын зогсоолын цасыг өглөө бүр цэвэрлүүлмээр байна.' },
 ];
 
-const REVIEW_COMMENTS = [
-  'Цаг барьсан, найдвартай ажиллалаа. Дахин хамтарна.',
-  'Техник нь сайн байсан, оператор туршлагатай. Санал болгож байна.',
-  'Харилцаа сайн боловч эхний өдөр 2 цаг хоцорсон.',
-  'Үнэ бага зэрэг өндөр санагдсан ч ажлын чанар сайн.',
-  'Ярьсан хугацаандаа багтаасан. Баримтаа цэвэрхэн гаргаж өгсөн.',
-  'Материалын чанар тааруу байсан тул нэг хэсгийг нь буцаасан.',
-  'Дуудлагын дараа 20 минутад ирсэн. Маш хурдан шуурхай.',
-];
+
+/**
+ * Review prose by what the provider actually does, and by how it went: a 2★
+ * that praises the work, or an excavator compliment under a soil-testing
+ * engineer, is the first thing a reviewer of the screen notices. Keyed on the
+ * provider's main category; the mixed and negative lines fit any trade.
+ */
+const REVIEW_COMMENTS: Record<string, string[]> = {
+  vehiclerent: ['Машин цэвэрхэн, бүрэн бүтэн байсан. Дахин түрээслэнэ.', 'Түлшийг дүүрэн хүлээлгэж өгсөн, цагтаа ирсэн.'],
+  machineryrent: ['Техник нь сайн байсан, оператор туршлагатай. Санал болгож байна.', 'Экскаватор цагтаа ирж, ажлаа хугацаанд нь дуусгасан.'],
+  toolrent: ['Багаж бүрэн, ажиллагаа сайн байсан.', 'Тайван, ойлгомжтой зааварчилгаа өгсөн.'],
+  materialstore: ['Материалын чанар сайн, хүргэлт шуурхай.', 'Захиалсан хэмжээгээр яг хүргэж өгсөн.'],
+  construction: ['Ярьсан хугацаандаа багтаасан. Ажлын чанар сайн.', 'Засварын ажлыг цэвэрхэн хийж, хогоо ачиж явсан.'],
+  jobvacancy: ['Цалинг цагт нь олгодог, ажлын нөхцөл сайн.', 'Ажилд орох үйл явц ойлгомжтой байсан.'],
+  factory: ['Захиалгыг хэмжээнд нь яг таг хийсэн.', 'Үнэ, чанар хоёулаа тохиромжтой.'],
+  sos: ['Дуудлагын дараа 20 минутад ирсэн. Маш хурдан шуурхай.', 'Шөнө дуудсан ч ирж тусалсан.'],
+  usedequipment: ['Зарын тайлбартай яг таарч байсан.', 'Үзлэг хийлгэхэд нээлттэй байсан, шударга худалдагч.'],
+  transport: ['Ачааг бүрэн бүтэн, цагт нь хүргэсэн.', 'Жолооч туршлагатай, зам сайн мэддэг.'],
+  designservice: ['Зураг төсөл ойлгомжтой, тайлбар сайн хийсэн.', 'Ярьсан хугацаандаа багтааж, баримтаа цэвэрхэн гаргаж өгсөн.'],
+  miningsupport: ['Талбай дээр аюулгүй ажиллагааг сайн мөрдсөн.', 'Тоног төхөөрөмж бэлэн, ажилчид туршлагатай.'],
+  winterservice: ['Цасыг өглөө эрт цэвэрлэж өгсөн.', 'Халаагуурын түрээс хүйтэнд их тус болсон.'],
+  any: ['Цаг барьсан, найдвартай ажиллалаа. Дахин хамтарна.'],
+  mixed: ['Харилцаа сайн боловч эхний өдөр 2 цаг хоцорсон.', 'Үнэ бага зэрэг өндөр санагдсан ч ажлын чанар сайн.'],
+  negative: ['Хэлсэн цагтаа ирээгүй, утсаа авахгүй байсан.', 'Тохирсон үнээсээ илүү мөнгө нэхсэн.'],
+};
+
 
 // Thread prose. A conversation reads as a negotiation or it reads as filler,
 // and the inbox is the one screen where every row is prose — a corpus of
 // "Message 3" cannot show whether the 200-char preview truncates sensibly or
 // whether a two-line row is what the list was measured for.
-const THREAD_OPENERS = [
-  'Сайн байна уу. Энэ зар идэвхтэй байгаа юу?',
-  'Үнэ нь тохиролцох боломжтой юу? Урт хугацаагаар авна.',
-  'Маргааш үзэж болох уу? Байршил нь яг хаана байдаг вэ?',
-  'Операторын хөлс үнэд орсон уу, эсвэл тусад нь тооцох уу?',
-  'Хэдэн оны үйлдвэрлэлийн вэ? Мото цаг хэд явсан бэ?',
-  'Дархан руу явуулах боломжтой юу? Тээврийн зардал хэд болох вэ?',
-  'Бөөнөөр авбал хөнгөлөлт үзүүлэх үү? 200 шуудай хэрэгтэй байна.',
-  'Ажлын байр нээлттэй хэвээр байна уу? Ямар туршлага шаардах вэ?',
-  'Гэрээ байгуулж ажилладаг уу? Байгууллагын нэр дээр авна.',
+/**
+ * A question and the answer to it, and which trades it belongs to (null: any).
+ * Openers and replies used to be drawn from two independent pools, so a van
+ * rental's owner answered "the job is open, two years' experience required".
+ * A thread now opens on one topic, the first reply answers it, and every later
+ * line comes from topics that fit the listing's category.
+ */
+const RENTALS = ['vehiclerent', 'machineryrent', 'toolrent', 'transport', 'winterservice', 'miningsupport'];
+const GOODS = ['materialstore', 'factory', 'usedequipment'];
+const THREAD_TOPICS: { cats: string[] | null; opener: string; reply: string }[] = [
+  { cats: null, opener: 'Сайн байна уу. Энэ зар идэвхтэй байгаа юу?', reply: 'Тийм, идэвхтэй байна. Хэзээнээс хэрэгтэй вэ?' },
+  { cats: null, opener: 'Маргааш үзэж болох уу? Байршил нь яг хаана байдаг вэ?', reply: 'Байршил Баянзүрх дүүрэг, 100 айлын ард. Өдөр бүр 09:00–18:00 цагт үзэж болно.' },
+  { cats: null, opener: 'Гэрээ байгуулж ажилладаг уу? Байгууллагын нэр дээр авна.', reply: 'Байгууллагын нэр дээр гэрээ хийж, НӨАТ-тай баримт өгнө.' },
+  { cats: RENTALS, opener: 'Үнэ нь тохиролцох боломжтой юу? Урт хугацаагаар авна.', reply: 'Долоо хоногоос дээш хугацаагаар авбал 10% хөнгөлнө.' },
+  { cats: RENTALS, opener: 'Ирэх долоо хоногт 3 хоног авах боломжтой юу?', reply: 'Уучлаарай, тэр өдрүүд захиалгатай байна. 15-наас хойш боломжтой.' },
+  { cats: ['machineryrent', 'miningsupport', 'transport'], opener: 'Операторын хөлс үнэд орсон уу, эсвэл тусад нь тооцох уу?', reply: 'Операторын хөлс тусдаа, өдрийн 80,000₮.' },
+  { cats: ['machineryrent', 'usedequipment'], opener: 'Хэдэн оны үйлдвэрлэлийн вэ? Мото цаг хэд явсан бэ?', reply: '2019 оны үйлдвэрлэл, 4,200 мото цаг явсан. Бүрэн ажиллагаатай.' },
+  { cats: [...RENTALS, ...GOODS], opener: 'Дархан руу явуулах боломжтой юу? Тээврийн зардал хэд болох вэ?', reply: 'Тээврийг өөрсдөө хариуцна. Дархан хүртэл 350,000₮ нэмэгдэнэ.' },
+  { cats: ['materialstore', 'factory'], opener: 'Бөөнөөр авбал хөнгөлөлт үзүүлэх үү? 200 шуудай хэрэгтэй байна.', reply: '100-аас дээш шуудай авбал 8% хөнгөлнө.' },
+  { cats: ['jobvacancy'], opener: 'Ажлын байр нээлттэй хэвээр байна уу? Ямар туршлага шаардах вэ?', reply: 'Ажлын байр нээлттэй. 2-оос дээш жилийн туршлага шаардана.' },
+  { cats: ['jobvacancy'], opener: 'Цалин хэзээ олгодог вэ? Байр, хоол өгөх үү?', reply: 'Цалинг сар бүрийн 5, 20-нд олгоно. Хоол үнэгүй, байр өгнө.' },
 ];
 
-const THREAD_PROVIDER_REPLIES = [
-  'Тийм, идэвхтэй байна. Хэзээнээс хэрэгтэй вэ?',
-  'Долоо хоногоос дээш хугацаагаар авбал 10% хөнгөлнө.',
-  'Байршил Баянзүрх дүүрэг, 100 айлын ард. Өдөр бүр 09:00–18:00 цагт үзэж болно.',
-  'Операторын хөлс тусдаа, өдрийн 80,000₮.',
-  '2019 оны үйлдвэрлэл, 4,200 мото цаг явсан. Бүрэн ажиллагаатай.',
-  'Тээврийг өөрсдөө хариуцна. Дархан хүртэл 350,000₮ нэмэгдэнэ.',
-  'Ажлын байр нээлттэй. 2-оос дээш жилийн туршлага шаардана.',
-  'Уучлаарай, тэр өдрүүд захиалгатай байна. 15-наас хойш боломжтой.',
-  'Байгууллагын нэр дээр гэрээ хийж, НӨАТ-тай баримт өгнө.',
+const THREAD_CUSTOMER_FOLLOWUPS: { cats: string[] | null; body: string }[] = [
+  { cats: null, body: 'Ойлголоо, баярлалаа. Тэгвэл маргааш ярья.' },
+  { cats: null, body: 'За тохирлоо. Утсаар холбогдъё.' },
+  { cats: [...RENTALS, ...GOODS, 'construction', 'designservice', 'sos'], body: 'Урьдчилгаа хэдэн хувь төлөх вэ?' },
+  { cats: [...RENTALS, ...GOODS], body: 'Зурагнаас илүү дэлгэрэнгүй харах боломжтой юу?' },
+  { cats: [...RENTALS, ...GOODS, 'construction', 'designservice', 'sos'], body: 'Дансны мэдээллээ явуулна уу.' },
+  { cats: ['machineryrent', 'vehiclerent', 'transport'], body: 'Ажил 3 хоног үргэлжилнэ. Түлш хэн хариуцах вэ?' },
+  { cats: ['jobvacancy'], body: 'CV-гээ хаашаа илгээх вэ?' },
+  { cats: ['jobvacancy'], body: 'Ярилцлага хэзээ болох вэ?' },
 ];
 
-const THREAD_CUSTOMER_FOLLOWUPS = [
-  'Ойлголоо, баярлалаа. Тэгвэл маргааш ярья.',
-  'Урьдчилгаа хэдэн хувь төлөх вэ?',
-  'Зурагнаас илүү дэлгэрэнгүй харах боломжтой юу?',
-  'Дансны мэдээллээ явуулна уу.',
-  'За тохирлоо. Утсаар холбогдъё.',
-  'Ажил 3 хоног үргэлжилнэ. Түлш хэн хариуцах вэ?',
-];
+const fits = (cats: string[] | null, cat: string) => !cats || cats.includes(cat);
 
 /** What a reporter actually types, by reason — the queue is triaged by kind. */
 const REPORT_DETAILS: Record<string, (string | null)[]> = {
@@ -1140,6 +1168,7 @@ async function makeImage(
   w = 1200,
   h = 900,
   thumb = false,
+  fontRatio = 18,
 ) {
   const file = path.join(process.cwd(), 'uploads', dir, name);
   await fs.mkdir(path.dirname(file), { recursive: true });
@@ -1150,7 +1179,7 @@ async function makeImage(
          <stop offset="100%" stop-color="${hex}" stop-opacity="0.55"/>
        </linearGradient></defs>
        <rect width="${w}" height="${h}" fill="url(#g)"/>
-       <text x="50%" y="50%" font-family="DejaVu Sans, sans-serif" font-size="${Math.round(w / 18)}"
+       <text x="50%" y="50%" font-family="DejaVu Sans, sans-serif" font-size="${Math.round(w / fontRatio)}"
              fill="#ffffff" text-anchor="middle" dominant-baseline="middle">${label}</text>
      </svg>`,
   );
@@ -1169,31 +1198,182 @@ async function makeImage(
   return name;
 }
 
-/** Four photos per category, so a post can carry a gallery rather than one image. */
+/**
+ * Which picture a subcategory's photos show. Lucide outlines, read straight
+ * from the web's own `lucide-react` install (each icon module exports its
+ * `__iconNode`), so the seed adds no dependency; without it the photos fall
+ * back to the flat labelled card. Unlisted subcategories use the category's.
+ */
+const PHOTO_ICONS: Record<string, string> = {
+  vehiclerent: 'car-front', 'vehiclerent:car': 'car', 'vehiclerent:suv': 'car-front',
+  'vehiclerent:truck': 'truck', 'vehiclerent:bus': 'bus', 'vehiclerent:van': 'bus-front',
+  machineryrent: 'tractor', 'machineryrent:crane': 'construction', 'machineryrent:excavator': 'pickaxe',
+  'machineryrent:forklift': 'forklift', 'machineryrent:compactor': 'weight',
+  'machineryrent:concrete_mixer': 'cylinder', 'machineryrent:drilling_rig': 'drill',
+  toolrent: 'toolbox', 'toolrent:power_tools': 'drill', 'toolrent:formwork': 'frame',
+  'toolrent:scaffolding': 'grid-3x3', 'toolrent:measuring': 'ruler',
+  materialstore: 'boxes', 'materialstore:cement': 'package', 'materialstore:aggregate': 'mountain',
+  'materialstore:rebar': 'cable', 'materialstore:timber': 'trees', 'materialstore:insulation': 'layers',
+  'materialstore:brick_block': 'brick-wall', 'materialstore:roofing': 'house',
+  'materialstore:finishing': 'paint-roller', 'materialstore:plumbing_electrical': 'plug',
+  construction: 'building', 'construction:interior': 'sofa', 'construction:exterior': 'building-2',
+  'construction:electrical': 'zap', 'construction:plumbing': 'droplets', 'construction:roofing': 'house',
+  'construction:flooring': 'square-dashed-bottom', 'construction:painting': 'paint-bucket',
+  jobvacancy: 'hard-hat', 'jobvacancy:driver': 'car-front', 'jobvacancy:welder': 'flame',
+  'jobvacancy:electrician': 'plug-zap', 'jobvacancy:plumber': 'wrench',
+  'jobvacancy:manager': 'briefcase', 'jobvacancy:accountant': 'calculator',
+  factory: 'factory', 'factory:concrete': 'cuboid', 'factory:metal': 'anvil', 'factory:wood': 'axe',
+  'factory:brick': 'brick-wall', 'factory:glass': 'frame', 'factory:door_window': 'door-open',
+  sos: 'siren', 'sos:tire_repair': 'life-buoy', 'sos:towing': 'truck', 'sos:battery': 'battery',
+  'sos:fuel_delivery': 'fuel', 'sos:mobile_repair': 'wrench', 'sos:jump_start': 'zap',
+  usedequipment: 'cog', 'usedequipment:vehicle': 'car', 'usedequipment:machinery': 'tractor',
+  'usedequipment:tools': 'toolbox',
+  transport: 'truck', 'transport:freight': 'container', 'transport:crane_service': 'construction',
+  'transport:heavy_haul': 'weight', 'transport:water_delivery': 'droplet',
+  designservice: 'drafting-compass', 'designservice:structural': 'blocks',
+  'designservice:surveying': 'compass', 'designservice:soil_testing': 'pipette',
+  'designservice:permits': 'shield', 'designservice:interior_design': 'sofa',
+  miningsupport: 'pickaxe', 'miningsupport:drilling_blasting': 'drill', 'miningsupport:earthworks': 'shovel',
+  'miningsupport:haulage': 'truck', 'miningsupport:camp_services': 'tent',
+  'miningsupport:maintenance': 'wrench',
+  winterservice: 'snowflake', 'winterservice:ground_thawing': 'flame',
+  'winterservice:heating_rental': 'heater', 'winterservice:winterization': 'thermometer',
+};
+
+const LUCIDE_DIR = path.join(
+  process.cwd(), '..', 'zuuchmap_web', 'node_modules', 'lucide-react', 'dist', 'esm', 'icons',
+);
+
+/** An icon's SVG children, or null when lucide is not installed. */
+function lucideMarkup(name: string): string | null {
+  const file = path.join(LUCIDE_DIR, `${name}.mjs`);
+  if (!fsSync.existsSync(file)) return null;
+  const node: [string, Record<string, string>][] = require(file).__iconNode;
+  return node
+    .map(([tag, attrs]) => {
+      const a = Object.entries(attrs)
+        .filter(([k]) => k !== 'key')
+        .map(([k, v]) => `${k}="${v}"`)
+        .join(' ');
+      return `<${tag} ${a}/>`;
+    })
+    .join('');
+}
+
+function mix(hex: string, to: string, t: number): string {
+  const c = (h: string, i: number) => parseInt(h.slice(1 + i * 2, 3 + i * 2), 16);
+  const ch = [0, 1, 2].map((i) => Math.round(c(hex, i) + (c(to, i) - c(hex, i)) * t));
+  return '#' + ch.map((v) => v.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Real uploads arrive in every shape — a landscape phone shot, a 16:9 crop, a
+ * portrait one, a square from a messenger forward — and the card, the gallery
+ * and the lightbox each have to handle all of them. The old fixtures were all
+ * 4:3, so a portrait photo was never on screen locally.
+ */
+const PHOTO_SHAPES: [number, number][] = [
+  [1200, 900],
+  [1600, 900],
+  [900, 1200],
+  [1080, 1080],
+];
+
+/**
+ * A scene rather than a swatch: a sky in the category's colour, a horizon with
+ * hills, a sun, and the subcategory's subject standing in it with a shadow.
+ * `v` moves the subject, the horizon and the light so three photos of one
+ * listing do not look like one photo three times.
+ */
+async function makePhoto(name: string, hex: string, icon: string, v: number, shape: number) {
+  const [w, h] = PHOTO_SHAPES[shape % PHOTO_SHAPES.length];
+  const m = Math.min(w, h);
+  const sky = mix(hex, '#ffffff', 0.35 - (v % 3) * 0.08);
+  const ground = mix(hex, '#000000', 0.5);
+  const hill = mix(hex, '#000000', 0.3);
+
+  const sunX = w * [0.78, 0.22, 0.6][v % 3];
+  const iconSize = m * [0.44, 0.38, 0.48][v % 3];
+  const iconX = w * [0.5, 0.56, 0.44][v % 3] - iconSize / 2;
+  // The subject's centre sits at the frame's centre: every card, gallery and
+  // similar-listing tile crops to cover, and a subject standing low in a
+  // portrait frame was cut in half by the landscape crop.
+  const horizon = h * (0.5 + ((v % 3) - 1) * 0.03) + iconSize * 0.42;
+  const iconY = horizon - iconSize * 0.92;
+  const stroke = 1.5 + (v % 2) * 0.25;
+  const glyph = (dx: number, dy: number, color: string, opacity: number) =>
+    `<g transform="translate(${iconX + dx} ${iconY + dy}) scale(${iconSize / 24})"
+        fill="none" stroke="${color}" stroke-opacity="${opacity}" stroke-width="${stroke}"
+        stroke-linecap="round" stroke-linejoin="round">${icon}</g>`;
+  const svg = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
+       <defs>
+         <linearGradient id="sky" x1="0" y1="0" x2="${v % 2}" y2="1">
+           <stop offset="0%" stop-color="${sky}"/>
+           <stop offset="100%" stop-color="${hex}"/>
+         </linearGradient>
+         <radialGradient id="vig" cx="50%" cy="45%" r="75%">
+           <stop offset="60%" stop-color="#000" stop-opacity="0"/>
+           <stop offset="100%" stop-color="#000" stop-opacity="0.35"/>
+         </radialGradient>
+       </defs>
+       <rect width="${w}" height="${h}" fill="url(#sky)"/>
+       <circle cx="${sunX}" cy="${h * 0.22}" r="${m * 0.11}" fill="#ffffff" fill-opacity="0.22"/>
+       <path d="M0 ${horizon - m * 0.06} Q ${w * 0.25} ${horizon - m * (0.16 + (v % 2) * 0.08)} ${w * 0.5} ${horizon - m * 0.05}
+                T ${w} ${horizon - m * 0.09} V ${h} H 0 Z" fill="${hill}" fill-opacity="0.55"/>
+       <rect y="${horizon}" width="${w}" height="${h - horizon}" fill="${ground}"/>
+       <ellipse cx="${iconX + iconSize / 2}" cy="${horizon + m * 0.015}" rx="${iconSize * 0.42}" ry="${m * 0.025}"
+                fill="#000" fill-opacity="0.35"/>
+       ${glyph(m * 0.012, m * 0.012, '#000000', 0.3)}
+       ${glyph(0, 0, '#ffffff', 0.95)}
+       <rect width="${w}" height="${h}" fill="url(#vig)"/>
+     </svg>`,
+  );
+  const file = path.join(process.cwd(), 'uploads', 'posts', name);
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  await sharp(svg).jpeg({ quality: 78 }).toFile(file);
+  await sharp(svg)
+    .resize(640, 640, { fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: 72 })
+    .toFile(file.replace(/(\.[a-z0-9]+)$/i, '_thumb$1'));
+  return name;
+}
+
+/**
+ * Photo pools keyed `category` and `category:subcategory`: an excavator listing
+ * shows excavator pictures, not the same four swatches as every other
+ * machinery post. Three per subcategory, four for the category itself.
+ */
 async function seedImageFiles(): Promise<Record<string, string[]>> {
   const pools: Record<string, string[]> = {};
+  let shape = 0;
   for (const cat of CATEGORY_SEED) {
     const key = cat.key as string;
     const hex = (cat.color as string) ?? '#6A7BC2';
     const label = (cat.labels as any)?.mn ?? cat.label ?? key;
+    const catIcon = lucideMarkup(PHOTO_ICONS[key] ?? 'package');
     pools[key] = [];
     for (let n = 1; n <= 4; n++) {
       pools[key].push(
-        await makeImage(
-          'posts',
-          `seed-${key}-${n}.jpg`,
-          hex,
-          `${label} ${n}`,
-          1200,
-          900,
-          true,
-        ),
+        catIcon
+          ? await makePhoto(`seed-${key}-${n}.jpg`, hex, catIcon, n, shape++)
+          : await makeImage('posts', `seed-${key}-${n}.jpg`, hex, `${label} ${n}`, 1200, 900, true),
       );
+    }
+    if (!catIcon) continue;
+    for (const sub of (cat.subcategories ?? []) as any[]) {
+      const subKey = sub.key ?? sub.value ?? sub;
+      const icon = lucideMarkup(PHOTO_ICONS[`${key}:${subKey}`] ?? PHOTO_ICONS[key]) ?? catIcon;
+      const pool = (pools[`${key}:${subKey}`] = [] as string[]);
+      for (let n = 1; n <= 3; n++) {
+        pool.push(await makePhoto(`seed-${key}-${subKey}-${n}.jpg`, hex, icon, n + 1, shape++));
+      }
     }
   }
   const total = Object.values(pools).reduce((a, p) => a + p.length, 0);
   console.log(
-    `images: ${total} post photos + ${total} thumbnails written to uploads/posts`,
+    `images: ${total} post photos + ${total} thumbnails written to uploads/posts` +
+      (fsSync.existsSync(LUCIDE_DIR) ? '' : ' (flat — lucide-react not installed in zuuchmap_web)'),
   );
   return pools;
 }
@@ -1531,6 +1711,8 @@ async function seedUsers(client: Client, companies: string[]) {
             given.slice(0, 1),
             400,
             400,
+            false,
+            2.2,
           )
         : null;
     const {
@@ -1566,6 +1748,8 @@ async function seedUsers(client: Client, companies: string[]) {
             given.slice(0, 1),
             400,
             400,
+            false,
+            2.2,
           )
         : null;
     const {
@@ -1591,6 +1775,15 @@ async function seedUsers(client: Client, companies: string[]) {
     `INSERT INTO "user" (phone_number, is_verified, plan) VALUES ($1,true,'FREE')`,
     [uniquePhone()],
   );
+  // Accounts of every age, 2 months to 2 years: a profile's "member since"
+  // read this month for everyone, and so did the trust strip built on it.
+  // Older than any post they own (posts reach back at most 60 days).
+  for (const { id } of (await client.query('SELECT id FROM "user" ORDER BY phone_number')).rows) {
+    await client.query(
+      `UPDATE "user" SET date_created = now() - interval '${int(60, 730)} days' WHERE id = $1`,
+      [id],
+    );
+  }
 
   console.log(
     `users: ${admins.length} admin, ${providers.length} provider, ${customers.length} customer, 1 role-less`,
@@ -1683,6 +1876,7 @@ async function seedPosts(
 ) {
   const ids: number[] = [];
   const perCategory: string[] = [];
+  const usedTitles = new Map<string, Set<string>>();
   // Paid providers own the bulk of the listings; the FREE long tail holds
   // one to three each. Live posts are only ever assigned within the owner's
   // quota, so the corpus agrees with what the create path would have allowed.
@@ -1764,10 +1958,22 @@ async function seedPosts(
         attributes.salary_max = attributes.salary_min + int(2, 12) * 100_000;
       }
 
-      const titleTpl = pick(
+      // Without replacement per subcategory until its pool runs out: drawing
+      // with replacement put the same title on adjacent cards in browse, which
+      // reads as duplicate-listing spam rather than as a marketplace.
+      const titlePool: string[] =
         catalog?.titles?.[sub ?? ''] ??
-          catalog?.titles?.[Object.keys(catalog?.titles ?? {})[0]] ?? ['{bm}'],
-      );
+        catalog?.titles?.[Object.keys(catalog?.titles ?? {})[0]] ?? ['{bm}'];
+      const usedKey = `${cat.key}:${sub ?? ''}`;
+      const used = usedTitles.get(usedKey) ?? new Set<string>();
+      usedTitles.set(usedKey, used);
+      let fresh = titlePool.filter((x) => x.includes('{bm}') || !used.has(x));
+      if (!fresh.length) {
+        used.clear();
+        fresh = titlePool;
+      }
+      const titleTpl = pick(fresh);
+      used.add(titleTpl);
       const title = titleTpl
         .replace('{bm}', `${brand ?? ''} ${model ?? ''}`.trim())
         .replace(/\s+/g, ' ')
@@ -1780,7 +1986,8 @@ async function seedPosts(
       // A tenth of posts carry no coordinates — they must stay in browse and
       // stay off the map, rather than becoming a null pin.
       const located = rnd() >= 0.1;
-      const pool = imagePool[cat.key as string] ?? [];
+      const pool =
+        imagePool[`${cat.key}:${sub}`] ?? imagePool[cat.key as string] ?? [];
       const images = JSON.stringify(shuffle(pool).slice(0, pickShots()));
       const owner = pickOwner(lc);
 
@@ -1830,7 +2037,9 @@ async function seedPosts(
           rnd() < 0.15 ? `www.${pick(COMPANIES).trade}.mn` : null,
           JSON.stringify(attributes),
           images,
-          lc.status,
+          // RENTED is a rental state: a brick factory or a job ad has no
+          // "currently rented" — the badge read as nonsense in Saved.
+          lc.status === 'RENTED' && !cat.has_rental_status ? 'ACTIVE' : lc.status,
           lc.approval,
           lc.approval === 'REJECTED' ? pick(REJECTIONS) : null,
           views,
@@ -1855,8 +2064,14 @@ async function seedEngagement(
   postIds: number[],
   customers: string[],
 ) {
-  const cats = (await client.query('SELECT id, category, "userId" FROM post'))
-    .rows;
+  // Only what a customer could ever have opened: a like or a view on a post
+  // still in moderation, or refused, put pending and rejected listings in
+  // customers' Saved lists — a state production cannot reach.
+  const cats = (
+    await client.query(
+      `SELECT id, category, "userId" FROM post WHERE approval_status = 'APPROVED'`,
+    )
+  ).rows;
   const byId = new Map(cats.map((r: any) => [r.id, r]));
 
   // Popularity is long-tailed: most listings draw a trickle, a few draw a
@@ -1907,9 +2122,11 @@ async function seedEngagement(
     const n = logged.get(pid) ?? 0;
     // Anonymous traffic on top of the logged views, scaled by the same heat.
     const anon = Math.floor(h * h * 900) + int(0, 6);
+    // A post that never went live has had no audience: views count only on
+    // an approved, unexpired post (`countView`).
     await client.query('UPDATE post SET views = $2 WHERE id = $1', [
       pid,
-      n * 3 + anon,
+      byId.has(pid) ? n * 3 + anon : 0,
     ]);
   }
   console.log(
@@ -2084,7 +2301,7 @@ async function seedBookings(client: Client, customers: string[]) {
     (c: any) => c.has_rental_status,
   ).map((c: any) => c.key);
   const { rows: posts } = await client.query(
-    `SELECT id, "userId" FROM post
+    `SELECT id, "userId", category FROM post
       WHERE category = ANY($1) AND approval_status = 'APPROVED' AND status = 'ACTIVE'
       ORDER BY id`,
     [bookableKeys],
@@ -2122,6 +2339,12 @@ async function seedBookings(client: Client, customers: string[]) {
     const customer = customers[i % customers.length];
     if (customer === post.userId) continue;
     const createdDaysAgo = int(1, 30);
+    // Each plan's window moved a few days per booking, away from today so a
+    // future booking stays future and a concluded one stays past: fixed
+    // offsets gave fourteen accepted bookings the identical 10.03–10.07.
+    const shift = plan.from < 0 ? -int(0, 6) : int(0, 6);
+    const from = plan.from + shift;
+    const to = plan.to + shift + int(0, 2);
     const respHours = RESPONSE_HOURS[plan.status];
     // Answered a plausible number of hours after the request, and date_updated
     // moved with it. Leaving date_updated at insert-time now() made every
@@ -2133,11 +2356,11 @@ async function seedBookings(client: Client, customers: string[]) {
     try {
       await client.query(
         `INSERT INTO booking (start_date, end_date, message, status, response_message, "postId", "customerId", "providerId", date_created, responded_at, date_updated)
-         VALUES (${days(plan.from)}::date, ${days(plan.to)}::date, $1, $2, $3, $4, $5, $6,
+         VALUES (${days(from)}::date, ${days(to)}::date, $1, $2, $3, $4, $5, $6,
                  now() - interval '${createdDaysAgo} days', ${respondedAt},
                  COALESCE(${respondedAt}, now() - interval '${createdDaysAgo} days'))`,
         [
-          pick(BOOKING_MESSAGES),
+          pick(BOOKING_MESSAGES.filter((m) => !m.cats || m.cats.includes(post.category))).body,
           plan.status,
           plan.status === 'DECLINED'
             ? pick([
@@ -2203,6 +2426,12 @@ async function seedReviews(
     return true;
   });
   const fromBooking = booked.length;
+  // What each provider mostly lists — the trade their reviews talk about.
+  const { rows: trades } = await client.query(
+    `SELECT "userId" AS id, mode() WITHIN GROUP (ORDER BY category) AS category
+       FROM post GROUP BY "userId"`,
+  );
+  const tradeOf = new Map<string, string>(trades.map((r: any) => [r.id, r.category]));
   let made = 0;
   for (const p of pairs) {
     // Skewed high, the way marketplace ratings actually are — a uniform 1–5
@@ -2210,11 +2439,21 @@ async function seedReviews(
     const rating = rnd() < 0.68 ? 5 : rnd() < 0.6 ? 4 : int(1, 3);
     // A third leave a rating with no comment — the column is nullable and the
     // display has to hold up without prose.
-    const comment = rnd() < 0.33 ? null : pick(REVIEW_COMMENTS);
+    const lines =
+      rating >= 4
+        ? [...(REVIEW_COMMENTS[tradeOf.get(p.providerId) ?? ''] ?? []), ...REVIEW_COMMENTS.any]
+        : rating === 3
+          ? REVIEW_COMMENTS.mixed
+          : REVIEW_COMMENTS.negative;
+    const comment = rnd() < 0.33 ? null : pick(lines);
+    // Both stamps: the clients show `date_updated` (a review is an upsert, so
+    // that is when it last said this), and a default of now() dated every
+    // fixture review today.
+    const age = `${int(1, 60)} days ${int(0, 23)} hours`;
     try {
       await client.query(
-        `INSERT INTO review (rating, comment, "providerId", "authorId", date_created)
-         VALUES ($1,$2,$3,$4, now() - interval '${int(1, 60)} days')`,
+        `INSERT INTO review (rating, comment, "providerId", "authorId", date_created, date_updated)
+         VALUES ($1,$2,$3,$4, now() - interval '${age}', now() - interval '${age}')`,
         [rating, comment, p.providerId, p.customerId],
       );
       made++;
@@ -2450,7 +2689,7 @@ async function seedRevisions(client: Client) {
  */
 async function seedConversations(client: Client, customers: string[]) {
   const { rows: posts } = await client.query(
-    `SELECT id, "userId" FROM post
+    `SELECT id, "userId", category FROM post
       WHERE approval_status = 'APPROVED' AND status IN ('ACTIVE','RENTED')
       ORDER BY id`,
   );
@@ -2487,14 +2726,15 @@ async function seedConversations(client: Client, customers: string[]) {
     seen.add(key);
 
     const shape = SHAPES[i % SHAPES.length];
+    // Days back, plus a time of day: an offset in whole days put the first
+    // message at exactly this minute's clock time on some earlier date.
     const startedDaysAgo = int(1, 45);
+    const startedAt = `now() - interval '${startedDaysAgo} days ${int(0, 14)} hours ${int(0, 59)} minutes'`;
     const {
       rows: [conv],
     } = await client.query(
       `INSERT INTO conversation ("postId", "customerId", "providerId", date_created, date_updated)
-       VALUES ($1, $2, $3,
-               now() - interval '${startedDaysAgo} days',
-               now() - interval '${startedDaysAgo} days')
+       VALUES ($1, $2, $3, ${startedAt}, ${startedAt})
        RETURNING id`,
       // The listing is gone; the thread is not. Passed as a null parameter
       // rather than a literal so every branch binds the same three placeholders.
@@ -2520,6 +2760,12 @@ async function seedConversations(client: Client, customers: string[]) {
       spent[side].add(chosen);
       return chosen;
     };
+    const topics = THREAD_TOPICS.filter((x) => fits(x.cats, post.category));
+    const topic = pick(topics);
+    const replies = topics.map((x) => x.reply);
+    const followups = THREAD_CUSTOMER_FOLLOWUPS.filter((x) => fits(x.cats, post.category)).map(
+      (x) => x.body,
+    );
     let offsetMin = 0;
     let lastBody = '';
     let providerSpoke = false;
@@ -2529,9 +2775,11 @@ async function seedConversations(client: Client, customers: string[]) {
       const fromCustomer = t % 2 === 0;
       const body = fromCustomer
         ? t === 0
-          ? pick(THREAD_OPENERS)
-          : fresh(THREAD_CUSTOMER_FOLLOWUPS, 'c')
-        : fresh(THREAD_PROVIDER_REPLIES, 'p');
+          ? topic.opener
+          : fresh(followups, 'c')
+        : t === 1
+          ? (spent.p.add(topic.reply), topic.reply)
+          : fresh(replies, 'p');
       offsetMin += t === 0 ? 0 : int(4, gapMax);
       // Unread is the tail of the thread, on one side only; everything before
       // it was read, which is what the read receipt and the badge both assume.
@@ -2551,8 +2799,8 @@ async function seedConversations(client: Client, customers: string[]) {
       await client.query(
         `INSERT INTO message ("conversationId", "senderId", body, read_at, date_created)
          VALUES ($1,$2,$3,
-                 ${unread ? 'NULL' : `(now() - interval '${startedDaysAgo} days' + interval '${offsetMin + int(2, 120)} minutes')`},
-                 now() - interval '${startedDaysAgo} days' + interval '${offsetMin} minutes')`,
+                 ${unread ? 'NULL' : `(${startedAt} + interval '${offsetMin + int(2, 120)} minutes')`},
+                 ${startedAt} + interval '${offsetMin} minutes')`,
         [conv.id, fromCustomer ? customer : post.userId, body],
       );
       messages++;

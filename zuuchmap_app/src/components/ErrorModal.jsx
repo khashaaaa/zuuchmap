@@ -54,7 +54,7 @@ const ErrorModal = ({ visible, title, message, onClose, buttons, type = 'error' 
             variant: btn.style === 'destructive' ? 'danger' : dismiss ? 'outline' : 'primary',
             closeOnPress: btn.closeOnPress !== false,
         };
-    }) : [{ text: t('common.confirm'), onPress: onClose, variant: 'primary' }];
+    }) : [{ text: t('common.ok'), onPress: onClose, variant: 'primary' }];
 
     return (
         <DialogModal

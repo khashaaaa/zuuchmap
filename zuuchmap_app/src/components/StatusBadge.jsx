@@ -58,7 +58,9 @@ const StatusBadge = ({
                     style={styles.icon}
                 />
             )}
-            <Text style={[styles.badgeText, { color: fgColor }]} numberOfLines={1}>{displayLabel}</Text>
+            {/* Two lines on a photo: the thumbnail column is ~170dp, and
+                "Хүлээгдэж байна" or the Russian labels ellipsised to nothing. */}
+            <Text style={[styles.badgeText, { color: fgColor }]} numberOfLines={isOverlay ? 2 : 1}>{displayLabel}</Text>
         </View>
     );
 };

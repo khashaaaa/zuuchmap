@@ -24,7 +24,7 @@ const DialogModal = ({
     const { t } = useTranslation();
     const reduced = useReducedMotion();
     const iconScale = useRef(new Animated.Value(1)).current;
-    const defaultButtons = buttons?.length ? buttons : [{ text: t('common.confirm'), onPress: onClose, variant: 'primary' }];
+    const defaultButtons = buttons?.length ? buttons : [{ text: t('common.ok'), onPress: onClose, variant: 'primary' }];
 
     useEffect(() => {
         if (!visible) return;

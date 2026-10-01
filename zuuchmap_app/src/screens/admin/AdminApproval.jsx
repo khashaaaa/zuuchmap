@@ -21,6 +21,7 @@ import Button from '../../components/Button';
 import PressableScale from '../../components/PressableScale';
 import postService from '../../services/api/postService';
 import FadeSlideIn from '../../components/FadeSlideIn';
+import { useListBottomPadding } from '../../hooks/useListBottomPadding';
 
 
 const StatCard = ({ label, value, color, colors }) => (
@@ -32,6 +33,7 @@ const StatCard = ({ label, value, color, colors }) => (
 
 const AdminApproval = ({ navigation }) => {
     const insets = useSafeAreaInsets();
+    const listBottom = useListBottomPadding();
     const { colors } = useAppTheme();
     const { t } = useTranslation();
     // Labels come from the schema (covers admin-added categories with no app
@@ -54,7 +56,7 @@ const AdminApproval = ({ navigation }) => {
     return (
         <ScreenLayout title={t('admin.dashboard')} showBack={false} loading={loading} error={isError} onRetry={refetch}>
                 <ScrollView
-                    contentContainerStyle={[styles.content, { paddingBottom: (Platform.OS === 'ios' ? 88 : 65) + insets.bottom + spacing.md }]}
+                    contentContainerStyle={[styles.content, { paddingBottom: listBottom }]}
                     refreshControl={
                         <RefreshControl
                             refreshing={refreshing}

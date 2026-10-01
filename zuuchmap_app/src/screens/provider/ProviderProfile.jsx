@@ -23,9 +23,11 @@ import { ProfileBadge } from '../../components';
 import { showErrorModal, isPostLogoutStraggler } from '../../utils/errorManager';
 import { confirmLogout } from '../../utils/navigationUtils';
 import { logger } from '../../utils/logger';
+import { useListBottomPadding } from '../../hooks/useListBottomPadding';
 
 const ProviderProfile = ({ navigation }) => {
     const insets = useSafeAreaInsets();
+    const listBottom = useListBottomPadding();
     const { colors, styles: gStyles } = useAppTheme();
     const { t } = useTranslation();
     const unread = useUnreadMessages();
@@ -104,9 +106,7 @@ const ProviderProfile = ({ navigation }) => {
             <ScrollView
                 contentContainerStyle={[
                     styles.scrollContent,
-                    gStyles.scrollViewContentWithBottomInset(
-                        safeAreaHelpers.getBottomSafeArea(insets) + dimensions.bottomTabHeight
-                    )
+                    { paddingBottom: listBottom }
                 ]}
                 refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} colors={[colors.primary]} />

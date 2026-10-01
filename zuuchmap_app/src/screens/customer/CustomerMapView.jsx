@@ -31,6 +31,7 @@ import { normalizePostType } from '../../utils/postUtils';
 import { useCategorySchemas } from '../../hooks/useCategorySchemas';
 import { showErrorModal, showWarningModal } from '../../utils/errorManager';
 import { logger } from '../../utils/logger';
+import { useListBottomPadding } from '../../hooks/useListBottomPadding';
 
 const uiInitialState = {
     carouselPosts: null,
@@ -160,6 +161,7 @@ const gridCluster = (posts, region) => {
 
 const CustomerMapView = ({ navigation, route }) => {
     const insets = useSafeAreaInsets();
+    const listBottom = useListBottomPadding();
     const { colors, isDark } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
     const { t } = useTranslation();
@@ -626,9 +628,9 @@ const CustomerMapView = ({ navigation, route }) => {
                 )}
 
                 {(() => {
-                    const tabBarHeight = Platform.OS === 'ios' ? 88 : 65;
-                    const safeBottom = insets.bottom || 0;
-                    const base = tabBarHeight + safeBottom + spacing.xl;
+                    // The tab bar is laid out below the map, so the buttons
+                    // and the rail only need to clear the map's own edge.
+                    const base = listBottom;
                     // The rail is ~290 tall; lift the buttons clear of it while open.
                     const lift = carouselPosts ? 296 : 0;
                     return (

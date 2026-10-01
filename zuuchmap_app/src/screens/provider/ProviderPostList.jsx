@@ -28,6 +28,7 @@ import { getPostTitle, getFixedImageUrl, getPostImage } from '../../utils/postUt
 import { showErrorModal, showInfoModal, showActionSheet } from '../../utils/errorManager';
 import { logger } from '../../utils/logger';
 import { invalidatePostData } from '../../services/queryClient';
+import { useListBottomPadding } from '../../hooks/useListBottomPadding';
 
 const PostItem = React.memo(({
     item,
@@ -214,6 +215,7 @@ const ProviderPostList = ({ navigation }) => {
     const styles = useMemo(() => createStyles(colors), [colors]);
     const { t, i18n } = useTranslation();
     const insets = useSafeAreaInsets();
+    const listBottom = useListBottomPadding();
     const [isLoading, setIsLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
 
@@ -551,7 +553,7 @@ const ProviderPostList = ({ navigation }) => {
                     keyExtractor={(_, index) => `skeleton-${index}`}
                     contentContainerStyle={[
                         styles.listContainer,
-                        { paddingBottom: Math.max(safeAreaHelpers.getBottomSafeArea(insets), 50) + 50 }
+                        { paddingBottom: listBottom }
                     ]}
                     showsVerticalScrollIndicator={false}
                 />
@@ -594,7 +596,7 @@ const ProviderPostList = ({ navigation }) => {
                     onEndReachedThreshold={0.4}
                     contentContainerStyle={[
                         styles.listContainer,
-                        { paddingBottom: Math.max(safeAreaHelpers.getBottomSafeArea(insets), 50) + 50 }
+                        { paddingBottom: listBottom }
                     ]}
                     refreshControl={
                         <RefreshControl

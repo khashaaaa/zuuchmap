@@ -58,6 +58,8 @@ const AdminDashboard = () => {
                     tabBarActiveTintColor: colors.primary,
                     tabBarInactiveTintColor: colors.text.tertiary,
                     headerShown: false,
+                    // Laid out, not `position: 'absolute'`: overlaid, it hid the
+                    // last row of every tab list that forgot to pad for it.
                     tabBarStyle: {
                         ...colors.elevation.md,
                         height: Platform.OS === 'ios' ? 88 : 65 + insets.bottom,
@@ -66,10 +68,6 @@ const AdminDashboard = () => {
                         backgroundColor: colors.surface,
                         borderTopWidth: 1,
                         borderTopColor: colors.border.light,
-                        position: 'absolute',
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
                     },
                     // Same as the provider bar: the padding comes off the item so the
                     // label keeps its width.

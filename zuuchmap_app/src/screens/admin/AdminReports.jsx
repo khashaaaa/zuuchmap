@@ -12,6 +12,7 @@ import TextInput from '../../components/TextInput';
 import reportService, { REPORTS_KEY } from '../../services/api/reportService';
 import { formatDateTime } from '../../utils/displayUtils';
 import { showErrorModal, getErrorMessage } from '../../utils/errorManager';
+import { useListBottomPadding } from '../../hooks/useListBottomPadding';
 
 const TABS = ['OPEN', 'RESOLVED', 'DISMISSED'];
 
@@ -21,6 +22,7 @@ const TABS = ['OPEN', 'RESOLVED', 'DISMISSED'];
  */
 const AdminReports = ({ navigation }) => {
     const insets = useSafeAreaInsets();
+    const listBottom = useListBottomPadding();
     const { colors } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
     const { t } = useTranslation();
@@ -133,7 +135,7 @@ const AdminReports = ({ navigation }) => {
                     data={items}
                     keyExtractor={(item) => String(item.id)}
                     renderItem={renderItem}
-                    contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 96 }]}
+                    contentContainerStyle={[styles.list, { paddingBottom: listBottom }]}
                     refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.iconAccent} />}
                     ListEmptyComponent={<EmptyState icon="flag-outline" title={t('report.queueEmpty')} />}
                     keyboardShouldPersistTaps="handled"

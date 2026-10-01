@@ -28,11 +28,13 @@ import { logger } from '../../utils/logger';
 import { getPostTitle, normalizePostType, getPostPrice, getSchemaLabel } from '../../utils/postUtils';
 import { formatDate } from '../../utils/displayUtils';
 import { useCategorySchemas } from '../../hooks/useCategorySchemas';
+import { useListBottomPadding } from '../../hooks/useListBottomPadding';
 
 const LIKED_POSTS_KEY = ['liked', 'posts'];
 
 const CustomerLikeList = ({ navigation }) => {
     const insets = useSafeAreaInsets();
+    const listBottom = useListBottomPadding();
     const { colors, styles: gStyles, isDark } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -308,9 +310,7 @@ const CustomerLikeList = ({ navigation }) => {
                 contentContainerStyle={[
 
                     styles.listContainer,
-                    gStyles.scrollViewContentWithBottomInset(
-                        safeAreaHelpers.getBottomSafeArea(insets)
-                    ),
+                    { paddingBottom: listBottom },
                     { paddingTop: spacing.md },
                 ]}
                 ListEmptyComponent={renderEmptyState}

@@ -23,9 +23,11 @@ import { confirmLogout } from '../../utils/navigationUtils';
 import { useIsGuest } from '../../utils/requireAuth';
 import { useUnreadMessages } from '../../services/api/messageService';
 import { logger } from '../../utils/logger';
+import { useListBottomPadding } from '../../hooks/useListBottomPadding';
 
 const CustomerProfile = ({ navigation }) => {
     const insets = useSafeAreaInsets();
+    const listBottom = useListBottomPadding();
     const { colors, styles: gStyles } = useAppTheme();
     const { t } = useTranslation();
     // Guests reach this tab now. `null` while the token read is in flight — the
@@ -94,9 +96,7 @@ const CustomerProfile = ({ navigation }) => {
                     style={styles.scrollView}
                     contentContainerStyle={[
                         styles.scrollContent,
-                        gStyles.scrollViewContentWithBottomInset(
-                            safeAreaHelpers.getBottomSafeArea(insets) + dimensions.bottomTabHeight
-                        )
+                        { paddingBottom: listBottom }
                     ]}
                     showsVerticalScrollIndicator={false}
                 >
@@ -193,9 +193,7 @@ const CustomerProfile = ({ navigation }) => {
                 style={styles.scrollView}
                 contentContainerStyle={[
                     styles.scrollContent,
-                    gStyles.scrollViewContentWithBottomInset(
-                        safeAreaHelpers.getBottomSafeArea(insets) + dimensions.bottomTabHeight
-                    )
+                    { paddingBottom: listBottom }
                 ]}
                 refreshControl={
                     <RefreshControl

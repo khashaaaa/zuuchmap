@@ -35,6 +35,7 @@ import { logger } from '../../utils/logger';
 import likeService from '../../services/api/likeService';
 import userService from '../../services/api/userService';
 import NotificationBell from '../../components/NotificationBell';
+import { useListBottomPadding } from '../../hooks/useListBottomPadding';
 
 // Browse pages through the API. The engine caps `limit` at 100 (post.service.ts),
 // so the list must page — a single fetch silently truncated the marketplace.
@@ -51,6 +52,7 @@ const CustomerPostList = ({ route, navigation }) => {
     const styles = useMemo(() => createStyles(colors), [colors]);
     const { t, i18n } = useTranslation();
     const insets = useSafeAreaInsets();
+    const listBottom = useListBottomPadding();
 
     // Route params are optional — when used as a tab component (CustomerDashboard),
     // route.params may be undefined. When navigated to from SubcategorySelectScreen,
@@ -107,12 +109,6 @@ const CustomerPostList = ({ route, navigation }) => {
     const debouncedPriceMin = useDebounce(filters.priceMin, 400);
     const debouncedPriceMax = useDebounce(filters.priceMax, 400);
     const debouncedAttrs = useDebounce(filters.attrs, 400);
-
-    const bottomPadding = useMemo(() => {
-        const tabBarHeight = Platform.OS === 'ios' ? 88 : 65;
-        const safeAreaBottom = safeAreaHelpers.getBottomSafeArea(insets);
-        return Math.max(tabBarHeight + safeAreaBottom, spacing.xl + 80);
-    }, [insets]);
 
     // --- Data fetching ---
 
@@ -659,8 +655,8 @@ const CustomerPostList = ({ route, navigation }) => {
                     contentContainerStyle={[
                         styles.listContainer,
                         isFilterMode
-                            ? gStyles.scrollViewContentWithBottomInset(safeAreaHelpers.getBottomSafeArea(insets))
-                            : { paddingBottom: bottomPadding, paddingTop: spacing.md },
+                            ? { paddingBottom: listBottom }
+                            : { paddingBottom: listBottom, paddingTop: spacing.md },
                     ]}
                     showsVerticalScrollIndicator={false}
                 />
@@ -690,8 +686,8 @@ const CustomerPostList = ({ route, navigation }) => {
                 contentContainerStyle={[
                     styles.listContainer,
                     isFilterMode
-                        ? gStyles.scrollViewContentWithBottomInset(safeAreaHelpers.getBottomSafeArea(insets))
-                        : { paddingBottom: bottomPadding, paddingTop: spacing.md },
+                        ? { paddingBottom: listBottom }
+                        : { paddingBottom: listBottom, paddingTop: spacing.md },
                 ]}
                 ListHeaderComponent={renderHeader}
                 ListEmptyComponent={renderEmptyState}

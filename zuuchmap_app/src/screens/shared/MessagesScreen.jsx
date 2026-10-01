@@ -12,6 +12,7 @@ import ThumbImage from '../../components/ThumbImage';
 import messageService, { inboxCursor, CONVERSATIONS_KEY } from '../../services/api/messageService';
 import { getPostImageUrl } from '../../config/api.config';
 import { formatInboxStamp } from '../../utils/displayUtils';
+import { useListBottomPadding } from '../../hooks/useListBottomPadding';
 
 /**
  * The inbox.
@@ -66,6 +67,7 @@ const MessagesScreen = ({ navigation }) => {
     const { colors } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
     const { t } = useTranslation();
+    const listBottom = useListBottomPadding();
 
     const {
         data, isLoading, isRefetching, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage,
@@ -103,7 +105,7 @@ const MessagesScreen = ({ navigation }) => {
                         data={Array(5).fill({})}
                         renderItem={() => <SkeletonItem variant="booking" />}
                         keyExtractor={(_, i) => `sk-${i}`}
-                        contentContainerStyle={styles.list}
+                        contentContainerStyle={[styles.list, { paddingBottom: listBottom }]}
                         scrollEnabled={false}
                     />
                 )}
@@ -132,7 +134,7 @@ const MessagesScreen = ({ navigation }) => {
                             />
                         )}
                         keyExtractor={(item) => String(item.id)}
-                        contentContainerStyle={styles.list}
+                        contentContainerStyle={[styles.list, { paddingBottom: listBottom }]}
                         onEndReached={() => { if (hasNextPage && !isFetchingNextPage) fetchNextPage(); }}
                         onEndReachedThreshold={0.5}
                         refreshControl={

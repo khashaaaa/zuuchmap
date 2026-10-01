@@ -34,6 +34,7 @@ export { default as ScreenHeader } from './ScreenHeader';
 
 // Inputs
 export { default as FormField } from './FormField';
+export { default as KeyboardAvoider } from './KeyboardAvoider';
 export { default as ImageUploadSection } from './ImageUploadSection';
 export { default as PickerField } from './PickerField';
 export { default as SearchInput } from './SearchInput';

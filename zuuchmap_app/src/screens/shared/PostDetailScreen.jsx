@@ -12,7 +12,6 @@ import {
     Linking,
     Platform,
     Modal,
-    KeyboardAvoidingView,
     StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,7 +29,7 @@ import { ScreenLayout } from '../../components';
 import { StatusBadge, StatTile, PressableScale, SkeletonItem, AvailabilityStrip, ProviderCredentials, SimilarPostsDrawer } from '../../components';
 import LikeButton from '../../components/LikeButton';
 import { Button } from '../../components';
-import { TextInput } from '../../components';
+import { TextInput, KeyboardAvoider } from '../../components';
 import { formatPriceParts, formatDate, formatDateTime, getProvinceLabel, getDistrictLabel, groupThousands } from '../../utils/displayUtils';
 import { normalizePostType, getPostTypeConfig, getPostTitle, getSchemaLabel, getSubcategoryLabel } from '../../utils/postUtils';
 import { normalizeWebsiteUrl } from '../../utils/formUtils';
@@ -568,10 +567,6 @@ const PostDetailScreen = ({ route, navigation }) => {
             onBack={() => navigation.goBack()}
             rightComponent={editToggle}
         >
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={styles.scroll}
-            >
             <ScrollView
                 style={styles.scroll}
                 contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPadding }]}
@@ -1073,7 +1068,6 @@ const PostDetailScreen = ({ route, navigation }) => {
 
                 </View>{/* end contentWrapper */}
             </ScrollView>
-            </KeyboardAvoidingView>
 
             {/* ── Footer action buttons ──────────────────────────────────── */}
             <View style={[
@@ -1241,11 +1235,8 @@ const PostDetailScreen = ({ route, navigation }) => {
             )}
 
             {/* ── Reject modal (admin only) ──────────────────────────────── */}
-            <Modal visible={showRejectModal} transparent animationType="slide">
-                <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    style={styles.modalOverlay}
-                >
+            <Modal visible={showRejectModal} transparent statusBarTranslucent animationType="slide">
+                <KeyboardAvoider inModal style={styles.modalOverlay}>
                     <TouchableOpacity
                         style={styles.modalBackdrop}
                         onPress={() => setShowRejectModal(false)}
@@ -1319,7 +1310,7 @@ const PostDetailScreen = ({ route, navigation }) => {
                             </TouchableOpacity>
                         </View>
                     </View>
-                </KeyboardAvoidingView>
+                </KeyboardAvoider>
             </Modal>
         </ScreenLayout>
     );

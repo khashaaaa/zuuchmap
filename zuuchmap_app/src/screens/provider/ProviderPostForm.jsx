@@ -6,7 +6,6 @@ import {
     TextInput,
     ScrollView,
     Platform,
-    KeyboardAvoidingView,
     Keyboard,
     StyleSheet,
 } from 'react-native';
@@ -18,6 +17,7 @@ import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
 import postService from '../../services/api/postService';
 import CustomSafeAreaView from '../../components/CustomSafeAreaView';
+import KeyboardAvoider from '../../components/KeyboardAvoider';
 
 import { ScreenHeader, ScreenLoading, WizardSteps, PostHealthRing, DraftResumeBanner } from '../../components';
 import ImageUploadSection from '../../components/ImageUploadSection';
@@ -417,10 +417,7 @@ const ProviderPostForm = ({ route, navigation }) => {
 
     return (
         <CustomSafeAreaView backgroundColor={colors.background} statusBarColor={colors.surface} statusBarStyle={isDark ? 'light-content' : 'dark-content'}>
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={gStyles.keyboardAvoidingView}
-            >
+            <KeyboardAvoider style={gStyles.keyboardAvoidingView}>
                 <ScreenHeader
                     title={t(isEdit ? 'provider.postEdit' : 'provider.postCreate')}
                     onBack={handleBack}
@@ -691,7 +688,7 @@ const ProviderPostForm = ({ route, navigation }) => {
                     />
                     </View>
                 </View>
-            </KeyboardAvoidingView>
+            </KeyboardAvoider>
 
 
             <SuccessSheet

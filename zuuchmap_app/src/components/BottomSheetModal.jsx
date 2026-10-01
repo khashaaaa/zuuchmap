@@ -1,9 +1,10 @@
 import React, { useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Animated, PanResponder, KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Animated, PanResponder, Platform, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import BaseModal from './BaseModal';
+import KeyboardAvoider from './KeyboardAvoider';
 import { spacing, typography, radius, safeAreaHelpers, interactions, animations } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { useReducedMotion } from '../hooks/useReducedMotion';
@@ -84,10 +85,7 @@ const BottomSheetModal = ({
                 style,
             ]}
         >
-            <KeyboardAvoidingView
-                style={styles.sheetBody}
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            >
+            <KeyboardAvoider inModal style={styles.sheetBody}>
                 {showHeader && (
                     <View style={[styles.header, { borderBottomColor: colors.border.light }]} {...panResponder.panHandlers}>
                         <View style={[styles.handle, { backgroundColor: colors.border.medium }]} />
@@ -132,7 +130,7 @@ const BottomSheetModal = ({
                         {footer}
                     </View>
                 )}
-            </KeyboardAvoidingView>
+            </KeyboardAvoider>
         </BaseModal>
     );
 };

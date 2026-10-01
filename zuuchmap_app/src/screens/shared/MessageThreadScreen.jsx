@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     View, Text, FlatList, TextInput, TouchableOpacity,
-    KeyboardAvoidingView, Platform, StyleSheet, Keyboard,
+    Platform, StyleSheet, Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -10,6 +10,7 @@ import { spacing, typography, radius, isTablet, interactions } from '../../desig
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import CustomSafeAreaView from '../../components/CustomSafeAreaView';
+import KeyboardAvoider from '../../components/KeyboardAvoider';
 import ScreenHeader from '../../components/ScreenHeader';
 import ScreenError from '../../components/ScreenError';
 import messageService, {
@@ -226,21 +227,10 @@ const MessageThreadScreen = ({ navigation, route }) => {
                 </Text>
             )}
 
-            <KeyboardAvoidingView
-                style={styles.flex}
-                // 'height' on Android, like every other keyboard screen. With no
-                // behaviour the window was panned instead (app.json sets
-                // softwareKeyboardLayoutMode "pan"): the header slid off the top
-                // and the oldest visible messages went with it, out of reach
-                // of the scroll. Shrinking the view keeps the whole thread
-                // scrollable above the composer.
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                // KeyboardAvoidingView measures its frame relative to its parent,
-                // but the keyboard in screen coordinates; the difference on an
-                // edge-to-edge Android window is the status-bar inset, which
-                // otherwise leaves the composer's lower edge under the keyboard.
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : insets.top}
-            >
+            {/* Shrinking the view (rather than letting app.json's "pan" mode
+                slide the window) keeps the header on screen and the whole
+                thread scrollable above the composer. */}
+            <KeyboardAvoider style={styles.flex} iosOffset={90}>
                 {isError ? (
                     <ScreenError onRetry={refetch} />
                 ) : (
@@ -291,7 +281,7 @@ const MessageThreadScreen = ({ navigation, route }) => {
                     </TouchableOpacity>
                     </View>
                 </View>
-            </KeyboardAvoidingView>
+            </KeyboardAvoider>
         </CustomSafeAreaView>
     );
 };

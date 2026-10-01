@@ -1,13 +1,17 @@
 import React from 'react';
+import { StyleSheet } from 'react-native';
 import CustomSafeAreaView from './CustomSafeAreaView';
 import ScreenHeader from './ScreenHeader';
 import ScreenLoading from './ScreenLoading';
 import ScreenError from './ScreenError';
+import KeyboardAvoider from './KeyboardAvoider';
 import { useAppTheme } from '../hooks/useAppTheme';
 
 /**
  * Standard screen shell: SafeArea + header + (loading | error | children).
  * Use for detail, profile, and list screens that share the same chrome.
+ * The body lifts clear of the keyboard, so a screen inside never adds its own
+ * KeyboardAvoider.
  */
 const ScreenLayout = ({
     title,
@@ -46,10 +50,14 @@ const ScreenLayout = ({
                     onRetry={onRetry}
                 />
             ) : (
-                children
+                <KeyboardAvoider style={styles.body}>{children}</KeyboardAvoider>
             )}
         </CustomSafeAreaView>
     );
 };
+
+const styles = StyleSheet.create({
+    body: { flex: 1 },
+});
 
 export default ScreenLayout;

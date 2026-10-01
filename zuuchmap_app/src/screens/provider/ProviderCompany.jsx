@@ -7,7 +7,6 @@ import {
     Image,
     ActivityIndicator,
     Platform,
-    KeyboardAvoidingView,
     Keyboard,
     StyleSheet,
 } from 'react-native';
@@ -21,6 +20,7 @@ import userService from '../../services/api/userService';
 import { queryClient } from '../../services/queryClient';
 import { PROFILE_KEY } from '../../hooks/useProfile';
 import CustomSafeAreaView from '../../components/CustomSafeAreaView';
+import KeyboardAvoider from '../../components/KeyboardAvoider';
 import ScreenHeader from '../../components/ScreenHeader';
 import ScreenLoading from '../../components/ScreenLoading';
 import ScreenError from '../../components/ScreenError';
@@ -315,10 +315,7 @@ const ProviderCompany = ({ route, navigation }) => {
 
     return (
         <CustomSafeAreaView backgroundColor={colors.background} statusBarColor={colors.surface} statusBarStyle={isDark ? 'light-content' : 'dark-content'}>
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={gStyles.keyboardAvoidingView}
-            >
+            <KeyboardAvoider style={gStyles.keyboardAvoidingView}>
                 <ScreenHeader
                     title={isCreate ? t('company.createTitle') : t('company.title')}
                     onBack={isCreate ? handleBack : () => navigation.goBack()}
@@ -491,7 +488,7 @@ const ProviderCompany = ({ route, navigation }) => {
                     </View>
                 )}
 
-            </KeyboardAvoidingView>
+            </KeyboardAvoider>
         </CustomSafeAreaView>
     );
 };

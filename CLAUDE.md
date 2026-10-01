@@ -228,6 +228,8 @@ Customer: /customer /customer/browse /customer/map /customer/saved /customer/sav
 
 ⚠ **BottomSheetModal.** `PanResponder` captures closures at mount — `onClose` is mirrored into a ref; keep that pattern.
 
+**Keyboard.** Wrap anything with an input in `<KeyboardAvoider>` (`inModal` inside a Modal) — never RN's `KeyboardAvoidingView`. `ScreenLayout` and `BottomSheetModal` already include it. Android pads by the measured overlap (`useKeyboardOverlap`), right whether the window resized or not; `app.json` is `softwareKeyboardLayoutMode: "resize"` because `pan` slid the window on top of that padding.
+
 **i18n.** Locales `mn en zh ru` in `src/i18n/locales/`; locale is persisted by `AppContext.setLocale`.
 
 ## Known issues

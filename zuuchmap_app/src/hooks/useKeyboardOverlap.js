@@ -15,7 +15,7 @@ import { Dimensions, Keyboard, StatusBar } from 'react-native';
  * Padding does not move the view's own frame, so the measurement never feeds
  * back into itself; `onLayout` re-measures after a window resize lands.
  */
-export function useKeyboardOverlap() {
+export function useKeyboardOverlap({ inModal = false } = {}) {
     const ref = useRef(null);
     const keyboardTop = useRef(null);
     const [overlap, setOverlap] = useState(0);
@@ -31,12 +31,14 @@ export function useKeyboardOverlap() {
             // window starts below the status bar (on the test phone: window
             // 833 tall on a 914 screen) and the overlap came out one status
             // bar short — the button sat half under the keyboard's toolbar.
-            const windowTop = Dimensions.get('window').height < Dimensions.get('screen').height - 1
+            // A BaseModal window is status-bar translucent: it starts at the
+            // screen top whatever the activity window does.
+            const windowTop = !inModal && Dimensions.get('window').height < Dimensions.get('screen').height - 1
                 ? (StatusBar.currentHeight ?? 0)
                 : 0;
             setOverlap(Math.max(0, Math.round(windowTop + y + h - keyboardTop.current)));
         });
-    }, []);
+    }, [inModal]);
 
     useEffect(() => {
         const show = Keyboard.addListener('keyboardDidShow', (e) => {

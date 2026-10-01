@@ -5,7 +5,6 @@ import {
     Text,
     TouchableOpacity,
     ScrollView,
-    KeyboardAvoidingView,
     Platform,
     ActionSheetIOS,
     StyleSheet,
@@ -18,6 +17,7 @@ import { useAppTheme } from '../../hooks/useAppTheme';
 import { useTranslation } from 'react-i18next';
 import userService from '../../services/api/userService';
 import CustomSafeAreaView from '../../components/CustomSafeAreaView';
+import KeyboardAvoider from '../../components/KeyboardAvoider';
 import ScreenHeader from '../../components/ScreenHeader';
 import { ScreenLayout, TextInput } from '../../components';
 import Button from '../../components/Button';
@@ -289,10 +289,7 @@ const EditProfileScreen = ({ route, navigation }) => {
         <CustomSafeAreaView backgroundColor={colors.background} statusBarColor={colors.surface} statusBarStyle={isDark ? 'light-content' : 'dark-content'}>
             <ScreenHeader title={t('profile.editTitle')} onBack={handleBack} />
 
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={gStyles.keyboardAvoidingView}
-            >
+            <KeyboardAvoider style={gStyles.keyboardAvoidingView}>
                 <ScrollView
                     style={styles.scrollView}
                     contentContainerStyle={[
@@ -403,7 +400,7 @@ const EditProfileScreen = ({ route, navigation }) => {
                     </View>
                 </View>
 
-            </KeyboardAvoidingView>
+            </KeyboardAvoider>
         </CustomSafeAreaView>
     );
 };

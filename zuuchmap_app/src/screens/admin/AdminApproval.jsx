@@ -123,7 +123,6 @@ const styles = StyleSheet.create({
     },
     sectionTitle: {
         ...typography.styles.overline,
-        textTransform: 'uppercase',
         marginBottom: spacing.md,
         marginTop: spacing.lg,
     },

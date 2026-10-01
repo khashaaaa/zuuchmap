@@ -136,7 +136,7 @@ export default function AppSidebar({ onNavigate }) {
         ))}
         {isAdminProvider && (
           <>
-            <p className="px-3 pt-3 pb-1 text-xs font-semibold text-muted uppercase tracking-wider">{t('onboarding.provider')}</p>
+            <p className="px-3 pt-3 pb-1 text-xs font-semibold text-muted">{t('onboarding.provider')}</p>
             <NavItem to="/provider/posts" end label={t('nav.myPosts')} icon={FileText} onClick={onNavigate} indicatorId={indicatorId} />
             <NavItem to="/provider/posts/new" label={t('posts.add')} icon={Plus} onClick={onNavigate} indicatorId={indicatorId} />
             <NavItem to="/provider/company" label={t('nav.company')} icon={Building2} onClick={onNavigate} indicatorId={indicatorId} />

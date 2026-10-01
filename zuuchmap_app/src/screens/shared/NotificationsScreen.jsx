@@ -206,7 +206,6 @@ const styles = StyleSheet.create({
     ts: { ...typography.styles.micro },
     sectionHeader: {
         ...typography.styles.overline,
-        textTransform: 'uppercase',
         paddingHorizontal: spacing.lg,
         paddingTop: spacing.md,
         paddingBottom: spacing.xs,

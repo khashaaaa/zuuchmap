@@ -726,19 +726,25 @@ const PostDetailScreen = ({ route, navigation }) => {
                             {(priceParts || post.attributes?.salary_range) && (
                                 <View style={styles.priceBlock}>
                                     <Text style={[styles.priceEyebrow, { color: colors.text.tertiary }]}>
-                                        {post.attributes?.salary_range
-                                            ? t('attrs.salaryRange')
-                                            : (priceParts?.unit || t('common.price'))}
+                                        {post.attributes?.salary_range ? t('attrs.salaryRange') : t('common.price')}
                                     </Text>
-                                    <Text
-                                        style={[styles.priceAmount, { color: colors.text.link }]}
-                                        numberOfLines={1}
-                                        adjustsFontSizeToFit
-                                    >
-                                        {post.attributes?.salary_range
-                                            ? post.attributes.salary_range
-                                            : priceParts?.amount}
-                                    </Text>
+                                    {/* The unit follows the amount, as on every other
+                                        price in both clients: set above it as a caps
+                                        eyebrow it read as a heading, not a rate. */}
+                                    <View style={styles.priceRow}>
+                                        <Text
+                                            style={[styles.priceAmount, { color: colors.text.link }]}
+                                            numberOfLines={1}
+                                            adjustsFontSizeToFit
+                                        >
+                                            {post.attributes?.salary_range
+                                                ? post.attributes.salary_range
+                                                : priceParts?.amount}
+                                        </Text>
+                                        {!post.attributes?.salary_range && priceParts?.unit ? (
+                                            <Text style={[styles.priceUnit, { color: colors.text.secondary }]}>/{priceParts.unit}</Text>
+                                        ) : null}
+                                    </View>
                                 </View>
                             )}
                         </>
@@ -1421,7 +1427,6 @@ const createStyles = (colors, width) => StyleSheet.create({
     // Section card
     sectionLabel: {
         ...typography.styles.overline,
-        textTransform: 'uppercase',
         marginBottom: spacing.sm,
     },
     sectionCard: {
@@ -1477,7 +1482,6 @@ const createStyles = (colors, width) => StyleSheet.create({
     },
     priceEyebrow: {
         ...typography.styles.overline,
-        textTransform: 'uppercase',
         marginBottom: spacing.xxs,
     },
     priceAmount: {
@@ -1485,6 +1489,8 @@ const createStyles = (colors, width) => StyleSheet.create({
         color: colors.text.link,
         fontVariant: ['tabular-nums'],
     },
+    priceRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: spacing.xs },
+    priceUnit: { ...typography.styles.body, flexShrink: 0 },
 
     // Stats card
     statsCard: {
@@ -1680,7 +1686,6 @@ const createStyles = (colors, width) => StyleSheet.create({
     },
     editFieldLabel: {
         ...typography.styles.overline,
-        textTransform: 'uppercase',
         marginBottom: spacing.xs,
     },
     editHint: {
@@ -1695,7 +1700,6 @@ const createStyles = (colors, width) => StyleSheet.create({
     editHintText: { ...typography.styles.small },
     adminSectionTitle: {
         ...typography.styles.overline,
-        textTransform: 'uppercase',
         marginBottom: spacing.sm,
     },
     adminInfoRow: {

@@ -37,7 +37,7 @@ export default function AvailabilityStrip({ busyDates, size = 'sm', className = 
   // own full-width row makes the strip fit any container it is dropped into.
   return (
     <div className={`flex flex-wrap items-center gap-x-2 gap-y-1.5 ${className}`} aria-label={summary}>
-      <span className="text-overline font-semibold uppercase tracking-wider text-muted whitespace-nowrap">{t('posts.availabilityNext14')}</span>
+      <span className="text-overline font-semibold text-muted whitespace-nowrap">{t('posts.availabilityNext14')}</span>
       {/* The card rung gets the compact figure the app card uses; the detail
           page has the room for the sentence. */}
       <span className="text-xs text-muted tabular-nums whitespace-nowrap ml-auto">

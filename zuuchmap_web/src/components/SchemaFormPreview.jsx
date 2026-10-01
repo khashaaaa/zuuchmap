@@ -29,7 +29,7 @@ export default function SchemaFormPreview({ schema }) {
 
   return (
     <aside className="hidden lg:block w-[360px] shrink-0 self-start sticky top-0" aria-label={t('admin.previewTitle')}>
-      <p className="flex items-center gap-1.5 text-overline uppercase tracking-wide text-muted mb-2">
+      <p className="flex items-center gap-1.5 text-overline font-semibold text-muted mb-2">
         <Smartphone size={13} className="text-primary-text" /> {t('admin.previewTitle')}
         <span className="normal-case tracking-normal text-muted/70">· {t('admin.previewHint')}</span>
       </p>

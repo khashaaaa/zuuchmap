@@ -60,7 +60,7 @@ export default function ReportModal({ open, onClose, postId }) {
       <p className="text-sm text-muted mb-4">{t('report.lead')}</p>
 
       <fieldset>
-        <legend className="text-xs uppercase tracking-wide text-muted mb-2">{t('report.reason')}</legend>
+        <legend className="text-xs font-semibold text-muted mb-2">{t('report.reason')}</legend>
         <div className="space-y-1.5">
           {reasons.map((key) => (
             <label
@@ -82,7 +82,7 @@ export default function ReportModal({ open, onClose, postId }) {
       </fieldset>
 
       <label className="block mt-4">
-        <span className="text-xs uppercase tracking-wide text-muted">{t('report.detail')}</span>
+        <span className="text-xs font-semibold text-muted">{t('report.detail')}</span>
         <textarea
           value={detail}
           onChange={(e) => setDetail(e.target.value)}

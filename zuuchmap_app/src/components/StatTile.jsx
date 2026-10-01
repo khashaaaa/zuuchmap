@@ -62,7 +62,6 @@ const createStyles = (colors) => StyleSheet.create({
     },
     label: {
         ...typography.styles.overline,
-        textTransform: 'uppercase',
         color: colors.text.tertiary,
         textAlign: 'center',
         alignSelf: 'stretch',

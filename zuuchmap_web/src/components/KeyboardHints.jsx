@@ -48,7 +48,7 @@ export default function KeyboardHints({ hints }) {
         </button>
       ) : (
         <div className="pointer-events-auto bg-surface/95 backdrop-blur border border-border/30 shadow-card rounded-card px-3 py-2 flex items-center gap-4">
-          <span className="flex items-center gap-1.5 text-overline uppercase tracking-wide text-muted">
+          <span className="flex items-center gap-1.5 text-overline font-semibold text-muted">
             <Keyboard size={13} className="text-primary-text" /> {t('admin.hotkeyTitle')}
           </span>
           <ul className="flex items-center gap-3">

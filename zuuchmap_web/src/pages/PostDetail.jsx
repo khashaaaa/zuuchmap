@@ -626,7 +626,7 @@ export default function PostDetail() {
                 unit steps back — one glance answers "how much, per what". */}
             {priceParts && (
               <div>
-                <p className="text-overline font-semibold uppercase tracking-wider text-muted mb-1">{t('posts.priceLabel')}</p>
+                <p className="text-overline font-semibold text-muted mb-1">{t('posts.priceLabel')}</p>
                 {/* Amount and unit are separate flex items, so a long Mongolian
                     unit drops to its own line instead of overrunning the card —
                     inline they had no break opportunity between them (no

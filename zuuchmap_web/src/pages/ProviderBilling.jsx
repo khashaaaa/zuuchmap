@@ -154,7 +154,7 @@ export default function ProviderBilling() {
       />
 
       <section className="rounded-card bg-surface p-4 mb-6">
-        <p className="text-xs uppercase tracking-wide text-muted">{t('billing.currentPlan')}</p>
+        <p className="text-xs font-semibold text-muted">{t('billing.currentPlan')}</p>
         <p className="text-xl font-bold text-text mt-1">{getPlanLabel(profile?.plan, t)}</p>
         <p className="text-sm text-muted mt-1">
           {planActive
@@ -190,7 +190,7 @@ export default function ProviderBilling() {
           </div>
 
           <fieldset className="mt-4">
-            <legend className="text-xs uppercase tracking-wide text-muted mb-2">{t('billing.months')}</legend>
+            <legend className="text-xs font-semibold text-muted mb-2">{t('billing.months')}</legend>
             <div className="flex gap-2 flex-wrap">
               {MONTH_CHOICES.map((m) => (
                 <button
@@ -253,7 +253,7 @@ export default function ProviderBilling() {
           ) : (
             <>
               <fieldset className="mt-4">
-                <legend className="text-xs uppercase tracking-wide text-muted mb-2">{t('billing.featured.days')}</legend>
+                <legend className="text-xs font-semibold text-muted mb-2">{t('billing.featured.days')}</legend>
                 <div className="flex gap-2 flex-wrap">
                   {dayChoices.map((d) => (
                     <button
@@ -359,7 +359,7 @@ export default function ProviderBilling() {
 
             {invoice?.urls?.length > 0 && (
               <>
-                <p className="text-xs uppercase tracking-wide text-muted mt-4 mb-2">{t('billing.openBankApp')}</p>
+                <p className="text-xs font-semibold text-muted mt-4 mb-2">{t('billing.openBankApp')}</p>
                 <div className="flex flex-wrap gap-2 justify-center">
                   {invoice.urls.map((u) => (
                     <a

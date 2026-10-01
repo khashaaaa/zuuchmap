@@ -119,7 +119,6 @@ const createStyles = (colors) => StyleSheet.create({
     section: { marginBottom: spacing.md, gap: spacing.sm },
     sectionLabel: {
         ...typography.styles.overline,
-        textTransform: 'uppercase',
         color: colors.text.tertiary,
         paddingHorizontal: spacing.lg,
     },

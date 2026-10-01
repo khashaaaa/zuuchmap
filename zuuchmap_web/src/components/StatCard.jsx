@@ -23,7 +23,7 @@ export default function StatCard({ icon: Icon, label, value, color = 'text-prima
     >
       {lead ? (
         <div className="text-left">
-          <p className="text-overline font-semibold uppercase tracking-wider text-muted mb-1">{label}</p>
+          <p className="text-overline font-semibold text-muted mb-1">{label}</p>
           <p className={`text-4xl md:text-5xl font-extrabold tabular-nums ${color}`}><StatValue value={value} /></p>
         </div>
       ) : Icon ? (

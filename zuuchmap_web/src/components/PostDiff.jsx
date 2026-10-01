@@ -45,7 +45,7 @@ const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
 function Cell({ tone, label, children }) {
   return (
     <div className={`min-w-0 rounded-inset px-3 py-2 text-sm ${tone === 'before' ? 'bg-danger/5' : 'bg-success/5'}`}>
-      <p className={`text-overline uppercase tracking-wide mb-1 ${tone === 'before' ? 'text-danger-text' : 'text-success-text'}`}>{label}</p>
+      <p className={`text-overline font-semibold mb-1 ${tone === 'before' ? 'text-danger-text' : 'text-success-text'}`}>{label}</p>
       <div className="text-text break-words whitespace-pre-wrap">{children}</div>
     </div>
   )

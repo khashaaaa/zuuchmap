@@ -277,7 +277,7 @@ export default function CustomerBrowse() {
   const hasFilters = activeFilters > 0
 
   const activeColor = category ? getCategoryColor(category, schemas) : null
-  const overline = 'text-overline font-semibold uppercase tracking-wider text-muted'
+  const overline = 'text-overline font-semibold text-muted'
 
   // One document per category landing (`/browse?category=x` is what the
   // sitemap advertises), and plain browse otherwise. Other filters are

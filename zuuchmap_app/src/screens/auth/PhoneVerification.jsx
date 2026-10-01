@@ -307,7 +307,6 @@ const styles = StyleSheet.create({
     },
     codeLabel: {
         ...typography.styles.overline,
-        textTransform: 'uppercase',
         marginBottom: spacing.xs,
     },
     code: {

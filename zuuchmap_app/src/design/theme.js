@@ -459,8 +459,10 @@ export const typography = {
         // width, and numbers in a column must align. Web sets the same on
         // `.tabular-nums` / table cells.
         price:    { fontSize: Math.round(18 * s), fontFamily: fonts.bold,      lineHeight: Math.round(23 * s), letterSpacing: -0.2, fontVariant: ['tabular-nums'] },
-        // Eyebrows and badges: small, wide-tracked, always uppercase at the call site.
-        overline: { fontSize: Math.round(11 * s), fontFamily: fonts.bold,      lineHeight: Math.round(14 * s), letterSpacing: 0.8 },
+        // Section and value labels, and small chips. Sentence case: tracked-out
+        // capitals were the stock eyebrow of every template, and in Cyrillic
+        // they read slower — the label is set apart by weight and colour alone.
+        overline: { fontSize: Math.round(12 * s), fontFamily: fonts.semibold,  lineHeight: Math.round(16 * s), letterSpacing: 0.2 },
         // Standfirst / intro paragraph — body size up one rung, still light.
         lead:        { fontSize: Math.round(18 * s), fontFamily: fonts.regular,  lineHeight: Math.round(26 * s) },
         bodyMedium:  { fontSize: Math.round(16 * s), fontFamily: fonts.medium,   lineHeight: Math.round(24 * s) },
@@ -678,13 +680,11 @@ export const createGlobalStyles = (colors) => {
             marginTop: spacing.xl,
         },
 
-        // Form section eyebrow, matching the detail screen's SectionCard label.
-        // As `caption` in sentence case it was simply a smaller, lighter version
-        // of the field labels underneath it — a header quieter than its own
-        // contents. An overline in caps is deliberately quiet *and* distinct.
+        // Form section label, matching the detail screen's SectionCard label.
+        // As `caption` it was a smaller, lighter copy of the field labels under
+        // it; the `overline` role's weight is what sets it apart.
         sectionSubtitle: {
             ...typography.styles.overline,
-            textTransform: 'uppercase',
             color: colors.text.tertiary,
         },
 

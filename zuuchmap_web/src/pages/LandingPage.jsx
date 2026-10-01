@@ -6,41 +6,52 @@ import { useTranslation } from 'react-i18next'
 import { useDocumentMeta } from '@/hooks/useDocumentMeta'
 import { ShieldCheck } from 'lucide-react'
 import { postsApi } from '@/lib/api'
-import { getCategoryLabel, getCategoryColor, getCategoryIcon, getThumbUrl, fallbackToFullImage, getPostTitle, formatPrice, groupThousands, withAlpha, toneForTheme } from '@/lib/utils'
+import { getCategoryLabel, getCategoryColor, getCategoryIcon, getThumbUrl, fallbackToFullImage, getPostTitle, formatPriceParts, getLocationLabel, groupThousands, withAlpha, toneForTheme } from '@/lib/utils'
 import { trackPageView } from '@/lib/analytics'
 import { useThemeStore } from '@/store'
 import PublicHeader from '@/components/PublicHeader'
 import PublicFooter from '@/components/PublicFooter'
-import PostCard from '@/components/PostCard'
 import ErrorState from '@/components/ErrorState'
 import Button from '@/components/Button'
 import { useCategories } from '@/hooks/useCategories'
 
-/* Film-strip tile for the showcase ribbon: the photo is the card, title and
-   price sit on a scrim (onMedia idiom — white on photography in both themes). */
-function RibbonCard({ post, t }) {
+/* One line of the price board: what, where, how much. The category colour
+   runs down the row's edge, the same mark the category tiles below carry, so
+   the board and the tiles read as one inventory. */
+function BoardRow({ post, schemas, t, isDark }) {
   const title = getPostTitle(post, t)
-  const price = formatPrice(post.price_amount, post.price_unit, t)
-  // bg-surface2 so a photo that 404s leaves a card, not a hole: the fallback
-  // retries at full size and then hides the <img>, and the scrim on top of it
-  // stays either way.
+  const price = formatPriceParts(post.price_amount, post.price_unit, t)
+  const location = getLocationLabel(post, t)
+  const color = getCategoryColor(post.category, schemas)
+  const Icon = getCategoryIcon(schemas.find((s) => s.key === post.category)?.icon)
+  const image = post.images?.[0]
   return (
-    <Link
-      to={`/posts/${post.id}`}
-      className="group relative block w-64 h-44 rounded-card overflow-hidden bg-surface2 shadow-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-    >
-      <img
-        src={getThumbUrl(post.images[0])}
-        alt={title}
-        loading="lazy"
-        decoding="async"
-        className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.05]" onError={fallbackToFullImage(post.images[0])} />
-      <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/75 to-transparent" aria-hidden="true" />
-      <div className="absolute inset-x-0 bottom-0 p-3">
-        <p className="text-sm font-semibold text-white line-clamp-1">{title}</p>
-        {price && <p className="text-xs font-bold text-primary-on-media mt-0.5 tabular-nums">{price}</p>}
-      </div>
-    </Link>
+    <li>
+      <Link
+        to={`/posts/${post.id}`}
+        className="group relative flex items-center gap-3 py-3 pl-4 pr-1 hover:bg-surface2/60 transition-colors rounded-inset focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+      >
+        <span aria-hidden="true" className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full" style={{ backgroundColor: color || 'var(--color-primary)' }} />
+        <span
+          className="w-11 h-11 rounded-inset overflow-hidden shrink-0 flex items-center justify-center"
+          style={color ? { backgroundColor: withAlpha(color, isDark ? 0.15 : 0.1) } : undefined}
+        >
+          {image
+            ? <img src={getThumbUrl(image)} alt="" loading="lazy" decoding="async" onError={fallbackToFullImage(image)} className="w-full h-full object-cover" />
+            : <Icon size={18} aria-hidden="true" style={color ? { color: toneForTheme(color, isDark) } : undefined} />}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="text-sm font-semibold text-text line-clamp-2 sm:line-clamp-1 group-hover:text-primary-text transition-colors">{title}</span>
+          {location && <span className="text-xs text-muted line-clamp-1 mt-0.5">{location}</span>}
+        </span>
+        {price && (
+          <span className="shrink-0 text-right tabular-nums">
+            <span className="block text-sm md:text-base font-extrabold text-text leading-tight">{price.amount}</span>
+            {price.unit && <span className="block text-xs text-muted">/{price.unit}</span>}
+          </span>
+        )}
+      </Link>
+    </li>
   )
 }
 
@@ -79,11 +90,6 @@ export default function LandingPage() {
     staleTime: 60_000,
   })
 
-  // The ribbon is a film-strip, so it only holds listings that bring a photo;
-  // with too few a row reads worse than the plain grid.
-  const withImages = recent.filter((p) => p.images?.length)
-  const showRibbon = withImages.length >= 4
-
   const countFor = (key) =>
     stats?.by_category?.find((c) => c.key === key)?.count ?? 0
 
@@ -98,46 +104,62 @@ export default function LandingPage() {
     <div className="min-h-screen bg-background">
       <PublicHeader />
 
-      {/* Hero — the thesis: breadth. */}
+      {/* Hero — the thesis is the stock itself. The headline names what is
+          for hire and for sale; beside it, the newest listings with their
+          prices, read like a yard's rate board. Real rows, not counters. */}
       <motion.section
         initial="hidden"
         animate="show"
         variants={{ show: { transition: { staggerChildren: shouldReduceMotion ? 0 : 0.08 } } }}
-        className="relative isolate max-w-6xl mx-auto px-4 pt-14 pb-10 md:pt-20 md:pb-14"
+        className="max-w-6xl mx-auto px-4 pt-12 pb-14 md:pt-20 md:pb-20 grid gap-10 lg:grid-cols-12 lg:gap-12 lg:items-center"
       >
-        <div className="hero-ambient" aria-hidden="true" />
-        <motion.h1 variants={heroItem} className="max-w-3xl font-extrabold text-text tracking-tight leading-[1.12] text-[clamp(2.25rem,6vw,4rem)]">
-          {t('landing.heroTitle')}
-        </motion.h1>
-        <motion.p variants={heroItem} className="max-w-2xl mt-5 text-base md:text-lg text-muted leading-relaxed">
-          {t('landing.heroLead')}
-        </motion.p>
+        <div className="lg:col-span-6">
+          <motion.h1 variants={heroItem} className="font-extrabold text-text tracking-tight leading-[1.05] text-[clamp(2.25rem,5vw,3.5rem)] text-balance">
+            {t('landing.heroTitle')}
+          </motion.h1>
+          <motion.p variants={heroItem} className="max-w-xl mt-6 text-base md:text-lg text-muted leading-relaxed">
+            {t('landing.heroLead')}
+          </motion.p>
+          <motion.div variants={heroItem} className="flex flex-wrap gap-3 mt-8">
+            <Button to="/browse" size="lg">{t('landing.ctaBrowse')}</Button>
+            <Button to="/login" size="lg" variant="outline">{t('landing.ctaPost')}</Button>
+          </motion.div>
+        </div>
 
-        <motion.div variants={heroItem} className="flex flex-wrap gap-3 mt-8">
-          <Button to="/browse" size="lg">{t('landing.ctaBrowse')}</Button>
-          <Button to="/login" size="lg" variant="outline">{t('landing.ctaPost')}</Button>
-        </motion.div>
-
-        <motion.dl variants={heroItem} className="flex flex-wrap gap-x-10 gap-y-4 mt-10 pt-8 border-t border-border/20">
-          {[
-            { value: stats?.total, label: t('landing.statsPosts') },
-            { value: active.length || null, label: t('landing.statsCategories') },
-            { value: stats?.provinces, label: t('landing.statsProvinces') },
-          ].map((stat) => (
-            <div key={stat.label}>
-              <dt className="sr-only">{stat.label}</dt>
-              <dd className="text-2xl md:text-3xl font-bold text-text tabular-nums">
-                {typeof stat.value === 'number' ? groupThousands(stat.value) : '—'}
-              </dd>
-              <p className="text-xs text-muted mt-0.5" aria-hidden="true">{stat.label}</p>
+        <motion.div variants={heroItem} className="lg:col-span-6">
+          <div className="rounded-card bg-surface border border-border/20 shadow-card p-2 md:p-3">
+            <div className="flex items-center justify-between gap-3 px-2 pt-1 pb-2">
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-text">
+                <span className="w-2 h-2 rounded-full bg-success" aria-hidden="true" />
+                {t('landing.boardTitle')}
+              </h2>
+              <Link to="/browse" className="py-2.5 -my-2.5 text-sm text-primary-text hover:underline">
+                {t('common.viewAll')}
+              </Link>
             </div>
-          ))}
-        </motion.dl>
+            {recentLoading ? (
+              <div className="space-y-2 p-2">
+                {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-14 skeleton rounded-inset" />)}
+              </div>
+            ) : (
+              <ul className="divide-y divide-border/15">
+                {recent.slice(0, 6).map((post) => (
+                  <BoardRow key={post.id} post={post} schemas={schemas} t={t} isDark={isDark} />
+                ))}
+              </ul>
+            )}
+            {typeof stats?.total === 'number' && (
+              <p className="px-2 pt-3 pb-1 border-t border-border/15 text-xs text-muted tabular-nums">
+                {t('landing.boardSummary', { posts: groupThousands(stats.total), provinces: stats.provinces ?? 0 })}
+              </p>
+            )}
+          </div>
+        </motion.div>
       </motion.section>
 
-      {/* Signature: the live inventory board. Every tile is real supply. */}
+      {/* The inventory by kind. Every tile is real supply. */}
       <section className="max-w-6xl mx-auto px-4 pb-16">
-        <h2 className="text-sm font-semibold text-muted uppercase tracking-wider mb-4">
+        <h2 className="text-xl md:text-2xl font-bold text-text tracking-tight mb-5">
           {t('landing.categoriesTitle')}
         </h2>
         {loadFailed && <ErrorState onRetry={refetchSchemas} />}
@@ -173,59 +195,23 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Real listings, visible without an account. Skeleton tiles hold the
-          section's height while loading so the footer doesn't jump. */}
-      {(recentLoading || recent.length > 0) && (
-        <section className="max-w-6xl mx-auto px-4 pb-16">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-muted uppercase tracking-wider">
-              {t('posts.recentPosts')}
-            </h2>
-            <Link to="/browse" className="py-2.5 -my-2.5 text-sm text-primary-text hover:underline">
-              {t('common.viewAll')}
-            </Link>
-          </div>
-          {recentLoading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="h-64 skeleton rounded-card" />
-              ))}
-            </div>
-          ) : showRibbon ? (
-            <div className="marquee">
-              <div className="marquee-track">
-                {withImages.map((post) => <RibbonCard key={post.id} post={post} t={t} />)}
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {recent.slice(0, 8).map((post) => <PostCard key={post.id} post={post} />)}
-            </div>
-          )}
-        </section>
-      )}
-
       <section className="border-t border-border/20 bg-surface/40">
         <div className="max-w-6xl mx-auto px-4 py-14">
-          <h2 className="text-sm font-semibold text-muted uppercase tracking-wider mb-6">
+          <h2 className="text-xl md:text-2xl font-bold text-text tracking-tight mb-6">
             {t('landing.howTitle')}
           </h2>
-          {/* The two paths are a real sequence for each visitor — numbering
-              earns its place here. */}
-          <div className="grid md:grid-cols-2 gap-8">
-            <div className="flex gap-4">
-              <span className="text-sm font-bold text-primary-text tabular-nums leading-6" aria-hidden="true">01</span>
-              <div>
-                <h3 className="font-semibold text-text mb-2">{t('landing.howCustomer')}</h3>
-                <p className="text-sm text-muted leading-relaxed">{t('landing.howCustomerBody')}</p>
-              </div>
+          {/* Two audiences side by side, not steps — so no 01/02. Each path
+              ends in the action it describes. */}
+          <div className="grid md:grid-cols-2 gap-8 md:gap-12">
+            <div>
+              <h3 className="font-semibold text-text mb-2">{t('landing.howCustomer')}</h3>
+              <p className="text-sm text-muted leading-relaxed">{t('landing.howCustomerBody')}</p>
+              <Link to="/browse" className="inline-block mt-3 py-2 text-sm font-semibold text-primary-text hover:underline">{t('landing.ctaBrowse')}</Link>
             </div>
-            <div className="flex gap-4">
-              <span className="text-sm font-bold text-primary-text tabular-nums leading-6" aria-hidden="true">02</span>
-              <div>
-                <h3 className="font-semibold text-text mb-2">{t('landing.howProvider')}</h3>
-                <p className="text-sm text-muted leading-relaxed">{t('landing.howProviderBody')}</p>
-              </div>
+            <div>
+              <h3 className="font-semibold text-text mb-2">{t('landing.howProvider')}</h3>
+              <p className="text-sm text-muted leading-relaxed">{t('landing.howProviderBody')}</p>
+              <Link to="/login" className="inline-block mt-3 py-2 text-sm font-semibold text-primary-text hover:underline">{t('landing.ctaPost')}</Link>
             </div>
           </div>
 

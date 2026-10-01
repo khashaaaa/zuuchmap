@@ -36,10 +36,10 @@
      min-w-touch. */
   --spacing-touch: 44px;
 
-  /* The app's `overline` role (11/14): uppercase micro-labels above a value or
-     section. Everything else small is text-xs, the app's 12px micro/badge. */
-  --text-overline: 0.6875rem;
-  --text-overline--line-height: 0.875rem;
+  /* The app's `overline` role (12/16, semibold): sentence-case labels above a
+     value or section, set apart by weight and colour — not tracked-out caps. */
+  --text-overline: 0.75rem;
+  --text-overline--line-height: 1rem;
 
   --color-primary: #F5A623;
   --color-on-primary: #1A1200;   /* text on primary fills */
@@ -194,46 +194,6 @@ html[data-theme="light"] {
   animation: skeleton-sweep 1.6s ease-in-out infinite;
 }
 
-/* Landing hero ambience: two soft amber washes sitting behind
-   the headline. Single-hue on purpose — amber stays the only accent. */
-.hero-ambient {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-  /* Behind the hero copy: the section carries `isolate`, so -1 stays inside
-     its stacking context instead of dropping under the page background. */
-  z-index: -1;
-  /* The layer is the max-w-6xl section box, so on anything wider than 72rem
-     `overflow: hidden` sliced the ::before wash mid-gradient and left a hard
-     vertical seam in the page ground. Fade the last 6rem into the clip edge so
-     the cut lands where the wash is already transparent — cheaper than
-     re-anchoring the blobs, and it keeps them hugging the hero corner. */
-  -webkit-mask-image: linear-gradient(to right, transparent, #000 6rem, #000 calc(100% - 6rem), transparent);
-  mask-image: linear-gradient(to right, transparent, #000 6rem, #000 calc(100% - 6rem), transparent);
-}
-.hero-ambient::before,
-.hero-ambient::after {
-  content: '';
-  position: absolute;
-  border-radius: 50%;
-}
-.hero-ambient::before {
-  top: -22rem;
-  right: -14rem;
-  width: 46rem;
-  height: 46rem;
-  background: radial-gradient(closest-side, color-mix(in srgb, var(--color-primary) 11%, transparent), transparent 72%);
-}
-.hero-ambient::after {
-  /* Small enough to fade out before the section's bottom clip edge. */
-  top: 2rem;
-  left: -14rem;
-  width: 26rem;
-  height: 26rem;
-  background: radial-gradient(closest-side, color-mix(in srgb, var(--color-primary) 6%, transparent), transparent 72%);
-}
-
 /* Category tile hover: ring + glow in the tile's own category colour (set as
    --cat inline). The stored hexes are luminance-solved, so one alpha works on
    both grounds. */
@@ -245,25 +205,6 @@ html[data-theme="light"] {
   border-color: color-mix(in srgb, var(--cat, var(--color-primary)) 55%, transparent);
   box-shadow: 0 10px 30px -8px color-mix(in srgb, var(--cat, var(--color-primary)) 30%, transparent);
 }
-
-/* Showcase ribbon: a static, horizontally scrollable film-strip of listing
-   cards. Each card snaps into place; the edges fade so the strip reads as
-   continuing past the viewport. */
-.marquee {
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  scrollbar-width: none;
-  mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent);
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent);
-}
-.marquee::-webkit-scrollbar { display: none; }
-.marquee-track {
-  display: flex;
-  gap: 1rem;
-  width: max-content;
-  padding-right: 1rem;
-}
-.marquee-track > * { scroll-snap-align: start; }
 
 /* Keyboard focus reads as the design system's amber ring everywhere, not the
    UA default. :where() keeps specificity at 0 so component-level rings

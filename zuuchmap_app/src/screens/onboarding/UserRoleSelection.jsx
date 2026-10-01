@@ -348,7 +348,6 @@ const styles = StyleSheet.create({
     optionTextContainer: { flex: 1 },
     optionEyebrow: {
         ...typography.styles.overline,
-        textTransform: 'uppercase',
         marginBottom: spacing.xxs,
     },
     optionTitle: {

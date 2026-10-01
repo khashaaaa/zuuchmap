@@ -82,7 +82,7 @@ export default function NotificationsPage() {
       ) : (
         sections.map((section) => (
           <section key={section.title} className="mb-6 last:mb-0">
-            <h2 className="text-xs uppercase tracking-wide text-muted mb-2">{section.title}</h2>
+            <h2 className="text-xs font-semibold text-muted mb-2">{section.title}</h2>
             <ul className="surface-card">
               {section.items.map((n) => {
                 const Icon = KIND_ICON[n.kind] ?? Info

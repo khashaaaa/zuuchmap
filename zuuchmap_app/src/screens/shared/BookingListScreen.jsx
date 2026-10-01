@@ -268,7 +268,6 @@ const createStyles = (colors) => StyleSheet.create({
     periodBlock: { gap: spacing.xxs },
     periodLabel: {
         ...typography.styles.overline,
-        textTransform: 'uppercase',
         color: colors.text.tertiary,
     },
     periodText: {

@@ -120,7 +120,6 @@ const createStyles = (colors) => StyleSheet.create({
     },
     eyebrow: {
         ...typography.styles.overline,
-        textTransform: 'uppercase',
         color: colors.text.tertiary,
         marginBottom: spacing.xs,
         textAlign: 'center',

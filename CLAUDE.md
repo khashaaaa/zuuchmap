@@ -226,6 +226,8 @@ Customer: /customer /customer/browse /customer/map /customer/saved /customer/sav
 
 **LikeButton.** Every call site gates admins and providers itself; the component's own `hidden` fallback is skipped in every list.
 
+⚠ **Stack swipe-back is iOS-only** (`gestureEnabled` in `App.js`). On Android the JS stack's pan handler swallowed every horizontal list on a pushed screen — the detail gallery would not page.
+
 ⚠ **BottomSheetModal.** `PanResponder` captures closures at mount — `onClose` is mirrored into a ref; keep that pattern.
 
 **Keyboard.** Wrap anything with an input in `<KeyboardAvoider>` (`inModal` inside a Modal) — never RN's `KeyboardAvoidingView`. `ScreenLayout` and `BottomSheetModal` already include it. Android pads by the measured overlap (`useKeyboardOverlap`), right whether the window resized or not; `app.json` is `softwareKeyboardLayoutMode: "resize"` because `pan` slid the window on top of that padding.

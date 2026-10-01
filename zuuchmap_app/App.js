@@ -436,7 +436,11 @@ const ThemedApp = ({ initialRoute }) => {
               // the same system as a press or a list entrance.
               animation: reducedMotion ? 'none' : 'slide_from_right',
               animationDuration: animations.duration.normal,
-              gestureEnabled: true,
+              // Swipe-back is iOS-only. Forced on for Android, the JS stack's
+              // pan handler covered every pushed screen and swallowed horizontal
+              // swipes — the post detail gallery would not page. Android has its
+              // own system back gesture.
+              gestureEnabled: Platform.OS === 'ios',
             }}
           >
             <Stack.Screen name="AdminUsers" component={AdminUsers} />

@@ -36,6 +36,7 @@ export default {
     logoutConfirmTitle: 'Гарах', logoutConfirmMessage: 'Та системээс гарахдаа итгэлтэй байна уу?',
   },
   auth: {
+    liveStats: '{{listings}} идэвхтэй зар · {{provinces}} аймаг',
     title: 'Нэвтрэх', subtitle: 'Барилгын үйлчилгээний зах зээл',
     guestSave: 'Зар хадгалахын тулд нэвтэрнэ үү.',
     guestMessage: 'Нийтлэгчтэй холбогдохын тулд нэвтэрнэ үү.',

@@ -2,7 +2,7 @@ import i18n from '@/i18n'
 import {
   Car, Hammer, Wrench, Store, Factory, HardHat, Briefcase, AlertCircle,
   Package, Truck, PenTool, Mountain, Snowflake, Building2, Bus, Cog,
-  FileText, Users as UsersIcon, Gem, Tag,
+  FileText, Users as UsersIcon, Gem, Tag, Layers, Compass, Tags,
 } from 'lucide-react'
 
 // Mirrors zuuchmap_engine/src/enums/priceunit.ts — keep in sync.
@@ -513,6 +513,7 @@ const ICON_MAP = {
   snow: Snowflake, settings: Cog, 'document-text': FileText,
   people: UsersIcon, diamond: Gem, pricetag: Tag,
   'color-palette': PenTool, earth: Mountain, factory: Factory, truck: Truck,
+  layers: Layers, compass: Compass, pricetags: Tags,
 }
 
 export const getCategoryIcon = (ioniconName) => {

@@ -33,6 +33,7 @@ export default {
     logoutConfirmTitle: 'Log out', logoutConfirmMessage: 'Are you sure you want to log out?',
   },
   auth: {
+    liveStats: '{{listings}} live listings · {{provinces}} provinces',
     title: 'Sign in', subtitle: 'Construction marketplace for Mongolia',
     // Named reasons for a signed-out visitor, matching the app's `ensureAuth`
     // prompts word for word — the same tap must explain itself the same way

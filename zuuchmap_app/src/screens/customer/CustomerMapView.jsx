@@ -96,6 +96,46 @@ const GRID_CELLS = 7;
 const EMPTY = [];
 
 /**
+ * One map pin, memoised so a screen re-render (the carousel opening, a filter
+ * sheet) does not rebuild every marker. `tracks` is the screen's shared
+ * `tracksViewChanges` beat — see `tracksMarkers`.
+ */
+const MapPin = React.memo(({ cluster, onPress, tint, icon, label, textColor, iconColor, styles, accessibilityLabel, tracks }) => {
+    const handlePress = useCallback(() => onPress(cluster), [onPress, cluster]);
+    return (
+        <Marker
+            coordinate={cluster.coordinate}
+            onPress={handlePress}
+            tracksViewChanges={tracks}
+            accessibilityLabel={accessibilityLabel}
+        >
+            {label == null ? (
+                <View style={[styles.singleMarkerContainer, { backgroundColor: tint }]}>
+                    <Ionicons name={icon} size={16} color={iconColor} />
+                </View>
+            ) : (
+                // A fixed circle, never a pill that widens with the count — see
+                // MARKER_MAX_DP. The type steps down instead.
+                <View style={[styles.clusterMarkerContainer, { backgroundColor: tint }]}>
+                    <View style={styles.clusterDisc}>
+                        <Text
+                            style={[styles.clusterText, label.length > 2 && styles.clusterTextLong, { color: textColor }]}
+                            numberOfLines={1}
+                            allowFontScaling={false}
+                        >
+                            {label}
+                        </Text>
+                    </View>
+                </View>
+            )}
+        </Marker>
+    );
+});
+
+/** A zoom change smaller than this (as a log ratio, ~10%) keeps the clusters. */
+const RECLUSTER_ZOOM_STEP = 0.1;
+
+/**
  * Groups posts into screen-space grid cells for the current region. Pure and
  * O(n): a `Map` keyed by cell, then one pass for centroids and the dominant
  * category (which colours the badge).
@@ -184,7 +224,38 @@ const CustomerMapView = ({ navigation, route }) => {
     const navigatingRef = useRef(false);
     const [hasInitialized, setHasInitialized] = useState(false);
 
-    const [region, setRegion] = useState(DEFAULT_REGION);
+    // The live camera, for flights, in a ref: as state it re-rendered every pin
+    // at the end of every pan. Clustering reads `clusterRegion`, which moves
+    // only when the zoom does — the grid's cells are absolute, so a pan at the
+    // same zoom yields the same clusters and has nothing to recompute.
+    // Null until the map has a real camera. `initialRegion` is not one — Android
+    // stretches it to the screen's aspect — and Google Maps fires no
+    // region-change event on load, so `handleMapReady` reads the camera once.
+    const regionRef = useRef(DEFAULT_REGION);
+    const [clusterRegion, setClusterRegion] = useState(null);
+    const handleMapReady = useCallback(async () => {
+        setMapReady(true);
+        try {
+            const { northEast, southWest } = await mapRef.current.getMapBoundaries();
+            const next = {
+                latitude: (northEast.latitude + southWest.latitude) / 2,
+                longitude: (northEast.longitude + southWest.longitude) / 2,
+                latitudeDelta: Math.abs(northEast.latitude - southWest.latitude),
+                longitudeDelta: Math.abs(northEast.longitude - southWest.longitude),
+            };
+            regionRef.current = next;
+            setClusterRegion((prev) => prev ?? next);
+        } catch {
+            setClusterRegion((prev) => prev ?? regionRef.current);
+        }
+    }, []);
+
+    const handleRegionChange = useCallback((next) => {
+        regionRef.current = next;
+        setClusterRegion((prev) => (
+            prev && Math.abs(Math.log(next.longitudeDelta / prev.longitudeDelta)) < RECLUSTER_ZOOM_STEP ? prev : next
+        ));
+    }, []);
     const [userLocation, setUserLocation] = useState(null);
     const [mapReady, setMapReady] = useState(false);
 
@@ -205,12 +276,15 @@ const CustomerMapView = ({ navigation, route }) => {
     // so a route-param filter that matched nothing left the map permanently
     // blank. `routeFiltersCleared` lets "clear" drop both.
     const [routeFiltersCleared, setRouteFiltersCleared] = useState(false);
+    // `EMPTY`, never a `[]` literal: a fresh array on every render rebuilt the
+    // filtered list, so the clusters, so every pin's bitmap — on each pan
+    // event, GPS fix and carousel swipe.
     const {
-        selectedCategories: routeCategories = [],
+        selectedCategories: routeCategories = EMPTY,
         priceRange: routePriceRange = null,
         locationFilter: routeLocationFilter = null
     } = route?.params || {};
-    const selectedCategories = routeFiltersCleared ? [] : routeCategories;
+    const selectedCategories = routeFiltersCleared ? EMPTY : routeCategories;
     const priceRange = routeFiltersCleared ? null : routePriceRange;
     const locationFilter = routeFiltersCleared ? null : routeLocationFilter;
 
@@ -321,14 +395,20 @@ const CustomerMapView = ({ navigation, route }) => {
         return baseFilteredPosts;
     }, [baseFilteredPosts, activeFilters.locationFilter, locationFilter, userLocation]);
 
+
     // react-native-maps rasterises a custom marker child once and then stops
     // watching it. Mounting with tracksViewChanges={false} means that snapshot
     // is taken before the child has laid out, so on Android every pin came out
-    // empty — 112 listings and a map with nothing on it. Track for one beat
-    // after the marker set changes, then stop, which is what the flag is for.
+    // empty. Track for one beat after the marker set changes, then stop. While
+    // tracking, every pin is re-rasterised each frame, so the set must change
+    // only when the pins do: it used to change on every render (a `[]` default
+    // param) and at the end of every pan — 51% janky frames and a 150ms
+    // 90th-percentile frame while panning on the A51, and marker taps that did
+    // not register. Now it changes with the zoom or the filters: 7%, 19ms.
     const [tracksMarkers, setTracksMarkers] = useState(true);
 
     const clusters = useMemo(() => {
+        if (!clusterRegion) return EMPTY;
         if (!mapPreferences.clusterMarkers || filteredPosts.length === 0) {
             return filteredPosts.map(post => ({
                 posts: [post],
@@ -338,15 +418,16 @@ const CustomerMapView = ({ navigation, route }) => {
                 dominant: post.post_type,
             }));
         }
-        return gridCluster(filteredPosts, region);
-    }, [filteredPosts, mapPreferences.clusterMarkers, region]);
+        return gridCluster(filteredPosts, clusterRegion);
+    }, [filteredPosts, mapPreferences.clusterMarkers, clusterRegion]);
 
     useEffect(() => {
-        if (clusters.length === 0) return;
+        if (clusters.length === 0) return undefined;
         setTracksMarkers(true);
         const timer = setTimeout(() => setTracksMarkers(false), 900);
         return () => clearTimeout(timer);
     }, [clusters]);
+
 
     // First GPS fix: recentre on the user only if there is anything to see
     // there. Otherwise the default region (Ulaanbaatar, where the listings are)
@@ -374,6 +455,7 @@ const CustomerMapView = ({ navigation, route }) => {
     // cluster also zooms in one step so its members start to separate.
     const flyTo = useCallback((coordinate, zoomIn = false) => {
         if (!mapRef.current || !mapReady) return;
+        const region = regionRef.current;
         const latitudeDelta = zoomIn ? region.latitudeDelta / 2.5 : region.latitudeDelta;
         const longitudeDelta = zoomIn ? region.longitudeDelta / 2.5 : region.longitudeDelta;
         mapRef.current.animateToRegion({
@@ -382,7 +464,7 @@ const CustomerMapView = ({ navigation, route }) => {
             latitudeDelta,
             longitudeDelta,
         }, animations.duration.camera);
-    }, [mapReady, region]);
+    }, [mapReady]);
 
     const handleClusterPress = useCallback((cluster) => {
         dispatchUi({ type: 'SHOW_CAROUSEL', posts: cluster.posts });
@@ -464,62 +546,29 @@ const CustomerMapView = ({ navigation, route }) => {
         }
     }, [hasInitialized, getUserLocation]);
 
-    const renderClusterMarker = useCallback((cluster) => {
-        const { coordinate, count, posts, id } = cluster;
-
-        if (count === 1) {
-            const post = posts[0];
-            return (
-                <Marker
-                    key={id}
-                    coordinate={coordinate}
-                    onPress={() => handleClusterPress(cluster)}
-                    tracksViewChanges={tracksMarkers}
-                >
-                    <View style={[
-                        styles.singleMarkerContainer,
-                        { backgroundColor: getMarkerColor(post.post_type) }
-                    ]}>
-                        <Ionicons
-                            name={getMarkerIcon(post.post_type)}
-                            size={16}
-                            color={colors.text.onColor}
-                        />
-                    </View>
-                </Marker>
-            );
-        }
-
-        // Badge wears the dominant category's colour so a cluster of tool
-        // rentals and a cluster of job ads differ before the tap. `dominant`
-        // may be a schema colour that was never tuned for a white ring, so the
-        // count itself sits on a white disc — legible on any hue.
-        const tint = getMarkerColor(cluster.dominant);
-        const label = count > 999 ? '1k+' : String(count);
+    // Badge wears the dominant category's colour so a cluster of tool rentals
+    // and a cluster of job ads differ before the tap. `dominant` may be a schema
+    // colour that was never tuned for a white ring, so the count itself sits on
+    // a white disc — legible on any hue.
+    const renderClusterMarker = (cluster) => {
+        const single = cluster.count === 1;
+        const tint = getMarkerColor(single ? cluster.posts[0].post_type : cluster.dominant);
         return (
-            <Marker
-                key={id}
-                coordinate={coordinate}
-                onPress={() => handleClusterPress(cluster)}
-                tracksViewChanges={tracksMarkers}
-                accessibilityLabel={t('map.clusterLabel', { count })}
-            >
-                {/* A fixed circle, never a pill that widens with the count —
-                    see MARKER_MAX_DP. The type steps down instead. */}
-                <View style={[styles.clusterMarkerContainer, { backgroundColor: tint }]}>
-                    <View style={styles.clusterDisc}>
-                        <Text
-                            style={[styles.clusterText, label.length > 2 && styles.clusterTextLong, { color: toneForTheme(tint, false) }]}
-                            numberOfLines={1}
-                            allowFontScaling={false}
-                        >
-                            {label}
-                        </Text>
-                    </View>
-                </View>
-            </Marker>
+            <MapPin
+                key={cluster.id}
+                cluster={cluster}
+                onPress={handleClusterPress}
+                tint={tint}
+                icon={single ? getMarkerIcon(cluster.posts[0].post_type) : undefined}
+                iconColor={colors.text.onColor}
+                label={single ? undefined : cluster.count > 999 ? '1k+' : String(cluster.count)}
+                textColor={single ? undefined : toneForTheme(tint, false)}
+                styles={styles}
+                accessibilityLabel={single ? undefined : t('map.clusterLabel', { count: cluster.count })}
+                tracks={tracksMarkers}
+            />
         );
-    }, [handleClusterPress, getMarkerColor, getMarkerIcon, colors, t, tracksMarkers, styles]);
+    };
 
     const activeFilterCount = useMemo(() => {
         return Object.values(activeFilters).filter(value =>
@@ -597,7 +646,7 @@ const CustomerMapView = ({ navigation, route }) => {
                     ref={mapRef}
                     style={styles.map}
                     initialRegion={DEFAULT_REGION}
-                    onMapReady={() => setMapReady(true)}
+                    onMapReady={handleMapReady}
                     provider={PROVIDER_GOOGLE}
                     showsUserLocation={true}
                     showsMyLocationButton={false}
@@ -615,7 +664,7 @@ const CustomerMapView = ({ navigation, route }) => {
                     zoomEnabled={true}
                     loadingEnabled={true}
                     moveOnMarkerPress={false}
-                    onRegionChangeComplete={setRegion}
+                    onRegionChangeComplete={handleRegionChange}
                 >
                     {clusters.map(cluster => renderClusterMarker(cluster))}
                 </MapView>

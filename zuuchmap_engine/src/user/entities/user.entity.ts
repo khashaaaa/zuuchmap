@@ -27,7 +27,7 @@ export class User {
   })
   type: string;
 
-  @Index()
+  @Index({ unique: true })
   @Column({ nullable: true })
   phone_number: string;
 

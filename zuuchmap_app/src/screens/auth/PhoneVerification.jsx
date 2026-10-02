@@ -86,7 +86,9 @@ const PhoneVerification = ({ route, navigation }) => {
             await saveUserInfo(phoneNumber, userType);
             navigateToDashboard(navigation, userType, isAdmin);
         } else {
-            navigation.navigate('UserRoleSelection', { phoneNumber });
+            // Reset, not navigate: Back from role selection returned to this
+            // spent screen, stuck on "verified, signing in" with nothing to tap.
+            navigation.reset({ index: 0, routes: [{ name: 'UserRoleSelection', params: { phoneNumber } }] });
         }
     }, [navigation, phoneNumber, paramUserType]);
 
@@ -124,10 +126,18 @@ const PhoneVerification = ({ route, navigation }) => {
         }
     }, [session?.session_id, phoneNumber, finish]);
 
+    // Each poll waits for the last to answer. An interval fired the next one
+    // regardless, so a slow upstream check overlapped the one behind it.
     useEffect(() => {
         if (status !== 'PENDING') return undefined;
-        const id = setInterval(poll, POLL_MS);
-        return () => clearInterval(id);
+        let cancelled = false;
+        let timer;
+        const tick = async () => {
+            await poll();
+            if (!cancelled) timer = setTimeout(tick, POLL_MS);
+        };
+        timer = setTimeout(tick, POLL_MS);
+        return () => { cancelled = true; clearTimeout(timer); };
     }, [status, poll]);
 
     useEffect(() => {

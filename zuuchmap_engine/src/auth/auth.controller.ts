@@ -7,9 +7,12 @@ import {
   HttpCode,
   HttpException,
   HttpStatus,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
+import { JwtAuthGuard } from './jwt-auth.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -61,6 +64,15 @@ export class AuthController {
     // Fire and forget so the provider never waits on our DB round-trip.
     void this.authService.handleCallback(sessionId);
     return { received: true };
+  }
+
+  /** Sign-out on a shared device: the next sign-in here needs an SMS again. */
+  @Post('logout')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  async logout(@Req() req, @Body() body: { device_id?: string }) {
+    await this.authService.forgetDevice(req.user.id, body?.device_id);
+    return { success: true };
   }
 
   /**

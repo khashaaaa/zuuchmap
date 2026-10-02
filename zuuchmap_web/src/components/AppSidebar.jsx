@@ -10,7 +10,7 @@ import {
 import { useAuthStore } from '../store'
 import { useProfile } from '@/hooks/useProfile'
 import { useQuery } from '@tanstack/react-query'
-import { reportsApi, messagesApi } from '@/lib/api'
+import { reportsApi, messagesApi, authApi } from '@/lib/api'
 import UserAvatar from './UserAvatar'
 import ConfirmModal from './ConfirmModal'
 
@@ -88,7 +88,7 @@ function NavItem({ to, label, icon: Icon, end, onClick, indicatorId, badge }) {
 export default function AppSidebar({ onNavigate }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { user, isAdmin, logout } = useAuthStore()
+  const { user, isAdmin, logout, token } = useAuthStore()
   const { data: profile } = useProfile()
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   // The sidebar mounts twice (desktop + mobile drawer) — a per-instance id
@@ -174,7 +174,7 @@ export default function AppSidebar({ onNavigate }) {
         message={t('nav.logoutConfirmMessage')}
         confirmLabel={t('nav.logout')}
         cancelLabel={t('common.cancel')}
-        onConfirm={() => { setShowLogoutConfirm(false); logout(); navigate('/login', { replace: true }) }}
+        onConfirm={() => { setShowLogoutConfirm(false); authApi.logout(token); logout(); navigate('/login', { replace: true }) }}
       />
     </aside>
   )

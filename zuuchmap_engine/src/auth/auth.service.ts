@@ -239,16 +239,16 @@ export class AuthService {
 
     if (session.expires_at.getTime() < Date.now()) {
       if (session.status !== 'EXPIRED') {
-        session.status = 'EXPIRED';
-        await this.sessionRepository.save(session);
+        await this.settle(session, { status: 'EXPIRED' });
       }
       return 'EXPIRED';
     }
 
     if (this.devMode && !session.provider_session_id) {
-      session.status = 'VERIFIED';
-      session.verified_at = new Date();
-      await this.sessionRepository.save(session);
+      await this.settle(session, {
+        status: 'VERIFIED',
+        verified_at: new Date(),
+      });
       return 'VERIFIED';
     }
 
@@ -260,27 +260,44 @@ export class AuthService {
       : Infinity;
     if (!force && since < UPSTREAM_POLL_MS) return 'PENDING';
 
-    session.last_checked_at = new Date();
-    await this.sessionRepository.save(session);
+    await this.sessionRepository.update(session.id, {
+      last_checked_at: new Date(),
+    });
 
     const remote = await this.verifyMn.getStatus(session.provider_session_id);
 
     if (remote.sessionStatus === 'VERIFIED') {
-      session.status = 'VERIFIED';
-      session.verified_at = remote.verifiedAt
-        ? new Date(remote.verifiedAt)
-        : new Date();
-      await this.sessionRepository.save(session);
+      await this.settle(session, {
+        status: 'VERIFIED',
+        verified_at: remote.verifiedAt
+          ? new Date(remote.verifiedAt)
+          : new Date(),
+      });
       return 'VERIFIED';
     }
 
     if (remote.sessionStatus === 'EXPIRED') {
-      session.status = 'EXPIRED';
-      await this.sessionRepository.save(session);
+      await this.settle(session, { status: 'EXPIRED' });
       return 'EXPIRED';
     }
 
     return 'PENDING';
+  }
+
+  /**
+   * Moves a session off PENDING, and only off PENDING. A whole-entity save here
+   * let a provider callback that read the row before the client's poll spent it
+   * write VERIFIED back over CONSUMED — a spent session made spendable again.
+   */
+  private async settle(
+    session: VerificationSession,
+    fields: Partial<Pick<VerificationSession, 'status' | 'verified_at'>>,
+  ): Promise<void> {
+    await this.sessionRepository.update(
+      { id: session.id, status: 'PENDING' },
+      fields,
+    );
+    Object.assign(session, fields);
   }
 
   /**
@@ -310,16 +327,32 @@ export class AuthService {
   private async completeSession(
     session: VerificationSession,
   ): Promise<AuthResult> {
-    let user = await this.userRepository.findOne({
+    // Spend the session in one statement. Reading VERIFIED and writing CONSUMED
+    // as two steps let overlapping polls each pass the read: three concurrent
+    // polls minted three tokens, and for a new number created three accounts.
+    const claim = await this.sessionRepository.update(
+      { id: session.id, status: 'VERIFIED' },
+      { status: 'CONSUMED' },
+    );
+    if (!claim.affected) {
+      throw new HttpException(
+        'This verification was already used.',
+        HttpStatus.GONE,
+      );
+    }
+
+    // ON CONFLICT DO NOTHING against the unique phone index: two sessions for
+    // one new number finishing together still yield one account.
+    await this.userRepository
+      .createQueryBuilder()
+      .insert()
+      .values({ phone_number: session.phone_number, is_verified: true })
+      .orIgnore()
+      .execute();
+    const user = await this.userRepository.findOneOrFail({
       where: { phone_number: session.phone_number },
     });
-    if (!user) {
-      user = this.userRepository.create({
-        phone_number: session.phone_number,
-        is_verified: true,
-      });
-      await this.userRepository.save(user);
-    } else if (!user.is_verified) {
+    if (!user.is_verified) {
       user.is_verified = true;
       await this.userRepository.save(user);
     }
@@ -342,9 +375,6 @@ export class AuthService {
       }
     }
 
-    session.status = 'CONSUMED';
-    await this.sessionRepository.save(session);
-
     return this.issueSession(user);
   }
 
@@ -366,6 +396,20 @@ export class AuthService {
       { sub: user.id, phone: user.phone_number, type: user.type },
       { secret: jwtSecret(), expiresIn: SESSION_EXPIRES_IN },
     );
+  }
+
+  /**
+   * Stops this device skipping SMS for this account. The web calls it on sign
+   * out — a browser may be shared, and a trusted one signs anyone who types
+   * the number straight back in. The app does not: a phone is personal, and
+   * forgetting it would charge its owner 150₮ to return.
+   */
+  async forgetDevice(userId: string, deviceId?: string): Promise<void> {
+    if (!deviceId) return;
+    await this.deviceRepository.delete({
+      user: { id: userId },
+      device_hash: this.hashDevice(deviceId),
+    });
   }
 
   /** Nightly housekeeping — keeps the session table from growing forever. */

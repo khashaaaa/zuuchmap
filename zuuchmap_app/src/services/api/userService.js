@@ -16,6 +16,9 @@ const API_URL = API_CONFIG.BASE_URL;
 
 const handleRoleNavigation = async (selectedRole, navigation) => {
     await AsyncStorage.setItem(API_CONFIG.STORAGE_KEYS.USER_TYPE, selectedRole);
+    // The remembered session answer still says "no role" for this token; the
+    // dashboard read it on mount and hid every save button for a new customer.
+    emitAuthChanged();
 
     if (navigation) {
         navigateToDashboard(navigation, selectedRole);

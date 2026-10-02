@@ -104,6 +104,7 @@ Required env: `PG_*` `JWT_SECRET` `ADMIN_PHONES` `R2_*` `PROG_PORT` `PUBLIC_ENGI
 POST /auth/verify/start           {phone_number,device_id?} → trusted device returns a token
 POST /auth/verify/status          {session_id} → PENDING|VERIFIED|EXPIRED (+token)
 GET  /auth/verify/callback/:id    verify.mn nudge — unauthenticated, never trusted alone
+POST /auth/logout                 JWT {device_id} — forgets that trusted device (web sign-out only)
 GET  /user/profile                JWT
 GET  /posts                       ?category&subcategory&province&district&approval_status
                                   &q&attr.<key>[=|_min=|_max=]&page&limit → { items, total }
@@ -167,7 +168,7 @@ GET  /seo/sitemap.xml  GET /seo/post/:id   sitemap index; OG tags for crawlers
 - `q` is Postgres full-text over title + details + location + address + `attributes::text`, prefix-matching. Browse and the saved-search matcher both tokenize through `utils/search-terms.ts` — change only the shared helper. **Query terms are stemmed (`stripMongolianSuffix`), documents are not**; non-Cyrillic terms stay literal.
 - Post has `category` + `subcategory`; legacy `secondcategory` is still accepted as a DTO alias.
 
-**Phone verification (verify.mn, Mobile-Originated).** We never send an SMS: the *user* texts a displayed code to `144773` from the number they claim, at 150₮ per verification. It runs only at signup and on a new device — `TrustedDevice` stores `sha256(device_id)` and a match returns a token directly. Sessions last `SESSION_EXPIRES_IN` (`utils/session.ts`, one year) because signing in again costs the user money.
+**Phone verification (verify.mn, Mobile-Originated).** We never send an SMS: the *user* texts a displayed code to `144773` from the number they claim, at 150₮ per verification. It runs only at signup and on a new device — `TrustedDevice` stores `sha256(device_id)` and a match returns a token directly. Web sign-out forgets the browser (shared computers); app sign-out keeps the phone trusted. A session is spent by one conditional `UPDATE`, and `user.phone_number` is unique — never reintroduce a read-then-write on either. Sessions last `SESSION_EXPIRES_IN` (`utils/session.ts`, one year) because signing in again costs the user money.
 
 **`req.user` is identity only.** `JwtStrategy.validate` answers from `sessionUsers` (30s) and loads no relations. Handlers read `id` and `phone_number` off it and nothing else; anything mutable is read by the service that needs it. Account deletion calls `forgetSessionUser`.
 

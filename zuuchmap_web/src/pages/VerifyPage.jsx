@@ -95,8 +95,16 @@ export default function VerifyPage() {
 
   useEffect(() => {
     if (!sessionId || status !== 'PENDING') return
-    const id = setInterval(poll, POLL_MS)
-    return () => clearInterval(id)
+    // Each poll waits for the last to answer. An interval fired the next one
+    // regardless, so a slow upstream check overlapped the one behind it.
+    let cancelled = false
+    let timer
+    const tick = async () => {
+      await poll()
+      if (!cancelled) timer = setTimeout(tick, POLL_MS)
+    }
+    timer = setTimeout(tick, POLL_MS)
+    return () => { cancelled = true; clearTimeout(timer) }
   }, [sessionId, status, poll])
 
   useEffect(() => {

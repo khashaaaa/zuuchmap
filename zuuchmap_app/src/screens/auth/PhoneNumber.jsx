@@ -115,8 +115,9 @@ const PhoneNumber = ({ navigation }) => {
                     setSavedUser(info);
                     setPhoneNumber(info.phoneNumber);
                 } else {
-                    // Fresh visitor: open the keyboard for them. Returning users
-                    // get the welcome block instead — their number is prefilled.
+                    // No name or photo to greet with, but a returning user's
+                    // number is still worth not retyping.
+                    if (info?.phoneNumber) setPhoneNumber(info.phoneNumber);
                     inputRef.current?.focus();
                 }
             })
@@ -144,7 +145,8 @@ const PhoneNumber = ({ navigation }) => {
             await saveUserInfo(phone, userType);
             navigateToDashboard(navigation, userType, isAdmin);
         } else {
-            navigation.navigate('UserRoleSelection', { phoneNumber: phone });
+            // Signed in from here on: Back must not lead into the sign-in flow.
+            navigation.reset({ index: 0, routes: [{ name: 'UserRoleSelection', params: { phoneNumber: phone } }] });
         }
     };
 

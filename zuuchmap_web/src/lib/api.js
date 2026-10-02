@@ -2,6 +2,7 @@ import axios from 'axios'
 import { toast } from 'sonner'
 import { getToken } from './auth'
 import { getVisitorId } from './visitor'
+import { getDeviceId } from './device'
 import { useAuthStore } from '../store'
 import i18n from '../i18n'
 
@@ -53,6 +54,13 @@ export const authApi = {
     client.post('/auth/verify/start', { phone_number: phone, device_id: deviceId }).then(data),
   status: (sessionId) =>
     client.post('/auth/verify/status', { session_id: sessionId }).then(data),
+  // A browser may be shared, so sign-out also stops it skipping SMS for this
+  // account. Carries its own token: the caller clears the store straight after,
+  // and never waits on this.
+  logout: (token) =>
+    client
+      .post('/auth/logout', { device_id: getDeviceId() }, { headers: { Authorization: `Bearer ${token}` } })
+      .catch(() => {}),
 }
 
 // Analytics — fire-and-forget; never let a failed beacon surface to the user.

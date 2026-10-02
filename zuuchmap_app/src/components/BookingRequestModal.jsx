@@ -21,7 +21,7 @@ import PressableScale from './PressableScale';
 const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 const BookingRequestModal = ({ visible, onClose, postId, availableFrom, availableUntil }) => {
-    const { colors, styles: gStyles } = useAppTheme();
+    const { colors, isDark, styles: gStyles } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
     const { t } = useTranslation();
 
@@ -133,6 +133,8 @@ const BookingRequestModal = ({ visible, onClose, postId, availableFrom, availabl
                             value={pickerFor === 'start' ? startDate : endDate}
                             mode="date"
                             display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                            // iOS: the spinner otherwise follows the phone, not the app.
+                            themeVariant={isDark ? 'dark' : 'light'}
                             minimumDate={pickerFor === 'end' ? startDate : minDate}
                             maximumDate={maxDate}
                             onChange={onPickerChange}

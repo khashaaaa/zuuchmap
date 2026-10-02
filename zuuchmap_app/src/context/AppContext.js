@@ -14,7 +14,9 @@ const NOTIFICATION_LIMIT = 50;
 const AppContext = createContext(null);
 
 export const AppProvider = ({ children }) => {
-    const [themeMode, setThemeModeState] = useState('dark');
+    // 'system' until the user picks one with the header toggle, which stores an
+    // explicit 'light' or 'dark'. New installs follow the phone.
+    const [themeMode, setThemeModeState] = useState('system');
     const [locale, setLocaleState] = useState('mn');
     const [notifications, setNotifications] = useState([]);
     const unreadCount = notifications.filter((n) => !n.read).length;
@@ -32,7 +34,7 @@ export const AppProvider = ({ children }) => {
                     AsyncStorage.getItem(STORAGE_KEYS.LOCALE),
                     AsyncStorage.getItem(STORAGE_KEYS.NOTIFICATIONS),
                 ]);
-                const theme = storedTheme || 'dark';
+                const theme = storedTheme || 'system';
                 const lang = storedLocale || 'mn';
                 setThemeModeState(theme);
                 setLocaleState(lang);

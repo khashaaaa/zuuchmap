@@ -1,11 +1,12 @@
 import { useId } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, useReducedMotion } from 'framer-motion'
+import { Sun, Moon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { LANGUAGES } from '@/i18n'
 import Button from '@/components/Button'
 import Logo from '@/components/Logo'
-import { useAuthStore } from '@/store'
+import { useAuthStore, useThemeStore } from '@/store'
 
 /** Where a signed-in user's own app lives, by role. */
 function dashboardPath(user, isAdmin) {
@@ -25,6 +26,11 @@ export default function PublicHeader() {
   const token = useAuthStore((s) => s.token)
   const user = useAuthStore((s) => s.user)
   const isAdmin = useAuthStore((s) => s.isAdmin)
+  // Signed-out visitors had no way to change the theme: the only toggle was
+  // in the app shell's header.
+  const theme = useThemeStore((s) => s.theme)
+  const toggleTheme = useThemeStore((s) => s.toggleTheme)
+  const themeLabel = theme === 'dark' ? t('common.lightMode') : t('common.darkMode')
 
   return (
     <header className="sticky top-0 z-30 bg-background/85 backdrop-blur border-b border-border/20">
@@ -65,6 +71,15 @@ export default function PublicHeader() {
               </button>
             ))}
           </div>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-btn text-muted hover:text-text hover:bg-surface2 transition-colors"
+            title={themeLabel}
+            aria-label={themeLabel}
+          >
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
           {token
             ? <Button to={dashboardPath(user, isAdmin)} size="sm" className="min-h-9">{t('nav.dashboard')}</Button>
             : <Button to="/login" size="sm" className="min-h-9">{t('auth.title')}</Button>}

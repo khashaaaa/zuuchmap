@@ -3,16 +3,36 @@ import { getToken, getUser, setAuth as persistAuth, clearAuth as persistClear, i
 import { queryClient } from './lib/queryClient'
 import { clearAllDrafts } from './lib/draftStorage'
 
-export const useThemeStore = create((set) => ({
-  theme: document.documentElement.getAttribute('data-theme') || 'dark',
-  toggleTheme: () => set((s) => {
-    const next = s.theme === 'dark' ? 'light' : 'dark'
-    localStorage.setItem('zm_theme', next)
-    document.documentElement.setAttribute('data-theme', next)
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', next === 'light' ? '#FAFAF8' : '#17181A')
-    return { theme: next }
-  }),
-}))
+const applyTheme = (theme) => {
+  document.documentElement.setAttribute('data-theme', theme)
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'light' ? '#FAFAF8' : '#17181A')
+}
+
+// Until the visitor picks one with the toggle, the theme follows the OS (the
+// bootstrap in index.html seeds it the same way), live.
+const osTheme = window.matchMedia?.('(prefers-color-scheme: light)')
+
+export const useThemeStore = create((set) => {
+  osTheme?.addEventListener?.('change', (e) => {
+    let stored = null
+    try { stored = localStorage.getItem('zm_theme') } catch { /* blocked storage */ }
+    if (stored) return
+    const next = e.matches ? 'light' : 'dark'
+    applyTheme(next)
+    set({ theme: next })
+  })
+  return {
+    theme: document.documentElement.getAttribute('data-theme') || 'dark',
+    toggleTheme: () => set((s) => {
+      const next = s.theme === 'dark' ? 'light' : 'dark'
+      // Blocked storage used to throw here and the toggle did nothing at all;
+      // it now switches for this page load and is simply not remembered.
+      try { localStorage.setItem('zm_theme', next) } catch { /* blocked storage */ }
+      applyTheme(next)
+      return { theme: next }
+    }),
+  }
+})
 
 const NOTIFICATION_LIMIT = 30
 const NOTIFICATION_KEY = 'zm_notifications'

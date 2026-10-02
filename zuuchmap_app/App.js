@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { QueryClientProvider, focusManager } from '@tanstack/react-query';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { navigationRef } from './src/utils/navigationUtils';
 import { createStackNavigator } from '@react-navigation/stack';
 import { View, ActivityIndicator, Text, StyleSheet, Platform, Animated, AppState } from 'react-native';
@@ -384,6 +384,21 @@ const ThemedApp = ({ initialRoute }) => {
     if (Platform.OS !== 'android') return;
     NavigationBar.setButtonStyleAsync(isDark ? 'light' : 'dark').catch(() => {});
   }, [isDark]);
+  const navTheme = useMemo(() => {
+    const base = isDark ? DarkTheme : DefaultTheme;
+    return {
+      ...base,
+      colors: {
+        ...base.colors,
+        primary: colors.text.link,
+        background: colors.background,
+        card: colors.surface,
+        text: colors.text.primary,
+        border: colors.border.light,
+        notification: colors.danger,
+      },
+    };
+  }, [isDark, colors]);
   const reducedMotion = useReducedMotion();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -418,9 +433,13 @@ const ThemedApp = ({ initialRoute }) => {
         style={Platform.OS === 'ios' ? { paddingTop: insets.top + spacing.sm } : undefined}
       />
 
-      <ErrorBoundary>
+      <ErrorBoundary isDark={isDark}>
         <NavigationContainer
           ref={navigationRef}
+          // Without a theme every navigator painted React Navigation's light
+          // default (#F2F2F2) behind its scenes — a grey flash on a dark tab's
+          // first mount.
+          theme={navTheme}
           // One page.view per screen change — the top of the admin funnel, which
           // only the web was feeding. `path` is the route name: the app has no URL.
           onReady={() => trackScreen(navigationRef.getCurrentRoute()?.name)}

@@ -1,5 +1,5 @@
 import React, { Component, Fragment } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Appearance } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { spacing, typography, radius, palettes, interactions } from '../design/theme';
 import i18n from '../i18n';
 import { queryClient } from '../services/queryClient';
@@ -36,10 +36,10 @@ export default class ErrorBoundary extends Component {
       return <Fragment key={this.state.resetKey}>{this.props.children}</Fragment>;
     }
 
-    // A class component cannot use the theme hook, and this is the one screen
-    // that must render when the tree below it has already failed — so it reads
-    // the OS scheme directly rather than depending on any app context.
-    const colors = palettes[Appearance.getColorScheme() === 'light' ? 'light' : 'dark'];
+    // A class component cannot use the theme hook, so the parent passes the
+    // resolved mode down. The OS scheme was read here before, and a dark app on
+    // a light phone crashed onto a light screen.
+    const colors = palettes[this.props.isDark === false ? 'light' : 'dark'];
 
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>

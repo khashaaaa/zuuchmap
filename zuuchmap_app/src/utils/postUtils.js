@@ -1,4 +1,4 @@
-import { palettes, categoryColors } from '../design/theme';
+import { categoryColors } from '../design/theme';
 import { formatPrice } from './displayUtils';
 import i18n from 'i18next';
 
@@ -12,7 +12,7 @@ export const normalizePostType = (postType) => postType?.toLowerCase() || null;
 // Ionicons name and `color` a hex, both editable in the admin category UI.
 // Pass the palette from useAppTheme() for the fallback when schemas aren't
 // loaded yet or the category has no icon set.
-export const getPostTypeConfig = (postType, colors = palettes.dark, schemas = []) => {
+export const getPostTypeConfig = (postType, colors, schemas = []) => {
   const key = normalizePostType(postType);
   const schema = schemas.find((s) => s.key === key);
   return {
@@ -92,7 +92,7 @@ export const getFixedImageUrl = (url) => {
   return fixed;
 };
 
-export const getStatusConfig = (status, colors = palettes.dark) => {
+export const getStatusConfig = (status, colors) => {
   if (!status) return null;
   const map = {
     // Post lifecycle

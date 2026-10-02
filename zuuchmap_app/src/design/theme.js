@@ -20,10 +20,7 @@ const s = isTablet ? 1.25 : 1;
 
 const darkColors = {
     primary: '#F5A623',
-    primaryLighter: '#FCE3B3',
     primaryDark: '#D68F0A',
-    primaryDarker: '#B57807',
-    primaryLight: '#F8BC55',
     onPrimary: '#1A1200',
     // Amber as a GLYPH on neutral grounds (icons, spinners). Non-text needs
     // 3:1, not 4.5:1 — so this is a lighter step than text.link, but it is
@@ -42,12 +39,8 @@ const darkColors = {
     successLight: '#7DD29B',
     successDark: '#3BA05F',
     info: '#5BA7E0',
-    infoLight: '#82BEE9',
-    infoDark: '#3E88C4',
 
     background: '#17181A',
-    backgroundLight: '#1F2124',
-    backgroundDark: '#101113',
 
     surface: '#1F2124',
     surfaceElevated: '#26282C',
@@ -59,7 +52,6 @@ const darkColors = {
         tertiary: '#898F94',
         disabled: '#5F646B',
         placeholder: '#898F95',
-        inverse: '#ECEDEE',
         onColor: '#101113',
         // Sits on photography, never on a theme ground — so it is white in both
         // palettes by design, not by oversight.
@@ -84,13 +76,10 @@ const darkColors = {
 
     opacity: {
         overlay: 'rgba(0, 0, 0, 0.6)',
-        overlayLight: 'rgba(0, 0, 0, 0.4)',
         overlayDark: 'rgba(0, 0, 0, 0.8)',
         whiteOverlay: 'rgba(255, 255, 255, 0.5)',
-        whiteOverlayLight: 'rgba(255, 255, 255, 0.8)',
         background: {
             primary: 'rgba(245, 166, 35, 0.16)',
-            primaryLight: 'rgba(245, 166, 35, 0.08)',
             primaryMedium: 'rgba(245, 166, 35, 0.22)',
             primaryDark: 'rgba(245, 166, 35, 0.3)',
             dark: 'rgba(0, 0, 0, 0.3)',
@@ -113,10 +102,7 @@ const darkColors = {
 
 const lightColors = {
     primary: '#E8890C',
-    primaryLighter: '#FCE9C9',
     primaryDark: '#C87206',
-    primaryDarker: '#A35E04',
-    primaryLight: '#F5A623',
     onPrimary: '#241500',
     iconAccent: '#C87206',
 
@@ -130,12 +116,8 @@ const lightColors = {
     successLight: '#3D9C64',
     successDark: '#145F33',
     info: '#1E6FB8',
-    infoLight: '#4C8FCB',
-    infoDark: '#155790',
 
     background: '#FAFAF8',
-    backgroundLight: '#FFFFFF',
-    backgroundDark: '#F1F0EC',
 
     surface: '#FFFFFF',
     surfaceElevated: '#FFFFFF',
@@ -147,7 +129,6 @@ const lightColors = {
         tertiary: '#727378',
         disabled: '#A9ABB0',
         placeholder: '#717379',
-        inverse: '#1A1C1E',
         onColor: '#FFFFFF',
         onMedia: '#FFFFFF',
         // Mirrors web --color-primary-text. Darker than the #A35F00 it replaced:
@@ -167,13 +148,10 @@ const lightColors = {
 
     opacity: {
         overlay: 'rgba(0, 0, 0, 0.4)',
-        overlayLight: 'rgba(0, 0, 0, 0.25)',
         overlayDark: 'rgba(0, 0, 0, 0.6)',
         whiteOverlay: 'rgba(255, 255, 255, 0.7)',
-        whiteOverlayLight: 'rgba(255, 255, 255, 0.9)',
         background: {
             primary: 'rgba(232, 137, 12, 0.1)',
-            primaryLight: 'rgba(232, 137, 12, 0.05)',
             primaryMedium: 'rgba(232, 137, 12, 0.15)',
             primaryDark: 'rgba(232, 137, 12, 0.2)',
             dark: 'rgba(0, 0, 0, 0.08)',

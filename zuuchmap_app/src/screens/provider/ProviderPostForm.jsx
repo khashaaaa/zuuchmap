@@ -645,6 +645,8 @@ const ProviderPostForm = ({ route, navigation }) => {
                                     value={new Date(pickerFor === 'from' ? formData.available_from : formData.available_until)}
                                     mode="date"
                                     display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                    // iOS: the spinner otherwise follows the phone, not the app.
+                                    themeVariant={isDark ? 'dark' : 'light'}
                                     minimumDate={pickerFor === 'until' ? new Date(formData.available_from) : new Date()}
                                     onChange={(event, selected) => {
                                         if (Platform.OS !== 'ios') setPickerFor(null);

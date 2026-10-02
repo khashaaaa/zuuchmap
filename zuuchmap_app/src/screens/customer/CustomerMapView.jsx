@@ -426,7 +426,9 @@ const CustomerMapView = ({ navigation, route }) => {
         setTracksMarkers(true);
         const timer = setTimeout(() => setTracksMarkers(false), 900);
         return () => clearTimeout(timer);
-    }, [clusters]);
+        // isDark too: the pin glyph colour flips with the theme, and a pin
+        // rasterised under the old one would keep it until the next zoom.
+    }, [clusters, isDark]);
 
 
     // First GPS fix: recentre on the user only if there is anything to see

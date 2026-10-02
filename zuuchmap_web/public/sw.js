@@ -34,7 +34,16 @@ self.addEventListener('push', (event) => {
     renotify: Boolean(payload.data?.conversationId),
   }
 
-  event.waitUntil(self.registration.showNotification(title, options))
+  // With a tab of the site visible and focused, the open socket has already
+  // shown this event as a toast; a system notification on top is a duplicate.
+  // (Chrome's "must show a notification" rule exempts a focused page.) The
+  // app's foreground handler silences pushes the same way.
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      if (clients.some((c) => c.visibilityState === 'visible' && c.focused)) return
+      return self.registration.showNotification(title, options)
+    }),
+  )
 })
 
 self.addEventListener('notificationclick', (event) => {

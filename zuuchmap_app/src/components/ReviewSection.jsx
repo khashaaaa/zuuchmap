@@ -9,6 +9,7 @@ import { useReducedMotion } from '../hooks/useReducedMotion';
 import bookingService from '../services/api/bookingService';
 import { showErrorModal, getErrorMessage } from '../utils/errorManager';
 import { formatDate } from '../utils/displayUtils';
+import { useIsGuest } from '../utils/requireAuth';
 import Button from './Button';
 
 // In the rating input, each star lands with the selection breath as it fills,
@@ -80,6 +81,7 @@ const ReviewSection = ({ providerId, canReview, autoOpen = false, onRequireAuth 
     const [showAll, setShowAll] = useState(false);
     const [rating, setRating] = useState(0);
     const [comment, setComment] = useState('');
+    const isGuest = useIsGuest();
     const openForm = async () => {
         if (onRequireAuth && !(await onRequireAuth())) return;
         setShowForm(true);
@@ -87,9 +89,7 @@ const ReviewSection = ({ providerId, canReview, autoOpen = false, onRequireAuth 
 
     // Deep link from a review-prompt push lands with the form already open —
     // through the same gate, since a signed-out device can still be handed the link.
-    useEffect(() => { if (autoOpen && canReview) { openForm(); } }, [autoOpen, canReview]);
-
-    const { data } = useQuery({
+    const { data, isError, refetch } = useQuery({
         queryKey: ['reviews', providerId],
         queryFn: () => bookingService.providerReviews(providerId),
         enabled: Boolean(providerId),
@@ -102,6 +102,12 @@ const ReviewSection = ({ providerId, canReview, autoOpen = false, onRequireAuth 
             setComment(data.own.comment ?? '');
         }
     }, [data?.own]);
+
+    // `canReview` is who may ever review (not the owner, a provider or an
+    // admin); `can_review` is whether the engine would accept this account's
+    // review. A guest still gets the button — it is the sign-in prompt.
+    const eligible = canReview && (isGuest === true || data?.can_review === true);
+    useEffect(() => { if (autoOpen && eligible) { openForm(); } }, [autoOpen, eligible]);
 
     const mut = useMutation({
         mutationFn: () => bookingService.submitReview({ providerId, rating, comment }),
@@ -119,7 +125,19 @@ const ReviewSection = ({ providerId, canReview, autoOpen = false, onRequireAuth 
         },
     });
 
-    if (!providerId || !data) return null;
+    if (!providerId) return null;
+    // A failed load must not silently erase the section — a provider's
+    // reputation vanishing reads as "no reputation". Mirrors the web.
+    if (isError) {
+        return (
+            <View style={styles.card}>
+                <Text style={styles.title}>{t('review.title')}</Text>
+                <Text style={styles.empty}>{t('common.error')}</Text>
+                <Button title={t('common.retry')} onPress={() => refetch()} variant="secondary" size="small" />
+            </View>
+        );
+    }
+    if (!data) return null;
 
     return (
         <View style={styles.card}>
@@ -133,7 +151,11 @@ const ReviewSection = ({ providerId, canReview, autoOpen = false, onRequireAuth 
                 </View>
             </View>
 
-            {canReview && !showForm && (
+            {canReview && !eligible && isGuest === false && (
+                <Text style={styles.empty}>{t('review.notEligible')}</Text>
+            )}
+
+            {eligible && !showForm && (
                 <Button
                     title={data.own ? t('review.editRating', { defaultValue: t('review.yourRating') }) : t('review.submit')}
                     onPress={openForm}
@@ -142,7 +164,7 @@ const ReviewSection = ({ providerId, canReview, autoOpen = false, onRequireAuth 
                 />
             )}
 
-            {canReview && showForm && (
+            {eligible && showForm && (
                 <View style={styles.form}>
                     <Stars value={rating} size={26} color={colors.warning} onSelect={setRating} t={t} />
                     <TextInput

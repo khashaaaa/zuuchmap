@@ -29,7 +29,9 @@ const bookingService = {
     const res = await apiClient.post(E.REVIEWS.CREATE, {
       provider_id: providerId,
       rating,
-      comment: comment || undefined,
+      // Always sent: an omitted comment means "leave it alone" to the engine,
+      // so clearing the text kept the old comment under the new rating.
+      comment: (comment ?? '').trim(),
     });
     return res.data;
   },

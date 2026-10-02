@@ -123,6 +123,12 @@ export function useRealtimeSync() {
       } else if (conversationId) {
         qc.invalidateQueries({ queryKey: ['conversation', conversationId] })
       }
+      // Already reading this thread: the message has just appeared in it, so
+      // a toast, a chime and a bell row on top are noise. The app's
+      // `presentLocal` skips the same case.
+      const reading = document.visibilityState === 'visible' &&
+        window.location.pathname === `/messages/${conversationId}`
+      if (reading) return
       playNotifySound()
       toast(preview || t('messages.title'))
       useNotificationStore.getState().add({

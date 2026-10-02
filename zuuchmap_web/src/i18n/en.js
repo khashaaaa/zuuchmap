@@ -20,7 +20,7 @@ export default {
       BOOKING_OVERLAP: 'These dates overlap an already accepted booking.',
       BOOKING_NOT_CANCELLABLE: 'This booking can no longer be cancelled.',
       REVIEW_SELF: 'You cannot review yourself.',
-      REVIEW_NEEDS_BOOKING: 'Only customers with an accepted booking can leave a review.',
+      REVIEW_NEEDS_BOOKING: 'You can review a provider once they accept your booking or reply to your message.',
       REVIEW_NOT_YOURS: "This review isn't yours.",
       COMPANY_FORBIDDEN: 'You can only manage your own company.',
     },
@@ -505,6 +505,7 @@ export default {
     summaryPeak: '{{label}}: {{total}} total over {{days}} days, peaking at {{peak}}',
   },
   review: {
+    notEligible: 'You can review a provider once they accept your booking or reply to your message.',
     showAll: 'Show all {{count}} reviews',
     title: 'Reviews', yourRating: 'Your rating', comment: 'Write a comment...',
     submit: 'Submit review', submitted: 'Your review has been saved',

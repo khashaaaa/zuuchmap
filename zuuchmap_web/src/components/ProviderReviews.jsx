@@ -90,6 +90,9 @@ export default function ProviderReviews({ providerId, canReview, onRequireAuth }
   )
   if (!data) return null
   const { average, count, reviews } = data
+  // `canReview` is who may ever review (a signed-in customer, not the owner);
+  // `can_review` is whether the engine would accept this one's review.
+  const eligible = canReview && data.can_review
 
   return (
     <InfoSection title={t('review.title')} className="space-y-3">
@@ -105,7 +108,11 @@ export default function ProviderReviews({ providerId, canReview, onRequireAuth }
         <Button size="sm" variant="outline" onClick={onRequireAuth}>{t('auth.guestReview')}</Button>
       )}
 
-      {canReview && (
+      {canReview && !eligible && (
+        <p className="text-xs text-muted">{t('review.notEligible')}</p>
+      )}
+
+      {eligible && (
         <div className="bg-surface2 rounded-inset p-3 space-y-2">
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted">{t('review.yourRating')}</span>

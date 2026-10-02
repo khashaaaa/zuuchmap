@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Param,
+  ParseUUIDPipe,
   Body,
   Req,
   UseGuards,
@@ -24,11 +25,20 @@ export class ReviewController {
 
   @Get('provider/:id')
   @UseGuards(OptionalJwtAuthGuard)
-  async forProvider(@Param('id') providerId: string, @Req() req) {
-    const result = await this.reviewService.forProvider(providerId);
-    const own = req.user?.id
-      ? await this.reviewService.ownForProvider(req.user.id, providerId)
-      : null;
-    return { ...result, own };
+  async forProvider(
+    @Param('id', ParseUUIDPipe) providerId: string,
+    @Req() req,
+  ) {
+    const userId: string | undefined = req.user?.id;
+    const [result, own, canReview] = await Promise.all([
+      this.reviewService.forProvider(providerId),
+      userId ? this.reviewService.ownForProvider(userId, providerId) : null,
+      // So a client shows the form only to someone the POST would accept,
+      // rather than letting them write a review and answering 403.
+      userId && userId !== providerId
+        ? this.reviewService.canReview(userId, providerId)
+        : false,
+    ]);
+    return { ...result, own, can_review: canReview };
   }
 }

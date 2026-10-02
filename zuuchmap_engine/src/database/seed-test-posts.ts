@@ -1342,7 +1342,7 @@ async function makePhoto(name: string, hex: string, icon: string, v: number, sha
 /**
  * Photo pools keyed `category` and `category:subcategory`: an excavator listing
  * shows excavator pictures, not the same four swatches as every other
- * machinery post. Three per subcategory, four for the category itself.
+ * machinery post. Five per subcategory, six for the category itself.
  */
 async function seedImageFiles(): Promise<Record<string, string[]>> {
   const pools: Record<string, string[]> = {};
@@ -1353,7 +1353,7 @@ async function seedImageFiles(): Promise<Record<string, string[]>> {
     const label = (cat.labels as any)?.mn ?? cat.label ?? key;
     const catIcon = lucideMarkup(PHOTO_ICONS[key] ?? 'package');
     pools[key] = [];
-    for (let n = 1; n <= 4; n++) {
+    for (let n = 1; n <= 6; n++) {
       pools[key].push(
         catIcon
           ? await makePhoto(`seed-${key}-${n}.jpg`, hex, catIcon, n, shape++)
@@ -1365,7 +1365,7 @@ async function seedImageFiles(): Promise<Record<string, string[]>> {
       const subKey = sub.key ?? sub.value ?? sub;
       const icon = lucideMarkup(PHOTO_ICONS[`${key}:${subKey}`] ?? PHOTO_ICONS[key]) ?? catIcon;
       const pool = (pools[`${key}:${subKey}`] = [] as string[]);
-      for (let n = 1; n <= 3; n++) {
+      for (let n = 1; n <= 5; n++) {
         pool.push(await makePhoto(`seed-${key}-${subKey}-${n}.jpg`, hex, icon, n + 1, shape++));
       }
     }
@@ -1676,7 +1676,7 @@ async function seedUsers(client: Client, companies: string[]) {
     admins.push({ id: u.id, phone, email: `${latin(given)}@zuuchmap.mn`, cap: FREE_CAP });
   }
 
-  for (let i = 0; i < 24; i++) {
+  for (let i = 0; i < 48; i++) {
     // plan coverage: free, active paid, and one already past its expiry so the
     // "entitlement is derived on read" path has a subject.
     let plan = 'FREE';
@@ -1736,7 +1736,7 @@ async function seedUsers(client: Client, companies: string[]) {
     providers.push({ id: u.id, phone, email, cap });
   }
 
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 90; i++) {
     const given = GIVEN_NAMES[(i * 7) % GIVEN_NAMES.length];
     const parent = PARENT_NAMES[(i * 5) % PARENT_NAMES.length];
     const avatar =
@@ -1813,19 +1813,19 @@ function priceFor(catKey: string): number {
  * list or a two-item list would show.
  */
 const CATEGORY_VOLUME: Record<string, number> = {
-  vehiclerent: 34,
-  machineryrent: 30,
-  materialstore: 28,
-  construction: 24,
-  jobvacancy: 22,
-  toolrent: 18,
-  transport: 16,
-  usedequipment: 14,
-  designservice: 10,
-  factory: 9,
-  miningsupport: 7,
-  sos: 6,
-  winterservice: 5,
+  vehiclerent: 68,
+  machineryrent: 60,
+  materialstore: 56,
+  construction: 48,
+  jobvacancy: 44,
+  toolrent: 36,
+  transport: 32,
+  usedequipment: 28,
+  designservice: 20,
+  factory: 18,
+  miningsupport: 14,
+  sos: 12,
+  winterservice: 10,
 };
 
 /** Beyond the one-of-each edge pass, the tail of a category is mostly live. */
@@ -1863,10 +1863,10 @@ const pickWeighted = <T>(items: T[], weights: number[]): T => {
 const pickProvince = () =>
   rnd() < 0.45 ? 'ULAANBAATAR' : pick(PROVINCES.filter((p) => p !== 'ULAANBAATAR'));
 
-/** Gallery size distribution — most posts carry one or two photos. */
+/** Gallery size distribution — most posts carry two to four photos. */
 const pickShots = () => {
   const r = rnd();
-  return r < 0.12 ? 0 : r < 0.5 ? 1 : r < 0.78 ? 2 : r < 0.9 ? 3 : 4;
+  return r < 0.06 ? 0 : r < 0.2 ? 1 : r < 0.45 ? 2 : r < 0.7 ? 3 : r < 0.88 ? 4 : 5;
 };
 
 async function seedPosts(
@@ -2213,7 +2213,7 @@ async function seedSavedSearches(client: Client, customers: string[]) {
     },
   ];
   let made = 0;
-  for (let i = 0; i < 18; i++) {
+  for (let i = 0; i < 36; i++) {
     const user = customers[i % customers.length];
     const s = searches[i % searches.length];
     await client.query(
@@ -2243,7 +2243,7 @@ async function seedSavedSearches(client: Client, customers: string[]) {
  */
 async function seedPushDevices(client: Client, userIds: string[]) {
   let made = 0;
-  for (let i = 0; i < 34; i++) {
+  for (let i = 0; i < 70; i++) {
     // A tenth of users have two devices — a phone and a tablet — which is the
     // case the per-device token table exists to handle.
     const user = userIds[i % userIds.length];
@@ -2264,7 +2264,7 @@ async function seedPushDevices(client: Client, userIds: string[]) {
   // provider, so a corpus of EXPO-only rows exercises one of the three
   // transports and makes a broken web fan-out look identical to a quiet one.
   let web = 0;
-  for (let i = 0; i < 14; i++) {
+  for (let i = 0; i < 24; i++) {
     const user = userIds[(i * 5) % userIds.length];
     const endpoint = `https://fcm.googleapis.com/fcm/send/${createHash('sha256').update(`web-${SEED}-${i}`).digest('hex').slice(0, 32)}`;
     await client.query(
@@ -2517,7 +2517,7 @@ async function seedAnalytics(client: Client, userIds: string[]) {
     'auth.verified',
   ];
   let made = 0;
-  for (let i = 0; i < 400; i++) {
+  for (let i = 0; i < 1500; i++) {
     const name = pick(events);
     await client.query(
       `INSERT INTO analytics_event (name, anon_id, path, platform, props, occurred_at, "userId")
@@ -2722,7 +2722,7 @@ async function seedConversations(client: Client, customers: string[]) {
   let messages = 0;
   const seen = new Set<string>();
 
-  for (let i = 0; i < 46; i++) {
+  for (let i = 0; i < 110; i++) {
     const post = posts[(i * 7) % posts.length];
     const customer = customers[(i * 3) % customers.length];
     if (customer === post.userId) continue;
@@ -2878,7 +2878,7 @@ async function seedReports(client: Client, customers: string[]) {
   const postOrder = shuffle<{ id: number; userId: string }>(posts);
   const reporterOrder = shuffle<string>(customers);
   let made = 0;
-  for (let i = 0; i < 34; i++) {
+  for (let i = 0; i < 50; i++) {
     const post = postOrder[i % postOrder.length];
     const reporter = reporterOrder[i % reporterOrder.length];
     if (reporter === post.userId) continue;
@@ -2953,7 +2953,7 @@ async function seedPayments(client: Client) {
   ];
   const counts: Record<string, number> = {};
   let made = 0;
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 50; i++) {
     const user = users[i % users.length];
     const p = plans[i % plans.length];
     // Historic prices differ from today's — a receipt is a record, not a lookup.

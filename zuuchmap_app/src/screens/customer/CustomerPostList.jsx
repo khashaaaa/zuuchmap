@@ -354,7 +354,6 @@ const CustomerPostList = ({ route, navigation }) => {
         const post_key = `${item.post_type}-${item.id}`;
         const liked = likedPostsStatus[post_key] || false;
         const emphasisLabel = emphasisByKey[item.post_type] || '';
-        const featured = !!item.featured_until && new Date(item.featured_until) > new Date();
         const imageUri = getPostImage(item);
         // Only the heart whose request is in flight is held; the rest stay tappable.
         const pending = toggleLike.isPending && toggleLike.variables?.post_id === item.id;
@@ -383,12 +382,6 @@ const CustomerPostList = ({ route, navigation }) => {
                                 </View>
                             ) : (
                                 <CategoryBadge postType={item.post_type} showIcon={true} />
-                            )}
-                            {featured && (
-                                <View style={styles.featuredBadge}>
-                                    <Ionicons name="star" size={10} color={colors.onPrimary} />
-                                    <Text style={styles.badgeText} numberOfLines={1}>{t('posts.featured')}</Text>
-                                </View>
                             )}
                         </View>
                     }
@@ -766,17 +759,6 @@ const createStyles = (colors) => StyleSheet.create({
     // category's own label, so rendering both would print the same words twice.
     emphasizedBadge: {
         flexShrink: 1,
-        backgroundColor: colors.primary,
-        paddingVertical: spacing.xxs,
-        paddingHorizontal: spacing.xs,
-        borderRadius: radius.tag,
-    },
-    // Paid placement.
-    featuredBadge: {
-        flexShrink: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.xxs,
         backgroundColor: colors.primary,
         paddingVertical: spacing.xxs,
         paddingHorizontal: spacing.xs,

@@ -1,7 +1,7 @@
 import { memo } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, useReducedMotion } from 'framer-motion'
-import { MapPin, Eye } from 'lucide-react'
+import { MapPin, Eye, Star } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getImageUrl, getPostTitle, getPostCategory, getCategoryLabel, getCategoryColor, toneForTheme, withAlpha, formatPrice, formatDate } from '../lib/utils'
 import { useThemeStore } from '../store'
@@ -47,15 +47,15 @@ function PostCard({ post, actions, to }) {
     <motion.div
       whileHover={shouldReduceMotion ? undefined : { y: -3 }}
       transition={{ duration: shouldReduceMotion ? 0 : 0.15 }}
-      className={`group bg-surface border ${emphasized ? 'border-primary/50 bg-primary/5' : 'border-border/20'} shadow-card hover:shadow-card-hover transition-shadow duration-200 rounded-card overflow-hidden flex flex-col`}
+      className={`group relative bg-surface border ${emphasized ? 'border-primary/50 bg-primary/5' : 'border-border/20'} shadow-card hover:shadow-card-hover transition-shadow duration-200 rounded-card overflow-hidden flex flex-col`}
     >
       {/* `@max-md:` is the grid's own width (PostGrid is the container), so it
           is true exactly when the grid has collapsed to one column — a phone.
           There the card lies down: a stacked 4:3 photo made each listing ~500px
           tall, one and a half to a screen across a list of ninety. Outside a
           container (the carousels) nothing matches and the card stays stacked. */}
-      <Link to={to ?? `/posts/${post.id}`} className="block @max-md:flex">
-        <div className="relative aspect-[4/3] @max-md:aspect-auto @max-md:w-28 @max-md:shrink-0 bg-surface2 overflow-hidden">
+      <Link to={to ?? `/posts/${post.id}`} className="block @max-md:flex @max-md:gap-3 @max-md:p-2.5">
+        <div className="relative aspect-[4/3] @max-md:aspect-square @max-md:w-24 @max-md:self-start @max-md:shrink-0 @max-md:rounded-inset bg-surface2 overflow-hidden">
           {img ? (
             <img
               src={getThumbUrl(img)}
@@ -71,28 +71,13 @@ function PostCard({ post, actions, to }) {
               <span className={catBase ? 'opacity-80' : 'text-muted'}>{t('posts.noImage')}</span>
             </div>
           )}
-          {/* Approved and live is the norm on every public/customer card — only
-              surface the exceptional states. Moderation first (pending/rejected,
-              what a provider acts on), then a lapsed window: browse filters
-              EXPIRED out, so the saved list is the one place a customer meets a
-              listing that is no longer on the market, and it used to look
-              identical to a live one. RENTED does stay in browse — it is still
-              bookable for later dates — and the app marks it, so browse here
-              must too or the two clients show the same row differently. */}
-          {/* On an opaque ground of its own: the badge's fill is a 10% tint
-              meant for a surface, and straight over a photo "Дууссан" was red
-              on teal at no contrast at all. Moves into the text column when
-              the card lies down — it is wider than that thumbnail. */}
-          {badgeStatus && (
-            <div className="absolute top-2 right-2 rounded-md bg-surface @max-md:hidden">
-              <StatusBadge status={badgeStatus} />
-            </div>
-          )}
-          {/* Paid placement marker. Sits top-LEFT because top-right is the
-              StatusBadge slot. Bounded width — the label is translated. */}
+          {/* Paid placement marker, top-left — top-right is the actions slot.
+              A labelled chip where the photo is wide, the app's star where it
+              is a thumbnail. */}
           {featured && (
-            <span className="absolute top-2 left-2 max-w-[70%] truncate px-2 py-0.5 rounded-md text-xs font-semibold bg-primary text-on-primary">
-              {t('admin.featured')}
+            <span title={t('admin.featured')} className="absolute top-2 left-2 @max-md:top-1.5 @max-md:left-1.5 max-w-[70%] truncate inline-flex items-center gap-1 px-2 py-0.5 @max-md:p-1 rounded-md @max-md:rounded-full text-xs font-semibold bg-primary text-on-primary">
+              <Star size={11} fill="currentColor" className="shrink-0" />
+              <span className="@max-md:sr-only">{t('admin.featured')}</span>
             </span>
           )}
           {/* Attention strip for emphasized categories — mirrors the app's
@@ -105,28 +90,39 @@ function PostCard({ post, actions, to }) {
             </div>
           )}
         </div>
-        <div className="p-3.5 @max-md:p-3 @max-md:flex-1 @max-md:min-w-0">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <CategoryBadge category={getPostCategory(post)} />
-            {badgeStatus && <span className="hidden @max-md:inline-flex"><StatusBadge status={badgeStatus} /></span>}
+        <div className="p-3.5 @max-md:p-0 @max-md:py-0.5 @max-md:flex-1 @max-md:min-w-0">
+          {/* Approved and live is the norm on every public/customer card — only
+              surface the exceptional states. Moderation first (pending/rejected,
+              what a provider acts on), then a lapsed window: browse filters
+              EXPIRED out, so the saved list is the one place a customer meets a
+              listing that is no longer on the market. RENTED does stay in
+              browse — it is still bookable for later dates — and the app marks
+              it, so browse here must too. Beside the category rather than on
+              the photo: the photo's corner holds the actions. */}
+          <div className={`flex flex-wrap items-center gap-1.5 ${actions ? '@max-md:pr-9' : ''}`}>
+            <CategoryBadge category={category} />
+            {badgeStatus && <StatusBadge status={badgeStatus} />}
           </div>
-          <p className="text-sm md:text-base font-semibold text-text mt-2 line-clamp-2 leading-tight">{title}</p>
-          {price && <p className="text-primary-text font-bold text-sm md:text-base mt-1 tabular-nums">{price}</p>}
-          <div className="flex flex-wrap items-center justify-between mt-2">
+          <p className="text-sm md:text-base font-semibold text-text mt-2 @max-md:mt-1.5 line-clamp-2 leading-snug">{title}</p>
+          {price && <p className="text-primary-text font-bold text-base md:text-lg mt-1 tabular-nums">{price}</p>}
+          <div className="flex items-center gap-2 mt-2 text-xs text-muted">
             {location && (
-              <span className="flex items-center gap-1 text-xs text-muted">
-                <MapPin size={11} /> {location}
+              <span className="flex items-center gap-1 min-w-0">
+                <MapPin size={11} className="shrink-0" /> <span className="truncate">{location}</span>
               </span>
             )}
-            <span className="flex items-center gap-1 text-xs text-muted ml-auto tabular-nums">
-              <Eye size={11} /> {post.views ?? 0}
+            <span className="flex items-center gap-2 ml-auto shrink-0 tabular-nums">
+              <span>{formatDate(post.date_created)}</span>
+              <span className="flex items-center gap-1"><Eye size={11} /> {post.views ?? 0}</span>
             </span>
           </div>
-          <p className="text-xs text-muted mt-1">{formatDate(post.date_created)}</p>
-          {showAvailability && <AvailabilityStrip busyDates={post.busy_dates} className="mt-2.5" />}
+          {showAvailability && <AvailabilityStrip busyDates={post.busy_dates} className="mt-2.5 pt-2.5 border-t border-border/20" />}
         </div>
       </Link>
-      {actions && <div className="px-3.5 pb-3.5 mt-2.5">{actions}</div>}
+      {/* The card's top-right corner: over the photo when stacked, over the
+          text column when the card lies down. Outside the Link, so a press
+          never navigates. */}
+      {actions && <div className="absolute top-2 right-2 @max-md:top-2 @max-md:right-2 z-10">{actions}</div>}
     </motion.div>
   )
 }

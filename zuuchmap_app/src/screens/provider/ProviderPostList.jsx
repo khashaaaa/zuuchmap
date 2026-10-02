@@ -104,12 +104,6 @@ const PostItem = React.memo(({
             memoKey={`${locale}-${isDark}-${isLoading}-${item.approval_status}-${item.rejection_reason}-${!!item.pending_revision}-${item.expires_at}-${stat?.views}-${stat?.likes}-${stat?.bookings_pending}-${stat?.bookings_accepted}-${bookable}`}
             badges={<>
                 <CategoryBadge postType={item.post_type || item.category || 'construction'} showIcon={true} />
-                {!!item.featured_until && new Date(item.featured_until) > new Date() && (
-                    <View style={styles.featuredChip}>
-                        <Ionicons name="star" size={11} color={colors.onPrimary} />
-                        <Text style={styles.featuredChipText} numberOfLines={1}>{t('posts.featured')}</Text>
-                    </View>
-                )}
 
                 {/* The shared badge, not a local one. This screen used to draw its
                     own tinted-outline chip from `posts.approval.*`, so the same
@@ -640,26 +634,6 @@ const createStyles = (colors) => StyleSheet.create({
     },
     listContainer: {
         padding: spacing.lg,
-    },
-    // Paid placement, shown to the owner so they can see what they bought.
-    featuredChip: {
-        alignSelf: 'flex-start',
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.xxs,
-        maxWidth: '100%',
-        marginTop: spacing.xs,
-        backgroundColor: colors.primary,
-        paddingVertical: spacing.xxs,
-        paddingHorizontal: spacing.xs,
-        borderRadius: radius.sm,
-    },
-    featuredChipText: {
-        ...typography.styles.overline,
-        color: colors.onPrimary,
-        // Yoga defaults flexShrink to 0 — without this a long translation
-        // pushes the star out of the chip instead of truncating.
-        flexShrink: 1,
     },
     menuButton: {
         width: 32,

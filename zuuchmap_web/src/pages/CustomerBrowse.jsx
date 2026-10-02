@@ -542,14 +542,16 @@ export default function CustomerBrowse() {
                       likeMut.mutate({ postId: post.id, postType, isLiked: saved })
                     }}
                     disabled={isPendingThis}
-                    className={`w-full flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium border rounded-btn transition-colors disabled:opacity-50 ${
+                    aria-label={saved ? t('posts.unsave') : t('common.save')}
+                    aria-pressed={saved}
+                    title={saved ? t('posts.unsave') : t('common.save')}
+                    className={`size-8 flex items-center justify-center rounded-full shadow-card backdrop-blur-sm transition-colors disabled:opacity-50 ${
                       saved
-                        ? 'bg-primary/15 text-primary-text border-primary/30 hover:bg-danger/10 hover:text-danger hover:border-danger/30'
-                        : 'border-border/50 text-muted hover:text-primary-text hover:border-primary/40'
+                        ? 'bg-primary text-on-primary hover:bg-danger hover:text-on-color'
+                        : 'bg-surface/90 text-muted hover:text-primary-text'
                     }`}
                   >
-                    <Heart size={12} className={isPendingThis ? 'animate-pulse' : ''} fill={saved ? 'currentColor' : 'none'} />
-                    {saved ? t('nav.saved') : t('common.save')}
+                    <Heart size={15} className={isPendingThis ? 'animate-pulse' : ''} fill={saved ? 'currentColor' : 'none'} />
                   </button>
                 ) : null}
               />

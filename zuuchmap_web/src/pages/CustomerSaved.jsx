@@ -75,15 +75,16 @@ export default function CustomerSaved() {
               key={post.id}
               post={post}
               actions={
-                <Button
-                  variant="danger-outline"
-                  size="sm"
-                  className="w-full"
+                <button
+                  type="button"
                   onClick={() => unlikeMut.mutate({ postType: post.post_type || getPostCategory(post), postId: post.id })}
                   disabled={isPendingThis}
+                  aria-label={t('posts.unsave')}
+                  title={t('posts.unsave')}
+                  className="size-8 flex items-center justify-center rounded-full shadow-card backdrop-blur-sm bg-primary text-on-primary hover:bg-danger hover:text-on-color transition-colors disabled:opacity-50"
                 >
-                  <Heart size={12} className={isPendingThis ? 'animate-pulse' : ''} fill="currentColor" /> {t('posts.unsave')}
-                </Button>
+                  <Heart size={15} className={isPendingThis ? 'animate-pulse' : ''} fill="currentColor" />
+                </button>
               }
             />
           )

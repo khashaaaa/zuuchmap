@@ -5,11 +5,15 @@ import { Ionicons } from '@expo/vector-icons';
 import PressableScale from './PressableScale';
 import CategoryBadge from './CategoryBadge';
 import StatusBadge from './StatusBadge';
-import { spacing, typography, radius, tintOn } from '../design/theme';
+import { spacing, typography, radius, tintOn, isTablet } from '../design/theme';
 import { useAppTheme } from '../hooks/useAppTheme';
 
+// An inset square rather than a full-height strip: stretched to the card, a
+// rental card's photo became a sliver twice as tall as it was wide.
+const THUMB = isTablet ? 120 : 96;
+
 /**
- * The one list card for a post: 96pt thumbnail, title row with a trailing
+ * The one list card for a post: inset square thumbnail, title row with a trailing
  * action, a badge row, price, whatever the screen adds below, and a footer.
  * Customer browse, saved posts, the provider's own posts and the admin queue
  * all render this; only `actions`/`badges`/`children`/`footer` differ.
@@ -45,6 +49,9 @@ const PostCard = ({
     const handlePress = useCallback(() => onPress?.(item), [item, onPress]);
     const statusFlag =
         item.approval_status && item.approval_status !== 'APPROVED' ? item.approval_status : null;
+    // Paid placement, server-decided. A star on the photo (the web's corner
+    // marker) — as a badge-row pill it sat on every featured card's busiest line.
+    const featured = !!item.featured_until && new Date(item.featured_until) > new Date();
 
     return (
         <PressableScale
@@ -66,8 +73,8 @@ const PostCard = ({
                         <Ionicons name="image-outline" size={28} color={colors.iconAccent} />
                     </View>
                 )}
-                {/* The thumbnail holds exactly one overlay: status belongs on
-                    the photo, everything else lives in the content column.
+                {/* The thumbnail holds status (top-right) and the featured star
+                    (top-left); everything else lives in the content column.
                     Moderation outranks the lifecycle state — a listing that was
                     rejected or is still in review says so, and only then does
                     the card fall back to ACTIVE/RENTED/EXPIRED. Browse only ever
@@ -79,6 +86,11 @@ const PostCard = ({
                     Expired badges that do mean something. No badge = live. */}
                 {statusOverlay && (statusFlag || (item.status !== 'ACTIVE' && item.status)) ? (
                     <StatusBadge status={statusFlag || item.status} variant="overlay" position="absolute" showIndicator={false} />
+                ) : null}
+                {featured ? (
+                    <View style={styles.featuredMark}>
+                        <Ionicons name="star" size={11} color={colors.onPrimary} />
+                    </View>
                 ) : null}
             </View>
 
@@ -113,7 +125,8 @@ const createStyles = (colors) => StyleSheet.create({
         overflow: 'hidden',
         flexDirection: 'row',
         alignItems: 'flex-start',
-        minHeight: 120,
+        padding: spacing.sm,
+        gap: spacing.md,
         borderWidth: 1,
         borderColor: colors.border.light,
     },
@@ -123,23 +136,33 @@ const createStyles = (colors) => StyleSheet.create({
         backgroundColor: tintOn(colors.primary, 0.08, colors.surface),
     },
     imageContainer: {
-        width: 96,
-        alignSelf: 'stretch',
+        width: THUMB,
+        height: THUMB,
+        borderRadius: radius.inset,
         overflow: 'hidden',
         backgroundColor: colors.border.light,
     },
-    // Absolutely positioned so the image can never dictate the card's height:
-    // a percentage height inside a stretch-sized box falls back to the image's
-    // intrinsic size (800px seed photos → screen-tall cards).
+    // Absolutely positioned so the image can never dictate the box's size.
     postImage: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
     noImageContainer: {
         position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
         justifyContent: 'center',
         alignItems: 'center',
     },
+    featuredMark: {
+        position: 'absolute',
+        top: spacing.xs,
+        left: spacing.xs,
+        width: 20,
+        height: 20,
+        borderRadius: radius.pill,
+        backgroundColor: colors.primary,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
     postContent: {
         flex: 1,
-        padding: spacing.md,
+        minHeight: THUMB,
         gap: spacing.xs,
     },
     postHeader: {

@@ -347,8 +347,10 @@ const userService = {
         try {
             const formData = new FormData();
 
+            // Blanks are sent: on an edit `''` is "clear this field", and
+            // dropping it left the old value in place behind a success message.
             Object.keys(companyData).forEach(key => {
-                if (key !== 'logo' && companyData[key] !== null && companyData[key] !== undefined && companyData[key] !== '') {
+                if (key !== 'logo' && companyData[key] !== null && companyData[key] !== undefined) {
                     formData.append(key, companyData[key].toString());
                 }
             });

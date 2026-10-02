@@ -19,8 +19,8 @@ export class Company {
   @Column({ nullable: true })
   description: string;
 
-  @Column({ nullable: true })
-  logo: string;
+  @Column({ type: 'varchar', nullable: true })
+  logo: string | null;
 
   @Column({ nullable: true })
   website: string;

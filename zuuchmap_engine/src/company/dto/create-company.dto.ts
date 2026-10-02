@@ -3,6 +3,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   MaxLength,
   ValidateIf,
 } from 'class-validator';
@@ -14,21 +15,22 @@ import {
  * nothing about it — a non-string or a megabyte of text reached the row intact.
  */
 export class CreateCompanyDto {
-  @IsOptional()
+  // Required: the column is NOT NULL, and a missing name surfaced as a raw
+  // Postgres error. `\S` refuses a name of spaces alone.
   @IsString()
   @MaxLength(120)
-  name?: string;
+  @Matches(/\S/)
+  name: string;
 
   @IsOptional()
   @IsString()
   @MaxLength(2000)
   description?: string;
 
-  // Server-set from the uploaded file; bounded so a client cannot store an
-  // arbitrary blob as an image key.
-  @IsOptional()
-  @IsString()
-  @MaxLength(512)
+  // Server-set only, from the uploaded file — undecorated so the global
+  // `forbidNonWhitelisted` pipe rejects it from a client. Accepted as text, it
+  // let a member point the row at any object in the bucket, and the next logo
+  // upload deleted that object as "the old logo".
   logo?: string;
 
   // Kept a plain bounded string rather than @IsUrl: both clients run it through

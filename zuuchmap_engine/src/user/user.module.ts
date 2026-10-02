@@ -9,12 +9,14 @@ import { User } from './entities/user.entity';
 import { PushDevice } from './entities/push-device.entity';
 import { Post } from '../post/entities/post.entity';
 import { AuthModule } from 'src/auth/auth.module';
+import { CompanyModule } from '../company/company.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, Post, PushDevice]),
     ConfigModule,
     AuthModule,
+    CompanyModule,
   ],
   // UserAdminController shares the `user` prefix — it must stay last so its
   // `:id` routes don't shadow UserController's literal paths.

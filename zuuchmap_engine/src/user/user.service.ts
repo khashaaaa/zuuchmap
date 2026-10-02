@@ -13,6 +13,7 @@ import { countActivePosts } from '../post/active-posts';
 import { PushDevice } from './entities/push-device.entity';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { deleteSingleImage } from '../utils/uploader';
+import { CompanyService } from '../company/company.service';
 
 @Injectable()
 export class UserService {
@@ -25,6 +26,7 @@ export class UserService {
     private readonly postRepository: Repository<Post>,
     @InjectRepository(PushDevice)
     private readonly pushDeviceRepository: Repository<PushDevice>,
+    private readonly companyService: CompanyService,
   ) {}
 
   async setUserType(
@@ -112,14 +114,20 @@ export class UserService {
 
     Object.assign(user, updateUserDto);
 
-    if (profilePicture) {
-      if (user.profile_picture) {
-        await deleteSingleImage(user.profile_picture);
-      }
-      user.profile_picture = profilePicture;
-    }
+    const oldPicture = user.profile_picture;
+    if (profilePicture) user.profile_picture = profilePicture;
 
-    return this.userRepository.save(user);
+    let saved: User;
+    try {
+      saved = await this.userRepository.save(user);
+    } catch (error) {
+      if (profilePicture) await deleteSingleImage(profilePicture);
+      throw error;
+    }
+    // Only once the row no longer points at it — deleting first left a broken
+    // avatar whenever the save failed.
+    if (profilePicture && oldPicture) await deleteSingleImage(oldPicture);
+    return saved;
   }
 
   /**
@@ -212,7 +220,10 @@ export class UserService {
   }
 
   async remove(id: string): Promise<void> {
-    const user = await this.userRepository.findOne({ where: { id } });
+    const user = await this.userRepository.findOne({
+      where: { id },
+      relations: ['company'],
+    });
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
@@ -228,7 +239,7 @@ export class UserService {
       .update()
       .set({ expires_at: gracedAt })
       .where(
-        'user_id = :id AND status != :expired AND (expires_at IS NULL OR expires_at > :gracedAt)',
+        '"userId" = :id AND status != :expired AND (expires_at IS NULL OR expires_at > :gracedAt)',
         {
           id,
           expired: 'EXPIRED',
@@ -238,6 +249,7 @@ export class UserService {
       .execute();
 
     await this.userRepository.delete(id);
+    if (user.company) await this.companyService.removeIfOrphaned(user.company.id);
     // Their token is still cryptographically valid; stop honouring it now.
     forgetSessionUser(id);
   }

@@ -42,11 +42,9 @@ export class UpdateUserDto {
   @MaxLength(300)
   address?: string;
 
-  // Server-set: the controller overwrites this from the uploaded file. Kept on
-  // the DTO so that assignment type-checks, and bounded so a client that sends
-  // one anyway cannot store an arbitrary blob as an image key.
-  @IsOptional()
-  @IsString()
-  @MaxLength(512)
+  // Server-set only, from the uploaded file. Deliberately undecorated, so the
+  // global `forbidNonWhitelisted` pipe rejects it from a client: accepted as
+  // text, it let anyone point their row at another object's key and have the
+  // next upload delete that object as "the old picture".
   profile_picture?: string;
 }

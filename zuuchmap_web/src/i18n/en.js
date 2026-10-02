@@ -7,6 +7,7 @@ export default {
     tooManyRequests: 'Too many requests. Wait a moment.',
     payloadTooLarge: 'The upload is too large. Use fewer or smaller photos.',
     codes: {
+      COMPANY_EXISTS: 'This account already has a company.',
       TOO_MANY_VERIFICATIONS: 'Too many verification attempts. Try again in an hour.',
       BOOKING_POST_UNAVAILABLE: 'This post is not available for booking.',
       POST_HAS_LIVE_BOOKING: 'This post has an accepted booking that has not ended yet. Cancel or wait for it to finish before deleting.',
@@ -285,6 +286,8 @@ export default {
   },
   crop: { title: 'Adjust image', zoom: 'Zoom', rotate: 'Rotate 90°', hint: 'Drag to reposition. The square is what will be shown.' },
   company: {
+    reverifyHint: 'Changing the name, registration number or tax ID removes the verified badge until an admin checks it again.',
+    taxId: 'Tax ID', removeLogo: 'Remove logo',
     regNumber: 'Registration number',
     nameRequired: 'Company name is required',
     title: 'Company', editTitle: 'Edit company', notRegistered: 'No company registered',

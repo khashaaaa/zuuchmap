@@ -27,7 +27,7 @@ import ScreenError from '../../components/ScreenError';
 import { TextInput, Button } from '../../components';
 import { normalizeWebsiteUrl, validateEmail, validatePhone, validateRequired } from '../../utils/formUtils';
 import { logger } from '../../utils/logger';
-import { showErrorModal, showWarningModal } from '../../utils/errorManager';
+import { getErrorMessage, showErrorModal, showWarningModal } from '../../utils/errorManager';
 
 const EMPTY_FORM = {
     name: '',
@@ -193,11 +193,15 @@ const ProviderCompany = ({ route, navigation }) => {
                 if (excludedFields.includes(key)) return;
                 if (form[key] === null || form[key] === undefined) return;
                 const value = form[key].toString().trim();
-                if (value !== '') submitData[key] = value;
+                // An edit sends blanks too — skipping them meant a cleared
+                // field saved "successfully" and came back on reload.
+                if (value !== '' || !isCreate) submitData[key] = value;
             });
 
             const logoIsNewFile = typeof form.logo === 'string' && form.logo.startsWith('file://');
             if (logoIsNewFile && (isCreate || logoChanged)) submitData.logo = form.logo;
+            // The ✕ only nulled the local copy; the server has to be told.
+            else if (!isCreate && logoChanged && !form.logo) submitData.remove_logo = 'true';
 
             if (isCreate) {
                 await userService.createCompany(submitData);
@@ -216,15 +220,23 @@ const ProviderCompany = ({ route, navigation }) => {
         } catch (error) {
             logger.error('Company save error:', error);
 
-            // Server validation messages are shown as-is; local/internal errors
-            // (coded, often untranslated) fall back to the translated copy.
+            // A coded rule error is localised; a server validation message is
+            // shown as-is; local/internal errors fall back to the translated copy.
             let errorMessage = t('company.saveError');
             const message = error.response?.data?.message;
-            if (message) {
+            if (error.response?.data?.code) {
+                errorMessage = getErrorMessage(error);
+            } else if (message) {
                 errorMessage = Array.isArray(message) ? message.join('\n') : message;
             }
 
             showErrorModal(t('common.error'), errorMessage);
+            // Registered meanwhile (the web, a double tap): the profile still
+            // says "no company", so refresh it and leave the create form.
+            if (isCreate && error.response?.data?.code === 'COMPANY_EXISTS') {
+                queryClient.invalidateQueries({ queryKey: PROFILE_KEY });
+                navigation.goBack();
+            }
         } finally {
             setIsSaving(false);
         }
@@ -318,7 +330,7 @@ const ProviderCompany = ({ route, navigation }) => {
             <KeyboardAvoider style={gStyles.keyboardAvoidingView}>
                 <ScreenHeader
                     title={isCreate ? t('company.createTitle') : t('company.title')}
-                    onBack={isCreate ? handleBack : () => navigation.goBack()}
+                    onBack={isCreate || isEditing ? handleBack : () => navigation.goBack()}
                     rightComponent={!isCreate && isEditing ? (
                         <TouchableOpacity
                             style={styles.cancelButton}
@@ -436,6 +448,10 @@ const ProviderCompany = ({ route, navigation }) => {
                         </View>
                     </View>
 
+                    {isEditing && form.is_verified && (
+                        <Text style={styles.reverifyHint}>{t('company.reverifyHint')}</Text>
+                    )}
+
                     {SECTIONS.map((section) => {
                         // Read-only mode drops empty values, so a section with
                         // nothing filled in would render as a blank card.
@@ -519,6 +535,11 @@ const createStyles = (colors) => StyleSheet.create({
         marginLeft: spacing.sm,
         ...typography.styles.labelStrong,
         color: colors.success,
+    },
+    reverifyHint: {
+        ...typography.styles.caption,
+        color: colors.text.secondary,
+        marginBottom: spacing.lg,
     },
     logoSection: {
         marginBottom: spacing.xl,

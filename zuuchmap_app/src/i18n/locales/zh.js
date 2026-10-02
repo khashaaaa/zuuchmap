@@ -121,6 +121,7 @@ export default {
   status: { active: '在线', inactive: '停用', pending: '待审核', approved: '已通过', rejected: '已拒绝', paused: '已暂停', rented: '已出租', expired: '已过期', paid: '已支付', cancelled: '已取消' },
   errors: { badRequest: '请求无效', unauthorized: '需要登录', notFound: '未找到', tooManyRequests: '请求过于频繁，请稍后再试。', payloadTooLarge: '上传内容过大，请减少照片数量或使用更小的照片。', serverError: '服务器错误', unknown: '发生未知错误', authTokenMissing: '需要登录', network: '没有网络连接。', timeout: '请求超时。', loadFailed: '加载失败，请检查网络连接。', unexpected: '发生了意外情况',
     codes: {
+      COMPANY_EXISTS: '该账户已有公司。',
       TOO_MANY_VERIFICATIONS: '验证次数过多，请一小时后再试。',
       BOOKING_POST_UNAVAILABLE: '该信息暂不可预订。',
       POST_HAS_LIVE_BOOKING: '该信息有一条尚未结束的已接受预订。请先取消或等其结束后再删除。',
@@ -312,6 +313,7 @@ export default {
     companyUpdateFailed: '资料已保存，但公司信息未能保存。',
   },
   company: {
+    reverifyHint: '更改名称、注册号或税号后，认证标志将被移除，直到管理员重新审核。',
     title: '公司',
     name: '公司名称', description: '简介',
     website: '网站', phone: '电话',

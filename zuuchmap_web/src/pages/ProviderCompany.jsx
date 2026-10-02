@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Building } from 'lucide-react'
+import { Building, X } from 'lucide-react'
 import { companyApi } from '@/lib/api'
 import { useProfile } from '@/hooks/useProfile'
 import { useApiMutation } from '@/hooks/useApiMutation'
-import { getCompanyLogoUrl, hideBrokenImage, normalizeWebsiteUrl, telHref, validateEmail, validatePhone, validateRequired } from '@/lib/utils'
+import { apiErrorMessage, getCompanyLogoUrl, hideBrokenImage, normalizeWebsiteUrl, telHref, validateEmail, validatePhone, validateRequired } from '@/lib/utils'
 import Button from '@/components/Button'
 import Input from '@/components/Input'
 import PageHeader from '@/components/PageHeader'
@@ -14,12 +14,21 @@ import ErrorState from '@/components/ErrorState'
 import { toast } from 'sonner'
 import ImageCropModal from '@/components/ImageCropModal'
 
+const formFrom = (c) => ({
+  name: c?.name ?? '', description: c?.description ?? '', phone_number: c?.phone_number ?? '',
+  email: c?.email ?? '', address: c?.address ?? '', website: c?.website ?? '',
+  registration_number: c?.registration_number ?? '', tax_id: c?.tax_id ?? '',
+})
+
 export default function ProviderCompany() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [editing, setEditing] = useState(false)
-  const [form, setForm] = useState({ name: '', description: '', phone_number: '', email: '', address: '', website: '' })
+  const [form, setForm] = useState(formFrom(null))
   const [logo, setLogo] = useState(null)
+  // Clearing the stored logo is its own request flag — the server never takes
+  // a logo key from a client, so there is no value to blank.
+  const [removeLogo, setRemoveLogo] = useState(false)
   const [logoUrl, setLogoUrl] = useState(null)
   const [pendingLogo, setPendingLogo] = useState(null)
 
@@ -35,25 +44,42 @@ export default function ProviderCompany() {
   const companyId = profile?.company?.id
 
   const { data: company, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['my-company'],
+    queryKey: ['my-company', companyId],
     queryFn: () => companyApi.getById(companyId),
     enabled: Boolean(companyId),
     staleTime: 30_000,
   })
 
   useEffect(() => {
-    if (company) {
-      setForm({ name: company.name ?? '', description: company.description ?? '', phone_number: company.phone_number ?? '', email: company.email ?? '', address: company.address ?? '', website: company.website ?? '' })
-    }
+    if (company) setForm(formFrom(company))
   }, [company])
+
+  // Back to what the server holds: after a save, so the staged file is not
+  // uploaded again by every later save, and on cancel, so reopening the form
+  // does not resurrect discarded edits.
+  function resetDraft() {
+    setLogo(null)
+    setRemoveLogo(false)
+    if (company) setForm(formFrom(company))
+  }
 
   const createMut = useApiMutation({
     mutationFn: (fd) => companyApi.create(fd),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['my-company'] })
       qc.invalidateQueries({ queryKey: ['profile'] })
+      setLogo(null)
       setEditing(false)
       toast.success(t('company.created'))
+    },
+    onError: (e) => {
+      toast.error(apiErrorMessage(e, t, t('common.error')))
+      // Registered meanwhile (another tab, the app): load it instead of
+      // leaving a create form up for a company that already exists.
+      if (e?.response?.data?.code === 'COMPANY_EXISTS') {
+        qc.invalidateQueries({ queryKey: ['profile'] })
+        setEditing(false)
+      }
     },
   })
 
@@ -62,14 +88,16 @@ export default function ProviderCompany() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['my-company'] })
       qc.invalidateQueries({ queryKey: ['profile'] })
+      setLogo(null)
+      setRemoveLogo(false)
       setEditing(false)
       toast.success(t('company.updated'))
     },
   })
 
-  // Same rules the app applies in ProviderCompany/EditProfileScreen — the company
-  // DTOs have no server-side validation, so whatever passes here is what lands in
-  // the database. Errors surface as a toast rather than inline: the web idiom,
+  // Same rules the app applies in ProviderCompany/EditProfileScreen — the
+  // company DTOs bound lengths and check the email, but phone format is checked
+  // only here. Errors surface as a toast rather than inline: the web idiom,
   // and the app's inline field errors are a phone-form affordance.
   function validate() {
     if (!validateRequired(form.name)) return t('company.nameRequired')
@@ -93,6 +121,7 @@ export default function ProviderCompany() {
     // instead of silently keeping its old value behind a success toast.
     Object.entries(payload).forEach(([k, v]) => fd.append(k, v ?? ''))
     if (logo) fd.append('logo', logo)
+    else if (removeLogo && company) fd.append('remove_logo', 'true')
     company ? updateMut.mutate(fd) : createMut.mutate(fd)
   }
 
@@ -141,6 +170,8 @@ export default function ProviderCompany() {
       [t('common.email'), company.email, 'email'],
       [t('common.address'), company.address, null],
       [t('common.website'), company.website, 'website'],
+      [t('company.regNumber'), company.registration_number, null],
+      [t('company.taxId'), company.tax_id, null],
     ]
     return (
       <div className="max-w-md">
@@ -178,7 +209,11 @@ export default function ProviderCompany() {
     // 'text' + inputMode, not type="url": the browser would reject the bare
     // "example.mn" that normalizeWebsiteUrl turns into a valid link on submit.
     [t('common.website'), 'website', false, 'text', 'url'],
+    // What an admin checks against the state register before verifying.
+    [t('company.regNumber'), 'registration_number', false, 'text'],
+    [t('company.taxId'), 'tax_id', false, 'text'],
   ]
+  const shownLogo = logoUrl ?? (!removeLogo && company?.logo ? getCompanyLogoUrl(company.logo) : null)
 
   return (
     <div className="max-w-md">
@@ -187,8 +222,7 @@ export default function ProviderCompany() {
         <div className="flex items-center gap-3">
           <label className="relative cursor-pointer">
             <div className="w-16 h-16 rounded-inset bg-surface2 border border-border/50 overflow-hidden flex items-center justify-center">
-              {logoUrl ? <img src={logoUrl} alt="" className="w-full h-full object-cover" onError={hideBrokenImage} /> :
-               company?.logo ? <img src={getCompanyLogoUrl(company.logo)} alt="" className="w-full h-full object-cover" onError={hideBrokenImage} /> :
+              {shownLogo ? <img src={shownLogo} alt="" className="w-full h-full object-cover" onError={hideBrokenImage} /> :
                <Building size={20} className="text-muted" />}
             </div>
             <input type="file" accept="image/*" className="hidden" onChange={(e) => {
@@ -199,7 +233,14 @@ export default function ProviderCompany() {
             }} />
           </label>
           <span className="text-xs text-muted">{t('company.logo')}</span>
+          {shownLogo && (
+            <button type="button" onClick={() => { setLogo(null); setRemoveLogo(true) }}
+              className="ml-auto inline-flex items-center gap-1 text-xs text-muted hover:text-danger transition-colors">
+              <X size={14} /> {t('company.removeLogo')}
+            </button>
+          )}
         </div>
+        {company?.is_verified && <p className="text-xs text-muted">{t('company.reverifyHint')}</p>}
         <ImageCropModal file={pendingLogo} onDone={(f) => { setPendingLogo(null); setLogo(f) }} onCancel={() => setPendingLogo(null)} />
         {formFields.map(([label, key, req, inputType, mode]) => (
           <div key={key}>
@@ -216,7 +257,7 @@ export default function ProviderCompany() {
           </div>
         ))}
         <div className="flex gap-2">
-          {company && <Button type="button" variant="outline" size="lg" className="flex-1" onClick={() => setEditing(false)}>{t('common.cancel')}</Button>}
+          {company && <Button type="button" variant="outline" size="lg" className="flex-1" onClick={() => { resetDraft(); setEditing(false) }}>{t('common.cancel')}</Button>}
           <Button type="submit" size="lg" disabled={createMut.isPending || updateMut.isPending} className="flex-1">
             {createMut.isPending || updateMut.isPending ? t('common.saving') : t('common.save')}
           </Button>

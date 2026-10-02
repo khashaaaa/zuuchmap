@@ -22,7 +22,7 @@ import ScreenHeader from '../../components/ScreenHeader';
 import { ScreenLayout, TextInput } from '../../components';
 import Button from '../../components/Button';
 import Avatar from '../../components/Avatar';
-import { validateEmail, validatePhone, validateRequired } from '../../utils/formUtils';
+import { normalizeWebsiteUrl, validateEmail, validatePhone, validateRequired } from '../../utils/formUtils';
 import { showErrorModal, showInfoModal, showWarningModal } from '../../utils/errorManager';
 import { logger } from '../../utils/logger';
 import { queryClient } from '../../services/queryClient';
@@ -207,9 +207,11 @@ const EditProfileScreen = ({ route, navigation }) => {
             if (companyId) {
                 try {
                     const companyPayload = COMPANY_FIELDS.reduce((acc, f) => {
-                        acc[f.api] = formData[f.key];
+                        acc[f.api] = formData[f.key].trim();
                         return acc;
                     }, {});
+                    // Same normalisation the company screen applies on blur.
+                    companyPayload.website = normalizeWebsiteUrl(companyPayload.website);
                     if (newCompanyLogoSelected) companyPayload.logo = companyLogo;
 
                     await userService.updateCompany(companyId, companyPayload);
@@ -229,7 +231,12 @@ const EditProfileScreen = ({ route, navigation }) => {
             // popping the screen discarded the company fields the user had just
             // typed, which made the warning's "please try again" impossible to
             // act on — the values it referred to were already gone.
-            if (companyFailed) return;
+            if (companyFailed) {
+                // The photo landed with the profile half; a retry must not
+                // upload it again (and delete the copy just stored).
+                setNewProfileImageSelected(false);
+                return;
+            }
 
             setDirty(false);
             navigation.goBack();
@@ -374,6 +381,9 @@ const EditProfileScreen = ({ route, navigation }) => {
                             </View>
 
                             <View style={styles.formSection}>
+                                {profile?.companyIsVerified && (
+                                    <Text style={styles.reverifyHint}>{t('company.reverifyHint')}</Text>
+                                )}
                                 <View style={styles.formCard}>
                                     {COMPANY_FIELDS.map((f, i) => renderField(f, i === COMPANY_FIELDS.length - 1))}
                                 </View>
@@ -495,6 +505,11 @@ const createStyles = (colors) => StyleSheet.create({
     },
     lastField: {
         marginBottom: 0,
+    },
+    reverifyHint: {
+        ...typography.styles.caption,
+        color: colors.text.secondary,
+        marginBottom: spacing.md,
     },
     buttonContainer: {
         // A bar pinned to the bottom needs an upward separator; elevation casts

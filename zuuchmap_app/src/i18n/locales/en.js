@@ -122,6 +122,7 @@ export default {
   status: { active: 'Active', inactive: 'Inactive', pending: 'Pending', approved: 'Approved', rejected: 'Rejected', paused: 'Paused', rented: 'Rented', expired: 'Expired', paid: 'Paid', cancelled: 'Cancelled' },
   errors: { badRequest: 'Bad request', unauthorized: 'Authentication required', notFound: 'Not found', tooManyRequests: 'Too many requests. Wait a moment.', payloadTooLarge: 'The upload is too large. Use fewer or smaller photos.', serverError: 'Server error', unknown: 'An unknown error occurred', authTokenMissing: 'Authentication required', network: 'No internet connection.', timeout: 'The request took too long.', loadFailed: "Couldn't load this. Check your connection.", unexpected: 'Something unexpected happened',
     codes: {
+      COMPANY_EXISTS: 'This account already has a company.',
       TOO_MANY_VERIFICATIONS: 'Too many verification attempts. Try again in an hour.',
       BOOKING_POST_UNAVAILABLE: 'This post is not available for booking.',
       POST_HAS_LIVE_BOOKING: 'This post has an accepted booking that has not ended yet. Cancel or wait for it to finish before deleting.',
@@ -313,6 +314,7 @@ export default {
     companyUpdateFailed: 'Profile saved. Company details were not.',
   },
   company: {
+    reverifyHint: 'Changing the name, registration number or tax ID removes the verified badge until an admin checks it again.',
     title: 'Company',
     name: 'Company name', description: 'Description',
     website: 'Website', phone: 'Phone',

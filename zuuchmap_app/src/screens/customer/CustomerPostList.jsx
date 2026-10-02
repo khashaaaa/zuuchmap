@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef, useDeferredValue } from 'react';
 import { track } from '../../services/analytics';
 import {
     View,
@@ -114,6 +114,15 @@ const CustomerPostList = ({ route, navigation }) => {
 
     // --- Data fetching ---
 
+    // The list reads the filters one render behind the chips. A chip tap
+    // paints its highlight (and dims the list) at once; mounting the new
+    // results follows in a deferred render instead of holding the tap's frame.
+    const listFilters = useDeferredValue(filters);
+    // Only what the query reads: price and attributes are debounced on their
+    // own, and comparing the whole object would flash the dim per keystroke.
+    const listBehind = ['category', 'subcategory', 'province', 'district', 'sort', 'status']
+        .some((k) => listFilters[k] !== filters[k]);
+
     // Filter mode: fetch by specific post type
     const getPostType = useMemo(() => (isFilterMode ? categoryToPostType(routeCategory) : null), [isFilterMode, routeCategory]);
 
@@ -126,28 +135,28 @@ const CustomerPostList = ({ route, navigation }) => {
         const params = {
             approval_status: 'APPROVED',
             limit: PAGE_SIZE,
-            category: isFilterMode ? getPostType : (filters.category || undefined),
+            category: isFilterMode ? getPostType : (listFilters.category || undefined),
             subcategory: isFilterMode
                 ? (routeSubcategory || undefined)
-                : ((filters.category && filters.subcategory) || undefined),
+                : ((listFilters.category && listFilters.subcategory) || undefined),
             q: q || undefined,
         };
         // Location and attributes apply in both modes: a saved search opens
         // with a category (filter mode) and still means "in this province".
-        if (filters.province) params.province = filters.province;
-        if (filters.district) params.district = filters.district;
+        if (listFilters.province) params.province = listFilters.province;
+        if (listFilters.district) params.district = listFilters.district;
         if (Object.values(debouncedAttrs).some(Boolean)) params.attrs = debouncedAttrs;
         if (!isFilterMode) {
-            if (filters.sort) params.sort = filters.sort;
+            if (listFilters.sort) params.sort = listFilters.sort;
             if (debouncedPriceMin) params.price_min = debouncedPriceMin;
             if (debouncedPriceMax) params.price_max = debouncedPriceMax;
             // Enum values are uppercase server-side; the chips carry lowercase.
-            if (filters.status) params.status = filters.status.toUpperCase();
+            if (listFilters.status) params.status = listFilters.status.toUpperCase();
         }
         return params;
     }, [
         isFilterMode, getPostType, routeSubcategory, debouncedAttrs, debouncedSearchQuery,
-        filters.category, filters.subcategory, filters.province, filters.district, filters.sort, filters.status,
+        listFilters.category, listFilters.subcategory, listFilters.province, listFilters.district, listFilters.sort, listFilters.status,
         debouncedPriceMin, debouncedPriceMax,
     ]);
 
@@ -195,13 +204,29 @@ const CustomerPostList = ({ route, navigation }) => {
     const staleDim = useRef(new Animated.Value(1)).current;
     useEffect(() => {
         Animated.timing(staleDim, {
-            toValue: isPlaceholderData ? 0.45 : 1,
+            toValue: isPlaceholderData || listBehind ? 0.45 : 1,
             duration: animations.duration.fast,
-            useNativeDriver: true,
+            // JS-driven on purpose. Under Fabric a commit during a native-driven
+            // run re-applies the value's stale JS copy, so the results mounting
+            // just as the dim lifted were dropped back to 0.45 until the end
+            // callback got through the busy JS thread — a second dim, ~450ms.
+            useNativeDriver: false,
         }).start();
-    }, [isPlaceholderData, staleDim]);
+    }, [isPlaceholderData, listBehind, staleDim]);
 
     const posts = useMemo(() => (data?.pages ?? []).flatMap((pg) => pg.items), [data]);
+    // Which result set is on screen. While a new filter loads, the previous
+    // one stays (dimmed), so this follows the data, not `queryFilters`.
+    const resultKey = JSON.stringify(queryFilters);
+    const shownKey = useRef(resultKey);
+    if (!isPlaceholderData) shownKey.current = resultKey;
+    // Only the screen's first results cascade in. A filter switch used to
+    // replay the cascade from opacity 0 — a blank beat between the dimmed old
+    // list and the new one — so swapped-in results appear in place and the
+    // dim lifting is the transition.
+    const cascadeKey = useRef(null);
+    if (cascadeKey.current === null && posts.length > 0 && !isPlaceholderData) cascadeKey.current = resultKey;
+    const cascade = cascadeKey.current === shownKey.current;
     const totalCount = data?.pages?.[0]?.total ?? 0;
     const relaxed = Boolean(data?.pages?.[0]?.relaxed);
     const firstPage = data?.pages?.[0];
@@ -346,6 +371,11 @@ const CustomerPostList = ({ route, navigation }) => {
     }, [categorySchemas]);
 
     const entrance = useListEntrance();
+    const entranceFor = useCallback((key, index) => {
+        const e = entrance(key, index);
+        // Later pages of any result set keep their single, unstaggered fade.
+        return cascade || index >= PAGE_SIZE ? e : { animate: false, index: 0 };
+    }, [entrance, cascade]);
     const renderPostItem = useCallback(({ item, index }) => {
         // Every item carries post_type — the query function copies it from
         // `category` above. The `|| 'construction'` that used to stand in here
@@ -358,7 +388,7 @@ const CustomerPostList = ({ route, navigation }) => {
         // Only the heart whose request is in flight is held; the rest stay tappable.
         const pending = toggleLike.isPending && toggleLike.variables?.post_id === item.id;
         return (
-            <FadeSlideIn style={isTablet && { flex: 1 }} {...entrance(item.id, index)}>
+            <FadeSlideIn style={isTablet && { flex: 1 }} {...entranceFor(item.id, index)}>
                 <PostCard
                     item={item}
                     onPress={handlePostPress}
@@ -406,7 +436,7 @@ const CustomerPostList = ({ route, navigation }) => {
                 </PostCard>
             </FadeSlideIn>
         );
-    }, [entrance, handlePostPress, likedPostsStatus, isCustomer, isGuest, handleToggleLike, toggleLike.isPending, toggleLike.variables, colors, styles, emphasisByKey, rentalByKey, t, i18n.language]);
+    }, [entranceFor, handlePostPress, likedPostsStatus, isCustomer, isGuest, handleToggleLike, toggleLike.isPending, toggleLike.variables, colors, styles, emphasisByKey, rentalByKey, t, i18n.language]);
 
     const keyExtractor = useCallback((item) => item.id.toString(), []);
 
@@ -707,7 +737,12 @@ const CustomerPostList = ({ route, navigation }) => {
                 renderItem={renderPostItem}
                 keyExtractor={keyExtractor}
                 numColumns={isTablet ? 2 : 1}
-                key={isTablet ? 'tablet' : 'phone'}
+                // A fresh list per result set. Reusing one, the new results filled
+                // the whole window the old list had grown — 19 cards mounted in
+                // a single commit, the freeze on every category switch — and
+                // kept the old scroll offset. Remounted, it starts at the top
+                // with `initialNumToRender` and fills the rest in batches.
+                key={`${isTablet ? 'tablet' : 'phone'}-${shownKey.current}`}
                 columnWrapperStyle={isTablet ? { gap: spacing.md } : undefined}
                 contentContainerStyle={[
                     styles.listContainer,
@@ -731,7 +766,7 @@ const CustomerPostList = ({ route, navigation }) => {
                     />
                 }
                 showsVerticalScrollIndicator={false}
-                initialNumToRender={10}
+                initialNumToRender={6}
                 maxToRenderPerBatch={5}
                 windowSize={10}
                 removeClippedSubviews={true}

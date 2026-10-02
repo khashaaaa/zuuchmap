@@ -842,7 +842,9 @@ export default function PostDetail() {
         message={t('posts.deleteConfirmMessage')}
         confirmLabel={t('common.delete')}
         cancelLabel={t('common.cancel')}
-        onConfirm={() => { deleteMut.mutate(); setShowDeleteModal(false) }}
+        // Closed when the request settles, not on confirm: closing at once hid the
+        // dialog's own pending state and left the row looking untouched.
+        onConfirm={() => deleteMut.mutate(undefined, { onSettled: () => setShowDeleteModal(false) })}
         isPending={deleteMut.isPending}
       />
 

@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spacing, typography, radius, interactions, isTablet, toneForTheme } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { usePullRefresh } from '../../hooks/usePullRefresh';
 import { useTranslation } from 'react-i18next';
 import PostCard from '../../components/PostCard';
 import { ScreenLayout, EmptyState, SkeletonItem, SelectionPop } from '../../components';
@@ -47,7 +48,7 @@ const AdminPostList = ({ navigation, route }) => {
     });
     const postTypes = useMemo(() => ['all', ...categories.map(c => c.key)], [categories]);
 
-    const { data: posts = [], isLoading: loading, isRefetching: refreshing, isError, refetch } = useQuery({
+    const { data: posts = [], isLoading: loading, isError, refetch } = useQuery({
         queryKey: ['admin', 'pending', activeFilter],
         queryFn: async () => {
             const typeParam = activeFilter === 'all' ? null : activeFilter;
@@ -63,7 +64,7 @@ const AdminPostList = ({ navigation, route }) => {
 
     useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
 
-    const handleRefresh = refetch;
+    const [refreshing, handleRefresh] = usePullRefresh(refetch);
 
     const handlePostPress = useCallback((item) => {
         navigation.navigate('PostDetailScreen', { postId: item.id, postType: item.postType, role: 'admin' });

@@ -139,7 +139,9 @@ export default function AdminUserDetail() {
         confirmLabel={t('common.delete')}
         loadingLabel={t('common.loading')}
         cancelLabel={t('common.cancel')}
-        onConfirm={() => { deleteMut.mutate(); setConfirmDelete(false) }}
+        // Closed when the request settles, not on confirm: closing at once hid the
+        // dialog's own pending state and left the row looking untouched.
+        onConfirm={() => deleteMut.mutate(undefined, { onSettled: () => setConfirmDelete(false) })}
         isPending={deleteMut.isPending}
       />
     </div>

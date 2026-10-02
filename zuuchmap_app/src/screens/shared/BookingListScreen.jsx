@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { spacing, typography, radius, isTablet, withAlpha, interactions } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { usePullRefresh } from '../../hooks/usePullRefresh';
 import Button from '../../components/Button';
 import { ScreenLayout, EmptyState, SkeletonItem, SkeletonCrossfade, PressableScale, BookingTimeline, FadeSlideIn } from '../../components';
 import { useListEntrance } from '../../components/FadeSlideIn';
@@ -51,11 +52,12 @@ const BookingListScreen = ({ route, navigation }) => {
         [categorySchemas],
     );
 
-    const { data: bookings = [], isLoading, isRefetching, isError, refetch } = useQuery({
+    const { data: bookings = [], isLoading, isError, refetch } = useQuery({
         queryKey: ['bookings', role],
         queryFn: () => (isProviderView ? bookingService.received() : bookingService.mine()),
         staleTime: 30 * 1000,
     });
+    const [pulling, onPull] = usePullRefresh(refetch);
 
     useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
 
@@ -245,7 +247,7 @@ const BookingListScreen = ({ route, navigation }) => {
                     keyExtractor={(item) => String(item.id)}
                     contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + spacing.xxxxl }]}
                     refreshControl={
-                        <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} colors={[colors.primary]} />
+                        <RefreshControl refreshing={pulling} onRefresh={onPull} tintColor={colors.primary} colors={[colors.primary]} />
                     }
                     showsVerticalScrollIndicator={false}
                 />

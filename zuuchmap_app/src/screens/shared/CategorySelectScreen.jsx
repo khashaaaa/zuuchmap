@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spacing, typography, safeAreaHelpers, radius, isTablet, withAlpha, toneForTheme, categoryColors } from '../../design/theme';
 import { ScreenLayout } from '../../components';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { usePullRefresh } from '../../hooks/usePullRefresh';
 import { useTranslation } from 'react-i18next';
 import SearchInput from '../../components/SearchInput';
 import WizardSteps from '../../components/WizardSteps';
@@ -56,12 +57,13 @@ const CategorySelectScreen = ({ route, navigation }) => {
 
     const navigatingRef = useRef(false);
 
-    const { data: schemas = [], isLoading: loading, isRefetching, isError, refetch } = useQuery({
+    const { data: schemas = [], isLoading: loading, isError, refetch } = useQuery({
         queryKey: ['categories'],
         queryFn: () => categoryService.getCategories(true),
         staleTime: 5 * 60 * 1000,
         select: (data) => data.filter((s) => s.active !== false),
     });
+    const [pulling, onPull] = usePullRefresh(refetch);
 
     /**
      * The quota, at step one instead of at the end.
@@ -170,7 +172,7 @@ const CategorySelectScreen = ({ route, navigation }) => {
                             gStyles.scrollViewContentWithBottomInset(safeAreaHelpers.getBottomSafeArea(insets)),
                         ]}
                         refreshControl={
-                            <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} colors={[colors.primary]} />
+                            <RefreshControl refreshing={pulling} onRefresh={onPull} tintColor={colors.primary} colors={[colors.primary]} />
                         }
                         showsVerticalScrollIndicator={false}
                         initialNumToRender={8}

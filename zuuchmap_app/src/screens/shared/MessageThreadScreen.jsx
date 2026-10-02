@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { spacing, typography, radius, isTablet, interactions } from '../../design/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { usePullRefresh } from '../../hooks/usePullRefresh';
 import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import KeyboardAvoider from '../../components/KeyboardAvoider';
 import ScreenHeader from '../../components/ScreenHeader';
@@ -75,13 +76,7 @@ const MessageThreadScreen = ({ navigation, route }) => {
         enabled: Boolean(id),
     });
     const messages = useMemo(() => flattenMessages(data?.pages), [data]);
-    // Only a pull shows the refresh spinner. `isRefetching` is also true on every
-    // socket-driven refetch, which would pop it on each incoming message.
-    const [pulling, setPulling] = useState(false);
-    const onPull = useCallback(async () => {
-        setPulling(true);
-        try { await refetch(); } finally { setPulling(false); }
-    }, [refetch]);
+    const [pulling, onPull] = usePullRefresh(refetch);
 
     // Clearing the badge touches the reader's own side only, and the endpoint
     // is idempotent — safe to call on every open, and again whenever a new

@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { spacing, typography, radius, interactions, isTablet } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { usePullRefresh } from '../../hooks/usePullRefresh';
 import { ScreenLayout, EmptyState, SkeletonItem, SelectionPop, BottomSheetModal, SearchInput, PressableScale } from '../../components';
 import Button from '../../components/Button';
 import adminService from '../../services/api/adminService';
@@ -51,11 +52,12 @@ const AdminUsers = ({ navigation }) => {
     if (selected) lastSelected.current = selected;
     const shownUser = selected ?? lastSelected.current;
 
-    const { data: users = [], isLoading, isRefetching, isError, refetch } = useQuery({
+    const { data: users = [], isLoading, isError, refetch } = useQuery({
         queryKey: ADMIN_USERS_KEY,
         queryFn: adminService.listUsers,
         staleTime: 30 * 1000,
     });
+    const [pulling, onPull] = usePullRefresh(refetch);
     useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
 
     const invalidate = () => {
@@ -165,7 +167,7 @@ const AdminUsers = ({ navigation }) => {
                     keyExtractor={(item) => String(item.id)}
                     renderItem={renderItem}
                     contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 96 }]}
-                    refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.iconAccent} />}
+                    refreshControl={<RefreshControl refreshing={pulling} onRefresh={onPull} tintColor={colors.iconAccent} />}
                     ListEmptyComponent={<EmptyState icon="people-outline" title={t('admin.noUsers')} />}
                     keyboardShouldPersistTaps="handled"
                 />

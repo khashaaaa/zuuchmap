@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { spacing, typography, radius, isTablet, interactions } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { usePullRefresh } from '../../hooks/usePullRefresh';
 import ScreenError from '../../components/ScreenError';
 import { ScreenLayout, EmptyState, SkeletonItem, PressableScale } from '../../components';
 import { SkeletonCrossfade } from '../../components/SkeletonItem';
@@ -57,11 +58,12 @@ const SavedSearchesScreen = ({ navigation }) => {
     const qc = useQueryClient();
     const [deletingId, setDeletingId] = useState(null);
 
-    const { data: searches = [], isLoading, isRefetching, isError, refetch } = useQuery({
+    const { data: searches = [], isLoading, isError, refetch } = useQuery({
         queryKey: SAVED_SEARCHES_KEY,
         queryFn: savedSearchService.list,
         staleTime: 60 * 1000,
     });
+    const [pulling, onPull] = usePullRefresh(refetch);
 
     const del = useMutation({
         mutationFn: (id) => savedSearchService.remove(id),
@@ -134,7 +136,7 @@ const SavedSearchesScreen = ({ navigation }) => {
                         keyExtractor={(item) => String(item.id)}
                         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + spacing.xxxxl }]}
                         refreshControl={
-                            <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} colors={[colors.primary]} />
+                            <RefreshControl refreshing={pulling} onRefresh={onPull} tintColor={colors.primary} colors={[colors.primary]} />
                         }
                         showsVerticalScrollIndicator={false}
                     />

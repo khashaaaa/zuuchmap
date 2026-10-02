@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
     View,
@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet, dimensions } from '../../design/theme';
 import { useUnreadMessages } from '../../services/api/messageService';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { usePullRefresh } from '../../hooks/usePullRefresh';
 import { useTranslation } from 'react-i18next';
 import userService from '../../services/api/userService';
 import { useProfile } from '../../hooks/useProfile';
@@ -33,8 +34,8 @@ const ProviderProfile = ({ navigation }) => {
     const unread = useUnreadMessages();
     const [companyImageError, setCompanyImageError] = useState(false);
 
-    const { data: profileData = null, isLoading, isRefetching, refetch: refetchProfile, error: profileError } = useProfile();
-    const { data: postsRes, refetch: refetchPosts, isRefetching: isRefetchingPosts, isLoading: postsLoading } = useQuery({
+    const { data: profileData = null, isLoading, refetch: refetchProfile, error: profileError } = useProfile();
+    const { data: postsRes, refetch: refetchPosts, isLoading: postsLoading } = useQuery({
         queryKey: ['posts', 'mine', 'summary'],
         queryFn: () => userService.getUserPosts().catch(() => null),
         staleTime: 60 * 1000,
@@ -56,9 +57,8 @@ const ProviderProfile = ({ navigation }) => {
 
     useEffect(() => { setCompanyImageError(false); }, [profileData?.companyLogo]);
 
-    const loadProfile = () => { refetchProfile(); refetchPosts(); };
-    const refreshing = isRefetching || isRefetchingPosts;
-    const handleRefresh = loadProfile;
+    const loadProfile = useCallback(() => Promise.all([refetchProfile(), refetchPosts()]), [refetchProfile, refetchPosts]);
+    const [refreshing, handleRefresh] = usePullRefresh(loadProfile);
 
     const handleCompanyImageError = () => setCompanyImageError(true);
 

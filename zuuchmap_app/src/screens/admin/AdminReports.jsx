@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { spacing, typography, radius, interactions, isTablet } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { usePullRefresh } from '../../hooks/usePullRefresh';
 import { ScreenLayout, EmptyState, SkeletonItem, SelectionPop } from '../../components';
 import Button from '../../components/Button';
 import TextInput from '../../components/TextInput';
@@ -36,7 +37,7 @@ const AdminReports = ({ navigation }) => {
     const [tab, setTab] = useState('OPEN');
     const [notes, setNotes] = useState({});
 
-    const { data, isLoading, isRefetching, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
+    const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
         queryKey: [...REPORTS_KEY, tab],
         queryFn: ({ pageParam }) => reportService.list({ status: tab, page: pageParam, limit: PAGE_SIZE }),
         initialPageParam: 1,
@@ -44,6 +45,7 @@ const AdminReports = ({ navigation }) => {
             pages.reduce((n, p) => n + p.items.length, 0) < last.total ? pages.length + 1 : undefined,
         staleTime: 30 * 1000,
     });
+    const [pulling, onPull] = usePullRefresh(refetch);
     useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
 
     const resolveMut = useMutation({
@@ -178,7 +180,7 @@ const AdminReports = ({ navigation }) => {
                     keyExtractor={(item) => String(item.id)}
                     renderItem={renderItem}
                     contentContainerStyle={[styles.list, { paddingBottom: listBottom }]}
-                    refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.iconAccent} />}
+                    refreshControl={<RefreshControl refreshing={pulling} onRefresh={onPull} tintColor={colors.iconAccent} />}
                     ListEmptyComponent={<EmptyState icon="flag-outline" title={t('report.queueEmpty')} />}
                     onEndReached={() => { if (hasNextPage && !isFetchingNextPage) fetchNextPage(); }}
                     onEndReachedThreshold={0.5}

@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spacing, typography, safeAreaHelpers, isTablet } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { usePullRefresh } from '../../hooks/usePullRefresh';
 import { useTranslation } from 'react-i18next';
 import likeService from '../../services/api/likeService';
 import userService from '../../services/api/userService';
@@ -70,7 +71,7 @@ const CustomerLikeList = ({ navigation }) => {
     useEffect(() => { checkAuth(); }, [checkAuth]);
 
     const {
-        data, isLoading: loading, isRefetching, refetch,
+        data, isLoading: loading, refetch,
         fetchNextPage, hasNextPage, isFetchingNextPage: loadingMore, error, isError,
     } = useInfiniteQuery({
         queryKey: LIKED_POSTS_KEY,
@@ -88,7 +89,6 @@ const CustomerLikeList = ({ navigation }) => {
     // The server's total, not what has loaded: the list pages by 20, so a 21st
     // save read as "(20)" beside the profile's 21 until the user scrolled.
     const total = data?.pages?.[0]?.total ?? posts.length;
-    const refreshing = isRefetching && !loadingMore;
 
     useEffect(() => {
         const status = error?.response?.status;
@@ -112,10 +112,8 @@ const CustomerLikeList = ({ navigation }) => {
         }
     }, [error]);
 
-    const handleRefresh = useCallback(() => {
-        if (isAuthenticated) refetch();
-        else checkAuth();
-    }, [isAuthenticated, refetch, checkAuth]);
+    const pull = useCallback(() => (isAuthenticated ? refetch() : checkAuth()), [isAuthenticated, refetch, checkAuth]);
+    const [refreshing, handleRefresh] = usePullRefresh(pull);
 
     const isFirstFocus = useRef(true);
     useFocusEffect(

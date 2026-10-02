@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spacing, typography, radius, isTablet, withAlpha } from '../../design/theme';
 import { ScreenLayout } from '../../components';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { usePullRefresh } from '../../hooks/usePullRefresh';
 import { useTranslation } from 'react-i18next';
 import { useCategorySchemas } from '../../hooks/useCategorySchemas';
 import { getSchemaLabel } from '../../utils/postUtils';
@@ -43,11 +44,12 @@ const AdminApproval = ({ navigation }) => {
         const schema = schemas.find((c) => c.key === key);
         return schema ? getSchemaLabel(schema) : t('category.' + key, { defaultValue: key });
     };
-    const { data: stats, isLoading: loading, isRefetching: refreshing, isError, refetch } = useQuery({
+    const { data: stats, isLoading: loading, isError, refetch } = useQuery({
         queryKey: ['admin', 'stats'],
         queryFn: async () => (await postService.getAdminStats()).data,
         staleTime: 30 * 1000,
     });
+    const [refreshing, onPull] = usePullRefresh(refetch);
 
     useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
 
@@ -60,7 +62,7 @@ const AdminApproval = ({ navigation }) => {
                     refreshControl={
                         <RefreshControl
                             refreshing={refreshing}
-                            onRefresh={refetch}
+                            onRefresh={onPull}
                             tintColor={colors.primary}
                             colors={[colors.primary]}
                         />

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
     View,
@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet, dimensions } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { usePullRefresh } from '../../hooks/usePullRefresh';
 import { useTranslation } from 'react-i18next';
 import { useProfile } from '../../hooks/useProfile';
 import likeService from '../../services/api/likeService';
@@ -41,7 +42,7 @@ const CustomerProfile = ({ navigation }) => {
     // and fetching anyway sent two tokenless requests per visit to this tab
     // that the engine answered 401 and this screen then swallowed.
     const signedIn = guest === false;
-    const { data: user = null, isLoading: loading, isRefetching: refreshingProfile, refetch: refetchProfile, error: profileError } = useProfile({ enabled: signedIn });
+    const { data: user = null, isLoading: loading, refetch: refetchProfile, error: profileError } = useProfile({ enabled: signedIn });
 
     const { data: liked_posts_count = 0, isLoading: loading_liked_count, refetch: refetchLikedCount } = useQuery({
         queryKey: ['liked', 'count'],
@@ -49,6 +50,8 @@ const CustomerProfile = ({ navigation }) => {
         staleTime: 30 * 1000,
         enabled: signedIn,
     });
+    const pullBoth = useCallback(() => Promise.all([refetchProfile(), refetchLikedCount()]), [refetchProfile, refetchLikedCount]);
+    const [pulling, onPull] = usePullRefresh(pullBoth);
 
     const likedCountDisplay = Number(liked_posts_count) || 0;
 
@@ -197,8 +200,8 @@ const CustomerProfile = ({ navigation }) => {
                 ]}
                 refreshControl={
                     <RefreshControl
-                        refreshing={refreshingProfile}
-                        onRefresh={() => { refetchProfile(); refetchLikedCount(); }}
+                        refreshing={pulling}
+                        onRefresh={onPull}
                         tintColor={colors.primary}
                         colors={[colors.primary]}
                     />

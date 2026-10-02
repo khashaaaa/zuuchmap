@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { spacing, typography, safeAreaHelpers, radius, interactions, isTablet, dimensions } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { usePullRefresh } from '../../hooks/usePullRefresh';
 import { useTranslation } from 'react-i18next';
 import { useProfile } from '../../hooks/useProfile';
 import { ScreenLayout, SettingsSection, Avatar } from '../../components';
@@ -26,7 +27,7 @@ const AdminProfile = ({ navigation }) => {
     const { colors, styles: gStyles } = useAppTheme();
     const { t } = useTranslation();
 
-    const { data: user = null, isLoading: loading, isRefetching: refreshing, refetch: loadUserProfile, error: profileError } = useProfile();
+    const { data: user = null, isLoading: loading, refetch: loadUserProfile, error: profileError } = useProfile();
 
     useEffect(() => {
         // See CustomerProfile: a tokenless 401 here is the logout, not a fault.
@@ -37,7 +38,7 @@ const AdminProfile = ({ navigation }) => {
     }, [profileError]);
 
 
-    const handleRefresh = loadUserProfile;
+    const [refreshing, handleRefresh] = usePullRefresh(loadUserProfile);
 
     const handleLogout = () => confirmLogout({
         t, navigation,

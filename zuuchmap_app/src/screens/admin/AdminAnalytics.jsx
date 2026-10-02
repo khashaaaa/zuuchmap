@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { spacing, typography, radius, interactions, isTablet } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { usePullRefresh } from '../../hooks/usePullRefresh';
 import { ScreenLayout, StatTile, SkeletonItem, SelectionPop } from '../../components';
 import adminService from '../../services/api/adminService';
 import { useCategorySchemas } from '../../hooks/useCategorySchemas';
@@ -48,11 +49,12 @@ const AdminAnalytics = ({ navigation }) => {
     // off it yields undefined and every label silently falls back to the raw key.
     const schemas = useCategorySchemas();
 
-    const { data, isLoading, isRefetching, isError, refetch } = useQuery({
+    const { data, isLoading, isError, refetch } = useQuery({
         queryKey: [...ADMIN_ANALYTICS_KEY, days],
         queryFn: () => adminService.summary(days),
         staleTime: 5 * 60 * 1000,
     });
+    const [pulling, onPull] = usePullRefresh(refetch);
     useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
 
     const totals = data?.totals ?? {};
@@ -102,7 +104,7 @@ const AdminAnalytics = ({ navigation }) => {
             ) : (
                 <ScrollView
                     contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 96 }]}
-                    refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.iconAccent} />}
+                    refreshControl={<RefreshControl refreshing={pulling} onRefresh={onPull} tintColor={colors.iconAccent} />}
                     showsVerticalScrollIndicator={false}
                 >
                     <View style={styles.tileGrid}>

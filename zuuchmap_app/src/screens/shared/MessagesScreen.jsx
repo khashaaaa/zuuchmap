@@ -5,6 +5,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { spacing, typography, radius, isTablet } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { usePullRefresh } from '../../hooks/usePullRefresh';
 import ScreenError from '../../components/ScreenError';
 import { ScreenLayout, EmptyState, SkeletonItem, PressableScale, FadeSlideIn } from '../../components';
 import { useListEntrance } from '../../components/FadeSlideIn';
@@ -74,7 +75,7 @@ const MessagesScreen = ({ navigation }) => {
     const entrance = useListEntrance();
 
     const {
-        data, isLoading, isRefetching, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage,
+        data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage,
     } = useInfiniteQuery({
         queryKey: CONVERSATIONS_KEY,
         queryFn: ({ pageParam }) => messageService.list(pageParam),
@@ -82,6 +83,7 @@ const MessagesScreen = ({ navigation }) => {
         getNextPageParam: inboxCursor,
         staleTime: 30 * 1000,
     });
+    const [pulling, onPull] = usePullRefresh(refetch);
     const threads = useMemo(() => (data?.pages ?? []).flat(), [data]);
 
     const open = useCallback(
@@ -147,7 +149,7 @@ const MessagesScreen = ({ navigation }) => {
                             </View>
                         ) : null}
                         refreshControl={
-                            <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.iconAccent} />
+                            <RefreshControl refreshing={pulling} onRefresh={onPull} tintColor={colors.iconAccent} />
                         }
                     />
                 )}

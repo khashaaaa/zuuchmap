@@ -345,7 +345,10 @@ const CustomerMapView = ({ navigation, route }) => {
         }
     }, [userLocation, mapReady, getUserLocation]);
 
-    const { data: mapData, isFetching: loading, refetch: refetchPosts, isError: postsError } = useQuery({
+    // `isLoading`, not `isFetching`: the overlay is for a map with nothing on it
+    // yet. Every post event refetches this query, and the overlay used to drop
+    // over a map full of pins mid-use; a manual refresh has its button spinner.
+    const { data: mapData, isLoading: loading, refetch: refetchPosts, isError: postsError } = useQuery({
         queryKey: ['map', 'posts'],
         queryFn: () => mapService.getPostsWithLocation(false),
         staleTime: 15 * 60 * 1000,

@@ -137,6 +137,35 @@ export const PUSH = {
         ru: `Изменения в объявлении «${post}» опубликованы.`,
       }),
   },
+  // To whoever filed a report, once an admin has ruled on it.
+  reportUpheld: {
+    title: pick({
+      mn: 'Таны гомдлыг шийдвэрлэлээ',
+      en: 'Your report was reviewed',
+      zh: '您的举报已处理',
+      ru: 'Ваша жалоба рассмотрена',
+    }),
+    body: pick({
+      mn: 'Админ гомдлыг үндэслэлтэй гэж үзэж арга хэмжээ авлаа. Баярлалаа.',
+      en: 'An admin agreed with your report and acted on it. Thank you.',
+      zh: '管理员认可了您的举报并已处理。谢谢。',
+      ru: 'Администратор согласился с жалобой и принял меры. Спасибо.',
+    }),
+  },
+  reportDismissed: {
+    title: pick({
+      mn: 'Таны гомдлыг шийдвэрлэлээ',
+      en: 'Your report was reviewed',
+      zh: '您的举报已处理',
+      ru: 'Ваша жалоба рассмотрена',
+    }),
+    body: pick({
+      mn: 'Админ шалгаад зөрчил илрээгүй. Баярлалаа.',
+      en: 'An admin looked into it and found no problem. Thank you.',
+      zh: '管理员核查后未发现问题。谢谢。',
+      ru: 'Администратор проверил и нарушений не нашёл. Спасибо.',
+    }),
+  },
   postRejected: {
     title: (post: string) =>
       pick({

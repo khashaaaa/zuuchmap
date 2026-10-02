@@ -7,7 +7,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, LessThan, Repository } from 'typeorm';
 import { Cron } from '@nestjs/schedule';
 import { Booking } from './entities/booking.entity';
 import { Post } from '../post/entities/post.entity';
@@ -494,7 +494,12 @@ export class BookingService {
   }
 
   // Reviews eligibility: has the customer ever had an accepted booking with this provider?
-  async hasAcceptedBooking(
+  /**
+   * An accepted booking whose dates are over — the same test the nightly
+   * review prompt uses. Accepted alone let a customer rate a job that had not
+   * happened yet, then cancel the booking and leave the rating standing.
+   */
+  async hasFinishedBooking(
     customerId: string,
     providerId: string,
   ): Promise<boolean> {
@@ -503,6 +508,7 @@ export class BookingService {
         customer: { id: customerId },
         provider: { id: providerId },
         status: BookingStatus.ACCEPTED,
+        end_date: LessThan(new Date()),
       },
     });
     return count > 0;

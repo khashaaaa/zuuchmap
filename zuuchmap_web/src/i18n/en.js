@@ -505,7 +505,7 @@ export default {
     summaryPeak: '{{label}}: {{total}} total over {{days}} days, peaking at {{peak}}',
   },
   review: {
-    notEligible: 'You can review a provider once they accept your booking or reply to your message.',
+    notEligible: 'You can review a provider once a booking with them has finished, or once they reply to your message.',
     showAll: 'Show all {{count}} reviews',
     title: 'Reviews', yourRating: 'Your rating', comment: 'Write a comment...',
     submit: 'Submit review', submitted: 'Your review has been saved',
@@ -644,6 +644,14 @@ export default {
     openOnPost_one: '{{count}} open report on this listing',
     openOnPost_other: '{{count}} open reports on this listing',
     openCount: '{{count}} open',
+    titleReview: 'Report this review',
+    duplicateReview: 'You have already reported this review.',
+    kindReview: 'Review',
+    subjectGone: 'Deleted',
+    takeDownPost: 'Take listing down',
+    takeDownReview: 'Delete review',
+    against: 'About',
+    loadMore: 'Load more',
     status: { OPEN: 'Open', RESOLVED: 'Resolved', DISMISSED: 'Dismissed' },
   },
   push: {

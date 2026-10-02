@@ -2431,13 +2431,14 @@ async function seedReviews(
   talkedTo: { customerId: string; providerId: string }[],
 ) {
   // `ReviewService.canReview` accepts two proofs, so the fixture set must too:
-  // an ACCEPTED booking, or a thread the provider actually replied to. Deriving
+  // a finished booking (ACCEPTED, dates over), or a thread the provider actually replied to. Deriving
   // only from bookings left the four categories with no booking flow —
   // materialstore, jobvacancy, factory, usedequipment — with a permanently
   // empty ratings block, which is the exact gap the second clause was added to
   // close and therefore the last place a fixture set should be silent.
   const { rows: booked } = await client.query(
-    `SELECT DISTINCT "customerId", "providerId" FROM booking WHERE status = 'ACCEPTED'`,
+    `SELECT DISTINCT "customerId", "providerId" FROM booking
+      WHERE status = 'ACCEPTED' AND end_date < now()`,
   );
   const seen = new Set<string>();
   const pairs = [...booked, ...talkedTo].filter((p: any) => {
@@ -2692,6 +2693,13 @@ async function seedRevisions(client: Client) {
         SET rejection_field = (ARRAY['title','price_amount','images','contact_phone','details'])[1 + (id % 5)]
       WHERE approval_status = 'REJECTED' AND rejection_field IS NULL AND id % 3 <> 0`,
   );
+  // The durable rejection record `isProvenProvider` reads.
+  await client.query(
+    `UPDATE "user" u SET posts_rejected = c.n
+       FROM (SELECT "userId", COUNT(*)::int AS n FROM post
+              WHERE approval_status = 'REJECTED' GROUP BY 1) c
+      WHERE c."userId" = u.id`,
+  );
   console.log(
     `revisions: ${queued} edits queued behind live listings, ${refused} refused (post stays APPROVED), ${fielded} rejections carry a field`,
   );
@@ -2899,7 +2907,8 @@ async function seedReports(client: Client, customers: string[]) {
     if (reporter === post.userId) continue;
     // `POST /reports` returns the existing row rather than filing a second one,
     // so the corpus must not contain a pair the API could not have produced.
-    // There is no unique index behind this — deduping here, not in a catch.
+    // UQ_report_open_post backs this for OPEN rows; deduping here keeps the
+    // closed ones to pairs the API could have produced as well.
     const pair = `${reporter}:${post.id}`;
     if (filed.has(pair)) continue;
     filed.add(pair);
@@ -2926,8 +2935,26 @@ async function seedReports(client: Client, customers: string[]) {
     counts[status] = (counts[status] ?? 0) + 1;
     made++;
   }
+  // Owner and subject as `POST /reports` copies them, so the queue still
+  // reads after a reported listing is deleted.
+  await client.query(
+    `UPDATE report r SET "ownerId" = p."userId", subject = p.title
+       FROM post p WHERE p.id = r."postId"`,
+  );
+  // A handful against reviews, by someone other than the review's author.
+  const { rowCount: onReviews } = await client.query(
+    `INSERT INTO report (kind, "reviewId", "ownerId", subject, "reporterId", reason, detail, status, date_created, date_updated)
+     SELECT 'REVIEW', rv.id, rv."authorId",
+            rv.rating || '★' || COALESCE(' · ' || rv.comment, ''),
+            rv."providerId", (ARRAY['OFFENSIVE','SPAM','OTHER'])[1 + rv.id % 3],
+            NULL, 'OPEN', now() - (rv.id % 9) * interval '1 day', now()
+       FROM review rv
+      WHERE rv.comment IS NOT NULL
+      ORDER BY rv.rating, rv.id
+      LIMIT 6`,
+  );
   console.log(
-    `reports: ${made} — ${Object.entries(counts)
+    `reports: ${made} + ${onReviews} on reviews — ${Object.entries(counts)
       .map(([k, v]) => `${k} ${v}`)
       .join(', ')}`,
   );

@@ -17,12 +17,22 @@ import { reportsApi, REPORT_REASONS } from '@/lib/api'
  * Reasons come from the server (`GET /reports/reasons`); the list below is only
  * the offline/first-paint fallback and is held to the engine's by check:sync.
  * Labels are translated client-side under `report.reasons.<KEY>`.
+ *
+ * Files against a listing (`postId`) or a review (`reviewId`) — exactly one.
+ * No reason is preselected: a default meant a reporter who tapped straight
+ * through filed whatever came first, and the queue is triaged by reason.
  */
 
-export default function ReportModal({ open, onClose, postId }) {
+export default function ReportModal({ open, onClose, postId, reviewId }) {
   const { t } = useTranslation()
-  const [reason, setReason] = useState(REPORT_REASONS[0])
+  const [reason, setReason] = useState(null)
   const [detail, setDetail] = useState('')
+  const isReview = reviewId != null
+  const close = () => {
+    setReason(null)
+    setDetail('')
+    onClose()
+  }
 
   const { data: reasons = REPORT_REASONS } = useQuery({
     queryKey: ['reports', 'reasons'],
@@ -32,13 +42,17 @@ export default function ReportModal({ open, onClose, postId }) {
   })
 
   const mutation = useMutation({
-    mutationFn: () => reportsApi.create(postId, reason, detail.trim() || undefined),
+    mutationFn: () => reportsApi.create(
+      isReview ? { review_id: reviewId } : { post_id: postId },
+      reason,
+      detail.trim() || undefined,
+    ),
     onSuccess: (result) => {
       // A repeat report is not an error — the server hands back the existing
       // one rather than queueing a second read of the same complaint.
-      toast.success(result?.duplicate ? t('report.duplicate') : t('report.submitted'))
-      setDetail('')
-      onClose()
+      const duplicate = isReview ? t('report.duplicateReview') : t('report.duplicate')
+      toast.success(result?.duplicate ? duplicate : t('report.submitted'))
+      close()
     },
     onError: () => toast.error(t('report.failed')),
   })
@@ -46,12 +60,12 @@ export default function ReportModal({ open, onClose, postId }) {
   return (
     <Modal
       open={open}
-      onClose={onClose}
-      title={t('report.title')}
+      onClose={close}
+      title={isReview ? t('report.titleReview') : t('report.title')}
       footer={
         <div className="flex gap-2 justify-end">
-          <Button variant="secondary" onClick={onClose}>{t('common.cancel')}</Button>
-          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
+          <Button variant="secondary" onClick={close}>{t('common.cancel')}</Button>
+          <Button onClick={() => mutation.mutate()} disabled={!reason || mutation.isPending}>
             {mutation.isPending ? t('report.submitting') : t('report.submit')}
           </Button>
         </div>

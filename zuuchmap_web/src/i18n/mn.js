@@ -505,7 +505,7 @@ export default {
     summaryPeak: '{{label}}: {{days}} хоногт нийт {{total}}, дээд нь {{peak}}',
   },
   review: {
-    notEligible: 'Захиалгыг тань баталсан эсвэл зурвасанд тань хариулсан зар нийтлэгчийг л үнэлэх боломжтой.',
+    notEligible: 'Захиалгын хугацаа тань дууссан эсвэл зурвасанд тань хариулсан зар нийтлэгчийг л үнэлэх боломжтой.',
     showAll: 'Бүх {{count}} үнэлгээг харах',
     title: 'Үнэлгээ', yourRating: 'Таны үнэлгээ', comment: 'Сэтгэгдэл бичих...',
     submit: 'Үнэлгээ өгөх', submitted: 'Таны үнэлгээ хадгалагдлаа',
@@ -643,6 +643,14 @@ export default {
     reporter: 'Мэдэгдсэн',
     openOnPost: 'Энэ зар дээр шийдвэрлээгүй {{count}} гомдол байна',
     openCount: 'Шийдвэрлээгүй {{count}}',
+    titleReview: 'Энэ үнэлгээг мэдэгдэх',
+    duplicateReview: 'Та энэ үнэлгээг аль хэдийн мэдэгдсэн байна.',
+    kindReview: 'Үнэлгээ',
+    subjectGone: 'Устгагдсан',
+    takeDownPost: 'Зарыг буулгах',
+    takeDownReview: 'Үнэлгээг устгах',
+    against: 'Хэний тухай',
+    loadMore: 'Цааш үзэх',
     status: { OPEN: 'Шийдвэрлээгүй', RESOLVED: 'Шийдвэрлэсэн', DISMISSED: 'Үндэслэлгүй' },
   },
   push: {

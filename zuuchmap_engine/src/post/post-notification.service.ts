@@ -23,7 +23,7 @@ import {
  * Mirrors `report.reasons` in the app/web mn locales — a new reason needs a
  * row here too, or the raw key shows.
  */
-const REPORT_REASON_LABELS_MN: Record<string, string> = {
+export const REPORT_REASON_LABELS_MN: Record<string, string> = {
   SPAM: 'Спам / давхардсан зар',
   SCAM: 'Залилан / урьдчилгаа мөнгө нэхэж байна',
   WRONG_INFO: 'Мэдээлэл буруу (үнэ, байршил, боломж)',
@@ -96,7 +96,7 @@ export class PostNotificationService {
 
   /** A user flagged a live listing — same audience and urgency as a pending post. */
   async notifyAdminsOfReport(
-    postId: number,
+    postId: number | null,
     title: string,
     reason: string,
   ): Promise<void> {

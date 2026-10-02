@@ -76,6 +76,7 @@ export default function PostDetail() {
   const qc = useQueryClient()
   const { token, user: currentUser, isAdmin } = useAuthStore()
   const [reportOpen, setReportOpen] = useState(false)
+  const [reportReviewId, setReportReviewId] = useState(null)
   const { theme } = useThemeStore()
 
   const [activeImg, setActiveImg] = useState(0)
@@ -631,6 +632,8 @@ export default function PostDetail() {
                   providerId={post.user.id}
                   canReview={Boolean(token) && !isOwner && !isAdmin && currentUser?.type === 'CUSTOMER'}
                   onRequireAuth={token ? undefined : () => signIn('auth.guestReview')}
+                  viewerId={currentUser?.id}
+                  onReport={isAdmin ? undefined : (reviewId) => (token ? setReportReviewId(reviewId) : signIn('auth.guestReport'))}
                 />
               </div>
             )}
@@ -844,6 +847,7 @@ export default function PostDetail() {
       />
 
       <ReportModal open={reportOpen} onClose={() => setReportOpen(false)} postId={post.id} />
+      <ReportModal open={reportReviewId != null} onClose={() => setReportReviewId(null)} reviewId={reportReviewId} />
 
       {hasMobileBar && (
         <div className="lg:hidden fixed inset-x-0 bottom-0 z-30 bg-surface border-t border-border/40 shadow-card px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex gap-2">

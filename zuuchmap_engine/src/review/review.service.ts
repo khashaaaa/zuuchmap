@@ -38,7 +38,9 @@ export class ReviewService {
   /**
    * Has this customer actually dealt with this provider?
    *
-   * An accepted booking is the strongest answer, but only nine of the thirteen
+   * A finished booking (accepted, dates over) is the strongest answer — not
+   * merely an accepted one, which let a customer rate a job before it
+   * happened and then cancel. But only nine of the thirteen
    * categories are bookable at all — material suppliers, used-equipment
    * sellers, factories and job posters have no booking flow, so requiring one
    * meant they could never accumulate a single review. The categories where a
@@ -51,7 +53,7 @@ export class ReviewService {
    * — which also keeps this from becoming a way to review a stranger.
    */
   async canReview(authorId: string, providerId: string): Promise<boolean> {
-    if (await this.bookingService.hasAcceptedBooking(authorId, providerId))
+    if (await this.bookingService.hasFinishedBooking(authorId, providerId))
       return true;
 
     const replied = await this.conversationRepository
@@ -90,24 +92,41 @@ export class ReviewService {
       });
     }
 
-    let review = await this.reviewRepository.findOne({
-      where: { provider: { id: dto.provider_id }, author: { id: authorId } },
-      relations: ['author', 'provider'],
-    });
-    if (review) {
-      review.rating = dto.rating;
-      // Distinguish "left the comment alone" from "cleared it". Coalescing both
-      // to the old text published the previous comment under the new rating —
-      // a five-star write-up left standing beneath a one-star score.
-      if (dto.comment !== undefined) review.comment = dto.comment || null;
-    } else {
-      review = this.reviewRepository.create({
-        provider,
-        author: { id: authorId },
-        rating: dto.rating,
-        comment: dto.comment,
+    const findOwn = () =>
+      this.reviewRepository.findOne({
+        where: { provider: { id: dto.provider_id }, author: { id: authorId } },
+        relations: ['author', 'provider'],
       });
+    let review = await findOwn();
+    if (!review) {
+      // Insert first and let UQ_review_provider_author arbitrate: two
+      // submissions racing past the read above both inserted, and the loser
+      // answered 500. The loser now falls through to the update below.
+      try {
+        const created = await this.reviewRepository.save(
+          this.reviewRepository.create({
+            provider,
+            author: { id: authorId },
+            rating: dto.rating,
+            comment: dto.comment || null,
+          }),
+        );
+        return {
+          ...created,
+          author: safeAuthor(created.author),
+          provider: undefined,
+        };
+      } catch (err) {
+        if (err?.code !== '23505') throw err;
+        review = await findOwn();
+        if (!review) throw err;
+      }
     }
+    review.rating = dto.rating;
+    // Distinguish "left the comment alone" from "cleared it". Coalescing both
+    // to the old text published the previous comment under the new rating —
+    // a five-star write-up left standing beneath a one-star score.
+    if (dto.comment !== undefined) review.comment = dto.comment || null;
     const saved = await this.reviewRepository.save(review);
     return { ...saved, author: safeAuthor(saved.author), provider: undefined };
   }

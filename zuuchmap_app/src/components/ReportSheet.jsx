@@ -16,16 +16,21 @@ import { showErrorModal, showInfoModal, getErrorMessage } from '../utils/errorMa
  * one reason from the server's closed list, plus optional free text — the
  * reason is what the queue is filtered by, the text is what makes "OTHER"
  * mean anything.
+ *
+ * Files against a listing (`postId`) or a review (`reviewId`) — exactly one.
+ * No reason is preselected: a default meant a reporter who tapped straight
+ * through filed whatever came first, and the queue is triaged by reason.
  */
-const ReportSheet = ({ visible, onClose, postId }) => {
+const ReportSheet = ({ visible, onClose, postId, reviewId }) => {
     const { t } = useTranslation();
     const { colors } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
-    const [reason, setReason] = useState(REPORT_REASONS[0]);
+    const [reason, setReason] = useState(null);
     const [detail, setDetail] = useState('');
+    const isReview = reviewId != null;
 
     const handleClose = () => {
-        setReason(REPORT_REASONS[0]);
+        setReason(null);
         setDetail('');
         onClose();
     };
@@ -38,11 +43,16 @@ const ReportSheet = ({ visible, onClose, postId }) => {
     });
 
     const mutation = useMutation({
-        mutationFn: () => reportService.create(postId, reason, detail.trim() || undefined),
+        mutationFn: () => reportService.create(
+            isReview ? { review_id: reviewId } : { post_id: postId },
+            reason,
+            detail.trim() || undefined,
+        ),
         onSuccess: (result) => {
-            setDetail('');
+            const title = isReview ? t('report.titleReview') : t('report.title');
+            const duplicate = isReview ? t('report.duplicateReview') : t('report.duplicate');
             handleClose();
-            showInfoModal(t('report.title'), result?.duplicate ? t('report.duplicate') : t('report.submitted'));
+            showInfoModal(title, result?.duplicate ? duplicate : t('report.submitted'));
         },
         onError: (error) => showErrorModal(t('common.error'), getErrorMessage(error) || t('report.failed')),
     });
@@ -51,11 +61,12 @@ const ReportSheet = ({ visible, onClose, postId }) => {
         <BottomSheetModal
             visible={visible}
             onClose={handleClose}
-            title={t('report.title')}
+            title={isReview ? t('report.titleReview') : t('report.title')}
             footer={
                 <Button
                     title={mutation.isPending ? t('report.submitting') : t('report.submit')}
                     onPress={() => mutation.mutate()}
+                    disabled={!reason || mutation.isPending}
                     loading={mutation.isPending}
                     fullWidth
                 />

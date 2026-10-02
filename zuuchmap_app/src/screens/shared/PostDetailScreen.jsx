@@ -375,6 +375,7 @@ const PostDetailScreen = ({ route, navigation }) => {
     });
     const [showBookingModal, setShowBookingModal] = useState(false);
     const [showReportSheet, setShowReportSheet] = useState(false);
+    const [reportReviewId, setReportReviewId] = useState(null);
     // Mirrors booking.service.ts, which is the only authority here: signed in,
     // not your own post, category supports rentals, post has an owner. It
     // deliberately does NOT test the account type — the engine has no such rule,
@@ -493,6 +494,11 @@ const PostDetailScreen = ({ route, navigation }) => {
     const handleReport = async () => {
         if (!(await ensureAuth(navigation, 'auth.guestReport'))) return;
         setShowReportSheet(true);
+    };
+
+    const handleReportReview = async (reviewId) => {
+        if (!(await ensureAuth(navigation, 'auth.guestReport'))) return;
+        setReportReviewId(reviewId);
     };
 
     const handleBook = async () => {
@@ -1091,6 +1097,8 @@ const PostDetailScreen = ({ route, navigation }) => {
                         canReview={!isProvider && !isAdmin && post.user.id !== currentUserId}
                         autoOpen={openReview}
                         onRequireAuth={() => ensureAuth(navigation, 'auth.guestReview')}
+                        viewerId={currentUserId}
+                        onReport={isAdmin ? undefined : handleReportReview}
                     />
                 )}
 
@@ -1289,6 +1297,13 @@ const PostDetailScreen = ({ route, navigation }) => {
                     visible={showReportSheet}
                     onClose={() => setShowReportSheet(false)}
                     postId={post.id}
+                />
+            )}
+            {!isAdmin && (
+                <ReportSheet
+                    visible={reportReviewId != null}
+                    onClose={() => setReportReviewId(null)}
+                    reviewId={reportReviewId}
                 />
             )}
             {bookingOpen && (

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Star } from 'lucide-react'
+import { Star, Flag } from 'lucide-react'
 import { toast } from 'sonner'
 import { reviewsApi } from '@/lib/api'
 import InfoSection from '@/components/InfoSection'
@@ -47,8 +47,9 @@ export function Stars({ value, size = 14, onSelect }) {
 /** Reviews shown before the list asks to be expanded. */
 const REVIEW_PREVIEW = 5
 
-// Rating summary + review list + own-review form for a provider
-export default function ProviderReviews({ providerId, canReview, onRequireAuth }) {
+// Rating summary + review list + own-review form for a provider.
+// `onReport(reviewId)` flags a review for the admin queue; omitted for admins.
+export default function ProviderReviews({ providerId, canReview, onRequireAuth, viewerId, onReport }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [rating, setRating] = useState(0)
@@ -138,6 +139,17 @@ export default function ProviderReviews({ providerId, canReview, onRequireAuth }
                   <span className="text-xs font-medium text-text">{r.author?.given_name || '—'}</span>
                   <Stars value={r.rating} size={11} />
                   <span className="text-xs text-muted">{formatDate(r.date_updated)}</span>
+                  {onReport && r.author?.id !== viewerId && (
+                    <button
+                      type="button"
+                      onClick={() => onReport(r.id)}
+                      aria-label={t('report.titleReview')}
+                      title={t('report.titleReview')}
+                      className="ml-auto p-2 -m-2 text-muted hover:text-text transition-colors"
+                    >
+                      <Flag size={12} />
+                    </button>
+                  )}
                 </div>
                 {r.comment && <p className="text-sm text-text mt-1 leading-relaxed">{r.comment}</p>}
               </div>

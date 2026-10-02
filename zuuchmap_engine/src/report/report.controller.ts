@@ -37,12 +37,7 @@ export class ReportController {
   @Post()
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   create(@Body() dto: CreateReportDto, @Req() req) {
-    return this.reports.create(
-      req.user.id,
-      dto.post_id,
-      dto.reason,
-      dto.detail,
-    );
+    return this.reports.create(req.user.id, dto);
   }
 
   @Get()
@@ -78,6 +73,6 @@ export class ReportController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ResolveReportDto,
   ) {
-    return this.reports.resolve(id, dto.status, dto.resolution);
+    return this.reports.resolve(id, dto.status, dto.resolution, dto.take_down);
   }
 }

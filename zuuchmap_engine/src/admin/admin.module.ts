@@ -9,10 +9,11 @@ import { EventsModule } from '../events/events.module';
 import { PostModule } from '../post/post.module';
 import { SavedSearchModule } from '../saved-search/saved-search.module';
 import { UserModule } from '../user/user.module';
+import { Report } from '../report/entities/report.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Post, User, Company]),
+    TypeOrmModule.forFeature([Post, User, Company, Report]),
     EventsModule,
     PostModule,
     SavedSearchModule,
@@ -20,5 +21,6 @@ import { UserModule } from '../user/user.module';
   ],
   controllers: [AdminController],
   providers: [AdminService],
+  exports: [AdminService],
 })
 export class AdminModule {}

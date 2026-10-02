@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { User } from '../../user/entities/user.entity';
 import { Post } from '../../post/entities/post.entity';
+import { Review } from '../../review/entities/review.entity';
 
 /**
  * A user flagging something that is already live.
@@ -31,10 +32,34 @@ export class Report {
   @Index()
   reporter: User | null;
 
-  @ManyToOne(() => Post, { onDelete: 'CASCADE' })
+  /**
+   * Exactly one of `post` / `review` is set when filed. Both are SET NULL on
+   * delete: deleting what was reported must not delete the report, or an
+   * owner could clear the queue and their record by deleting the listing.
+   */
+  @ManyToOne(() => Post, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn()
   @Index()
-  post: Post;
+  post: Post | null;
+
+  @ManyToOne(() => Review, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn()
+  @Index()
+  review: Review | null;
+
+  /** POST | REVIEW — which of the two, even after it has been deleted. */
+  @Column({ default: 'POST' })
+  kind: string;
+
+  /** Who the complaint is against — the post owner or the review's author. */
+  @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn()
+  @Index()
+  owner: User | null;
+
+  /** The post title or review text as filed, so the queue still reads after a delete. */
+  @Column({ type: 'text', nullable: true })
+  subject: string | null;
 
   /** One of REPORT_REASONS — a closed list so the queue can be triaged by kind. */
   @Column()

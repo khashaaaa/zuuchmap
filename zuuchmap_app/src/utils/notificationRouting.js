@@ -59,6 +59,11 @@ export function resolveNotificationRoute(data = {}) {
     return { screen: 'AdminDashboard', params: { screen: 'Reports' } };
   }
 
+  // The outcome of a report this user filed — nothing to open but the message.
+  if (data.notifType === 'report_resolved') {
+    return { screen: 'Notifications', params: {} };
+  }
+
   if (data.bookingId) {
     // 'provider' is the received-requests view, 'customer' is own requests, so
     // the role is the *recipient's* side. The engine sends a new request and a

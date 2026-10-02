@@ -7,9 +7,16 @@ import { ReportController } from './report.controller';
 import { ReportService } from './report.service';
 import { EventsModule } from '../events/events.module';
 import { PostModule } from '../post/post.module';
+import { AdminModule } from '../admin/admin.module';
+import { Review } from '../review/entities/review.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Report, Post, User]), EventsModule, PostModule],
+  imports: [
+    TypeOrmModule.forFeature([Report, Post, User, Review]),
+    EventsModule,
+    PostModule,
+    AdminModule,
+  ],
   controllers: [ReportController],
   providers: [ReportService],
   exports: [ReportService],

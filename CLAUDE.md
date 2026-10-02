@@ -144,9 +144,9 @@ GET  /conversations/:id/messages  JWT   ?before&before_id, 30/page
 POST /conversations/:id/messages  JWT   {body}
 PUT  /conversations/:id/read      JWT
 GET  /reports/reasons             JWT
-POST /reports                     JWT   {post_id,reason,detail?}; a duplicate returns the existing one
+POST /reports                     JWT   {post_id|review_id,reason,detail?}; a duplicate returns the existing one
 GET  /reports  GET /reports/count AdminGuard
-PUT  /reports/:id                 AdminGuard  {status,resolution?} — OPEN only
+PUT  /reports/:id                 AdminGuard  {status,resolution?,take_down?} — OPEN only, one conditional UPDATE
 GET  /seo/sitemap.xml  GET /seo/post/:id   sitemap index; OG tags for crawlers
 ```
 
@@ -156,7 +156,9 @@ GET  /seo/sitemap.xml  GET /seo/post/:id   sitemap index; OG tags for crawlers
 
 ### Behaviour
 
-**Bookings / reviews.** A booking outlives its post (`booking.post` is nullable, `ON DELETE SET NULL`): it can still be declined or cancelled, never accepted. Only `has_rental_status` categories are bookable; no self-booking; one PENDING request per customer per post; accept refuses overlap with an ACCEPTED booking; the contact phone is shared only after ACCEPTED. Review eligibility (`ReviewService.canReview`) is an ACCEPTED booking **or** a conversation the provider replied to — four categories have no booking flow at all.
+**Bookings / reviews.** A booking outlives its post (`booking.post` is nullable, `ON DELETE SET NULL`): it can still be declined or cancelled, never accepted. Only `has_rental_status` categories are bookable; no self-booking; one PENDING request per customer per post; accept refuses overlap with an ACCEPTED booking; the contact phone is shared only after ACCEPTED. Review eligibility (`ReviewService.canReview`) is a *finished* booking (ACCEPTED, `end_date` past) **or** a conversation the provider replied to — four categories have no booking flow at all.
+
+**Reports.** About a post or a review (`report.kind`). Deleting either sets the FK null, never the report — `ownerId` and `subject` are copied at filing, so the queue and the track record survive. One OPEN report per reporter per subject is a partial unique index. `take_down` with RESOLVED rejects the whole listing (a pending edit included) or deletes the review; either way `closeOpenReports` closes that subject's other open reports and pushes each reporter the outcome — a listing rejection from the approval screen does the same. `isProvenProvider` reads `user.posts_rejected` (a counter) and upheld POST reports by `ownerId`, not anything joined through a post the owner can delete.
 
 **Editing a live post (`pending_revision`).** An APPROVED post never leaves browse because its owner edited it: the proposal is parked in `post.pending_revision`, approve writes it onto the row, reject drops it, and `approval_status` stays APPROVED throughout. A PENDING or REJECTED post is edited in place. Consequences: the owner's form hydrates from `pending_revision ?? post`; revision photos are referenced only by the revision, so reclaim must cover both sets; `rejection_reason` on an APPROVED post means *the edit* was refused. `PostService.isProvenProvider` (3+ approved, zero rejections, zero upheld reports) auto-publishes edits — never new listings.
 

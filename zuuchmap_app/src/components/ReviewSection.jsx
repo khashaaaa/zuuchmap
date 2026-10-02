@@ -71,7 +71,8 @@ const REVIEW_PREVIEW = 5;
 // false for a guest, after prompting them to sign in. Without it the composer
 // opened for anyone, and the only thing standing between a guest and a filled-in
 // review was the 401 the submit came back with.
-const ReviewSection = ({ providerId, canReview, autoOpen = false, onRequireAuth }) => {
+// `onReport(reviewId)` flags a review for the admin queue; omitted for admins.
+const ReviewSection = ({ providerId, canReview, autoOpen = false, onRequireAuth, viewerId, onReport }) => {
     const { colors, styles: gStyles } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
     const { t } = useTranslation();
@@ -195,6 +196,18 @@ const ReviewSection = ({ providerId, canReview, autoOpen = false, onRequireAuth 
                                 <Text style={styles.reviewAuthor} numberOfLines={1}>{r.author?.given_name || '—'}</Text>
                                 <Stars value={r.rating} size={14} color={colors.warning} />
                                 <Text style={styles.reviewDate}>{formatDate(r.date_updated)}</Text>
+                                {onReport && r.author?.id !== viewerId && (
+                                    <TouchableOpacity
+                                        onPress={() => onReport(r.id)}
+                                        style={styles.reportBtn}
+                                        hitSlop={interactions.hitSlop}
+                                        activeOpacity={interactions.activeOpacity}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={t('report.titleReview')}
+                                    >
+                                        <Ionicons name="flag-outline" size={14} color={colors.text.tertiary} />
+                                    </TouchableOpacity>
+                                )}
                             </View>
                             {r.comment ? <Text style={styles.reviewComment}>{r.comment}</Text> : null}
                         </View>
@@ -237,6 +250,7 @@ const createStyles = (colors) => StyleSheet.create({
     reviewHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
     reviewAuthor: { ...typography.styles.label, color: colors.text.primary, flexShrink: 1 },
     reviewDate: { ...typography.styles.small, color: colors.text.tertiary },
+    reportBtn: { marginLeft: 'auto' },
     // The review body is the content of the card; read it at body weight, not as
     // the faintest line on it.
     reviewComment: { ...typography.styles.body, color: colors.text.primary },

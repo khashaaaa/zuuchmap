@@ -1,24 +1,30 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { View, Text, FlatList, TouchableOpacity, RefreshControl, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { Ionicons } from '@expo/vector-icons';
 import { spacing, typography, radius, interactions, isTablet } from '../../design/theme';
 import { useAppTheme } from '../../hooks/useAppTheme';
 import { ScreenLayout, EmptyState, SkeletonItem, SelectionPop } from '../../components';
 import Button from '../../components/Button';
 import TextInput from '../../components/TextInput';
 import reportService, { REPORTS_KEY } from '../../services/api/reportService';
+import { invalidatePostData } from '../../services/queryClient';
 import { formatDateTime } from '../../utils/displayUtils';
 import { showErrorModal, getErrorMessage } from '../../utils/errorManager';
 import { useListBottomPadding } from '../../hooks/useListBottomPadding';
 
 const TABS = ['OPEN', 'RESOLVED', 'DISMISSED'];
+const PAGE_SIZE = 50;
 
 /**
  * The moderation queue for reports users filed on live listings — the app
  * counterpart of the web's AdminReports. Oldest first, same as pending posts.
+ * Paged: a single 50-row fetch left everything past the oldest fifty
+ * unreachable. A report is about a listing or a review; `subject` is what it
+ * read as when filed, so the card still reads after the owner deleted it.
  */
 const AdminReports = ({ navigation }) => {
     const insets = useSafeAreaInsets();
@@ -30,20 +36,30 @@ const AdminReports = ({ navigation }) => {
     const [tab, setTab] = useState('OPEN');
     const [notes, setNotes] = useState({});
 
-    const { data, isLoading, isRefetching, isError, refetch } = useQuery({
+    const { data, isLoading, isRefetching, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
         queryKey: [...REPORTS_KEY, tab],
-        queryFn: () => reportService.list({ status: tab }),
+        queryFn: ({ pageParam }) => reportService.list({ status: tab, page: pageParam, limit: PAGE_SIZE }),
+        initialPageParam: 1,
+        getNextPageParam: (last, pages) =>
+            pages.reduce((n, p) => n + p.items.length, 0) < last.total ? pages.length + 1 : undefined,
         staleTime: 30 * 1000,
     });
     useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
 
     const resolveMut = useMutation({
-        mutationFn: ({ id, status }) => reportService.resolve(id, status, notes[id]?.trim() || undefined),
-        onSuccess: () => qc.invalidateQueries({ queryKey: REPORTS_KEY }),
+        mutationFn: ({ id, status, takeDown }) => reportService.resolve(id, status, notes[id]?.trim() || undefined, takeDown),
+        onSuccess: (_, { takeDown }) => {
+            qc.invalidateQueries({ queryKey: REPORTS_KEY });
+            if (takeDown) {
+                qc.invalidateQueries({ queryKey: ['reviews'] });
+                invalidatePostData();
+            }
+        },
         onError: (error) => showErrorModal(t('common.error'), getErrorMessage(error)),
     });
 
-    const items = data?.items ?? [];
+    const items = data?.pages.flatMap((p) => p.items) ?? [];
+    const total = data?.pages[0]?.total ?? 0;
 
     const renderItem = useCallback(({ item }) => (
         <View style={[styles.card, colors.elevation.sm]}>
@@ -51,7 +67,22 @@ const AdminReports = ({ navigation }) => {
                 <Text style={styles.reason}>{t(`report.reasons.${item.reason}`)}</Text>
                 <Text style={styles.date}>{formatDateTime(item.date_created)}</Text>
             </View>
-            {item.post ? (
+            {item.kind === 'REVIEW' ? (
+                <View style={styles.reviewSubject}>
+                    <Text style={styles.muted}>{t('report.kindReview')}</Text>
+                    {item.review ? (
+                        <>
+                            <View style={styles.ratingRow}>
+                                <Text style={styles.detail}>{item.review.rating}</Text>
+                                <Ionicons name="star" size={12} color={colors.warning} />
+                            </View>
+                            <Text style={styles.detail}>{item.review.comment || '—'}</Text>
+                        </>
+                    ) : (
+                        <Text style={styles.muted}>{t('report.subjectGone')} · {item.subject || '—'}</Text>
+                    )}
+                </View>
+            ) : item.post ? (
                 <TouchableOpacity
                     onPress={() => navigation.navigate('PostDetailScreen', { postId: item.post.id, role: 'admin' })}
                     activeOpacity={interactions.activeOpacity}
@@ -60,10 +91,12 @@ const AdminReports = ({ navigation }) => {
                     <Text style={styles.postLink} numberOfLines={1}>#{item.post.id} · {item.post.title || '—'}</Text>
                 </TouchableOpacity>
             ) : (
-                <Text style={styles.muted}>—</Text>
+                <Text style={styles.muted} numberOfLines={1}>{t('report.subjectGone')} · {item.subject || '—'}</Text>
             )}
             {!!item.detail && <Text style={styles.detail}>{item.detail}</Text>}
-            <Text style={styles.muted}>{t('report.reporter')}: {item.reporter?.phone_number ?? '—'}</Text>
+            <Text style={styles.muted}>
+                {t('report.reporter')}: {item.reporter?.phone_number ?? '—'} · {t('report.against')}: {item.owner?.phone_number ?? '—'}
+            </Text>
 
             {tab === 'OPEN' ? (
                 <View style={styles.actions}>
@@ -72,6 +105,15 @@ const AdminReports = ({ navigation }) => {
                         onChangeText={(v) => setNotes((n) => ({ ...n, [item.id]: v.slice(0, 500) }))}
                         placeholder={t('report.resolutionPlaceholder')}
                     />
+                    {(item.post || item.review) && (
+                        <Button
+                            title={item.post ? t('report.takeDownPost') : t('report.takeDownReview')}
+                            size="sm"
+                            variant="danger"
+                            onPress={() => resolveMut.mutate({ id: item.id, status: 'RESOLVED', takeDown: true })}
+                            disabled={resolveMut.isPending}
+                        />
+                    )}
                     <View style={styles.buttons}>
                         <Button
                             title={t('report.resolve')}
@@ -119,7 +161,7 @@ const AdminReports = ({ navigation }) => {
                         >
                             <Text style={[styles.tabText, { color: tab === value ? colors.text.link : colors.text.secondary }]}>
                                 {t(`report.status.${value}`)}
-                                {value === 'OPEN' && tab === 'OPEN' && data?.total > 0 ? ` · ${data.total}` : ''}
+                                {value === 'OPEN' && tab === 'OPEN' && total > 0 ? ` · ${total}` : ''}
                             </Text>
                         </TouchableOpacity>
                     </SelectionPop>
@@ -138,6 +180,17 @@ const AdminReports = ({ navigation }) => {
                     contentContainerStyle={[styles.list, { paddingBottom: listBottom }]}
                     refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.iconAccent} />}
                     ListEmptyComponent={<EmptyState icon="flag-outline" title={t('report.queueEmpty')} />}
+                    onEndReached={() => { if (hasNextPage && !isFetchingNextPage) fetchNextPage(); }}
+                    onEndReachedThreshold={0.5}
+                    ListFooterComponent={hasNextPage ? (
+                        <Button
+                            title={t('report.loadMore')}
+                            variant="secondary"
+                            size="sm"
+                            onPress={() => fetchNextPage()}
+                            loading={isFetchingNextPage}
+                        />
+                    ) : null}
                     keyboardShouldPersistTaps="handled"
                 />
             )}
@@ -161,6 +214,8 @@ const createStyles = (colors) => StyleSheet.create({
     actions: { marginTop: spacing.sm, gap: spacing.sm },
     buttons: { flexDirection: 'row', gap: spacing.sm },
     button: { flex: 1 },
+    reviewSubject: { gap: spacing.xxs },
+    ratingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs },
 });
 
 export default AdminReports;

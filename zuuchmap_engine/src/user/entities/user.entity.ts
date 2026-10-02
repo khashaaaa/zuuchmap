@@ -53,6 +53,10 @@ export class User {
   @Column({ default: 'FREE' })
   plan: string;
 
+  /** Listings an admin rejected, ever — survives deleting them (`isProvenProvider`). */
+  @Column({ type: 'int', default: 0 })
+  posts_rejected: number;
+
   // NULL on FREE. On PROVIDER, the moment entitlement lapses back to FREE.
   @Column({ nullable: true, type: 'timestamp' })
   plan_expires_at: Date | null;

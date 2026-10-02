@@ -21,3 +21,8 @@ export enum ReportStatus {
   RESOLVED = 'RESOLVED',
   DISMISSED = 'DISMISSED',
 }
+
+export enum ReportKind {
+  POST = 'POST',
+  REVIEW = 'REVIEW',
+}

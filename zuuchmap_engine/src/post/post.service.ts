@@ -47,7 +47,7 @@ import { APP_TIMEZONE } from '../utils/timezone';
 import { Localized, PUSH } from '../utils/push-messages';
 import { claimCron } from '../utils/redis';
 import { Report } from '../report/entities/report.entity';
-import { ReportStatus } from '../enums/report';
+import { ReportKind, ReportStatus } from '../enums/report';
 
 const POST_EXPIRY_DAYS = 30;
 
@@ -1211,26 +1211,34 @@ export class PostService {
    */
   async isProvenProvider(userId: string): Promise<boolean> {
     if (!userId) return false;
-    const [approved, rejected] = await Promise.all([
+    // Both halves of the record are read from rows that outlive the post:
+    // counting REJECTED posts or joining reports through `post` let an owner
+    // clear their history by deleting the listing it was about.
+    const [approved, owner] = await Promise.all([
       this.postRepository.count({
         where: { user: { id: userId }, approval_status: 'APPROVED' },
       }),
-      this.postRepository.count({
-        where: { user: { id: userId }, approval_status: 'REJECTED' },
-      }),
+      this.postRepository.manager
+        .getRepository(User)
+        .findOne({ where: { id: userId }, select: ['id', 'posts_rejected'] }),
     ]);
-    if (rejected > 0 || approved < PostService.PROVEN_APPROVED_POSTS)
+    if (
+      (owner?.posts_rejected ?? 0) > 0 ||
+      approved < PostService.PROVEN_APPROVED_POSTS
+    )
       return false;
 
     // Read through the manager rather than injecting the repository: this is
     // one COUNT, and the post module has no other reason to know about reports.
     const upheld = await this.postRepository.manager
       .getRepository(Report)
-      .createQueryBuilder('report')
-      .innerJoin('report.post', 'post')
-      .where('post.userId = :userId', { userId })
-      .andWhere('report.status = :status', { status: ReportStatus.RESOLVED })
-      .getCount();
+      .count({
+        where: {
+          owner: { id: userId },
+          kind: ReportKind.POST,
+          status: ReportStatus.RESOLVED,
+        },
+      });
     return upheld === 0;
   }
 

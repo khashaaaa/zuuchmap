@@ -204,7 +204,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   /** A listing was flagged. Admin-only — the reported provider is not told. */
   emitReportCreated(payload: {
     reportId: string;
-    postId: number;
+    postId: number | null;
     reason: string;
   }) {
     this.emit(ROOM_ADMIN, SOCKET_EVENTS.REPORT_CREATED, payload);

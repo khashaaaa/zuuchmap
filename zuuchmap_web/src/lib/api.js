@@ -229,10 +229,11 @@ export const messagesApi = {
 export const REPORT_REASONS = ['SPAM', 'SCAM', 'WRONG_INFO', 'UNAVAILABLE', 'OFFENSIVE', 'OTHER']
 export const reportsApi = {
   reasons: () => client.get('/reports/reasons').then(data),
-  create: (post_id, reason, detail) => client.post('/reports', { post_id, reason, ...(detail ? { detail } : {}) }).then(data),
+  // `subject` is `{ post_id }` or `{ review_id }`.
+  create: (subject, reason, detail) => client.post('/reports', { ...subject, reason, ...(detail ? { detail } : {}) }).then(data),
   list: (params) => client.get('/reports', { params }).then(data),
   count: () => client.get('/reports/count').then(data),
-  resolve: (id, status, resolution) => client.put(`/reports/${id}`, { status, ...(resolution ? { resolution } : {}) }).then(data),
+  resolve: (id, status, resolution, take_down) => client.put(`/reports/${id}`, { status, ...(resolution ? { resolution } : {}), ...(take_down ? { take_down } : {}) }).then(data),
 }
 
 // Web push — a browser subscription, stored beside the app's Expo devices.

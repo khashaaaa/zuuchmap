@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Flag } from 'lucide-react'
+import { Flag, Star } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
 import EmptyState from '@/components/EmptyState'
 import ErrorState from '@/components/ErrorState'
@@ -12,12 +12,18 @@ import { reportsApi } from '@/lib/api'
 import { formatDateTime } from '@/lib/utils'
 
 const TABS = ['OPEN', 'RESOLVED', 'DISMISSED']
+const PAGE_SIZE = 50
 
 /**
  * The moderation queue for reports users filed on live listings.
  *
  * Oldest first, the same drain-the-tail rule the pending-post queue uses: a
- * newest-first queue starves whatever nobody got to.
+ * newest-first queue starves whatever nobody got to. Paged: a single
+ * 50-row fetch left everything past the oldest fifty unreachable.
+ *
+ * A report is about a listing or a review. `subject` is what was filed
+ * against as it read then, so a report still reads after the owner deleted
+ * the thing — which no longer deletes the report.
  */
 export default function AdminReports() {
   const { t } = useTranslation()
@@ -25,26 +31,32 @@ export default function AdminReports() {
   const [tab, setTab] = useState('OPEN')
   const [resolution, setResolution] = useState({})
 
-  const { data, isLoading, isError, refetch } = useQuery({
+  const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
     queryKey: ['reports', tab],
-    queryFn: () => reportsApi.list({ status: tab }),
+    queryFn: ({ pageParam }) => reportsApi.list({ status: tab, page: pageParam, limit: PAGE_SIZE }),
+    initialPageParam: 1,
+    getNextPageParam: (last, pages) =>
+      pages.reduce((n, p) => n + p.items.length, 0) < last.total ? pages.length + 1 : undefined,
   })
 
   const resolveMut = useMutation({
-    mutationFn: ({ id, status, note }) => reportsApi.resolve(id, status, note),
+    mutationFn: ({ id, status, note, takeDown }) => reportsApi.resolve(id, status, note, takeDown),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['reports'] })
       qc.invalidateQueries({ queryKey: ['reports', 'count'] })
+      qc.invalidateQueries({ queryKey: ['reviews'] })
+      qc.invalidateQueries({ queryKey: ['posts'] })
     },
     onError: () => toast.error(t('common.error')),
   })
 
-  const items = data?.items ?? []
+  const items = data?.pages.flatMap((p) => p.items) ?? []
+  const total = data?.pages[0]?.total ?? 0
   return (
     <div className="max-w-3xl">
       <PageHeader
         title={t('report.queue')}
-        description={tab === 'OPEN' ? t('report.openCount', { count: data?.total ?? 0 }) : undefined}
+        description={tab === 'OPEN' ? t('report.openCount', { count: total }) : undefined}
         icon={Flag}
       />
 
@@ -80,7 +92,21 @@ export default function AdminReports() {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="font-semibold text-text">{t(`report.reasons.${report.reason}`)}</p>
-                  {report.post ? (
+                  {report.kind === 'REVIEW' ? (
+                    <div className="text-sm text-text">
+                      <span className="text-xs font-semibold text-muted mr-1.5">{t('report.kindReview')}</span>
+                      {report.review ? (
+                        <>
+                          <span className="inline-flex items-center gap-0.5 align-middle mr-1.5">
+                            {report.review.rating}<Star size={11} className="text-warning fill-warning" />
+                          </span>
+                          <span className="break-words">{report.review.comment || '—'}</span>
+                        </>
+                      ) : (
+                        <span className="text-muted">{t('report.subjectGone')} · {report.subject || '—'}</span>
+                      )}
+                    </div>
+                  ) : report.post ? (
                     <Link
                       to={`/admin/posts/${report.post.id}`}
                       className="text-sm text-primary-text hover:underline truncate block"
@@ -88,7 +114,7 @@ export default function AdminReports() {
                       #{report.post.id} · {report.post.title || '—'}
                     </Link>
                   ) : (
-                    <p className="text-sm text-muted">—</p>
+                    <p className="text-sm text-muted truncate">{t('report.subjectGone')} · {report.subject || '—'}</p>
                   )}
                 </div>
                 <span className="text-xs text-muted shrink-0">{formatDateTime(report.date_created)}</span>
@@ -100,6 +126,7 @@ export default function AdminReports() {
 
               <p className="text-xs text-muted mt-2">
                 {t('report.reporter')}: {report.reporter?.phone_number ?? '—'}
+                {' · '}{t('report.against')}: {report.owner?.phone_number ?? '—'}
               </p>
 
               {tab === 'OPEN' && (
@@ -112,7 +139,17 @@ export default function AdminReports() {
                     aria-label={t('report.resolutionPlaceholder')}
                     className="flex-1 bg-surface2 border border-transparent rounded-btn px-3 py-2 text-sm text-text placeholder:text-muted outline-none focus:border-primary"
                   />
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
+                    {(report.post || report.review) && (
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        onClick={() => resolveMut.mutate({ id: report.id, status: 'RESOLVED', note: resolution[report.id], takeDown: true })}
+                        disabled={resolveMut.isPending}
+                      >
+                        {report.post ? t('report.takeDownPost') : t('report.takeDownReview')}
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       onClick={() => resolveMut.mutate({ id: report.id, status: 'RESOLVED', note: resolution[report.id] })}
@@ -137,6 +174,13 @@ export default function AdminReports() {
               )}
             </li>
           ))}
+          {hasNextPage && (
+            <li className="flex justify-center">
+              <Button variant="secondary" size="sm" onClick={() => fetchNextPage()} disabled={isFetchingNextPage}>
+                {t('report.loadMore')}
+              </Button>
+            </li>
+          )}
         </ul>
       )}
     </div>

@@ -18,6 +18,9 @@ import { EventsGateway } from '../events/events.gateway';
 import { sharedCache, invalidatePostReadCaches } from '../utils/cache';
 import { openFeaturedWindow } from '../post/featured';
 import { PUSH } from '../utils/push-messages';
+import { Report } from '../report/entities/report.entity';
+import { closeOpenReports } from '../report/close-open-reports';
+import { ReportStatus } from '../enums/report';
 
 const STATS_TTL = 30_000; // 30 s
 
@@ -33,6 +36,8 @@ export class AdminService {
     private userRepository: Repository<User>,
     @InjectRepository(Company)
     private companyRepository: Repository<Company>,
+    @InjectRepository(Report)
+    private reportRepository: Repository<Report>,
     private readonly events: EventsGateway,
     private readonly notifications: PostNotificationService,
     private readonly posts: PostService,
@@ -244,7 +249,17 @@ export class AdminService {
    * Validated by shape only: schemas are admin-editable, so a key that is not
    * on today's schema is a stale choice, not an attack.
    */
-  async rejectPost(postId: number, reason: string, fieldKey?: string | null) {
+  /**
+   * `wholeListing` (an upheld report's take-down) rejects the listing itself
+   * even when an edit is pending — otherwise the reject would only refuse the
+   * edit and leave the reported version in browse.
+   */
+  async rejectPost(
+    postId: number,
+    reason: string,
+    fieldKey?: string | null,
+    { wholeListing = false }: { wholeListing?: boolean } = {},
+  ) {
     if (!reason?.trim())
       throw new BadRequestException('Rejection reason is required');
     const field = fieldKey?.trim() || null;
@@ -257,21 +272,37 @@ export class AdminService {
     // uploaded for the proposal are now unreachable and get reclaimed.
     // `rejection_reason` on a post that is still APPROVED is what tells the
     // owner their edit came back rather than their listing coming down.
-    const revision = post.pending_revision;
-    let orphaned: string[] = [];
-    if (revision) {
-      orphaned = (revision.images ?? []).filter(
-        (url) => !(post.images ?? []).includes(url),
-      );
-      post.pending_revision = null;
-    } else {
-      post.approval_status = 'REJECTED';
-    }
+    const revision = wholeListing ? null : post.pending_revision;
+    const orphaned = (post.pending_revision?.images ?? []).filter(
+      (url) => !(post.images ?? []).includes(url),
+    );
+    post.pending_revision = null;
+    const newlyRejected = !revision && post.approval_status !== 'REJECTED';
+    if (!revision) post.approval_status = 'REJECTED';
     post.rejection_reason = reason.trim();
     post.rejection_field = field;
     post.previous_snapshot = null;
     await this.postRepository.save(post);
     if (orphaned.length) void deleteMultipleImages(orphaned);
+
+    if (!revision) {
+      // Counted on the user, not read off the post: deleting the rejected
+      // listing must not clear the record `isProvenProvider` reads.
+      if (newlyRejected && post.user?.id)
+        await this.userRepository.increment(
+          { id: post.user.id },
+          'posts_rejected',
+          1,
+        );
+      // The listing is down; its open reports are answered by that.
+      await closeOpenReports(
+        this.reportRepository,
+        this.notifications,
+        { post: { id: postId } },
+        ReportStatus.RESOLVED,
+        reason.trim(),
+      );
+    }
 
     const userId = post.user?.id;
     if (userId) {

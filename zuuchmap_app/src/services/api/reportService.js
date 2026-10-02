@@ -23,15 +23,20 @@ export const REPORT_REASONS = ['SPAM', 'SCAM', 'WRONG_INFO', 'UNAVAILABLE', 'OFF
 const reportService = {
     reasons: async () => (await apiClient.get(E.REASONS)).data ?? REPORT_REASONS,
 
-    create: async (postId, reason, detail) =>
-        (await apiClient.post(E.CREATE, { post_id: postId, reason, ...(detail ? { detail } : {}) })).data,
+    // `subject` is `{ post_id }` or `{ review_id }`.
+    create: async (subject, reason, detail) =>
+        (await apiClient.post(E.CREATE, { ...subject, reason, ...(detail ? { detail } : {}) })).data,
 
     list: async (params) => (await apiClient.get(E.LIST, { params })).data,
 
     countOpen: async () => (await apiClient.get(E.COUNT)).data?.open ?? 0,
 
-    resolve: async (id, status, resolution) =>
-        (await apiClient.put(E.RESOLVE(id), { status, ...(resolution ? { resolution } : {}) })).data,
+    resolve: async (id, status, resolution, takeDown) =>
+        (await apiClient.put(E.RESOLVE(id), {
+            status,
+            ...(resolution ? { resolution } : {}),
+            ...(takeDown ? { take_down: true } : {}),
+        })).data,
 };
 
 export default reportService;

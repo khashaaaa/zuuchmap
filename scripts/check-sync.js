@@ -282,6 +282,29 @@ function agree(contract, sets) {
     { name: 'web',    value: arr(read('zuuchmap_web/src/lib/utils.js'), 'DISTRICTS') },
     { name: 'app',    value: arr(read('zuuchmap_app/src/config/app.config.js'), 'districts') },
   ]);
+
+  // The engine's place names exist for search (`utils/search-terms.ts`); the
+  // app's i18n strings are what a user reads and therefore types.
+  const engNames = (name) => {
+    const m = eng.match(new RegExp(`export const ${name}[^=]*=\\s*\\{([\\s\\S]*?)\\n\\};`));
+    if (!m) return null;
+    return Object.fromEntries([...m[1].matchAll(/([A-Z_]+):\s*\{\s*mn:\s*'([^']*)',\s*en:\s*'([^']*)'\s*\}/g)]
+      .map(([, k, mn, en]) => [k, { mn, en }]));
+  };
+  const appNames = (kind) => {
+    const [mn, en] = ['mn', 'en'].map((l) => loadLocale(`zuuchmap_app/src/i18n/locales/${l}.js`));
+    const keys = Object.keys(mn).filter((k) => k.startsWith(`${kind}.`)).map((k) => k.slice(kind.length + 1));
+    return Object.fromEntries(keys.map((k) => [k, { mn: mn[`${kind}.${k}`], en: en[`${kind}.${k}`] }]));
+  };
+  const sortKeys = (o) => o && Object.fromEntries(Object.keys(o).sort().map((k) => [k, o[k]]));
+  agree('place names', [
+    { name: 'engine PROVINCE_NAMES', value: sortKeys(engNames('PROVINCE_NAMES')) },
+    { name: 'app province.*', value: sortKeys(appNames('province')) },
+  ]);
+  agree('place names', [
+    { name: 'engine DISTRICT_NAMES', value: sortKeys(engNames('DISTRICT_NAMES')) },
+    { name: 'app district.*', value: sortKeys(appNames('district')) },
+  ]);
 }
 
 // ── 5. Price units ───────────────────────────────────────────────────────────

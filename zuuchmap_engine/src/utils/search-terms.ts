@@ -1,3 +1,5 @@
+import { DISTRICT_NAMES, PROVINCE_NAMES } from '../enums/province';
+
 /**
  * The one definition of how a free-text query is cut into terms.
  *
@@ -181,6 +183,9 @@ export interface TermGroup {
   /** Categories / `category:subcategory` pairs whose name the term matches. */
   categories: string[];
   subcategories: string[];
+  /** Province / district codes whose name the term matches. */
+  provinces: string[];
+  districts: string[];
 }
 
 /** A category or subcategory name, cut into the tokens a term can prefix. */
@@ -195,6 +200,21 @@ export interface CategoryLabel {
  * (Floor) is a whole name, but "man" — the truck brand — is not "Manager".
  */
 const MIN_LABEL_PREFIX = 4;
+
+/**
+ * Place names as matchable tokens, mn and en. Parts shorter than
+ * MIN_LABEL_PREFIX are dropped: "Дархан-Уул" must not turn the "уул" of
+ * "уул уурхай" into a province filter.
+ */
+const placeIndex = (names: Record<string, { mn: string; en: string }>) =>
+  Object.entries(names).map(([code, n]) => ({
+    code,
+    tokens: documentTokens(n.mn, n.en).filter(
+      (t) => t.length >= MIN_LABEL_PREFIX,
+    ),
+  }));
+const PROVINCE_INDEX = placeIndex(PROVINCE_NAMES);
+const DISTRICT_INDEX = placeIndex(DISTRICT_NAMES);
 
 /** Every name a schema carries, in every locale, as matchable tokens. */
 export function categoryLabelIndex(
@@ -262,10 +282,23 @@ export function expandTerms(
       if (l.subcategory) subcategories.add(`${l.category}:${l.subcategory}`);
       else categories.add(l.category);
     }
+    // Only prefixes long enough to name a place, so "ба" is not a province.
+    const placeHits = (index: typeof PROVINCE_INDEX) =>
+      index
+        .filter((pl) =>
+          [...prefixes].some(
+            (p) =>
+              p.length >= MIN_LABEL_PREFIX &&
+              pl.tokens.some((t) => t.startsWith(p)),
+          ),
+        )
+        .map((pl) => pl.code);
     return {
       prefixes: [...prefixes],
       categories: [...categories],
       subcategories: [...subcategories],
+      provinces: placeHits(PROVINCE_INDEX),
+      districts: placeHits(DISTRICT_INDEX),
     };
   });
 }
@@ -330,13 +363,15 @@ export function matchesSearchTerms(
 /**
  * Does `post` satisfy the expanded query the way browse's WHERE does? Every
  * group must hold: a prefix in the document, or the post's category or
- * subcategory named by the term.
+ * subcategory, province or district named by the term.
  */
 export function matchesPost(
   groups: TermGroup[],
   post: Parameters<typeof postDocument>[0] & {
     category?: string | null;
     subcategory?: string | null;
+    province?: string | null;
+    district?: string | null;
   },
 ): boolean {
   if (!groups.length) return true;
@@ -346,6 +381,8 @@ export function matchesPost(
     (g) =>
       g.categories.includes(post.category ?? '') ||
       g.subcategories.includes(sub) ||
+      g.provinces.includes(post.province ?? '') ||
+      g.districts.includes(post.district ?? '') ||
       g.prefixes.some((p) => tokens.some((tok) => tok.startsWith(p))),
   );
 }

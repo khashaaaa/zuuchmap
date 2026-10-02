@@ -639,67 +639,90 @@ export class PostService {
       if (cached) return cached;
     }
 
-    const qb = this.postRepository
-      .createQueryBuilder('post')
-      .leftJoinAndSelect('post.user', 'user')
-      .leftJoinAndSelect('user.company', 'company');
+    // `match` decides how search terms combine: 'all' is the query as typed,
+    // 'any' the fallback below.
+    const build = async (match: 'all' | 'any') => {
+      const qb = this.postRepository
+        .createQueryBuilder('post')
+        .leftJoinAndSelect('post.user', 'user')
+        .leftJoinAndSelect('user.company', 'company');
 
-    const rank = await this.applyFilters(qb, filters);
+      const rank = await this.applyFilters(qb, filters, match);
 
-    // Whitelisted sort orders — anything else falls back to newest-first.
-    // Price sorts push unpriced posts last so "cheapest" never means "no price".
-    switch (filters.sort) {
-      case 'price_asc':
-        qb.orderBy('post.price_amount', 'ASC', 'NULLS LAST').addOrderBy(
-          'post.date_created',
-          'DESC',
-        );
-        break;
-      case 'price_desc':
-        qb.orderBy('post.price_amount', 'DESC', 'NULLS LAST').addOrderBy(
-          'post.date_created',
-          'DESC',
-        );
-        break;
-      case 'views':
-        qb.orderBy('post.views', 'DESC').addOrderBy(
-          'post.date_created',
-          'DESC',
-        );
-        break;
-      default:
-        // Paid placement applies only to the default (newest-first) browse.
-        // Featured never hides or filters anything — it lifts within the same
-        // result set, so an unpaid post is always still reachable.
-        // Ordered by the stored `is_featured`, not by `featured_until > NOW()`.
-        // The predicate form could not be indexed — NOW() is not immutable — so
-        // every browse read and sorted the whole matching set to return one
-        // page. IDX_post_browse_order serves this ordering directly.
-        // A search ranks by relevance between the two.
-        qb.orderBy('post.is_featured', 'DESC');
-        if (rank) qb.addOrderBy(rank, 'DESC');
-        qb.addOrderBy('post.date_created', 'DESC');
-    }
+      // Whitelisted sort orders — anything else falls back to newest-first.
+      // Price sorts push unpriced posts last so "cheapest" never means "no price".
+      switch (filters.sort) {
+        case 'price_asc':
+          qb.orderBy('post.price_amount', 'ASC', 'NULLS LAST').addOrderBy(
+            'post.date_created',
+            'DESC',
+          );
+          break;
+        case 'price_desc':
+          qb.orderBy('post.price_amount', 'DESC', 'NULLS LAST').addOrderBy(
+            'post.date_created',
+            'DESC',
+          );
+          break;
+        case 'views':
+          qb.orderBy('post.views', 'DESC').addOrderBy(
+            'post.date_created',
+            'DESC',
+          );
+          break;
+        default:
+          // Paid placement applies only to the default (newest-first) browse.
+          // Featured never hides or filters anything — it lifts within the same
+          // result set, so an unpaid post is always still reachable.
+          // Ordered by the stored `is_featured`, not by `featured_until > NOW()`.
+          // The predicate form could not be indexed — NOW() is not immutable — so
+          // every browse read and sorted the whole matching set to return one
+          // page. IDX_post_browse_order serves this ordering directly.
+          // A search ranks by relevance between the two.
+          qb.orderBy('post.is_featured', 'DESC');
+          if (rank) qb.addOrderBy(rank, 'DESC');
+          qb.addOrderBy('post.date_created', 'DESC');
+      }
 
-    // limit/offset, not take/skip: both joins are many-to-one, so a row is a
-    // post, and take() wraps the query in a DISTINCT pass that cannot order
-    // by the rank expression (and cost an extra query on every page).
-    qb.limit(limit).offset((page - 1) * limit);
+      // limit/offset, not take/skip: both joins are many-to-one, so a row is a
+      // post, and take() wraps the query in a DISTINCT pass that cannot order
+      // by the rank expression (and cost an extra query on every page).
+      qb.limit(limit).offset((page - 1) * limit);
+      return qb;
+    };
 
     // The count is the same for every page of a filter set, and it costs a
     // second full pass (20 ms / 12k buffers at 62k posts) that getManyAndCount
-    // paid on every request — see countKey above.
-    const cachedTotal = this.cache.get<number>(countKey);
-    // getCount() ignores take/skip, so it counts the filter set, not the page.
-    const [items, total] = await Promise.all([
-      qb.getMany(),
-      cachedTotal !== undefined && cachedTotal !== null
-        ? Promise.resolve(cachedTotal)
-        : qb.getCount().then((n) => {
-            this.cache.set(countKey, n, TTL.count);
-            return n;
-          }),
-    ]);
+    // paid on every request — see countKey above. getCount() ignores
+    // limit/offset, so it counts the filter set, not the page.
+    const countOf = async (q: SelectQueryBuilder<Post>, key: string) => {
+      const cached = this.cache.get<number>(key);
+      if (cached !== undefined && cached !== null) return cached;
+      const n = await q.getCount();
+      this.cache.set(key, n, TTL.count);
+      return n;
+    };
+
+    let qb = await build('all');
+    let items: Post[];
+    let total: number;
+    let relaxed = false;
+    if (searchTerms(filters.q).length > 1) {
+      // Every term must match, so one word the listing does not use —
+      // "самосвал түрээс" against "Самосвал 20 тн — хайрга, элс" — emptied
+      // the page. When it does, fall back to posts matching any term; the
+      // rank puts those matching the most terms first. Decided on the count
+      // (cached per mode), so every page of one search agrees on the mode.
+      total = await countOf(qb, countKey);
+      if (total === 0) {
+        relaxed = true;
+        qb = await build('any');
+        total = await countOf(qb, `${countKey}:any`);
+      }
+      items = total ? await qb.getMany() : [];
+    } else {
+      [items, total] = await Promise.all([qb.getMany(), countOf(qb, countKey)]);
+    }
 
     // Demand-gap signal: record public searches (text/attribute queries) and any
     // filtered browse that came back empty. Cached repeats within the TTL are not
@@ -723,7 +746,9 @@ export class PostService {
         province: filters.province,
         district: filters.district,
         attrs: hasAttrs ? Object.keys(filters.attrs ?? {}) : undefined,
-        total,
+        // A relaxed search matched nothing as typed — that is the demand gap.
+        total: relaxed ? 0 : total,
+        relaxed: relaxed || undefined,
       });
     }
 
@@ -743,6 +768,7 @@ export class PostService {
   private async applyFilters(
     qb: SelectQueryBuilder<Post>,
     filters: PostFilters,
+    match: 'all' | 'any' = 'all',
   ): Promise<string | null> {
     let rank: string | null = null;
     const priceMin = Number(filters.price_min);
@@ -814,17 +840,19 @@ export class PostService {
         // three and scans the table: the bare `subcategory = ANY` reaches
         // IDX_post_subcategory, and the pair check after it only rechecks
         // (subcategory values repeat across categories).
-        groups.forEach((g, i) => {
-          qb.andWhere(
-            `(post.search_vector @@ to_tsquery('simple', :tsq${i}) OR post.category = ANY(:cats${i}) OR (post.subcategory = ANY(:subv${i}) AND ${subKey} = ANY(:subs${i})))`,
-            {
-              [`tsq${i}`]: groupTsquery(g),
-              [`cats${i}`]: g.categories,
-              [`subs${i}`]: g.subcategories,
-              [`subv${i}`]: g.subcategories.map((x) => x.split(':')[1]),
-            },
-          );
+        const arms = groups.map((g, i) => {
+          qb.setParameters({
+            [`tsq${i}`]: groupTsquery(g),
+            [`cats${i}`]: g.categories,
+            [`subs${i}`]: g.subcategories,
+            [`subv${i}`]: g.subcategories.map((x) => x.split(':')[1]),
+            [`prov${i}`]: g.provinces,
+            [`dist${i}`]: g.districts,
+          });
+          return `(post.search_vector @@ to_tsquery('simple', :tsq${i}) OR post.category = ANY(:cats${i}) OR (post.subcategory = ANY(:subv${i}) AND ${subKey} = ANY(:subs${i})) OR post.province = ANY(:prov${i}) OR post.district = ANY(:dist${i}))`;
         });
+        if (match === 'all') arms.forEach((a) => qb.andWhere(a));
+        else qb.andWhere(`(${arms.join(' OR ')})`);
         // Title (A) over attributes (B) over prose (C), via the weighted
         // vector; a post filed under a named subcategory or category gets a
         // fixed lift, so "экскаватор" ranks excavators that never say the word

@@ -14,6 +14,9 @@ import CustomSafeAreaView from '../../components/CustomSafeAreaView';
 import KeyboardAvoider from '../../components/KeyboardAvoider';
 import ScreenHeader from '../../components/ScreenHeader';
 import ScreenError from '../../components/ScreenError';
+import PressableScale from '../../components/PressableScale';
+import ThumbImage from '../../components/ThumbImage';
+import { getPostImageUrl } from '../../config/api.config';
 import messageService, {
     CONVERSATIONS_KEY, UNREAD_KEY, messagesKey, threadKey, flattenMessages, messageCursor,
 } from '../../services/api/messageService';
@@ -226,19 +229,27 @@ const MessageThreadScreen = ({ navigation, route }) => {
             {/* A link to the listing, as on the web: it is where the review
                 form is, and a chat is how most customers earn one. */}
             {thread && (thread.post ? (
-                <TouchableOpacity
-                    activeOpacity={interactions.activeOpacityLight}
+                <PressableScale
+                    style={styles.listingCard}
                     accessibilityRole="link"
-                    hitSlop={interactions.hitSlop}
                     onPress={() => navigation.navigate('PostDetailScreen', {
                         postId: thread.post.id,
                         role: thread.role === 'PROVIDER' ? 'provider' : 'customer',
                     })}
                 >
-                    <Text style={[styles.aboutListing, { color: colors.text.link }]} numberOfLines={1}>
-                        {thread.post.title}
-                    </Text>
-                </TouchableOpacity>
+                    <View style={styles.listingThumb}>
+                        {thread.post.images?.[0] ? (
+                            <ThumbImage uri={getPostImageUrl(thread.post.images[0])} style={styles.listingThumbImage} />
+                        ) : (
+                            <Ionicons name="image-outline" size={18} color={colors.text.tertiary} />
+                        )}
+                    </View>
+                    <View style={styles.listingBody}>
+                        <Text style={styles.listingLabel} numberOfLines={1}>{t('messages.aboutListing')}</Text>
+                        <Text style={styles.listingTitle} numberOfLines={2}>{thread.post.title}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={colors.text.tertiary} />
+                </PressableScale>
             ) : (
                 <Text style={styles.aboutListing} numberOfLines={1}>
                     {t('messages.deletedListing')}
@@ -315,6 +326,29 @@ const MessageThreadScreen = ({ navigation, route }) => {
 const createStyles = (colors) => StyleSheet.create({
     flex: { flex: 1 },
     loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    listingCard: {
+        ...colors.elevation.sm,
+        backgroundColor: colors.surface,
+        borderRadius: radius.card,
+        marginHorizontal: spacing.lg,
+        marginTop: spacing.sm,
+        marginBottom: spacing.xs,
+        padding: spacing.sm,
+        paddingRight: spacing.md,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.md,
+    },
+    listingThumb: {
+        width: 48, height: 48, borderRadius: radius.button,
+        backgroundColor: colors.surfaceElevated,
+        alignItems: 'center', justifyContent: 'center',
+        overflow: 'hidden',
+    },
+    listingThumbImage: { width: '100%', height: '100%' },
+    listingBody: { flex: 1, gap: spacing.xxs },
+    listingLabel: { ...typography.styles.small, color: colors.text.tertiary },
+    listingTitle: { ...typography.styles.bodyBold, color: colors.text.primary },
     aboutListing: {
         ...typography.styles.caption,
         color: colors.text.tertiary,

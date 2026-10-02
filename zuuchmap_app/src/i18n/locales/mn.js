@@ -756,6 +756,7 @@ export default {
     send: 'Илгээх',
     sending: 'Илгээж байна...',
     deletedListing: 'Зар устсан',
+    aboutListing: 'Энэ зарын талаар',
     failed: 'Мессеж илгээж чадсангүй.',
     retry: 'Илгээгдсэнгүй · дахин оролдох',
     loadOlder: 'Өмнөх мессежүүдийг үзэх',

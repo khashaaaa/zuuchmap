@@ -565,6 +565,7 @@ export default {
     send: '发送',
     sending: '发送中...',
     deletedListing: '信息已删除',
+    aboutListing: '关于此信息',
     failed: '无法发送消息。',
     retry: '未发送 · 点击重试',
     loadOlder: '加载更早的消息',

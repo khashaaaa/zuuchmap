@@ -600,6 +600,7 @@ export default {
     send: 'Send',
     sending: 'Sending...',
     deletedListing: 'Listing removed',
+    aboutListing: 'About this listing',
     failed: 'Could not send the message.',
     retry: 'Not sent · tap to retry',
     loadOlder: 'Load earlier messages',

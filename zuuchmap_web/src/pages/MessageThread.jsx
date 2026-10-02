@@ -3,12 +3,12 @@ import { useNavigate, useParams, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { ArrowLeft, Send } from 'lucide-react'
+import { ArrowLeft, ChevronRight, Image as ImageIcon, Send } from 'lucide-react'
 import ErrorState from '@/components/ErrorState'
 import Button from '@/components/Button'
 import { messagesApi } from '@/lib/api'
 import { useAuthStore } from '@/store'
-import { formatDate, formatTime } from '@/lib/utils'
+import { formatDate, formatTime, getThumbUrl, fallbackToFullImage } from '@/lib/utils'
 import { useDocumentMeta } from '@/hooks/useDocumentMeta'
 
 const PAGE_SIZE = 30
@@ -162,17 +162,38 @@ export default function MessageThread() {
           ) : (
           <>
           <h1 className="font-semibold text-text truncate">{thread.other_party?.given_name || '—'}</h1>
-          {thread.post ? (
-            <Link to={`/posts/${thread.post.id}`} className="text-xs text-primary-text hover:underline truncate block">
-              {thread.post.title}
-            </Link>
-          ) : (
-            <p className="text-xs text-muted">{t('messages.deletedListing')}</p>
-          )}
+          {!thread.post && <p className="text-xs text-muted">{t('messages.deletedListing')}</p>}
           </>
           )}
         </div>
       </header>
+
+      {/* The listing this thread is about, as a card: a bare link line under
+          the name read as a subtitle, not as the thing being discussed. */}
+      {thread?.post && (
+        <Link
+          to={`/posts/${thread.post.id}`}
+          className="mt-3 shrink-0 flex items-center gap-3 p-2 pr-3 rounded-card bg-surface border border-border/40 hover:bg-surface2 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        >
+          <div className="w-12 h-12 rounded-btn bg-surface2 overflow-hidden shrink-0 flex items-center justify-center">
+            {thread.post.images?.[0] ? (
+              <img
+                src={getThumbUrl(thread.post.images[0])}
+                alt=""
+                className="w-full h-full object-cover"
+                onError={fallbackToFullImage(thread.post.images[0])}
+              />
+            ) : (
+              <ImageIcon size={18} className="text-muted" />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-muted">{t('messages.aboutListing')}</p>
+            <p className="font-semibold text-text line-clamp-2 leading-snug">{thread.post.title}</p>
+          </div>
+          <ChevronRight size={18} className="text-muted shrink-0" />
+        </Link>
+      )}
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto py-4 space-y-2">
         {!isError && !isLoading && hasNextPage && (

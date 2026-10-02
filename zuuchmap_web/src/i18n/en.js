@@ -318,7 +318,7 @@ export default {
     jobvacancy: 'Job vacancy', sos: 'SOS Service',
   },
   filter: { minPrice: 'Min price', maxPrice: 'Max price', allCategories: 'All categories', searchPlaceholder: 'Search posts...', min: 'Min', max: 'Max', price: 'Price (₮)', sort: 'Sort', location: 'Location', specs: 'Specifications', status: 'Status', allStatuses: 'All statuses' },
-  sort: { newest: 'Newest first', priceAsc: 'Price: low to high', priceDesc: 'Price: high to low', views: 'Most viewed' },
+  sort: { relevance: 'Best match', newest: 'Newest first', priceAsc: 'Price: low to high', priceDesc: 'Price: high to low', views: 'Most viewed' },
   customer: { marketTitle: 'Marketplace' },
   provider: {
     greeting: 'Hello, {{name}}',
@@ -494,6 +494,7 @@ export default {
     timeline: { requested: 'Requested', accepted: 'Accepted', inProgress: 'In progress', done: 'Done', declined: 'Declined', cancelled: 'Cancelled', expired: 'Expired' },
   },
   savedSearch: {
+    relaxed: 'No exact matches — showing similar listings.', allWords: 'Alerts only for new listings that match every word of the search.',
     title: 'Saved searches', hint: 'Get notified when a new post matches these filters.',
     saveThis: 'Save this search', name: 'Name', namePlaceholder: 'e.g. Excavators in Khan-Uul',
     saved: 'Search saved', deleted: 'Search removed', empty: 'No saved searches',

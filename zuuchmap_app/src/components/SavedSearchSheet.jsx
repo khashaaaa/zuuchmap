@@ -114,6 +114,8 @@ const SavedSearchSheet = ({ visible, onClose, filters, onSaved }) => {
             )}
         >
             <Text style={styles.hint}>{t('savedSearch.hint')}</Text>
+            {/* Browse widens a search that finds nothing; alerts never do. */}
+            {filters?.q ? <Text style={styles.hint}>{t('savedSearch.allWords')}</Text> : null}
 
             <View style={styles.chips}>
                 {chips.length === 0 ? (

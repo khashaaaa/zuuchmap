@@ -356,7 +356,7 @@ export default {
     electric: 'Электро',
     coverageProvince: 'В пределах аймака', manufacturer: 'Производитель', model: 'Модель', manufacturedDate: 'Год выпуска', importedDate: 'Год ввоза', capacity: 'Грузоподъёмность', operatingHours: 'Наработка', mainProducts: 'Основная продукция', openingHours: 'Часы работы', employmentType: 'Тип занятости', salaryRange: 'Зарплата', fullTime: 'Полная занятость', partTime: 'Частичная занятость', contract: 'Контракт', temporary: 'Временная', internship: 'Стажировка', freelance: 'Фриланс', new: 'Новое', excellent: 'Отличное', good: 'Хорошее', fair: 'Удовлетворительное', needsRepair: 'Требует ремонта' },
   upload: { images: 'Фото', addImagesSubtitle: 'Загрузите фото для объявления', editImagesSubtitle: 'Измените или добавьте фото объявления', processing: 'Обработка фото...', addMore: 'Добавить фото (до 10)', addMoreRemaining: 'Добавить фото (осталось {{count}})', loading: 'Загрузка фото...', selectedCount: 'Выбрано фото: {{count}}', permissionTitle: 'Нужно разрешение', openSettings: 'Открыть настройки', galleryPermission: 'Нужен доступ к галерее', cameraPermission: 'Нужен доступ к камере', pickError: 'Не удалось выбрать фото', cameraError: 'Не удалось сделать фото', addTitle: 'Добавить фото', addQuestion: 'Как добавить фото?', gallery: 'Галерея', camera: 'Камера', profileHint: 'Файл JPG, PNG до 5 МБ', fileTooLarge: 'Файл слишком большой', fileTooLargeDesc: 'Выберите фото до {{max}} МБ', logoError: 'Не удалось выбрать логотип', profileGalleryPermission: 'Для смены фото профиля нужен доступ к галерее', cameraPermissionMsg: 'Чтобы сделать фото, нужен доступ к камере', removeImage: 'Удалить фото' },
-  sort: { newest: 'Сначала новые', price_asc: 'Цена: по возрастанию', price_desc: 'Цена: по убыванию', views: 'По просмотрам' },
+  sort: { relevance: 'Сначала подходящие', newest: 'Сначала новые', price_asc: 'Цена: по возрастанию', price_desc: 'Цена: по убыванию', views: 'По просмотрам' },
   priceUnit: { HOUR: 'в час', MOTO_HOUR: 'за моточас', DAY: 'в день', WEEK: 'в неделю', MONTH: 'в месяц', PROJECT: 'за проект', UNIT: 'за единицу', PIECE: 'за штуку', SQM: 'за м²', TRIP: 'за рейс', TOTAL: 'общая цена' },
   province: {
     ULAANBAATAR: 'Улан-Батор', ARKHANGAI: 'Архангай', BAYANOLGII: 'Баян-Улгий',
@@ -498,6 +498,8 @@ export default {
     timelineContact: 'Контакт открыт',
   },
   savedSearch: {
+    relaxed: 'Точных совпадений нет — показаны похожие объявления.',
+    allWords: 'Уведомления только о новых объявлениях со всеми словами запроса.',
     title: 'Мои поиски',
     save: 'Сохранить поиск',
     nameLabel: 'Название',

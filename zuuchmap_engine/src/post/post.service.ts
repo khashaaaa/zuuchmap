@@ -39,7 +39,8 @@ import { AnalyticsService } from '../analytics/analytics.service';
 import {
   categoryLabelIndex,
   expandTerms,
-  groupTsquery,
+  SearchMode,
+  searchSql,
   searchTerms,
 } from '../utils/search-terms';
 import { APP_TIMEZONE } from '../utils/timezone';
@@ -607,7 +608,7 @@ export class PostService {
 
   async findAll(
     filters: PostFilters = {},
-  ): Promise<{ items: Post[]; total: number }> {
+  ): Promise<{ items: Post[]; total: number; relaxed?: true }> {
     const hasAttrs = filters.attrs && Object.keys(filters.attrs).length > 0;
     const useCache = !filters.q && !hasAttrs;
     // Clamp pagination before anything touches SQL: Postgres rejects negative
@@ -639,15 +640,14 @@ export class PostService {
       if (cached) return cached;
     }
 
-    // `match` decides how search terms combine: 'all' is the query as typed,
-    // 'any' the fallback below.
-    const build = async (match: 'all' | 'any') => {
+    // `match` decides how search terms combine (see SearchMode).
+    const build = async (match: SearchMode) => {
       const qb = this.postRepository
         .createQueryBuilder('post')
         .leftJoinAndSelect('post.user', 'user')
         .leftJoinAndSelect('user.company', 'company');
 
-      const rank = await this.applyFilters(qb, filters, match);
+      const search = await this.applyFilters(qb, filters, match);
 
       // Whitelisted sort orders — anything else falls back to newest-first.
       // Price sorts push unpriced posts last so "cheapest" never means "no price".
@@ -678,9 +678,13 @@ export class PostService {
           // The predicate form could not be indexed — NOW() is not immutable — so
           // every browse read and sorted the whole matching set to return one
           // page. IDX_post_browse_order serves this ordering directly.
-          // A search ranks by relevance between the two.
-          qb.orderBy('post.is_featured', 'DESC');
-          if (rank) qb.addOrderBy(rank, 'DESC');
+          // A search ranks by relevance between the two, and lifts only the
+          // featured posts that answer it.
+          if (search) {
+            qb.orderBy(search.featured, 'DESC').addOrderBy(search.rank, 'DESC');
+          } else {
+            qb.orderBy('post.is_featured', 'DESC');
+          }
           qb.addOrderBy('post.date_created', 'DESC');
       }
 
@@ -703,26 +707,38 @@ export class PostService {
       return n;
     };
 
-    let qb = await build('all');
+    const terms = searchTerms(filters.q);
+    let mode: SearchMode = 'all';
+    let qb = await build(mode);
     let items: Post[];
     let total: number;
-    let relaxed = false;
-    if (searchTerms(filters.q).length > 1) {
-      // Every term must match, so one word the listing does not use —
-      // "самосвал түрээс" against "Самосвал 20 тн — хайрга, элс" — emptied
-      // the page. When it does, fall back to posts matching any term; the
-      // rank puts those matching the most terms first. Decided on the count
+    if (terms.length) {
+      // Every term must match, so a typo or one word the listing does not use
+      // — "самосвал түрээс" against "Самосвал 20 тн — хайрга, элс" — emptied
+      // the page. When it does, retry letting each term be a near-spelling of
+      // a title word, then letting any one term match. Decided on the count
       // (cached per mode), so every page of one search agrees on the mode.
       total = await countOf(qb, countKey);
       if (total === 0) {
-        relaxed = true;
-        qb = await build('any');
+        try {
+          const fuzzy = await build('fuzzy');
+          const n = await countOf(fuzzy, `${countKey}:fuzzy`);
+          if (n > 0) [mode, qb, total] = ['fuzzy', fuzzy, n];
+        } catch (err) {
+          // pg_trgm missing — the fuzzy step is an extra, never a failure.
+          this.logger.warn(`search: fuzzy step skipped — ${err?.message}`);
+        }
+      }
+      if (total === 0 && terms.length > 1) {
+        mode = 'any';
+        qb = await build(mode);
         total = await countOf(qb, `${countKey}:any`);
       }
       items = total ? await qb.getMany() : [];
     } else {
       [items, total] = await Promise.all([qb.getMany(), countOf(qb, countKey)]);
     }
+    const relaxed = mode !== 'all';
 
     // Demand-gap signal: record public searches (text/attribute queries) and any
     // filtered browse that came back empty. Cached repeats within the TTL are not
@@ -753,9 +769,12 @@ export class PostService {
     }
 
     // Never let raw User entities (push_token, device fields, …) reach clients.
+    // `relaxed` tells the client these are near matches, not the query as
+    // typed — both clients say so above the list.
     const result = {
       items: await this.attachBusyDates(items.map(listItem)),
       total,
+      ...(relaxed ? { relaxed: true as const } : {}),
     };
     if (useCache) this.cache.set(cacheKey, result, TTL.posts);
     return result;
@@ -768,9 +787,9 @@ export class PostService {
   private async applyFilters(
     qb: SelectQueryBuilder<Post>,
     filters: PostFilters,
-    match: 'all' | 'any' = 'all',
-  ): Promise<string | null> {
-    let rank: string | null = null;
+    match: SearchMode = 'all',
+  ): Promise<{ rank: string; featured: string } | null> {
+    let search: { rank: string; featured: string } | null = null;
     const priceMin = Number(filters.price_min);
     if (
       filters.price_min !== undefined &&
@@ -817,11 +836,10 @@ export class PostService {
     }
 
     if (filters.q) {
-      // Prefix-matching full-text search on the generated search_vector column.
-      // Tokenised by the shared helper so the saved-search matcher, which has to
-      // answer the same question in JS, cannot drift away from it.
-      // Each term is AND-ed; within a term, any of its spellings in the text
-      // or a category/subcategory whose name it matches will do.
+      // Prefix-matching full-text search on the generated search_vector
+      // column, widened per term by the shared helper (stems, aliases,
+      // category and place names) so the saved-search matcher, which answers
+      // the same question in JS, cannot drift away from it.
       const terms = searchTerms(filters.q);
       if (terms.length) {
         let labels: ReturnType<typeof categoryLabelIndex> = [];
@@ -834,35 +852,10 @@ export class PostService {
             `search: category names unavailable — ${err?.message}`,
           );
         }
-        const groups = expandTerms(terms, labels);
-        const subKey = `(post.category || ':' || coalesce(post.subcategory, ''))`;
-        // Every arm of the OR must be indexable or the planner gives up on all
-        // three and scans the table: the bare `subcategory = ANY` reaches
-        // IDX_post_subcategory, and the pair check after it only rechecks
-        // (subcategory values repeat across categories).
-        const arms = groups.map((g, i) => {
-          qb.setParameters({
-            [`tsq${i}`]: groupTsquery(g),
-            [`cats${i}`]: g.categories,
-            [`subs${i}`]: g.subcategories,
-            [`subv${i}`]: g.subcategories.map((x) => x.split(':')[1]),
-            [`prov${i}`]: g.provinces,
-            [`dist${i}`]: g.districts,
-          });
-          return `(post.search_vector @@ to_tsquery('simple', :tsq${i}) OR post.category = ANY(:cats${i}) OR (post.subcategory = ANY(:subv${i}) AND ${subKey} = ANY(:subs${i})) OR post.province = ANY(:prov${i}) OR post.district = ANY(:dist${i}))`;
-        });
-        if (match === 'all') arms.forEach((a) => qb.andWhere(a));
-        else qb.andWhere(`(${arms.join(' OR ')})`);
-        // Title (A) over attributes (B) over prose (C), via the weighted
-        // vector; a post filed under a named subcategory or category gets a
-        // fixed lift, so "экскаватор" ranks excavators that never say the word
-        // above posts that only mention it in passing.
-        qb.setParameters({
-          rankTsq: groups.map(groupTsquery).join(' | '),
-          rankSubs: groups.flatMap((g) => g.subcategories),
-          rankCats: groups.flatMap((g) => g.categories),
-        });
-        rank = `(ts_rank(post.search_vector, to_tsquery('simple', :rankTsq)) + CASE WHEN ${subKey} = ANY(:rankSubs) THEN 0.3 WHEN post.category = ANY(:rankCats) THEN 0.15 ELSE 0 END)`;
+        const sql = searchSql(expandTerms(terms, labels), terms, match);
+        qb.setParameters(sql.params);
+        sql.where.forEach((w) => qb.andWhere(w));
+        search = { rank: sql.rank, featured: sql.featured };
       }
     }
 
@@ -870,7 +863,7 @@ export class PostService {
       const fieldTypes = await this.attributeFieldTypes(filters.category);
       buildAttrFilter(qb, filters.attrs ?? {}, fieldTypes);
     }
-    return rank;
+    return search;
   }
 
   /** How many accounts have saved this post — carried on the detail response. */

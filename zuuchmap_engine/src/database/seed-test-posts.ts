@@ -1920,9 +1920,24 @@ async function seedPosts(
       ...Array.from({ length: count - edges.length }, () => pick(LIFECYCLE_TAIL)),
     ];
 
-    for (const lc of lifecycles) {
+    // Every subcategory gets at least two live posts. Weighted picks left some
+    // empty in browse — no excavator or bulldozer was live in a 451-post run —
+    // so searching or filtering for them could not be exercised at all.
+    const isLive = (lc: (typeof LIFECYCLES)[number]) =>
+      lc.approval === 'APPROVED' &&
+      lc.status === 'ACTIVE' &&
+      (lc.expires === null || lc.expires > 0);
+    while (lifecycles.filter(isLive).length < subs.length * 2)
+      lifecycles.push(LIFECYCLES[0]);
+    const forcedSub = new Map<number, string>();
+    shuffle(lifecycles.map((lc, k) => (isLive(lc) ? k : -1)).filter((k) => k >= 0))
+      .slice(0, subs.length * 2)
+      .forEach((k, n) => forcedSub.set(k, subs[n % subs.length]));
+
+    for (const [k, lc] of lifecycles.entries()) {
       i++;
-      const sub = subs.length ? pickWeighted(subs, subWeights) : null;
+      const sub =
+        forcedSub.get(k) ?? (subs.length ? pickWeighted(subs, subWeights) : null);
 
       // Brand and model are chosen once, then reused by both the title and the
       // identity fields — a listing headed "Komatsu PC200-8" whose manufacturer

@@ -174,6 +174,7 @@ const CustomerPostList = ({ route, navigation }) => {
             return {
                 items,
                 total: response.total ?? items.length,
+                relaxed: Boolean(response?.relaxed),
                 page: pageParam,
                 fromCache: Boolean(response?.fromCache),
                 cachedAt: response?.cachedAt ?? null,
@@ -202,6 +203,7 @@ const CustomerPostList = ({ route, navigation }) => {
 
     const posts = useMemo(() => (data?.pages ?? []).flatMap((pg) => pg.items), [data]);
     const totalCount = data?.pages?.[0]?.total ?? 0;
+    const relaxed = Boolean(data?.pages?.[0]?.relaxed);
     const firstPage = data?.pages?.[0];
     const loading = loadingRaw;
 
@@ -438,15 +440,28 @@ const CustomerPostList = ({ route, navigation }) => {
     }, [isFetchingNextPage, hasNextPage, posts.length, totalCount, colors, styles, t]);
 
     const renderHeader = useCallback(() => {
+        // The engine found nothing for the words as typed and widened the
+        // search; a count alone would read as an exact answer.
+        const relaxedNote = relaxed ? (
+            <View style={styles.relaxedNote}>
+                <Ionicons name="information-circle-outline" size={16} color={colors.text.secondary} />
+                <Text style={[styles.relaxedText, { color: colors.text.secondary }]}>{t('savedSearch.relaxed')}</Text>
+            </View>
+        ) : null;
         if (!isFilterMode) {
             if (totalCount === 0) return null;
             return (
-                <Text style={[styles.browseCount, { color: colors.text.secondary }]}>
-                    {t('filter.resultsFound', { count: totalCount })}
-                </Text>
+                <>
+                    {relaxedNote}
+                    <Text style={[styles.browseCount, { color: colors.text.secondary }]}>
+                        {t('filter.resultsFound', { count: totalCount })}
+                    </Text>
+                </>
             );
         }
         return (
+            <>
+            {relaxedNote}
             <View style={styles.headerInfo}>
                 <Ionicons name="checkmark-circle" size={20} color={colors.iconAccent} />
                 <View style={styles.headerTextContainer}>
@@ -459,8 +474,9 @@ const CustomerPostList = ({ route, navigation }) => {
                     </Text>
                 </View>
             </View>
+            </>
         );
-    }, [isFilterMode, categoryDisplayName, subcategoryDisplayName, totalCount, searchQuery, colors, styles, t]);
+    }, [isFilterMode, categoryDisplayName, subcategoryDisplayName, totalCount, relaxed, searchQuery, colors, styles, t]);
 
     const renderEmptyState = useCallback(() => {
         if (isError) {
@@ -535,6 +551,7 @@ const CustomerPostList = ({ route, navigation }) => {
                 setFilters={setFilters}
                 categoryOptions={categoryOptions}
                 schema={categorySchemas.find((c) => c.key === filters.category)}
+                searching={Boolean(searchQuery.trim())}
             />
         );
     };
@@ -793,6 +810,16 @@ const createStyles = (colors) => StyleSheet.create({
     browseCount: {
         ...typography.styles.caption,
         marginBottom: spacing.md,
+    },
+    relaxedNote: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.xs,
+        marginBottom: spacing.sm,
+    },
+    relaxedText: {
+        ...typography.styles.caption,
+        flex: 1,
     },
     headerInfo: {
         ...colors.elevation.sm,

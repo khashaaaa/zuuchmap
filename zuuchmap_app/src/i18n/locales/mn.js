@@ -615,7 +615,7 @@ export default {
     reportCreated: 'Зар дээр гомдол ирлээ', reportCreatedDesc: 'Гомдол таны шалгалтыг хүлээж байна',
     sound: 'Дуу',
   },
-  sort: { newest: 'Шинэ эхэндээ', price_asc: 'Үнэ: багаас их рүү', price_desc: 'Үнэ: ихээс бага руу', views: 'Их үзсэн' },
+  sort: { relevance: 'Хамгийн тохирох нь', newest: 'Шинэ эхэндээ', price_asc: 'Үнэ: багаас их рүү', price_desc: 'Үнэ: ихээс бага руу', views: 'Их үзсэн' },
   priceUnit: {
     HOUR: 'цагаар',
     MOTO_HOUR: 'мото цагаар',
@@ -690,6 +690,8 @@ export default {
     timelineContact: 'Холбоо барих дугаар нээгдлээ',
   },
   savedSearch: {
+    relaxed: 'Яг таарах зар олдсонгүй — ойролцоо зарууд харагдаж байна.',
+    allWords: 'Хайлтын бүх үг таарсан шинэ зарын тухай л мэдэгдэнэ.',
     title: 'Хадгалсан хайлт',
     save: 'Хайлт хадгалах',
     nameLabel: 'Нэр',

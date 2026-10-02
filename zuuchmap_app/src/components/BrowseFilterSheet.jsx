@@ -31,7 +31,7 @@ const STATUS_OPTIONS = [
  * different vocabulary from MapFilterModal (multi-select categories, a price
  * slider, a radius, applied on confirm), so the two stay separate.
  */
-const BrowseFilterSheet = ({ visible, onClose, onClear, filters, setFilters, categoryOptions, schema }) => {
+const BrowseFilterSheet = ({ visible, onClose, onClear, filters, setFilters, categoryOptions, schema, searching = false }) => {
     const { colors } = useAppTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
     const { t, i18n } = useTranslation();
@@ -206,7 +206,8 @@ const BrowseFilterSheet = ({ visible, onClose, onClear, filters, setFilters, cat
                                 styles.filterOptionText,
                                 filters.sort === opt.value && styles.filterOptionTextActive,
                             ]}>
-                                {t(`sort.${opt.value || 'newest'}`)}
+                                {/* With search text the default order is relevance, not date. */}
+                                {t(`sort.${opt.value || (searching ? 'relevance' : 'newest')}`)}
                             </Text>
                         </TouchableOpacity>
                     </SelectionPop>

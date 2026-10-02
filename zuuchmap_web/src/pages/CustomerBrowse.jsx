@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { useTranslation } from 'react-i18next'
 import useOnline from '@/hooks/useOnline'
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom'
-import { X, Heart, BellPlus, WifiOff, SlidersHorizontal, ChevronDown } from 'lucide-react'
+import { X, Heart, BellPlus, WifiOff, SlidersHorizontal, ChevronDown, Info } from 'lucide-react'
 import { toast } from 'sonner'
 import { postsApi, likesApi, savedSearchApi } from '@/lib/api'
 import { debounce, PROVINCES, DISTRICTS, getPostCategory, getCategoryLabel, getSubcategoryLabel, getFieldLabel, getOptionLabel, getCategoryColor, apiErrorMessage, sortByLabel, formatTime } from '@/lib/utils'
@@ -259,6 +259,8 @@ export default function CustomerBrowse() {
     search,
   ].filter(Boolean).join(' · ')
   const total = Array.isArray(data) ? data.length : (data?.total ?? 0)
+  // The engine found nothing for the words as typed and widened the search.
+  const relaxed = !Array.isArray(data) && data?.relaxed === true
 
   const clearAll = useCallback(() => {
     // Drop anything still in flight first. Without this, a debounced call queued
@@ -470,12 +472,18 @@ export default function CustomerBrowse() {
             aria-label={t('filter.sort')}
             className="w-auto"
           >
-            <option value="">{t('sort.newest')}</option>
+            {/* With search text the default order is relevance, not date. */}
+            <option value="">{t(search.trim() ? 'sort.relevance' : 'sort.newest')}</option>
             <option value="price_asc">{t('sort.priceAsc')}</option>
             <option value="price_desc">{t('sort.priceDesc')}</option>
             <option value="views">{t('sort.views')}</option>
           </Input>
         </div>
+        {relaxed && !isLoading && (
+          <p className="flex items-center gap-1.5 text-sm text-muted -mt-2 mb-4">
+            <Info size={14} aria-hidden="true" className="shrink-0" /> {t('savedSearch.relaxed')}
+          </p>
+        )}
         <PostGrid
           isLoading={isLoading}
           isStale={isPlaceholderData}
@@ -569,6 +577,8 @@ export default function CustomerBrowse() {
       >
         <form onSubmit={(e) => { e.preventDefault(); if (saveName.trim()) saveMut.mutate(saveName.trim()) }} className="space-y-3">
           <p className="text-sm text-muted">{t('savedSearch.hint')}</p>
+          {/* Browse widens a search that finds nothing; alerts never do. */}
+          {savedSearchBody.q && <p className="text-sm text-muted">{t('savedSearch.allWords')}</p>}
           <div>
             <label htmlFor="saved-search-name" className="field-label">{t('savedSearch.name')}</label>
             <Input id="saved-search-name" value={saveName} onChange={(e) => setSaveName(e.target.value)} maxLength={60} autoFocus placeholder={t('savedSearch.namePlaceholder')} />

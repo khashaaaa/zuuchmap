@@ -318,7 +318,7 @@ export default {
     jobvacancy: 'Ажлын байр', sos: 'SOS үйлчилгээ',
   },
   filter: { minPrice: 'Доод үнэ', maxPrice: 'Дээд үнэ', allCategories: 'Бүх ангилал', searchPlaceholder: 'Зар хайх...', min: 'Доод', max: 'Дээд', price: 'Үнэ (₮)', sort: 'Эрэмбэлэх', location: 'Байршил', specs: 'Үзүүлэлт', status: 'Төлөв', allStatuses: 'Бүх төлөв' },
-  sort: { newest: 'Шинэ эхэндээ', priceAsc: 'Үнэ: багаас их рүү', priceDesc: 'Үнэ: ихээс бага руу', views: 'Их үзсэн' },
+  sort: { relevance: 'Хамгийн тохирох нь', newest: 'Шинэ эхэндээ', priceAsc: 'Үнэ: багаас их рүү', priceDesc: 'Үнэ: ихээс бага руу', views: 'Их үзсэн' },
   customer: { marketTitle: 'Зарын зах зээл' },
   provider: {
     greeting: 'Сайн байна уу, {{name}}',
@@ -494,6 +494,7 @@ export default {
     timeline: { requested: 'Хүсэлт илгээсэн', accepted: 'Зөвшөөрсөн', inProgress: 'Явагдаж байна', done: 'Дууссан', declined: 'Татгалзсан', cancelled: 'Цуцалсан', expired: 'Хугацаа дууссан' },
   },
   savedSearch: {
+    relaxed: 'Яг таарах зар олдсонгүй — ойролцоо зарууд харагдаж байна.', allWords: 'Хайлтын бүх үг таарсан шинэ зарын тухай л мэдэгдэнэ.',
     title: 'Хадгалсан хайлт', hint: 'Энэ шүүлтүүрт тохирох шинэ зар нийтлэгдэхэд танд мэдэгдэл ирнэ.',
     saveThis: 'Энэ хайлтыг хадгалах', name: 'Нэр', namePlaceholder: 'Жишээ: Хан-Уул дахь экскаватор',
     saved: 'Хайлт хадгалагдлаа', deleted: 'Хайлт устгагдлаа', empty: 'Хадгалсан хайлт алга',

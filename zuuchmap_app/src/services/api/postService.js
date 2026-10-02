@@ -198,7 +198,7 @@ const postService = {
       if (!error?.response && isFirstPage) {
         const cached = await cacheManager.getStorage(cacheKey);
         if (cached?.items) {
-          return { data: cached.items, total: cached.total, fromCache: true, cachedAt: cached.timestamp ?? null };
+          return { data: cached.items, total: cached.total, relaxed: cached.relaxed === true, fromCache: true, cachedAt: cached.timestamp ?? null };
         }
       }
       throw error;
@@ -208,9 +208,11 @@ const postService = {
     const items = Array.isArray(body) ? body : (body?.items ?? []);
     response.data = items.map(normalizeImages);
     response.total = Array.isArray(body) ? items.length : (body?.total ?? items.length);
+    // Near matches, not the query as typed — the list says so.
+    response.relaxed = !Array.isArray(body) && body?.relaxed === true;
     response.fromCache = false;
     if (isFirstPage) {
-      cacheManager.setStorage(cacheKey, { items: response.data, total: response.total, timestamp: Date.now() }, BROWSE_CACHE_DURATION);
+      cacheManager.setStorage(cacheKey, { items: response.data, total: response.total, relaxed: response.relaxed, timestamp: Date.now() }, BROWSE_CACHE_DURATION);
     }
     return response;
   },

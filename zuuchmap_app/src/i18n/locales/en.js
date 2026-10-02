@@ -357,7 +357,7 @@ export default {
     electric: 'Electric',
     coverageProvince: 'Within the province', manufacturer: 'Manufacturer', model: 'Model', manufacturedDate: 'Manufactured year', importedDate: 'Imported year', capacity: 'Capacity', operatingHours: 'Operating hours', mainProducts: 'Main products', openingHours: 'Opening hours', employmentType: 'Employment type', salaryRange: 'Salary range', fullTime: 'Full-time', partTime: 'Part-time', contract: 'Contract', temporary: 'Temporary', internship: 'Internship', freelance: 'Freelance', new: 'New', excellent: 'Excellent', good: 'Good', fair: 'Fair', needsRepair: 'Needs repair' },
   upload: { images: 'Images', addImagesSubtitle: 'Upload images for your post', editImagesSubtitle: 'Edit or add images for your post', processing: 'Processing image...', addMore: 'Add image (up to 10)', addMoreRemaining: 'Add image ({{count}} remaining)', loading: 'Loading images...', selectedCount: '{{count}} image(s) selected', permissionTitle: 'Permission required', openSettings: 'Open settings', galleryPermission: 'Gallery access permission is required', cameraPermission: 'Camera permission is required', pickError: 'Failed to pick image', cameraError: 'Failed to take photo', addTitle: 'Add image', addQuestion: 'How would you like to add an image?', gallery: 'Gallery', camera: 'Camera', profileHint: 'JPG, PNG file, max 5MB', fileTooLarge: 'File too large', fileTooLargeDesc: 'Choose an image under {{max}}MB', logoError: 'Failed to pick logo', profileGalleryPermission: 'Gallery access is required to change your profile photo', cameraPermissionMsg: 'Camera permission is required to take a photo', removeImage: 'Remove image' },
-  sort: { newest: 'Newest first', price_asc: 'Price: low to high', price_desc: 'Price: high to low', views: 'Most viewed' },
+  sort: { relevance: 'Best match', newest: 'Newest first', price_asc: 'Price: low to high', price_desc: 'Price: high to low', views: 'Most viewed' },
   priceUnit: { HOUR: 'per hour', MOTO_HOUR: 'per engine hour', DAY: 'per day', WEEK: 'per week', MONTH: 'per month', PROJECT: 'per project', UNIT: 'per unit', PIECE: 'per piece', SQM: 'per m²', TRIP: 'per trip', TOTAL: 'total price' },
   province: {
     ULAANBAATAR: 'Ulaanbaatar', ARKHANGAI: 'Arkhangai', BAYANOLGII: 'Bayan-Ölgii',
@@ -499,6 +499,8 @@ export default {
     timelineContact: 'Contact unlocked',
   },
   savedSearch: {
+    relaxed: 'No exact matches — showing similar listings.',
+    allWords: 'Alerts only for new listings that match every word of the search.',
     title: 'Saved searches',
     save: 'Save search',
     nameLabel: 'Name',

@@ -356,7 +356,7 @@ export default {
     electric: '电动',
     coverageProvince: '省内', manufacturer: '制造商', model: '型号', manufacturedDate: '生产年份', importedDate: '进口年份', capacity: '载量', operatingHours: '工作小时数', mainProducts: '主要产品', openingHours: '营业时间', employmentType: '用工类型', salaryRange: '薪资范围', fullTime: '全职', partTime: '兼职', contract: '合同工', temporary: '临时', internship: '实习', freelance: '自由职业', new: '全新', excellent: '极好', good: '良好', fair: '一般', needsRepair: '需维修' },
   upload: { images: '图片', addImagesSubtitle: '为您的信息上传图片', editImagesSubtitle: '编辑或添加信息图片', processing: '正在处理图片...', addMore: '添加图片（最多10张）', addMoreRemaining: '添加图片（还可添加 {{count}} 张）', loading: '正在加载图片...', selectedCount: '已选择 {{count}} 张图片', permissionTitle: '需要权限', openSettings: '打开设置', galleryPermission: '需要相册访问权限', cameraPermission: '需要相机权限', pickError: '选择图片失败', cameraError: '拍照失败', addTitle: '添加图片', addQuestion: '您想如何添加图片？', gallery: '相册', camera: '相机', profileHint: 'JPG、PNG 文件，最大 5MB', fileTooLarge: '文件过大', fileTooLargeDesc: '请选择小于 {{max}}MB 的图片', logoError: '选择标志失败', profileGalleryPermission: '更换头像需要相册访问权限', cameraPermissionMsg: '拍照需要相机权限', removeImage: '移除图片' },
-  sort: { newest: '最新发布', price_asc: '价格从低到高', price_desc: '价格从高到低', views: '浏览最多' },
+  sort: { relevance: '最相关', newest: '最新发布', price_asc: '价格从低到高', price_desc: '价格从高到低', views: '浏览最多' },
   priceUnit: { HOUR: '每小时', MOTO_HOUR: '每台班小时', DAY: '每天', WEEK: '每周', MONTH: '每月', PROJECT: '每项目', UNIT: '每单位', PIECE: '每件', SQM: '每平方米', TRIP: '每趟', TOTAL: '总价' },
   province: {
     ULAANBAATAR: '乌兰巴托', ARKHANGAI: '后杭爱', BAYANOLGII: '巴彦乌列盖',
@@ -498,6 +498,8 @@ export default {
     timelineContact: '已解锁联系方式',
   },
   savedSearch: {
+    relaxed: '没有完全匹配的信息——显示相似信息。',
+    allWords: '仅在新信息匹配搜索中的每个词时提醒。',
     title: '已保存的搜索',
     save: '保存搜索',
     nameLabel: '名称',

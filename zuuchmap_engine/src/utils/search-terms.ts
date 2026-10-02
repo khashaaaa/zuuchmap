@@ -308,6 +308,87 @@ export function groupTsquery(g: TermGroup): string {
   return `(${g.prefixes.map((p) => `${p}:*`).join(' | ')})`;
 }
 
+/**
+ * How a search's terms combine. `all` is the query as typed; the engine falls
+ * back to `fuzzy` (each term may also be a near-spelling of a title word) and
+ * then `any` (one term is enough) only when the stricter mode found nothing.
+ */
+export type SearchMode = 'all' | 'fuzzy' | 'any';
+
+/**
+ * pg_trgm `word_similarity` a fuzzy term needs against a title. 0.5 catches
+ * "экскаваор" (0.7 to "экскаватор"), "самасвал" and "цемнт" (0.5); the
+ * extension's own 0.6 default missed the last two.
+ */
+export const FUZZY_THRESHOLD = 0.5;
+
+/**
+ * The SQL of a search, for a query builder aliased `post`: WHERE clauses (to
+ * be AND-ed), the relevance expression, the "featured and relevant" key, and
+ * their named parameters. The one place browse's search SQL is written, so the
+ * `check:search` gate tests exactly what ships.
+ *
+ * Every arm of a term's OR must stay indexable, or the planner gives up on all
+ * of them and scans the table: the bare `subcategory = ANY` reaches
+ * IDX_post_subcategory and the pair check after it only rechecks
+ * (subcategory values repeat across categories). The fuzzy arm is the
+ * exception — it scans, which is why it only runs once a search found nothing.
+ */
+export function searchSql(
+  groups: TermGroup[],
+  terms: string[],
+  mode: SearchMode = 'all',
+): {
+  where: string[];
+  rank: string;
+  featured: string;
+  params: Record<string, unknown>;
+} {
+  const params: Record<string, unknown> = {};
+  const subKey = `(post.category || ':' || coalesce(post.subcategory, ''))`;
+  const arms = groups.map((g, i) => {
+    params[`tsq${i}`] = groupTsquery(g);
+    params[`cats${i}`] = g.categories;
+    params[`subs${i}`] = g.subcategories;
+    params[`subv${i}`] = g.subcategories.map((x) => x.split(':')[1]);
+    params[`prov${i}`] = g.provinces;
+    params[`dist${i}`] = g.districts;
+    const arm = `post.search_vector @@ to_tsquery('simple', :tsq${i}) OR post.category = ANY(:cats${i}) OR (post.subcategory = ANY(:subv${i}) AND ${subKey} = ANY(:subs${i})) OR post.province = ANY(:prov${i}) OR post.district = ANY(:dist${i})`;
+    if (mode !== 'fuzzy') return `(${arm})`;
+    params[`fz${i}`] = terms[i];
+    return `(${arm} OR word_similarity(:fz${i}, lower(post.title)) >= ${FUZZY_THRESHOLD})`;
+  });
+
+  params.rankTsq = groups.map(groupTsquery).join(' | ');
+  // Featured and relevant: every term in the title (`:*A`) or naming the post's
+  // category. "самосвал түрээс" must not lift a featured jeep whose title
+  // says only "түрээслүүлнэ".
+  const answers = groups.map((g, i) => {
+    params[`ttq${i}`] = g.prefixes.map((p) => `${p}:*A`).join(' | ');
+    return `(post.search_vector @@ to_tsquery('simple', :ttq${i}) OR post.category = ANY(:cats${i}) OR ${subKey} = ANY(:subs${i}))`;
+  });
+  params.rankSubs = groups.flatMap((g) => g.subcategories);
+  params.rankCats = groups.flatMap((g) => g.categories);
+
+  // Title (A) over attributes (B) over prose (C); a post filed under a named
+  // subcategory or category gets a fixed lift, so "экскаватор" ranks
+  // excavators that never say the word above posts mentioning it in passing.
+  const text = `ts_rank(post.search_vector, to_tsquery('simple', :rankTsq))`;
+  const lift = `CASE WHEN ${subKey} = ANY(:rankSubs) THEN 0.3 WHEN post.category = ANY(:rankCats) THEN 0.15 ELSE 0 END`;
+  const fuzzy =
+    mode === 'fuzzy'
+      ? ` + coalesce(GREATEST(${groups.map((_, i) => `word_similarity(:fz${i}, lower(post.title))`).join(', ')}), 0)`
+      : '';
+  return {
+    where: mode === 'any' ? [`(${arms.join(' OR ')})`] : arms,
+    rank: `(${text} + ${lift}${fuzzy})`,
+    // Paid placement leads a search only where it answers it: a featured post
+    // that merely mentions the word in its description ranks on relevance.
+    featured: `(post.is_featured AND ${answers.join(' AND ')})`,
+    params,
+  };
+}
+
 /** Document text → the lexemes the generated column stores. */
 export function documentTokens(
   ...parts: (string | null | undefined)[]

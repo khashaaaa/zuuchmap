@@ -103,6 +103,12 @@ jobs:
         working-directory: zuuchmap_engine
         run: npm run migration:run
 
+      # Browse search (SQL) against the saved-search matcher (JS), plus the
+      # queries each search rule exists for — inside a rolled-back transaction.
+      - name: Search
+        working-directory: zuuchmap_engine
+        run: npm run check:search
+
       - name: Build
         working-directory: zuuchmap_engine
         run: npm run build

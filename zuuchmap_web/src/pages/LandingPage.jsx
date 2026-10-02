@@ -148,11 +148,14 @@ export default function LandingPage() {
                 ))}
               </ul>
             )}
-            {typeof stats?.total === 'number' && (
-              <p className="px-2 pt-3 pb-1 border-t border-border/15 text-xs text-muted tabular-nums">
-                {t('landing.boardSummary', { posts: groupThousands(stats.total), provinces: stats.provinces ?? 0 })}
-              </p>
-            )}
+            {/* The line is always laid out — appearing when the counts landed, it
+                grew the board and, with the hero row centred, shifted the whole
+                fold (CLS 0.11 on desktop). */}
+            <p className="px-2 pt-3 pb-1 border-t border-border/15 text-xs text-muted tabular-nums">
+              {typeof stats?.total === 'number'
+                ? t('landing.boardSummary', { posts: groupThousands(stats.total), provinces: stats.provinces ?? 0 })
+                : '\u00a0'}
+            </p>
           </div>
         </motion.div>
       </motion.section>
@@ -164,6 +167,9 @@ export default function LandingPage() {
         </h2>
         {loadFailed && <ErrorState onRetry={refetchSchemas} />}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
+          {schemasLoading && Array.from({ length: 10 }).map((_, i) => (
+            <div key={i} className="min-h-[7.5rem] skeleton rounded-card" />
+          ))}
           {active.map((schema) => {
             const catColor = getCategoryColor(schema.key, schemas)
             const Icon = getCategoryIcon(schema.icon)

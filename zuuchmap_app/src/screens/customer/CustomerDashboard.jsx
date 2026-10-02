@@ -15,6 +15,10 @@ import CustomerLikeList from '../customer/CustomerLikeList';
 import { useUnreadMessages } from '../../services/api/messageService';
 import { useIsGuest } from '../../utils/requireAuth';
 
+
+// A tab count: hidden at zero, capped like the web sidebar so a deep queue
+// cannot widen the pill across the icon.
+const tabBadge = (n) => (n > 0 ? (n > 99 ? '99+' : n) : undefined);
 const Tab = createBottomTabNavigator();
 
 const CustomerDashboard = () => {
@@ -61,7 +65,7 @@ const CustomerDashboard = () => {
                     tabBarItemStyle: { paddingVertical: spacing.xs, paddingHorizontal: spacing.sm },
                     tabBarLabelStyle: { ...typography.styles.micro, marginTop: spacing.xs },
                     // The same badge as ProfileActionRow's, not the platform's red.
-                    tabBarBadgeStyle: { backgroundColor: colors.danger, color: colors.text.onColor },
+                    tabBarBadgeStyle: { ...typography.styles.badge, includeFontPadding: false, textAlignVertical: 'center', lineHeight: 18, backgroundColor: colors.danger, color: colors.text.onColor },
                     tabBarHideOnKeyboard: Platform.OS === 'android',
                 })}
                 safeAreaInsets={{ bottom: Platform.OS === 'android' ? insets.bottom : 0 }}
@@ -69,7 +73,7 @@ const CustomerDashboard = () => {
                 <Tab.Screen name="AllPosts" component={CustomerPostList} options={{ tabBarLabel: t('nav.browse') }} />
                 <Tab.Screen name="Saved" component={CustomerLikeList} options={{ tabBarLabel: t('nav.saved') }} />
                 <Tab.Screen name="Map" component={CustomerMapView} options={{ tabBarLabel: t('nav.map') }} />
-                <Tab.Screen name="Profile" component={CustomerProfile} options={{ tabBarLabel: t('nav.profile'), tabBarBadge: unread > 0 ? unread : undefined }} />
+                <Tab.Screen name="Profile" component={CustomerProfile} options={{ tabBarLabel: t('nav.profile'), tabBarBadge: tabBadge(unread) }} />
             </Tab.Navigator>
         </SafeAreaProvider>
     );

@@ -21,6 +21,10 @@ import CustomerPostList from '../customer/CustomerPostList';
 import MessagesScreen from '../shared/MessagesScreen';
 import { useUnreadMessages } from '../../services/api/messageService';
 
+
+// A tab count: hidden at zero, capped like the web sidebar so a deep queue
+// cannot widen the pill across the icon.
+const tabBadge = (n) => (n > 0 ? (n > 99 ? '99+' : n) : undefined);
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
@@ -119,7 +123,7 @@ const ProviderDashboard = ({ navigation }) => {
                     tabBarItemStyle: { paddingVertical: spacing.xs, paddingHorizontal: spacing.xxs },
                     tabBarLabelStyle: { ...typography.styles.micro, marginTop: spacing.xs },
                     // The same badge as ProfileActionRow's, not the platform's red.
-                    tabBarBadgeStyle: { backgroundColor: colors.danger, color: colors.text.onColor },
+                    tabBarBadgeStyle: { ...typography.styles.badge, includeFontPadding: false, textAlignVertical: 'center', lineHeight: 18, backgroundColor: colors.danger, color: colors.text.onColor },
                     tabBarHideOnKeyboard: Platform.OS === 'android',
                 })}
                 safeAreaInsets={{ bottom: Platform.OS === 'android' ? insets.bottom : 0 }}
@@ -147,7 +151,7 @@ const ProviderDashboard = ({ navigation }) => {
                 <Tab.Screen
                     name="Messages"
                     component={MessagesScreen}
-                    options={{ tabBarLabel: t('messages.title'), tabBarBadge: unread > 0 ? unread : undefined }}
+                    options={{ tabBarLabel: t('messages.title'), tabBarBadge: tabBadge(unread) }}
                 />
                 <Tab.Screen
                     name="Profile"

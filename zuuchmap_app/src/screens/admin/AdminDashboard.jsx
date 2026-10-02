@@ -16,6 +16,10 @@ import AdminProfile from './AdminProfile';
 import AdminReports from './AdminReports';
 import CustomerPostList from '../customer/CustomerPostList';
 
+
+// A tab count: hidden at zero, capped like the web sidebar so a deep queue
+// cannot widen the pill across the icon.
+const tabBadge = (n) => (n > 0 ? (n > 99 ? '99+' : n) : undefined);
 const Tab = createBottomTabNavigator();
 
 const AdminDashboard = () => {
@@ -73,6 +77,8 @@ const AdminDashboard = () => {
                     // label keeps its width.
                     tabBarItemStyle: { paddingVertical: spacing.xs, paddingHorizontal: spacing.xxs },
                     tabBarLabelStyle: { ...typography.styles.micro, marginTop: spacing.xs },
+                    // The same badge as ProfileActionRow's, not the platform's red.
+                    tabBarBadgeStyle: { ...typography.styles.badge, includeFontPadding: false, textAlignVertical: 'center', lineHeight: 18, backgroundColor: colors.danger, color: colors.text.onColor },
                     tabBarHideOnKeyboard: Platform.OS === 'android',
                 })}
                 safeAreaInsets={{ bottom: Platform.OS === 'android' ? insets.bottom : 0 }}
@@ -85,12 +91,12 @@ const AdminDashboard = () => {
                 <Tab.Screen
                     name="Approval"
                     component={AdminApproval}
-                    options={{ tabBarLabel: t('admin.pendingPostsShort'), tabBarBadge: pendingPosts > 0 ? pendingPosts : undefined }}
+                    options={{ tabBarLabel: t('admin.pendingPostsShort'), tabBarBadge: tabBadge(pendingPosts) }}
                 />
                 <Tab.Screen
                     name="Reports"
                     component={AdminReports}
-                    options={{ tabBarLabel: t('report.queue'), tabBarBadge: openReports > 0 ? openReports : undefined }}
+                    options={{ tabBarLabel: t('report.queue'), tabBarBadge: tabBadge(openReports) }}
                 />
                 <Tab.Screen
                     name="Profile"

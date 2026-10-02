@@ -63,6 +63,9 @@ export const getErrorMessage = (error) => {
     // 413 may come from nginx (HTML body, no JSON at all) or from multer — either
     // way the only useful thing to say is "smaller photos".
     if (error?.response?.status === 413) return i18n.t('errors.payloadTooLarge');
+    // An uncoded 404 carries an English sentence ("Post not found") — typically
+    // a listing deleted a moment ago. Say it in the user's language instead.
+    if (error?.response?.status === 404) return i18n.t('errors.notFound');
     if (error?.response?.data?.message) return error.response.data.message;
     if (!error?.response && error?.code === 'ECONNABORTED') return i18n.t('errors.timeout');
     if (!error?.response && (error?.code === 'ERR_NETWORK' || error?.message === 'Network Error')) return i18n.t('errors.network');

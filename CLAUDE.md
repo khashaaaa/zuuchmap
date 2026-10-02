@@ -32,7 +32,7 @@ npm run check:sync    # cross-repo contracts
 **There are no test suites** (removed 2026-09-30). The gates, all run by `.github/workflows/ci.yml` on every push:
 
 ```bash
-npm run check:sync                                  # 27 contracts, many behavioural
+npm run check:sync                                  # 28 contracts, many behavioural
 cd zuuchmap_engine && npx tsc --noEmit              # + migration:run against real Postgres, + check:search, + build
 cd zuuchmap_web && npm run lint:undef && npm run build
 cd zuuchmap_app && npm run lint:undef && npx expo export --platform android   # resolves every import
@@ -59,6 +59,7 @@ The app ships locales `mn en zh ru`, the web only `mn en`. Cross-client contract
 | typeface | `app/design/theme.js` (bundled Commissioner TTFs) · `web/src/index.css` (self-hosted `@font-face`). **Never Google Fonts** — its `unicode-range` subsets strand Ө/Ү/₮ in the fallback face |
 | behavioural, `app/utils/displayUtils.js` · `web/lib/utils.js` | `formatPrice` `formatPriceParts` (a `TOTAL` price has no unit) · `formatDate` (`YYYY.MM.DD`) · `formatTime` (`HH:MM` 24h) · `formatDateTime` · `formatRelativeAge` · `formatInboxStamp` (time today, date if older) · `formatNotificationStamp` |
 | behavioural, other | `getPostTitle` (`app/utils/postUtils.js` · `web/lib/utils.js`) · `postHealth` (`app/utils/postHealth.js` · `web/lib/postHealth.js`) · map clustering (`CustomerMapView.jsx` `gridCluster` · `web/lib/mapCluster.js`) · form validation (`app/utils/formUtils.js` · `web/lib/utils.js`: `validateEmail` `validatePhone` `validateRequired` `normalizeWebsiteUrl` — the company DTO bounds lengths and checks the email, but phone and website formats are checked only here) |
+| error codes | every SCREAMING_SNAKE code the engine throws (as `code`, or as the message — `AllExceptionsFilter` promotes it to `code`) has `errors.codes.<CODE>` on both clients, and every entry names a code still thrown |
 | `Intl ban` | no file outside `app/utils/displayUtils.js` and `web/lib/utils.js` may name `toLocaleString` `toLocaleDateString` `toLocaleTimeString` `localeCompare` or `Intl.*`. RN's JSC has no full ICU on Android, so a locale call silently resolves to en-US there while Node's full ICU makes the checker agree. Number grouping is hand-rolled (`groupThousands`) |
 
 ### Web/app parity

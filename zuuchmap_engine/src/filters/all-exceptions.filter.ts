@@ -61,6 +61,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
           fields = b.fields;
         }
       }
+      // `new XException('TOO_MANY_OPEN_REPORTS')` names its code as the message.
+      // Clients localize `code` only, so without this the raw code reached the
+      // screen. `check:sync` holds every such code to an errors.codes entry.
+      if (!code && /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$/.test(message)) code = message;
     }
 
     if (status >= 500) {

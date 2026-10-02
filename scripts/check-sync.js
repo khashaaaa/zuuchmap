@@ -1239,6 +1239,36 @@ function agree(contract, sets) {
   }
 }
 
+// ── 15b. Error codes ─────────────────────────────────────────────────────────
+// The engine names a rule failure with a SCREAMING_SNAKE code — as `code`, or
+// as the whole message (`new BadRequestException('TOO_MANY_OPEN_REPORTS')`,
+// which the exception filter promotes to `code`). Both clients localize it
+// through `errors.codes.<CODE>`; a code with no entry fell through to the raw
+// server string, so a user read "TOO_MANY_OPEN_REPORTS" in a dialog. Every code
+// thrown must have an entry on each client (completeness carries it to every
+// locale), and every entry must name a code the engine still throws.
+{
+  const C = 'error codes';
+  checks.push(C);
+
+  const walkTs = (d) => fs.readdirSync(path.join(ROOT, d), { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? (['migrations', 'database'].includes(e.name) ? [] : walkTs(`${d}/${e.name}`))
+      : (e.name.endsWith('.ts') ? [`${d}/${e.name}`] : []));
+  const thrown = new Set();
+  for (const file of walkTs('zuuchmap_engine/src')) {
+    for (const m of read(file).matchAll(/(?:Exception\(\s*|\b(?:code|message):\s*)'([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)'/g)) thrown.add(m[1]);
+  }
+  if (!thrown.size) fail(C, 'found no error codes in zuuchmap_engine/src — the pattern no longer matches how codes are thrown');
+
+  for (const [client, file] of [['web', 'zuuchmap_web/src/i18n/en.js'], ['app', 'zuuchmap_app/src/i18n/locales/en.js']]) {
+    const have = new Set(Object.keys(loadLocale(file)).filter((k) => k.startsWith('errors.codes.')).map((k) => k.slice(13)));
+    const missing = [...thrown].filter((c) => !have.has(c));
+    const stale = [...have].filter((c) => !thrown.has(c));
+    if (missing.length) fail(C, `${client}: engine throws ${missing.join(', ')} but ${file} has no errors.codes entry — the raw code reaches the screen`);
+    if (stale.length) fail(C, `${client}: errors.codes ${stale.join(', ')} in ${file} — the engine no longer throws it`);
+  }
+}
+
 // ── 16. Thumbnail naming ─────────────────────────────────────────────────────
 // The engine writes a card-sized copy of every post photo beside the original,
 // and both clients ask for it by name — `<key>.jpg` → `<key>_thumb.jpg`. It is

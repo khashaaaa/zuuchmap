@@ -23,6 +23,8 @@ export const apiErrorMessage = (error, t, fallback) => {
   if (error?.response?.status === 429) return t('errors.tooManyRequests')
   // A 413 from nginx carries an HTML body, not our JSON — never surface that.
   if (error?.response?.status === 413) return t('errors.payloadTooLarge')
+  // An uncoded 404 carries an English sentence ("Post not found").
+  if (error?.response?.status === 404) return t('errors.notFound')
   return error?.response?.data?.message || fallback
 }
 

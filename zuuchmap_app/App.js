@@ -411,7 +411,10 @@ const ThemedApp = ({ initialRoute }) => {
   // the app comes back from the background — never mid-form.
   useOtaUpdates();
   return (
-    <>
+    // The native window behind React is light (no expo-system-ui), and on a
+    // back transition the screen underneath re-attaches a frame late — that
+    // frame showed the bare window: a white flash in dark mode.
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       {Platform.OS === 'android' && (
         <View style={{
           height: dimensions.statusBarHeight,
@@ -507,7 +510,7 @@ const ThemedApp = ({ initialRoute }) => {
         </NavigationContainer>
       </ErrorBoundary>
       <ErrorModalManager />
-    </>
+    </View>
   );
 };
 

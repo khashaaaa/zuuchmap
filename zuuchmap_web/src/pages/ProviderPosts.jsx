@@ -114,7 +114,7 @@ export default function ProviderPosts() {
     <div>
       <PageHeader
         title={t('posts.myPosts')}
-        description={t('posts.total', { count: posts.length })}
+        description={isLoading || isError ? undefined : t('posts.total', { count: posts.length })}
         action={
           /* At the limit the form can only end in a refusal — the engine rejects
              the create after the whole wizard, the photos and the upload. Point

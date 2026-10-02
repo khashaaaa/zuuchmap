@@ -67,6 +67,7 @@ import { useNotificationSync } from './src/hooks/useNotificationSync';
 import { socketService } from './src/services/socketService';
 import { reportError, track } from './src/services/analytics';
 import { useFonts } from 'expo-font';
+import { Ionicons } from '@expo/vector-icons';
 import { fontAssets } from './src/design/theme';
 import './src/i18n'; // initialize i18next
 
@@ -175,7 +176,9 @@ const App = () => {
   // splash below is itself set in Commissioner, so we hold on the native splash
   // (return null) until it is registered rather than flashing a fallback face.
   // A load failure is not fatal: we report it and continue on the system font.
-  const [fontsLoaded, fontError] = useFonts(fontAssets);
+  // The icon font is held back with the text faces: loaded lazily, the first
+  // screen painted with every tab, header and badge icon blank.
+  const [fontsLoaded, fontError] = useFonts({ ...fontAssets, ...Ionicons.font });
 
   const [showSplash, setShowSplash] = useState(true);
   const [isLoading, setIsLoading] = useState(true);

@@ -62,7 +62,7 @@ export default function AdminUsers() {
 
   return (
     <div>
-      <PageHeader title={t('admin.users')} description={t('common.total', { count: users.length })} />
+      <PageHeader title={t('admin.users')} description={isLoading || isError ? undefined : t('common.total', { count: users.length })} />
       <div className="flex flex-wrap items-center gap-3 mb-5">
         <SearchBar
           value={search}

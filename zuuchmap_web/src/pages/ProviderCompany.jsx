@@ -30,7 +30,7 @@ export default function ProviderCompany() {
     return () => URL.revokeObjectURL(url)
   }, [logo])
 
-  const { data: profile } = useProfile()
+  const { data: profile, isLoading: profileLoading, isError: profileError, refetch: refetchProfile } = useProfile()
 
   const companyId = profile?.company?.id
 
@@ -96,7 +96,10 @@ export default function ProviderCompany() {
     company ? updateMut.mutate(fd) : createMut.mutate(fd)
   }
 
-  if (isLoading) return (
+  // The company request waits on the profile for its id, and a disabled query
+  // does not report loading — so the profile wait has to count, or every cold
+  // open said "no company registered" to a provider who has one.
+  if (isLoading || profileLoading) return (
     <div>
       <PageHeader title={t('company.title')} />
       <div className="h-48 skeleton rounded-card" />
@@ -104,11 +107,11 @@ export default function ProviderCompany() {
   )
 
   // Never tell a provider their company isn't registered because we failed to ask.
-  if (isError && error?.response?.status !== 404 && !editing) {
+  if (((isError && error?.response?.status !== 404) || (profileError && !profile)) && !editing) {
     return (
       <div>
         <PageHeader title={t('company.title')} />
-        <ErrorState onRetry={refetch} />
+        <ErrorState onRetry={profileError ? refetchProfile : refetch} />
       </div>
     )
   }

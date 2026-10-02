@@ -18,12 +18,16 @@ const CHART_ROWS = 8
 
 export default function ProviderDashboard() {
   const { t } = useTranslation()
-  const { data: profile } = useProfile()
+  const { data: profile, isLoading: profileLoading } = useProfile()
 
   const { data: posts = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['my-posts'],
     queryFn: postsApi.getMine,
   })
+  // Counts only once the list is in: `posts` defaults to [] and the tiles read
+  // "0 views · 0 posts" (and the chart "no posts") until it landed — or for good
+  // if it failed. Undefined renders as "—" in StatCard.
+  const loaded = !isLoading && !isError
 
   const totalViews = useMemo(() => posts.reduce((sum, p) => sum + (p.views ?? 0), 0), [posts])
   const approved = useMemo(() => posts.filter((p) => p.approval_status === 'APPROVED').length, [posts])
@@ -38,7 +42,11 @@ export default function ProviderDashboard() {
   return (
     <div>
       <PageHeader
-        title={t('provider.greeting', { name: profile?.given_name ?? t('onboarding.provider') })}
+        // The role word is the fallback for a provider with no name, not a
+        // placeholder: it flashed "Hello, Provider" on every cold load.
+        title={profileLoading
+          ? <span className="inline-block h-[1em] w-64 max-w-full skeleton rounded-btn align-middle" />
+          : t('provider.greeting', { name: profile?.given_name ?? t('onboarding.provider') })}
         action={
           <Button to="/provider/posts/new">
             <Plus size={15} /> {t('posts.create')}
@@ -47,14 +55,21 @@ export default function ProviderDashboard() {
       />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         {/* Views is the number a provider comes back for — it leads. */}
-        <StatCard lead label={t('posts.totalViews')} value={totalViews} color="text-text" className="col-span-2" />
-        <StatCard icon={FileText} label={t('profile.totalPosts')} value={posts.length} />
-        <StatCard icon={CheckCircle2} label={t('status.approved')} value={approved} color="text-success" />
+        <StatCard lead label={t('posts.totalViews')} value={loaded ? totalViews : undefined} color="text-text" className="col-span-2" />
+        <StatCard icon={FileText} label={t('profile.totalPosts')} value={loaded ? posts.length : undefined} />
+        <StatCard icon={CheckCircle2} label={t('status.approved')} value={loaded ? approved : undefined} color="text-success" />
       </div>
       <div
         className="bg-surface border border-border/20 shadow-card rounded-card p-5 md:p-6 mb-8">
         <h2 className="text-sm font-semibold text-text mb-4">{t('posts.postViewsChart')}</h2>
-        {chartData.length === 0 ? (
+        {isLoading ? (
+          <div className="space-y-2.5" aria-hidden="true">
+            {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-5 skeleton rounded-btn" />)}
+          </div>
+        ) : isError ? (
+          // The posts grid below carries the retry; "no posts" here would be false.
+          <p className="text-base text-muted text-center py-6">—</p>
+        ) : chartData.length === 0 ? (
           <p className="text-base text-muted text-center py-6">{t('posts.noMyPosts')}</p>
         ) : (
           <BarList data={chartData} label={t('posts.postViewsChart')} stacked />

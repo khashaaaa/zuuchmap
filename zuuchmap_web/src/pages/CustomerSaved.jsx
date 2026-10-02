@@ -49,7 +49,7 @@ export default function CustomerSaved() {
 
   return (
     <div>
-      <PageHeader title={t('posts.savedTitle')} description={t('posts.total', { count: total })} />
+      <PageHeader title={t('posts.savedTitle')} description={isLoading || isError ? undefined : t('posts.total', { count: total })} />
       <PostGrid
         isLoading={isLoading}
         isError={isError}

@@ -361,7 +361,7 @@ export default function AdminCategories() {
     <div>
       <PageHeader
         title={t('admin.categoriesTitle')}
-        description={t('common.total', { count: schemas.length })}
+        description={isLoading || isError ? undefined : t('common.total', { count: schemas.length })}
         action={
           <Button onClick={() => setEditing({ ...emptySchema(), _isNew: true })}>
             <Plus size={15} /> {t('admin.addCategory')}

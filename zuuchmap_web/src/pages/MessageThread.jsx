@@ -152,13 +152,24 @@ export default function MessageThread() {
           <ArrowLeft size={18} className="text-text" />
         </button>
         <div className="min-w-0">
-          <h1 className="font-semibold text-text truncate">{thread?.other_party?.given_name || '—'}</h1>
-          {thread?.post ? (
+          {/* Opened by link or after a refresh, the thread is not cached yet:
+              without this the header read "—" over "listing deleted". */}
+          {!thread ? (
+            <div className="space-y-1.5 py-0.5" aria-hidden="true">
+              <div className="h-4 w-32 skeleton rounded-btn" />
+              <div className="h-3 w-48 skeleton rounded-btn" />
+            </div>
+          ) : (
+          <>
+          <h1 className="font-semibold text-text truncate">{thread.other_party?.given_name || '—'}</h1>
+          {thread.post ? (
             <Link to={`/posts/${thread.post.id}`} className="text-xs text-primary-text hover:underline truncate block">
               {thread.post.title}
             </Link>
           ) : (
             <p className="text-xs text-muted">{t('messages.deletedListing')}</p>
+          )}
+          </>
           )}
         </div>
       </header>

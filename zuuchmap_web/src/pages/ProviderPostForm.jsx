@@ -152,7 +152,7 @@ export default function ProviderPostForm() {
    * back button never saw the meter on the list screen, so the first they heard
    * of the limit was a rejection with all that work behind it.
    */
-  const { data: myStats } = useQuery({
+  const { data: myStats, isLoading: statsLoading } = useQuery({
     queryKey: ['my-post-stats'],
     queryFn: postsApi.getMyStats,
     staleTime: 60_000,
@@ -458,9 +458,12 @@ export default function ProviderPostForm() {
   // Never render an editable-but-empty form: typing before the post arrives
   // gets clobbered by the fill effect, and submitting a blank form would PATCH
   // empty values over the real post.
-  if (isEdit && postLoading) return (
+  // Create waits for the quota too: the form used to render, take a few
+  // keystrokes, then vanish under "quota full" when the stats arrived. A
+  // failed stats request falls through to the form — the engine still refuses.
+  if ((isEdit && postLoading) || (!isEdit && statsLoading)) return (
     <div className="max-w-3xl">
-      <PageHeader title={t('posts.edit')} onBack={() => goBack(navigate, '/provider/posts')} />
+      <PageHeader title={t(isEdit ? 'posts.edit' : 'posts.create')} onBack={() => goBack(navigate, '/provider/posts')} />
       <div className="space-y-4">
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="h-12 skeleton rounded-btn" />

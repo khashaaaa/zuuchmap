@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     View, Text, FlatList, TextInput, TouchableOpacity,
-    Platform, StyleSheet, Keyboard,
+    Platform, StyleSheet, Keyboard, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -75,6 +75,13 @@ const MessageThreadScreen = ({ navigation, route }) => {
         enabled: Boolean(id),
     });
     const messages = useMemo(() => flattenMessages(data?.pages), [data]);
+    // Only a pull shows the refresh spinner. `isRefetching` is also true on every
+    // socket-driven refetch, which would pop it on each incoming message.
+    const [pulling, setPulling] = useState(false);
+    const onPull = useCallback(async () => {
+        setPulling(true);
+        try { await refetch(); } finally { setPulling(false); }
+    }, [refetch]);
 
     // Clearing the badge touches the reader's own side only, and the endpoint
     // is idempotent — safe to call on every open, and again whenever a new
@@ -249,6 +256,13 @@ const MessageThreadScreen = ({ navigation, route }) => {
             <KeyboardAvoider style={styles.flex} iosOffset={90}>
                 {isError ? (
                     <ScreenError onRetry={refetch} />
+                ) : isLoading ? (
+                    // The first load had only the list's refresh puck: untinted,
+                    // and — the list being inverted — drawn at the bottom over
+                    // the composer, under an otherwise empty screen.
+                    <View style={styles.loading}>
+                        <ActivityIndicator size="large" color={colors.iconAccent} />
+                    </View>
                 ) : (
                     <FlatList
                         inverted
@@ -259,8 +273,9 @@ const MessageThreadScreen = ({ navigation, route }) => {
                         // Inverted, so the footer is what the reader sees at
                         // the top of the thread.
                         ListFooterComponent={loadOlder}
-                        refreshing={isLoading}
-                        onRefresh={refetch}
+                        refreshControl={
+                            <RefreshControl refreshing={pulling} onRefresh={onPull} tintColor={colors.iconAccent} colors={[colors.iconAccent]} progressBackgroundColor={colors.surface} />
+                        }
                     />
                 )}
 
@@ -304,6 +319,7 @@ const MessageThreadScreen = ({ navigation, route }) => {
 
 const createStyles = (colors) => StyleSheet.create({
     flex: { flex: 1 },
+    loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     aboutListing: {
         ...typography.styles.caption,
         color: colors.text.tertiary,

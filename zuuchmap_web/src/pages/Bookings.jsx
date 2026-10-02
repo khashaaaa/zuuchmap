@@ -182,7 +182,7 @@ export default function Bookings({ mode }) {
     <div className="max-w-2xl">
       <PageHeader
         title={t(mode === 'provider' ? 'booking.receivedBookings' : 'booking.myBookings')}
-        description={t('common.total', { count: bookings.length })}
+        description={isLoading || isError ? undefined : t('common.total', { count: bookings.length })}
       />
       {!showSkeleton && bookings.length > 0 && (
         <TabBar

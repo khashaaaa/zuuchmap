@@ -56,7 +56,7 @@ export default function AdminReports() {
     <div className="max-w-3xl">
       <PageHeader
         title={t('report.queue')}
-        description={tab === 'OPEN' ? t('report.openCount', { count: total }) : undefined}
+        description={tab === 'OPEN' && !isLoading && !isError ? t('report.openCount', { count: total }) : undefined}
         icon={Flag}
       />
 

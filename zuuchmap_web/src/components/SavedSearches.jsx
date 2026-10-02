@@ -79,7 +79,7 @@ export default function SavedSearches({ className = '', headed = true }) {
       <div className="flex items-center gap-2 mb-1">
         {headed && <BellRing size={15} className="text-primary-text" aria-hidden="true" />}
         {headed && <h2 id="saved-searches-title" className="text-sm font-semibold text-text">{t('savedSearch.title')}</h2>}
-        <span className="text-xs text-muted ml-auto tabular-nums">{searches.length}/10</span>
+        {!isLoading && <span className="text-xs text-muted ml-auto tabular-nums">{searches.length}/10</span>}
       </div>
       {headed && <p className="text-xs text-muted mb-3">{t('savedSearch.hint')}</p>}
       {isLoading ? (

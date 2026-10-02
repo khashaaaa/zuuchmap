@@ -10,6 +10,7 @@ import { getSchemaLabel, getSubcategoryLabel, normalizePostType } from '../utils
 import savedSearchService, { SAVED_SEARCHES_KEY } from '../services/api/savedSearchService';
 import { getErrorMessage } from '../utils/errorManager';
 import BottomSheetModal from './BottomSheetModal';
+import { fieldLabel, optionLabel } from './DynamicForm';
 import TextInput from './TextInput';
 import Button from './Button';
 
@@ -18,7 +19,7 @@ import Button from './Button';
  * exactly what they will be alerted for before naming it.
  */
 export function useSavedSearchSummary(search) {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const schemas = useCategorySchemas();
     return useMemo(() => {
         if (!search) return [];
@@ -40,13 +41,28 @@ export function useSavedSearchSummary(search) {
         }
         if (search.q) chips.push({ icon: 'search-outline', label: `“${search.q}”` });
         const attrs = search.attrs && typeof search.attrs === 'object' ? Object.entries(search.attrs) : [];
+        // An exact field key wins over the `_min`/`_max` reading, because some
+        // fields (`salary_min`) end that way themselves.
+        const fields = schemas.find((s) => s.key === normalizePostType(search.category))?.fields ?? [];
         for (const [k, v] of attrs) {
             if (v === undefined || v === null || v === '') continue;
             const key = k.replace(/^attr\./, '');
-            chips.push({ icon: 'options-outline', label: `${key.replace(/_(min|max)$/, (m) => (m === '_min' ? ' ≥' : ' ≤'))} ${v}` });
+            let def = fields.find((f) => f.key === key);
+            let bound = null;
+            if (!def) {
+                const m = key.match(/^(.*)_(min|max)$/);
+                if (m) { def = fields.find((f) => f.key === m[1]); bound = m[2]; }
+            }
+            const name = def ? fieldLabel(def, t, i18n.language) : key;
+            let label;
+            if (bound) label = `${name} ${bound === 'min' ? '≥' : '≤'} ${v}`;
+            else if (v === true || v === 'true') label = name;
+            else if (v === false || v === 'false') label = `${name}: ${t('common.no')}`;
+            else label = `${name}: ${optionLabel(v, t)}`;
+            chips.push({ icon: 'options-outline', label });
         }
         return chips;
-    }, [search, schemas, t]);
+    }, [search, schemas, t, i18n.language]);
 }
 
 const SavedSearchSheet = ({ visible, onClose, filters, onSaved }) => {

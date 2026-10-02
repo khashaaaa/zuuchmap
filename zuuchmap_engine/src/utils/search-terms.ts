@@ -108,11 +108,18 @@ export function documentTokens(
 }
 
 /**
+ * Every `"key":` and the JSON literal right after it. Keys are not content —
+ * indexed, the prefix "man" matched every post with a `manufacturer` field.
+ * Same pattern as the SearchVectorValuesOnly migration.
+ */
+const JSON_KEYS_AND_LITERALS = /"(?:[^"\\]|\\.)*"\s*:\s*(?:true|false|null)?/g;
+
+/**
  * The whole of a post as the search vector sees it.
  *
- * Mirrors the generated column's expression, `attributes` serialised the way
- * `attributes::text` serialises it — after the punctuation collapse both sides
- * reduce to the same token sequence, keys included.
+ * Mirrors the generated column's expression: `attributes` serialised, then
+ * stripped of keys and true/false/null, so only string and number values
+ * reach the punctuation collapse on either side.
  */
 export function postDocument(post: {
   title?: string | null;
@@ -126,7 +133,9 @@ export function postDocument(post: {
     post.details,
     post.location,
     post.address,
-    post.attributes ? JSON.stringify(post.attributes) : null,
+    post.attributes
+      ? JSON.stringify(post.attributes).replace(JSON_KEYS_AND_LITERALS, ' ')
+      : null,
   );
 }
 

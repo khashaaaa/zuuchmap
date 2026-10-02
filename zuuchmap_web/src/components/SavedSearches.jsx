@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { BellRing, Trash2, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { savedSearchApi } from '@/lib/api'
-import { getCategoryLabel, getSubcategoryLabel } from '@/lib/utils'
+import { getCategoryLabel, getSubcategoryLabel, getFieldLabel, getOptionLabel } from '@/lib/utils'
 import { useCategories } from '@/hooks/useCategories'
 import { useApiMutation } from '@/hooks/useApiMutation'
 
@@ -18,6 +18,27 @@ export function savedSearchToParams(s) {
   if (s.q) p.set('q', s.q)
   for (const [k, v] of Object.entries(s.attrs ?? {})) if (v !== '' && v != null) p.set(k, String(v))
   return p
+}
+
+/**
+ * One attribute filter as a person would say it: "Оператортой", "Нөхцөл: Сайн",
+ * "Цалин ≥ 2000000". An exact field key wins over the `_min`/`_max` reading,
+ * because some fields (`salary_min`) end that way themselves.
+ */
+function attrSummary(schema, rawKey, v, t) {
+  const key = rawKey.replace(/^attr\./, '')
+  const fields = schema?.fields ?? []
+  let def = fields.find((f) => f.key === key)
+  let bound = null
+  if (!def) {
+    const m = key.match(/^(.*)_(min|max)$/)
+    if (m) { def = fields.find((f) => f.key === m[1]); bound = m[2] }
+  }
+  const label = def ? getFieldLabel(def, t) : key
+  if (bound) return `${label} ${bound === 'min' ? '≥' : '≤'} ${v}`
+  if (v === true || v === 'true') return label
+  if (v === false || v === 'false') return `${label}: ${t('common.no')}`
+  return `${label}: ${getOptionLabel(v, t)}`
 }
 
 /**
@@ -45,7 +66,7 @@ export default function SavedSearches({ className = '', headed = true }) {
       s.province && t(`province.${s.province}`, { defaultValue: s.province }),
       s.district && t(`district.${s.district}`, { defaultValue: s.district }),
       s.q && `“${s.q}”`,
-      ...Object.entries(s.attrs ?? {}).map(([k, v]) => `${k.replace(/^attr\./, '')}: ${v}`),
+      ...Object.entries(s.attrs ?? {}).filter(([, v]) => v !== '' && v != null).map(([k, v]) => attrSummary(schema, k, v, t)),
     ].filter(Boolean)
     return bits.length ? bits.join(' · ') : t('savedSearch.everything')
   }

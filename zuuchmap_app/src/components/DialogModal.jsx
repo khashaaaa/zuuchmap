@@ -36,6 +36,14 @@ const DialogModal = ({
         Animated.spring(iconScale, { toValue: 1, useNativeDriver: true, ...animations.spring.modal }).start();
     }, [visible, reduced, iconScale]);
 
+    // Half a phone-width dialog holds about a dozen characters of label, and a
+    // button label never wraps — "Одоохондоо үгүй" rendered as "Одоохондоо үг…".
+    // A pair with a longer label stacks instead, as three or more always do.
+    const LONG_LABEL = 12;
+    const stacked = defaultButtons.length > 2
+        || (defaultButtons.length === 2 && defaultButtons.some((b) => String(b.text ?? '').length > LONG_LABEL));
+    const sideBySide = defaultButtons.length === 2 && !stacked;
+
     return (
         <BaseModal
             visible={visible}
@@ -68,7 +76,7 @@ const DialogModal = ({
 
             {children}
 
-            <View style={[styles.buttonContainer, defaultButtons.length > 2 && styles.buttonContainerStacked]}>
+            <View style={[styles.buttonContainer, stacked && styles.buttonContainerStacked]}>
                 {defaultButtons.map((button, index) => (
                     <Button
                         key={index}
@@ -83,9 +91,9 @@ const DialogModal = ({
                         }}
                         variant={button.variant || 'primary'}
                         size="medium"
-                        fullWidth={defaultButtons.length !== 2}
+                        fullWidth={!sideBySide}
                         style={[
-                            defaultButtons.length === 2 && styles.buttonMultiple,
+                            sideBySide && styles.buttonMultiple,
                             button.style,
                         ]}
                     />

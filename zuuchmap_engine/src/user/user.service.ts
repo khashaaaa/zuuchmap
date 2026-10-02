@@ -1,5 +1,10 @@
 import { forgetSessionUser } from '../utils/session';
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  Logger,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
@@ -35,6 +40,17 @@ export class UserService {
       throw new NotFoundException(
         `User with phone number ${phone_number} not found`,
       );
+    }
+
+    // A role is chosen once, at onboarding. Re-sending the same one is harmless
+    // (a retried request); changing it is not — a provider turned customer
+    // keeps live listings under an account the clients treat as a buyer, and
+    // nothing in either client offers the switch.
+    if (user.type && user.type !== type) {
+      throw new ConflictException({
+        message: 'Account type is already set.',
+        code: 'ROLE_ALREADY_SET',
+      });
     }
 
     user.type = type;

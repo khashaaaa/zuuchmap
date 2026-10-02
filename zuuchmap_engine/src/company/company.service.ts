@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  HttpException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -9,6 +10,7 @@ import { Company } from './entities/company.entity';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { User } from '../user/entities/user.entity';
+import { assertProvider } from '../enums/usertype';
 import { deleteSingleImage } from '../utils/uploader';
 
 @Injectable()
@@ -23,22 +25,25 @@ export class CompanyService {
   async create(createCompanyDto: CreateCompanyDto): Promise<Company> {
     try {
       const { userId, ...companyData } = createCompanyDto;
+      // Checked before the save: an orphan company row was left behind
+      // whenever the owner lookup failed after it.
+      const user = userId
+        ? await this.userRepository.findOne({ where: { id: userId } })
+        : null;
+      if (userId && !user)
+        throw new NotFoundException(`User with ID ${userId} not found`);
+      if (user) assertProvider(user);
       const company = this.companyRepository.create(companyData);
       const savedCompany = await this.companyRepository.save(company);
 
-      if (userId) {
-        const user = await this.userRepository.findOne({
-          where: { id: userId },
-        });
-        if (!user)
-          throw new NotFoundException(`User with ID ${userId} not found`);
+      if (user) {
         user.company = savedCompany;
         await this.userRepository.save(user);
       }
 
       return savedCompany;
     } catch (error) {
-      if (error instanceof NotFoundException) throw error;
+      if (error instanceof HttpException) throw error;
       throw new BadRequestException(
         'Failed to create company: ' + error.message,
       );

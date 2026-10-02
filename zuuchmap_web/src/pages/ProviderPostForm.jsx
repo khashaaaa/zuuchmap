@@ -10,7 +10,7 @@ import { postsApi } from '@/lib/api'
 import { getCategoryLabel, getSubcategoryLabel, getFieldLabel, getPostCategory, getCategoryColor, getImageUrl, goBack, toDateInputValue, PRICE_UNITS, PROVINCES, DISTRICTS, apiErrorMessage, hideBrokenImage, normalizeWebsiteUrl, getThumbUrl, fallbackToFullImage, sortByLabel } from '@/lib/utils'
 import { categoryPin } from '@/lib/mapPin'
 import AlertBanner from '@/components/AlertBanner'
-import { useThemeStore } from '@/store'
+import { useThemeStore, useAuthStore } from '@/store'
 import { track } from '@/lib/analytics'
 import { toast } from 'sonner'
 import Input from '../components/Input'
@@ -162,6 +162,7 @@ export default function ProviderPostForm() {
     !isEdit && myStats?.plan && myStats.plan.posts_active >= myStats.plan.post_limit
   )
 
+  const ownPhone = useAuthStore((s) => s.user?.phone_number)
   const [form, setForm] = useState({
     category: '',
     title: '',
@@ -171,7 +172,9 @@ export default function ProviderPostForm() {
     address: '',
     price_amount: '',
     price_unit: 'DAY',
-    contact_phone: '',
+    // A new listing starts with the account's own verified number — every
+    // provider was otherwise typing it into every post. Edits load the post's.
+    contact_phone: isEdit ? '' : (ownPhone ?? ''),
     contact_email: '',
     website: '',
     subcategory: '',

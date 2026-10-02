@@ -25,6 +25,7 @@ import { countActivePosts } from './active-posts';
 import { CategorySchema, FieldDef } from './entities/category-schema.entity';
 import { isPriceUnit } from '../enums/priceunit';
 import { User } from '../user/entities/user.entity';
+import { assertProvider } from '../enums/usertype';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { processAfterSave, deleteMultipleImages } from '../utils/uploader';
@@ -511,6 +512,7 @@ export class PostService {
     const owner = ownerId
       ? await this.userRepository.findOne({ where: { id: ownerId } })
       : null;
+    assertProvider(owner);
     const plan = this.effectivePlan(owner);
     if (ownerId) await this.assertQuota(ownerId, plan);
     const oversized = attributesOutOfBounds(dto.attributes);
@@ -817,10 +819,7 @@ export class PostService {
    */
   async attachBusyDates<
     T extends Pick<Post, 'id' | 'category'> & { status?: Post['status'] },
-  >(
-    posts: T[],
-    days = BUSY_DATES_DAYS,
-  ): Promise<T[]> {
+  >(posts: T[], days = BUSY_DATES_DAYS): Promise<T[]> {
     if (!posts.length) return posts;
     let rentalKeys: Set<string>;
     try {

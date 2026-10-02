@@ -10,6 +10,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { DataSource, LessThan, Repository } from 'typeorm';
 import { Payment } from './entities/payment.entity';
 import { User } from '../user/entities/user.entity';
+import { assertProvider } from '../enums/usertype';
 import { Post } from '../post/entities/post.entity';
 import { PlanService } from '../user/plan.service';
 import { Plan } from '../enums/plan';
@@ -152,9 +153,12 @@ export class PaymentService {
 
     const user = await this.users.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
+    assertProvider(user);
 
     const kind =
-      req.kind === PaymentKind.FEATURED ? PaymentKind.FEATURED : PaymentKind.PLAN;
+      req.kind === PaymentKind.FEATURED
+        ? PaymentKind.FEATURED
+        : PaymentKind.PLAN;
     const line =
       kind === PaymentKind.FEATURED
         ? await this.featuredLine(userId, req)
@@ -275,7 +279,8 @@ export class PaymentService {
       relations: ['user'],
     });
     if (!post) throw new NotFoundException('Post not found');
-    if (post.user?.id !== userId) throw new BadRequestException('NOT_POST_OWNER');
+    if (post.user?.id !== userId)
+      throw new BadRequestException('NOT_POST_OWNER');
     if (post.approval_status !== 'APPROVED' || post.status !== Status.ACTIVE)
       throw new BadRequestException('POST_NOT_FEATURABLE');
 
@@ -553,9 +558,10 @@ export class PaymentService {
     if (!user?.email) return;
 
     const featured = payment.kind === PaymentKind.FEATURED;
-    const post = featured && payment.post
-      ? await this.posts.findOne({ where: { id: payment.post.id } })
-      : null;
+    const post =
+      featured && payment.post
+        ? await this.posts.findOne({ where: { id: payment.post.id } })
+        : null;
 
     await sendMail({
       to: user.email,
@@ -563,7 +569,9 @@ export class PaymentService {
       text: [
         'Төлбөр амжилттай хийгдлээ.',
         '',
-        featured ? 'Үйлчилгээ: Онцлох байршуулалт' : `Багц:     ${payment.plan}`,
+        featured
+          ? 'Үйлчилгээ: Онцлох байршуулалт'
+          : `Багц:     ${payment.plan}`,
         featured
           ? `Зар:      ${post?.title ?? `#${payment.post?.id ?? ''}`}`
           : '',

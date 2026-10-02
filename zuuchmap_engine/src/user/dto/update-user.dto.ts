@@ -1,12 +1,10 @@
 import {
   IsEmail,
-  IsEnum,
   IsOptional,
   IsString,
   MaxLength,
   ValidateIf,
 } from 'class-validator';
-import { UserType } from '../../enums/usertype';
 
 /**
  * Every field here lands in `Object.assign(user, dto)` in UserService.update,
@@ -14,18 +12,14 @@ import { UserType } from '../../enums/usertype';
  *
  * `@IsOptional()` on its own — which is all these carried — whitelists a
  * property without checking anything about it: a non-string, an unbounded
- * string, or a `type` outside the enum all reached the column. `type` mattered
- * most, because `POST /user/type` enforces PROVIDER/CUSTOMER while this route
- * did not, so the stricter endpoint could simply be walked around.
+ * string, or a `type` outside the enum all reached the column. `type` is not
+ * here at all: the role is set once, through `POST /user/type`, and this route
+ * accepting it was a way around that lock (the whitelist strips it now).
  *
  * Blank is "clear this field" and stays legal — the app submits `''` for an
  * emptied input — so the format check runs only on a non-empty value.
  */
 export class UpdateUserDto {
-  @IsOptional()
-  @IsEnum(UserType)
-  type?: UserType;
-
   @IsOptional()
   @IsString()
   @MaxLength(100)

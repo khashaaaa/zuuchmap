@@ -32,6 +32,7 @@ import categoryService from '../../services/api/categoryService';
 import { invalidatePostData } from '../../services/queryClient';
 import { maybeAskForPush } from '../../utils/pushPrompt';
 import { getInitialFormData, getEditFormData, formatFormDataForApi, suggestTitle } from '../../utils/formUtils';
+import { getPhoneNumber } from '../../services/api/authHelpers';
 import { saveDraft, readDraft, clearDraft } from '../../utils/draftStorage';
 import { computePostHealth } from '../../utils/postHealth';
 import { navigateToProviderPostList } from '../../utils/navigationUtils';
@@ -161,10 +162,12 @@ const ProviderPostForm = ({ route, navigation }) => {
         }
         let cancelled = false;
         (async () => {
-            const draft = await readDraft(resolvedPostType);
+            const [draft, ownPhone] = await Promise.all([readDraft(resolvedPostType), getPhoneNumber()]);
             if (cancelled) return;
-            // The form opens blank; the draft is offered, not imposed.
-            setFormData(getInitialFormData(schema, subcategory, location));
+            // The form opens blank; the draft is offered, not imposed. The
+            // contact number starts as the account's own verified one — every
+            // provider was otherwise typing it into every listing.
+            setFormData({ ...getInitialFormData(schema, subcategory, location), contact_phone: ownPhone || '' });
             if (draft) setPendingDraft(draft);
         })();
         return () => { cancelled = true; };

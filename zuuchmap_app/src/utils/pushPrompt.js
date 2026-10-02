@@ -51,6 +51,7 @@ export async function maybeAskForPush(reasonKey) {
       [
         {
           text: i18n.t('push.promptLater'),
+          style: 'cancel',
           onPress: async () => {
             // Remembered, so the offer is made once. The OS prompt is untouched
             // and still available from the profile screen whenever they want it.

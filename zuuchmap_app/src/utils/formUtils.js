@@ -54,7 +54,9 @@ const applyBehaviorFields = (formData, schema, initialPost = null, content = ini
 export const getInitialFormData = (schema, subcategory, location) => applyBehaviorFields({
     subcategory: subcategory || '',
     province: 'ULAANBAATAR',
-    district: 'BAYANZURKH',
+    // From the map pin when the geocoder named one, else blank for the provider
+    // to pick — never a guess.
+    district: location?.district || '',
     title: '',
     details: '',
     contact_phone: '',
@@ -84,7 +86,7 @@ export const getEditFormData = (schema, initialPost) => {
     return applyBehaviorFields({
         subcategory: content.subcategory || '',
         province: content.province || 'ULAANBAATAR',
-        district: content.district || 'BAYANZURKH',
+        district: content.district || '',
         title: content.title || '',
         details: content.details || '',
         contact_phone: content.contact_phone || '',

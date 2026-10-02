@@ -24,6 +24,32 @@ import { showErrorModal } from '../../utils/errorManager';
 // street name cannot collide with it.
 const PLUS_CODE = /^[23456789CFGHJMPQRVWX]{4,8}\+[23456789CFGHJMPQRVWX]{2,3}$/i;
 
+// Ulaanbaatar's districts as the platform geocoder names them, in either
+// device language: an abbreviation leading the khoroo ("BGD - 2 khoroo",
+// "БГД - 2 хороо") or the full name. Without this the pin's district was
+// thrown away and the form's own default filed the post elsewhere.
+const DISTRICT_PATTERNS = [
+    ['BAYANGOL', /^(BGD|БГД)\b|bayangol|баянгол/i],
+    ['BAYANZURKH', /^(BZD|БЗД)\b|bayanz[uü]rkh|баянзүрх/i],
+    ['SUKHBAATAR', /^(SBD|СБД)\b|s[uü]khbaatar|сүхбаатар/i],
+    ['CHINGELTEI', /^(CHD|ЧД)\b|chingeltei|чингэлтэй/i],
+    ['KHANUUL', /^(K?HUD|ХУД)\b|khan[- ]?uul|хан-уул/i],
+    ['SONGINOKHAIRKHAN', /^(S?KHD|SHD|СХД)\b|songinokhairkhan|сонгинохайрхан/i],
+    ['NALAIKH', /^(ND|НД)\b|nalaikh|налайх/i],
+    ['BAGANUUR', /^(BND|БНД)\b|baganuur|багануур/i],
+    ['BAGAKHANGAI', /^(BKHD|БХД)\b|bagakhangai|багахангай/i],
+];
+
+const districtOf = (address) => {
+    const candidates = [address?.district, address?.subregion, address?.city]
+        .filter(Boolean).map((p) => String(p).trim());
+    for (const text of candidates) {
+        const hit = DISTRICT_PATTERNS.find(([, re]) => re.test(text));
+        if (hit) return hit[0];
+    }
+    return '';
+};
+
 const LATITUDE_DELTA = 0.0922;
 // Longitude span has to match the window's aspect ratio or the initial region
 // comes out stretched. Derived per render rather than once at module load,
@@ -42,6 +68,7 @@ const ProviderLocationSelection = ({ route, navigation }) => {
     const [selectedLocation, setSelectedLocation] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [locationName, setLocationName] = useState('');
+    const [district, setDistrict] = useState('');
     const [errorMsg, setErrorMsg] = useState(null);
     const insets = useSafeAreaInsets();
 
@@ -64,6 +91,7 @@ const ProviderLocationSelection = ({ route, navigation }) => {
             longitude: defaultLocation.longitude,
         });
         setLocationName(t('provider.ulaanbaatar'));
+        setDistrict('');
     };
 
     const locate = async () => {
@@ -98,6 +126,7 @@ const ProviderLocationSelection = ({ route, navigation }) => {
                 });
                 if (addresses && addresses.length > 0) {
                     setLocationName(formatAddress(addresses[0]));
+                    setDistrict(districtOf(addresses[0]));
                 }
             } catch (geocodeError) {
                 setLocationName(t('provider.locationSelected'));
@@ -158,11 +187,14 @@ const ProviderLocationSelection = ({ route, navigation }) => {
             if (addresses && addresses.length > 0) {
                 const address = addresses[0];
                 setLocationName(formatAddress(address));
+                setDistrict(districtOf(address));
             } else {
                 setLocationName(t('provider.locationSelected'));
+                setDistrict('');
             }
         } catch (error) {
             setLocationName(t('provider.locationSelected'));
+            setDistrict('');
         }
     };
 
@@ -175,7 +207,8 @@ const ProviderLocationSelection = ({ route, navigation }) => {
             location: {
                 latitude: selectedLocation.latitude,
                 longitude: selectedLocation.longitude,
-                locationName: locationName
+                locationName: locationName,
+                district,
             },
             category,
             subcategory

@@ -170,6 +170,8 @@ GET  /seo/sitemap.xml  GET /seo/post/:id   sitemap index; OG tags for crawlers
 
 **Phone verification (verify.mn, Mobile-Originated).** We never send an SMS: the *user* texts a displayed code to `144773` from the number they claim, at 150₮ per verification. It runs only at signup and on a new device — `TrustedDevice` stores `sha256(device_id)` and a match returns a token directly. Web sign-out forgets the browser (shared computers); app sign-out keeps the phone trusted. A session is spent by one conditional `UPDATE`, and `user.phone_number` is unique — never reintroduce a read-then-write on either. Sessions last `SESSION_EXPIRES_IN` (`utils/session.ts`, one year) because signing in again costs the user money.
 
+**Roles are server-enforced.** `user.type` is set once (`POST /user/type` answers 409 `ROLE_ALREADY_SET` on a change; the profile DTO has no `type`). Post, company and plan-invoice creation call `assertProvider` (`enums/usertype.ts`; admins pass) — the clients only hide those actions.
+
 **`req.user` is identity only.** `JwtStrategy.validate` answers from `sessionUsers` (30s) and loads no relations. Handlers read `id` and `phone_number` off it and nothing else; anything mutable is read by the service that needs it. Account deletion calls `forgetSessionUser`.
 
 **Push permission is never requested at login.** `useNotificationSync` only registers an already-granted token; `utils/pushPrompt.js` asks later behind an in-app rationale. `UnreachableBanner` (both clients) tells a provider who declined.

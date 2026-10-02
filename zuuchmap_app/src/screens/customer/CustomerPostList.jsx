@@ -145,7 +145,12 @@ const CustomerPostList = ({ route, navigation }) => {
         // with a category (filter mode) and still means "in this province".
         if (listFilters.province) params.province = listFilters.province;
         if (listFilters.district) params.district = listFilters.district;
-        if (Object.values(debouncedAttrs).some(Boolean)) params.attrs = debouncedAttrs;
+        // Gated on the live attrs: a category switch clears them at once, and
+        // the debounced copy would otherwise send the old category's attributes
+        // with the new category for 400ms (a wasted query, often an empty one).
+        if (Object.values(listFilters.attrs).some(Boolean) && Object.values(debouncedAttrs).some(Boolean)) {
+            params.attrs = debouncedAttrs;
+        }
         if (!isFilterMode) {
             if (listFilters.sort) params.sort = listFilters.sort;
             if (debouncedPriceMin) params.price_min = debouncedPriceMin;
@@ -155,7 +160,7 @@ const CustomerPostList = ({ route, navigation }) => {
         }
         return params;
     }, [
-        isFilterMode, getPostType, routeSubcategory, debouncedAttrs, debouncedSearchQuery,
+        isFilterMode, getPostType, routeSubcategory, debouncedAttrs, listFilters.attrs, debouncedSearchQuery,
         listFilters.category, listFilters.subcategory, listFilters.province, listFilters.district, listFilters.sort, listFilters.status,
         debouncedPriceMin, debouncedPriceMax,
     ]);

@@ -339,6 +339,18 @@ export const debounce = (fn, ms = 300) => {
   return debounced
 }
 
+// One timer per first argument. Two fields sharing a plain `debounce` cancel
+// each other: a min typed just before a max was never applied.
+export const debounceByKey = (fn, ms = 300) => {
+  const timers = new Map()
+  const debounced = (key, ...args) => {
+    clearTimeout(timers.get(key))
+    timers.set(key, setTimeout(() => { timers.delete(key); fn(key, ...args) }, ms))
+  }
+  debounced.cancel = () => { timers.forEach(clearTimeout); timers.clear() }
+  return debounced
+}
+
 // User-entered URLs are stored raw; without a scheme the browser treats them
 // as relative paths and the SPA catch-all swallows them into "/".
 

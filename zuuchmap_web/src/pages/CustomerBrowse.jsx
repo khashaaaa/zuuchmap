@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import useOnline from '@/hooks/useOnline'
@@ -6,7 +6,7 @@ import { useSearchParams, useNavigate, useLocation } from 'react-router-dom'
 import { X, Heart, BellPlus, WifiOff, SlidersHorizontal, ChevronDown, Info } from 'lucide-react'
 import { toast } from 'sonner'
 import { postsApi, likesApi, savedSearchApi } from '@/lib/api'
-import { debounce, PROVINCES, DISTRICTS, getPostCategory, getCategoryLabel, getSubcategoryLabel, getFieldLabel, getOptionLabel, getCategoryColor, apiErrorMessage, sortByLabel, formatTime } from '@/lib/utils'
+import { debounce, debounceByKey, PROVINCES, DISTRICTS, getPostCategory, getCategoryLabel, getSubcategoryLabel, getFieldLabel, getOptionLabel, getCategoryColor, apiErrorMessage, sortByLabel, formatTime } from '@/lib/utils'
 import Button from '@/components/Button'
 import Input from '@/components/Input'
 import SearchBar from '@/components/SearchBar'
@@ -90,12 +90,30 @@ export default function CustomerBrowse() {
   const [lastQ, setLastQ] = useState(search)
   if (lastQ !== search) { setLastQ(search); setSearchInput(search) }
 
-  const priceKey = `${priceMin}|${priceMax}`
-  const [lastPrice, setLastPrice] = useState(priceKey)
-  if (lastPrice !== priceKey) { setLastPrice(priceKey); setPriceInputs({ min: priceMin, max: priceMax }) }
+  // Per field, too: the min landing must not blank a max still being typed.
+  const [lastPrice, setLastPrice] = useState(priceFilters)
+  if (lastPrice.min !== priceMin || lastPrice.max !== priceMax) {
+    setLastPrice(priceFilters)
+    setPriceInputs((p) => ({
+      min: lastPrice.min !== priceMin ? priceMin : p.min,
+      max: lastPrice.max !== priceMax ? priceMax : p.max,
+    }))
+  }
 
   const [lastAttr, setLastAttr] = useState(attrKey)
-  if (lastAttr !== attrKey) { setLastAttr(attrKey); setAttrInputs(JSON.parse(attrKey)) }
+  if (lastAttr !== attrKey) {
+    const before = JSON.parse(lastAttr)
+    setLastAttr(attrKey)
+    setAttrInputs((p) => {
+      const next = { ...p }
+      for (const k of new Set([...Object.keys(before), ...Object.keys(attrFilters)])) {
+        if (before[k] === attrFilters[k]) continue
+        if (attrFilters[k] === undefined) delete next[k]
+        else next[k] = attrFilters[k]
+      }
+      return next
+    })
+  }
 
   /**
    * The one writer. An empty value drops its key rather than writing a blank,
@@ -104,17 +122,22 @@ export default function CustomerBrowse() {
    * empty grid. Filter edits replace the history entry (Back should not undo
    * one typed character at a time); paging and category push a new one.
    */
+  // Starts from the live URL, not `prev`: React Router's functional form reads
+  // the searchParams of the render it was created in, so two debounced fields
+  // landing back to back had the second write erase the first. Stable for the
+  // same reason — a writer rebuilt per URL change left each pending debounce
+  // holding a stale one that Clear could not cancel.
+  const setSearchParamsRef = useRef(setSearchParams)
+  useEffect(() => { setSearchParamsRef.current = setSearchParams }, [setSearchParams])
   const setParams = useCallback((patch, { push = false } = {}) => {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev)
-      for (const [k, v] of Object.entries(patch)) {
-        if (v === undefined || v === null || v === '') next.delete(k)
-        else next.set(k, String(v))
-      }
-      if (!('page' in patch)) next.delete('page')
-      return next
-    }, { replace: !push })
-  }, [setSearchParams])
+    const next = new URLSearchParams(window.location.search)
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === undefined || v === null || v === '') next.delete(k)
+      else next.set(k, String(v))
+    }
+    if (!('page' in patch)) next.delete('page')
+    setSearchParamsRef.current(next, { replace: !push })
+  }, [])
 
   const setPage = useCallback((p) => {
     setParams({ page: p > 1 ? p : '' }, { push: true })
@@ -128,9 +151,20 @@ export default function CustomerBrowse() {
     [setParams] // eslint-disable-line
   )
 
+  // Keyed: each field keeps its own timer, so a second field typed within
+  // 400ms no longer cancels the first.
+  const applyAttr = useMemo(
+    () => debounceByKey((key, val) => setParams({ [`${ATTR_PREFIX}${key}`]: val }), 400),
+    [setParams]
+  )
+
   const handleCategory = useCallback((val) => {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev)
+    // A value still debouncing belongs to the category being left; landing
+    // after the switch, it would filter the new one with no visible input.
+    applyAttr.cancel()
+    setAttrInputs({})
+    setSearchParams(() => {
+      const next = new URLSearchParams(window.location.search)
       // Subcategory and attribute filters belong to the category being left;
       // location, text and price are category-agnostic and survive the switch.
       next.delete('subcategory')
@@ -140,12 +174,7 @@ export default function CustomerBrowse() {
       else next.delete('category')
       return next
     })
-  }, [setSearchParams])
-
-  const applyAttr = useCallback(
-    debounce((key, val) => setParams({ [`${ATTR_PREFIX}${key}`]: val }), 400),
-    [setParams] // eslint-disable-line
-  )
+  }, [setSearchParams, applyAttr])
 
   const handleAttrChange = useCallback((key, val, immediate) => {
     setAttrInputs((p) => ({ ...p, [key]: val }))
@@ -154,7 +183,7 @@ export default function CustomerBrowse() {
   }, [applyAttr, setParams])
 
   const applyPrice = useMemo(
-    () => debounce((key, val) => setParams({ [`price_${key}`]: val }), 400),
+    () => debounceByKey((key, val) => setParams({ [`price_${key}`]: val }), 400),
     [setParams] // eslint-disable-line
   )
   const handlePriceChange = useCallback((key, val) => {

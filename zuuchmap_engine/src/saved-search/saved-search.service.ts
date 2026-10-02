@@ -48,11 +48,14 @@ const isBlank = (v: unknown) => v === null || v === undefined || v === '';
  * Unset constraints (null/empty) always pass. `attrs` keys follow the
  * `/posts` convention — `attr.<key>` is equality, `attr.<key>_min` /
  * `attr.<key>_max` are numeric bounds against `post.attributes[key]`.
+ * `fieldTypes` (key → FieldDef type of the post's category) picks the same
+ * predicate browse's `buildAttrFilter` does for each key.
  */
 export function matchesSavedSearch(
   post: MatchablePost,
   search: Partial<SavedSearch>,
   labels: CategoryLabel[] = [],
+  fieldTypes: Map<string, string> = new Map(),
 ): boolean {
   for (const key of [
     'category',
@@ -82,6 +85,8 @@ export function matchesSavedSearch(
     if (key.endsWith('_min') || key.endsWith('_max')) {
       const isMin = key.endsWith('_min');
       const base = key.slice(0, -4);
+      // Browse requires a stored number; Number('') and Number(null) are 0.
+      if (isBlank(postAttrs[base])) return false;
       const have = Number(postAttrs[base]);
       const bound = Number(want);
       if (Number.isNaN(have) || Number.isNaN(bound)) return false;
@@ -89,7 +94,19 @@ export function matchesSavedSearch(
     } else {
       const have = postAttrs[key];
       if (isBlank(have)) return false;
-      if (String(have) !== String(want)) return false;
+      const type = fieldTypes.get(key);
+      if (type === 'multiselect') {
+        if (!Array.isArray(have) || !have.map(String).includes(String(want)))
+          return false;
+      } else if (type === 'boolean' || type === 'select') {
+        if (String(have) !== String(want)) return false;
+      } else if (
+        // Free text is a case-insensitive substring in browse (ILIKE), so
+        // "komatsu" there finds "Komatsu" — and must notify for it here.
+        !String(have).toLowerCase().includes(String(want).toLowerCase())
+      ) {
+        return false;
+      }
     }
   }
   return true;
@@ -163,7 +180,12 @@ export class SavedSearchService {
         .getMany();
 
       // Category names count as matches in browse, so they must here too.
-      const labels = categoryLabelIndex(await this.categories.getCategories());
+      const schemas = await this.categories.getCategories();
+      const labels = categoryLabelIndex(schemas);
+      const fieldTypes = new Map<string, string>();
+      for (const f of schemas.find((c) => c.key === post.category)?.fields ??
+        [])
+        if (f?.key && f?.type) fieldTypes.set(f.key, f.type);
       const ownerId = post.user?.id;
       const cutoff = Date.now() - NOTIFY_COOLDOWN_MS;
       const hits = candidates.filter(
@@ -171,7 +193,7 @@ export class SavedSearchService {
           s.user_id !== ownerId &&
           (!s.last_notified_at ||
             new Date(s.last_notified_at).getTime() < cutoff) &&
-          matchesSavedSearch(post, s, labels),
+          matchesSavedSearch(post, s, labels, fieldTypes),
       );
       if (!hits.length) return;
 

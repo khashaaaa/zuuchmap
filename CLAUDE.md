@@ -32,7 +32,7 @@ npm run check:sync    # cross-repo contracts
 **There are no test suites** (removed 2026-09-30). The gates, all run by `.github/workflows/ci.yml` on every push:
 
 ```bash
-npm run check:sync                                  # 26 contracts, many behavioural
+npm run check:sync                                  # 27 contracts, many behavioural
 cd zuuchmap_engine && npx tsc --noEmit              # + migration:run against real Postgres, + build
 cd zuuchmap_web && npm run lint:undef && npm run build
 cd zuuchmap_app && npm run lint:undef && npx expo export --platform android   # resolves every import

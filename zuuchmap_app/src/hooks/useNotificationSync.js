@@ -343,6 +343,9 @@ export function useNotificationSync() {
                 } else if (key) {
                     queryClient.invalidateQueries({ queryKey: key });
                 }
+                // Reading this thread already: the message is on screen, so a
+                // bell row would only light a badge for something seen.
+                if (conversationId && isViewing('MessageThread', { id: conversationId })) return;
                 addNotification({
                     title: t('notifications.newMessage'),
                     message: preview || '',

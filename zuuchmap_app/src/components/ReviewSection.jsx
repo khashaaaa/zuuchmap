@@ -128,7 +128,7 @@ const ReviewSection = ({ providerId, canReview, autoOpen = false, onRequireAuth 
     if (!providerId) return null;
     // A failed load must not silently erase the section — a provider's
     // reputation vanishing reads as "no reputation". Mirrors the web.
-    if (isError) {
+    if (isError && !data) {
         return (
             <View style={styles.card}>
                 <Text style={styles.title}>{t('review.title')}</Text>

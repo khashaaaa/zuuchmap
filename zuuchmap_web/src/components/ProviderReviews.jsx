@@ -83,7 +83,7 @@ export default function ProviderReviews({ providerId, canReview, onRequireAuth }
   if (!providerId) return null
   // A failed load must not silently erase the reviews section — trust signals
   // vanishing without a trace reads as "this provider has no reputation".
-  if (isError) return (
+  if (isError && !data) return (
     <InfoSection title={t('review.title')}>
       <ErrorState compact onRetry={refetch} />
     </InfoSection>

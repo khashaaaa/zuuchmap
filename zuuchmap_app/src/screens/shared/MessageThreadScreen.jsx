@@ -221,11 +221,27 @@ const MessageThreadScreen = ({ navigation, route }) => {
                 title={title || thread?.other_party?.given_name || t('messages.title')}
                 onBack={() => navigation.goBack()}
             />
-            {thread && (
+            {/* A link to the listing, as on the web: it is where the review
+                form is, and a chat is how most customers earn one. */}
+            {thread && (thread.post ? (
+                <TouchableOpacity
+                    activeOpacity={interactions.activeOpacityLight}
+                    accessibilityRole="link"
+                    hitSlop={interactions.hitSlop}
+                    onPress={() => navigation.navigate('PostDetailScreen', {
+                        postId: thread.post.id,
+                        role: thread.role === 'PROVIDER' ? 'provider' : 'customer',
+                    })}
+                >
+                    <Text style={[styles.aboutListing, { color: colors.text.link }]} numberOfLines={1}>
+                        {thread.post.title}
+                    </Text>
+                </TouchableOpacity>
+            ) : (
                 <Text style={styles.aboutListing} numberOfLines={1}>
-                    {thread.post?.title || t('messages.deletedListing')}
+                    {t('messages.deletedListing')}
                 </Text>
-            )}
+            ))}
 
             {/* Shrinking the view (rather than letting app.json's "pan" mode
                 slide the window) keeps the header on screen and the whole

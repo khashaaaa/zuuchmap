@@ -9,7 +9,14 @@ import { In, Repository } from 'typeorm';
 import { SavedSearch } from './entities/saved-search.entity';
 import { CreateSavedSearchDto } from './dto/create-saved-search.dto';
 import { PostNotificationService } from '../post/post-notification.service';
-import { matchesPost, searchTerms } from '../utils/search-terms';
+import {
+  CategoryLabel,
+  categoryLabelIndex,
+  expandTerms,
+  matchesPost,
+  searchTerms,
+} from '../utils/search-terms';
+import { CategoryService } from '../post/category.service';
 import { PUSH } from '../utils/push-messages';
 
 export const SAVED_SEARCH_LIMIT = 10;
@@ -45,6 +52,7 @@ const isBlank = (v: unknown) => v === null || v === undefined || v === '';
 export function matchesSavedSearch(
   post: MatchablePost,
   search: Partial<SavedSearch>,
+  labels: CategoryLabel[] = [],
 ): boolean {
   for (const key of [
     'category',
@@ -62,7 +70,8 @@ export function matchesSavedSearch(
   // browse and never notified; it then covered title + details only, while the
   // vector had already widened to location, address and attributes.
   if (!isBlank(search.q)) {
-    if (!matchesPost(searchTerms(search.q), post)) return false;
+    if (!matchesPost(expandTerms(searchTerms(search.q), labels), post))
+      return false;
   }
 
   const attrs = search.attrs ?? {};
@@ -94,6 +103,7 @@ export class SavedSearchService {
     @InjectRepository(SavedSearch)
     private readonly repo: Repository<SavedSearch>,
     private readonly notifications: PostNotificationService,
+    private readonly categories: CategoryService,
   ) {}
 
   list(userId: string): Promise<SavedSearch[]> {
@@ -152,6 +162,8 @@ export class SavedSearchService {
         })
         .getMany();
 
+      // Category names count as matches in browse, so they must here too.
+      const labels = categoryLabelIndex(await this.categories.getCategories());
       const ownerId = post.user?.id;
       const cutoff = Date.now() - NOTIFY_COOLDOWN_MS;
       const hits = candidates.filter(
@@ -159,7 +171,7 @@ export class SavedSearchService {
           s.user_id !== ownerId &&
           (!s.last_notified_at ||
             new Date(s.last_notified_at).getTime() < cutoff) &&
-          matchesSavedSearch(post, s),
+          matchesSavedSearch(post, s, labels),
       );
       if (!hits.length) return;
 

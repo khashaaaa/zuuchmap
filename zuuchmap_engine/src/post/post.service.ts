@@ -36,7 +36,12 @@ import { sharedCache, invalidatePostReadCaches } from '../utils/cache';
 import { CategoryService } from './category.service';
 import { PostNotificationService } from './post-notification.service';
 import { AnalyticsService } from '../analytics/analytics.service';
-import { searchTerms } from '../utils/search-terms';
+import {
+  categoryLabelIndex,
+  expandTerms,
+  groupTsquery,
+  searchTerms,
+} from '../utils/search-terms';
 import { APP_TIMEZONE } from '../utils/timezone';
 import { Localized, PUSH } from '../utils/push-messages';
 import { claimCron } from '../utils/redis';
@@ -639,6 +644,8 @@ export class PostService {
       .leftJoinAndSelect('post.user', 'user')
       .leftJoinAndSelect('user.company', 'company');
 
+    const rank = await this.applyFilters(qb, filters);
+
     // Whitelisted sort orders — anything else falls back to newest-first.
     // Price sorts push unpriced posts last so "cheapest" never means "no price".
     switch (filters.sort) {
@@ -668,15 +675,16 @@ export class PostService {
         // The predicate form could not be indexed — NOW() is not immutable — so
         // every browse read and sorted the whole matching set to return one
         // page. IDX_post_browse_order serves this ordering directly.
-        qb.orderBy('post.is_featured', 'DESC').addOrderBy(
-          'post.date_created',
-          'DESC',
-        );
+        // A search ranks by relevance between the two.
+        qb.orderBy('post.is_featured', 'DESC');
+        if (rank) qb.addOrderBy(rank, 'DESC');
+        qb.addOrderBy('post.date_created', 'DESC');
     }
 
-    await this.applyFilters(qb, filters);
-
-    qb.take(limit).skip((page - 1) * limit);
+    // limit/offset, not take/skip: both joins are many-to-one, so a row is a
+    // post, and take() wraps the query in a DISTINCT pass that cannot order
+    // by the rank expression (and cost an extra query on every page).
+    qb.limit(limit).offset((page - 1) * limit);
 
     // The count is the same for every page of a filter set, and it costs a
     // second full pass (20 ms / 12k buffers at 62k posts) that getManyAndCount
@@ -728,11 +736,15 @@ export class PostService {
     return result;
   }
 
-  /** Every WHERE clause of a browse query — shared by the page and its count. */
+  /**
+   * Every WHERE clause of a browse query — shared by the page and its count.
+   * Returns the relevance expression when there is search text, else null.
+   */
   private async applyFilters(
     qb: SelectQueryBuilder<Post>,
     filters: PostFilters,
-  ): Promise<void> {
+  ): Promise<string | null> {
+    let rank: string | null = null;
     const priceMin = Number(filters.price_min);
     if (
       filters.price_min !== undefined &&
@@ -782,12 +794,47 @@ export class PostService {
       // Prefix-matching full-text search on the generated search_vector column.
       // Tokenised by the shared helper so the saved-search matcher, which has to
       // answer the same question in JS, cannot drift away from it.
+      // Each term is AND-ed; within a term, any of its spellings in the text
+      // or a category/subcategory whose name it matches will do.
       const terms = searchTerms(filters.q);
       if (terms.length) {
-        const tsq = terms.map((t) => `${t}:*`).join(' & ');
-        qb.andWhere(`post.search_vector @@ to_tsquery('simple', :tsq)`, {
-          tsq,
+        let labels: ReturnType<typeof categoryLabelIndex> = [];
+        try {
+          labels = categoryLabelIndex(
+            await this.categoryService.getCategories(),
+          );
+        } catch (err) {
+          this.logger.warn(
+            `search: category names unavailable — ${err?.message}`,
+          );
+        }
+        const groups = expandTerms(terms, labels);
+        const subKey = `(post.category || ':' || coalesce(post.subcategory, ''))`;
+        // Every arm of the OR must be indexable or the planner gives up on all
+        // three and scans the table: the bare `subcategory = ANY` reaches
+        // IDX_post_subcategory, and the pair check after it only rechecks
+        // (subcategory values repeat across categories).
+        groups.forEach((g, i) => {
+          qb.andWhere(
+            `(post.search_vector @@ to_tsquery('simple', :tsq${i}) OR post.category = ANY(:cats${i}) OR (post.subcategory = ANY(:subv${i}) AND ${subKey} = ANY(:subs${i})))`,
+            {
+              [`tsq${i}`]: groupTsquery(g),
+              [`cats${i}`]: g.categories,
+              [`subs${i}`]: g.subcategories,
+              [`subv${i}`]: g.subcategories.map((x) => x.split(':')[1]),
+            },
+          );
         });
+        // Title (A) over attributes (B) over prose (C), via the weighted
+        // vector; a post filed under a named subcategory or category gets a
+        // fixed lift, so "экскаватор" ranks excavators that never say the word
+        // above posts that only mention it in passing.
+        qb.setParameters({
+          rankTsq: groups.map(groupTsquery).join(' | '),
+          rankSubs: groups.flatMap((g) => g.subcategories),
+          rankCats: groups.flatMap((g) => g.categories),
+        });
+        rank = `(ts_rank(post.search_vector, to_tsquery('simple', :rankTsq)) + CASE WHEN ${subKey} = ANY(:rankSubs) THEN 0.3 WHEN post.category = ANY(:rankCats) THEN 0.15 ELSE 0 END)`;
       }
     }
 
@@ -795,6 +842,7 @@ export class PostService {
       const fieldTypes = await this.attributeFieldTypes(filters.category);
       buildAttrFilter(qb, filters.attrs ?? {}, fieldTypes);
     }
+    return rank;
   }
 
   /** How many accounts have saved this post — carried on the detail response. */

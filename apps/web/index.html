@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="mn">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Zuuchmap</title>
+    <meta name="theme-color" content="#F3F5F8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta property="og:image" content="/og.png" />
+    <link rel="preload" href="/fonts/Geologica.woff2" as="font" type="font/woff2" crossorigin />
+    <script>
+      (function () {
+        var root = document.documentElement, t = null;
+        try { t = localStorage.getItem('zm_theme'); } catch (e) {}
+        if (t === 'light' || t === 'dark') root.setAttribute('data-theme', t);
+        var dark = t === 'dark' || (t !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.querySelector('meta[name="theme-color"]').setAttribute('content', dark ? '#0E1726' : '#F3F5F8');
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

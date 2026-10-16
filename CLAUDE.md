@@ -1,16 +1,12 @@
 # CLAUDE.md — Zuuchmap
 
-Construction marketplace for Mongolia. Providers post rentals/services/jobs across 13 categories; admins approve posts before they go live; customers browse, filter, save, contact.
+Construction marketplace for Mongolia. Providers post rentals/services/jobs across 13 categories in four families; admins approve posts before they go live; customers browse, filter, book, save, chat.
 
-| Dir | Stack |
-|---|---|
-| `zuuchmap_engine/` | NestJS 11, TypeORM, PostgreSQL, Socket.io |
-| `zuuchmap_web/` | React 19, Vite, Tailwind 4, Zustand, React Query |
-| `zuuchmap_app/` | React Native 0.81, Expo 54 |
+**Fresh start (decided 2026-10-15).** Zuuchmap is built from zero in this repo — engine, web and app on the Figma design — and launches on an empty database: no data, no code carries over from the old product. The old code (`zuuchmap_engine/`, `zuuchmap_web/`, `zuuchmap_app/`, `check:sync`, the old deploy skill) was deleted; it is in git history up to commit `a4bd91a` if a detail is ever needed. The old site still runs on the VPS until launch (see Deployment).
 
 ## Rules
 
-- **Git.** `git add -A`, commit, push. Nothing else.
+- **Git only when ordered** (the global rule). When ordered: `git add -A`, commit, push. Nothing else.
 - **No yarn.** Use `npm` everywhere.
 - **Read targeted.** grep/find first, read only the needed range.
 - **No speculative cleanup.** Only change what the task requires.
@@ -19,239 +15,86 @@ Construction marketplace for Mongolia. Providers post rentals/services/jobs acro
 
 ## Commands
 
-Three independent apps (own `package.json`/`node_modules`/lockfile, no workspaces). The root `package.json` proxies:
+One npm workspace (`apps/*`, `packages/*`); `npm install` at the root.
 
 ```bash
-npm run install:all
-npm run dev:engine    # port 8282
-npm run dev:web       # port 5173
-npm run dev:app       # Expo
-npm run check:sync    # cross-repo contracts
+docker compose -f infra/docker-compose.dev.yml up -d   # PostGIS 5433, Redis 6380, mailpit 1025/8025
+npm run dev -w @zuuchmap/engine                         # port 8383
+npm run dev -w @zuuchmap/web                            # port 5174
+npm run db:reset -w @zuuchmap/engine                    # rebuild + reseed the dev DB
+npm run gate:all                                        # every gate CI runs
 ```
 
-**There are no test suites** (removed 2026-09-30). The gates, all run by `.github/workflows/ci.yml` on every push:
+**Local env:** `apps/engine/.env` (from `.env.example`: local VAPID keys, SMTP → mailpit, `ADMIN_PHONES=99100000`), `apps/app/.env` (`EXPO_PUBLIC_API_URL` = this PC's LAN IP). The web needs none: Vite proxies `/api` and `/socket.io` to 8383. `nest start --watch` leaves a detached `node dist/main` behind — stop the engine by killing the pid on 8383.
 
-```bash
-npm run check:sync                                  # 28 contracts, many behavioural
-cd zuuchmap_engine && npx tsc --noEmit              # + migration:run against real Postgres, + check:search, + build
-cd zuuchmap_web && npm run lint:undef && npm run build
-cd zuuchmap_app && npm run lint:undef && npx expo export --platform android   # resolves every import
-```
+**Seed** (`db:reset` runs it; `seed:dev` alone reseeds in ~2 s, deterministic): 20 hand-written listings with bookings in every state, two threads and reviews — provider 99110000 (Хүнд Техник ХХК), customers 99120000 and 99130000, admin 99100000 — then `scripts/seed-bulk.ts` generates a market: 80 providers (9850xxxx), 250 customers (9860xxxx), ~1,600 listings in every category and province (no photos), 900 bookings, 450 threads, 600 reviews, saves, saved searches.
 
-Lint is **advisory** in CI (2,111 engine / 39 web pre-existing findings). `lint:undef` (web and app) is the exception: a name used and never imported builds fine — Metro included — and white-screens the page. `npm run lint` in the engine **fixes in place** — use `npx eslint src --no-fix` to look. The app's eslint config enforces only that rule and duplicate keys.
-
-## Cross-repo sync
-
-Values duplicated across the apps by design. `npm run check:sync` (`scripts/check-sync.js`, zero deps) verifies them and **gates `deploy.sh` as step 0/6** — run it after touching any of them. "Behavioural" = both copies are lifted and run over shared fixtures.
-
-The app ships locales `mn en zh ru`, the web only `mn en`. Cross-client contracts compare `SHARED_LOCALES` (the overlap); completeness runs per client over `CLIENT_LOCALES`. Adding a locale means editing those two constants at the top of `check-sync.js`.
-
-| Contract | Copies |
-|---|---|
-| `SOCKET_EVENTS` | engine gateway · `web/lib/socket.js` · `app/services/socketService.js` |
-| category fallback colours | `app/design/theme.js` · `web/lib/utils.js` · engine `category.service.ts` seed |
-| palette | `app/design/theme.js` · `web/src/index.css` (1:1 tokens only; the file names the exceptions) |
-| `Province` / `District` | engine `enums/province.ts` · `app/config/app.config.js` · `web/lib/utils.js`; engine place names (mn, en) equal the app's `province.*` / `district.*` |
-| `PriceUnit` | engine `enums/priceunit.ts` · `web/lib/utils.js` · `app/config/app.config.js` |
-| `REPORT_REASONS` | engine `enums/report.ts` (authority, `GET /reports/reasons`) · `web/lib/api.js` · `app/services/api/reportService.js` (first-paint fallback only) |
-| i18n | `app/i18n/locales/*.js` · `web/i18n/*.js` — a key present in both trees must have the same value; every locale has `en`'s key set on its own side; every literal `t('…')` resolves; every `PriceUnit` code has a `priceUnit.<CODE>` label in every locale |
-| thumbnail naming | engine `utils/uploader.ts` `thumbUrl` · web `getThumbUrl` · app `getPostThumbUrl` — `<name>.jpg` → `<name>_thumb.jpg`; every call site falls back to the full-size URL |
-| typeface | `app/design/theme.js` (bundled Commissioner TTFs) · `web/src/index.css` (self-hosted `@font-face`). **Never Google Fonts** — its `unicode-range` subsets strand Ө/Ү/₮ in the fallback face |
-| behavioural, `app/utils/displayUtils.js` · `web/lib/utils.js` | `formatPrice` `formatPriceParts` (a `TOTAL` price has no unit) · `formatDate` (`YYYY.MM.DD`) · `formatTime` (`HH:MM` 24h) · `formatDateTime` · `formatRelativeAge` · `formatInboxStamp` (time today, date if older) · `formatNotificationStamp` |
-| behavioural, other | `getPostTitle` (`app/utils/postUtils.js` · `web/lib/utils.js`) · `postHealth` (`app/utils/postHealth.js` · `web/lib/postHealth.js`) · map clustering (`CustomerMapView.jsx` `gridCluster` · `web/lib/mapCluster.js`) · form validation (`app/utils/formUtils.js` · `web/lib/utils.js`: `validateEmail` `validatePhone` `validateRequired` `normalizeWebsiteUrl` — the company DTO bounds lengths and checks the email, but phone and website formats are checked only here) |
-| error codes | every SCREAMING_SNAKE code the engine throws (as `code`, or as the message — `AllExceptionsFilter` promotes it to `code`) has `errors.codes.<CODE>` on both clients, and every entry names a code still thrown |
-| `Intl ban` | no file outside `app/utils/displayUtils.js` and `web/lib/utils.js` may name `toLocaleString` `toLocaleDateString` `toLocaleTimeString` `localeCompare` or `Intl.*`. RN's JSC has no full ICU on Android, so a locale call silently resolves to en-US there while Node's full ICU makes the checker agree. Number grouping is hand-rolled (`groupThousands`) |
+**Dev auth** (not production and `VERIFY_MN_API_KEY` unset): any number signs in and the session self-verifies. Past the verify throttle: `docker exec infra-redis-1 redis-cli del hit:verify:<phone>` and delete that phone's `verification_session` rows. A token without the flow: `openSession(dataSource, <user id>, cfg)` from `apps/engine/src/auth/request-user` (a token counts only while its `auth_sessions` row exists; a bare `signHs256({ sub })` is rejected).
 
 ### Web/app parity
 
-1. **Identical — the same fact rendered twice.** A price, date, time, phone, status label, category name, count. Put it in a shared-named helper on both sides with a `check:sync` contract.
+1. **Identical — the same fact rendered twice.** A price, date, time, phone, status label, category name, count. It lives once in `@zuuchmap/core` and both clients import it.
 2. **Equally available — anything done in a transaction.** Browse, save, message, report, book, renew, pay, review, saved searches. Guest affordances count: a named sign-in prompt on one client means one on the other.
 3. **Free to differ — how a capability is reached.** Navigation shape, density, input modality, platform transports.
 
 **Admin is deliberately not at parity.** The app carries the queues (approval, reports); the web carries configuration and look-ups (category schemas, user detail, company verification, broadcast, featured grants).
 
+## Design (Figma)
+
+The Figma file is the source of truth: "polish the design" means edit Figma, then re-export tokens/specs. Signal orange `#FF6A1F` on ink, Geologica self-hosted (**never Google Fonts** — its `unicode-range` subsets strand Ө/Ү/₮), pin-Z mark, Lucide, four category families, "Чат" for messages (the Figma frames still say "Зурвас").
+
+- **Plan** — https://claude.ai/artifact/RvMduJcCDnAoHdnwj4KgNZ (read with the Artifact tool): what the product must solve, the business rules, new capabilities and the engine data each needs, architecture, the 12-phase build order with "done when" criteria, launch.
+- **Figma** — https://www.figma.com/design/c9ds9j1tM48XCIvCDrIQKc (fileKey `c9ds9j1tM48XCIvCDrIQKc`). Load the `figma:figma-use` skill, then `use_figma` / `get_screenshot`.
+- **Pages** (id): Cover `0:1` · Brand `2:2` (export assets `4:2`) · Foundations `2:3` · Icons `9:2` · Illustrations `20:2` · Components `2:4` · Patterns `2:5` · 1 Entry `83:2` · 2 Customer `21:2` · 3 Provider `34:2` · 4 Shared & admin `48:2` · **Handoff `56:2`** · 5 Store `61:2` · 6 Tablet `100:2`.
+- **Frames** are named `<code> · <screen>` (`B2 · Listing detail`), each with a `… · Dark` twin. Each screen page has a `Phone` and a `Desktop` section; a desktop frame is its phone frame's code plus `d` (`B2d`), a desktop-only screen the next number in its family plus `d`. Find one with `page.findAllWithCriteria({types:['FRAME']}).filter(f => f.name.startsWith('B2 ·'))`.
+- **Variables:** `Primitives` · `Color` (Light/Dark) · `Spacing` · `Radius` · `Motion`; 17 `type/*` text styles; `elevation/sm|md|lg`.
+- **Handoff page** is the build spec: 01 accessibility, 02 tokens, 03 components, 04 build order, 05 defects not to repeat. The plan and the Handoff page carry the same build order — change both together.
+
+## Workspace (`apps/*`, `packages/*`, `infra/`)
+
+| Package | What | Gate |
+|---|---|---|
+| `packages/tokens` (`@zuuchmap/tokens`) | `src/figma.json` is the Figma variable export (Primitives · Color Light/Dark · Spacing · Radius · Motion · type/* · elevation/*). `build.mjs` (zero deps, runs on `prepare`) writes `dist/tokens.css` (CSS vars; dark on `[data-theme="dark"]`, light island on `[data-theme="light"]`), `dist/tailwind.css` (`@theme inline`), `dist/index.ts` (RN theme: `light`/`dark`, `type` roles with bundled face names, `elevation`, `categoryColor`). `fonts/` = Geologica static TTFs (400–800) + `Geologica[wght].woff2`. **Edit Figma, re-export, rebuild — never hand-edit dist.** | `npm run gate:tokens` |
+| `packages/core` (`@zuuchmap/core`) | Formatters (`formatPrice`/`formatPriceParts`/`formatDate`… take a `locale`, resolve labels from the bundled resources), validation, enums (`Province`/`District`/`PriceUnit`/`ERROR_CODES`…), i18n `resources` (mn en zh ru), category families (`familyOf`, `categoryIconFallback`), API types, analytics event names. Zero runtime deps; a test fails on any `Intl`/`toLocale*`. The one copy of every fact both clients render. | `npm run gate:core` |
+| `apps/engine` (`@zuuchmap/engine`) | NestJS 11, prefix `/api`, port **8383**. `src/config/load-env.ts` first import; `.env.example` lists every variable. **One schema migration, `src/migrations/1760500000000-schema.ts`, one block per table in FK order — edited in place until launch** (nothing outside dev/test has run it); after an edit, `npm run db:reset -w @zuuchmap/engine` drops `public`, migrates and reseeds (~4 s), and the test DB rebuilds itself when the migration files' hash changes (`src/database/reset.ts`, stored as the `public` schema comment). **At launch the file freezes**: from then on, new append-only migrations beside it, never an edit. Written by hand (`migrationsRun: false`; `npm run migration:run -w @zuuchmap/engine`). Redis optional (`claimCron`); readiness at `/api/health/ready`. Lint is a gate (zero findings, `--no-fix`). **One request per screen need:** `GET /categories` answers `{ categories, families }`; a draft is sent with `PATCH /posts/:id {…, submit: true}`; the web dev server proxies `/api` and `/socket.io` so dev is same-origin like production (no preflights). Phases 2–3 are in: auth, users, categories, listings, photos, and search — `GET /posts` (`q` with Mongolian expansion and the `all → fuzzy → any` retry, `relaxed: true`; `family`, `date_from`/`date_to` against `post_busy`, `lat`/`lng` → `distance_m` + `radius_km` + `sort=nearby`, `price_min`/`price_max` within one `price_unit`), `GET /posts/map?bbox&zoom` (grid clusters), `GET /posts/:id/availability`, `POST|DELETE /posts/availability/block`. All search SQL is `post/search-terms.ts` `searchSql`; `test/search.e2e.spec.ts` is the must-find gate (SQL and the JS matcher over shared fixtures). Phase 4 engine: `GET /posts/stats` (landing counters, cached 5 min), `GET /posts/:id/similar`, an empty dated browse answers `undated_total` + `alternatives` (nearest later free windows), likes (`post_likes`: `GET|POST /likes`, `GET /likes/ids`, `POST /likes/merge` for a guest's device saves, `DELETE /likes/:post_id`; `like_count`/`liked` on the detail, `saves` on `mine/stats`), saved searches (`saved_searches`, max 10: `GET|POST /saved-searches`, `PATCH|DELETE /saved-searches/:id`, `POST /saved-searches/:id/seen`; `new_count` = live matches since last opened; `SavedSearchService.matching(post)` is the alert matcher phase 7 fans out from, the JS twin of `applyFilters` + `searchSql`). Phase 5 engine (`booking/` `chat/` `review/` `people/`): bookings (`POST /bookings`, `GET /bookings/mine?tab=active|past`, `GET /bookings/received?tab=new|accepted|past` with tab counts, `GET /bookings/:id`, `PUT /bookings/:id/accept|decline|cancel`; accept locks the post row, writes `post_busy` BOOKED and declines overlapping PENDING as `closed_reason: OVERLAP`; prices/title copied at request; `contact_phone` only once ACCEPTED; crons: expire stale PENDING 00:05, review prompt 01:00, reminder 18:00 the evening before), Чат (`conversations` one per listing+customer, `messages` with `kind` TEXT or a booking step; `GET|POST /conversations`, `/:id`, `/:id/messages?before&before_id`, `PUT /:id/read`; socket events `SOCKET_EVENTS` to `user:<id>` via the `REALTIME` port), reviews (`POST /reviews` upsert, `PUT /reviews/:id/reply`, `GET /reviews/provider/:id?sort`; eligibility = finished booking or a thread the provider answered with text), `GET /sellers/:id`. `PeopleService` gives every `PublicUser` its trust: `rating_average`/`rating_count` on list items, plus `reply_minutes` (median first text reply over 30 days, ≥3 threads) on the detail, threads and seller page; landing `reply_hours` from the same data. Every event goes to the `LISTING_EVENTS` bus for phase 7. Phase 6 engine (`provider/` `company/`, `post/contact.service.ts`): contacts (`post_contacts`: CALL via `POST /posts/:id/contact`, CHAT when a thread is first opened, BOOKING on request; one per viewer per kind per Ulaanbaatar day, never the owner), `GET /posts/mine/performance?days=7` and `GET /posts/:id/performance` (counted views, saves, contacts, booking requests: this window vs the one before), `GET /provider/home` (pending requests, unread chats, `to_fix`, expiring, unanswered reviews, this month's booking value, the week, plus the account screen's rating, company, listing counts and plan), `GET /bookings/value?month`, companies (`GET /company/mine`, `POST|PATCH /company`; one per account, providers only, name/registration/tax change drops `is_verified`; `PublicUser.company` everywhere; landing `verified_providers`). Core: `listingHealth()`, `bookingValue()`, `prov.*` strings. Phase 7 engine (`notification/`): `NotificationService` subscribes to `LISTING_EVENTS`, stores each event for the centre (`notifications`, `kind` + `data`; words rendered from core `notificationCopy` in the reader's language; saved-search matches fold into one unread row per search via `group_key`), emits `NOTIFICATION_CREATED`, then pushes to every `push_devices` row (Expo, web push/VAPID) in that device's `locale`, else e-mails (`users.email`, `users.locale`; Чат at most hourly per thread). `users.notify_topics` = the Figma I6 switches (chat, booking, saved_search, news), silencing push/e-mail, never the centre. Admins (`ADMIN_PHONES`) get `LISTING_SUBMITTED`. `GET /notifications`, `/badges` (unread notifications + unread Чат + a provider's plan usage: the shell's one request), `PUT /notifications/read`, `/:id/read`, `GET|PUT /notifications/settings`, `POST|DELETE /notifications/devices`, `GET /notifications/vapid-key`. Transports behind `NOTIFY_TRANSPORTS` (tests record); dead tokens dropped; nightly prune (`NOTIFICATION_RETENTION_DAYS`). Tests never touch the dev DB: jest's `test/global-setup.ts` creates and migrates `<PG_DATABASE>_test`. | `npm run gate:engine` |
+| `apps/web` (`@zuuchmap/web`) | Vite + React 19 + TS + Tailwind 4, port **5174**. Theme = `data-theme` on `<html>` (`zm_theme`), bootstrap script in `index.html`. Components in `src/ui/`, one file each; gallery at `/kit`. Icons only through `src/ui/Icon.tsx` (whitelist; unknown → family icon). Web-only strings in `src/i18n/ui.ts` (the app's in `src/i18n/extra.ts`); a string both clients show lives in core (`kit.*` for UI-kit labels). | `npm run gate:web` |
+| `apps/app` (`@zuuchmap/app`) | Expo 54 / RN 0.81 / TS. Same package id `com.khashaa.zuuchmap` and EAS project as the old App Store app (store identity carries over; `runtimeVersion` under Deployment). `src/design/theme.ts` `useAppTheme()`; `src/ui/` components; `src/screens/Kit.tsx` gallery. Metro is monorepo-aware. Phone test: `npx expo start --go --port 8082` + Expo Go 54.0.8 (traps in memory `testing`). | `npm run gate:app` |
+| `infra/` | `docker-compose.dev.yml` (ports under Commands), `nginx/zuuchmap.conf` (installed on the VPS at launch), `pm2/ecosystem.config.cjs`, `backup/pg-backup.sh`. | — |
+
+CI (`.github/workflows/ci.yml`, job `gates`) runs all five (`npm run gate:all`). Component specs were dumped from Figma with a `use_figma` script (`packages/tokens/figma-components.js`, a Plugin API script to paste into `use_figma`; re-dump when a component changes).
+
+## Business rules
+
+Phases 1–7 are built; payments (8), admin and reports (9) are not yet. These rules hold for whatever implements them.
+
+- **Phone verification (verify.mn, Mobile-Originated).** We never send an SMS: the *user* texts a displayed code to `144773` from the number they claim, at 150₮ per verification. It runs only at signup and on a new device — trusted devices store `sha256(device_id)` and a match returns a token directly. Web sign-out forgets the browser (shared computers); app sign-out keeps the phone trusted. A session is spent by one conditional `UPDATE`, and `users.phone_number` is unique — never a read-then-write on either. Sessions last a year because signing in again costs the user money.
+- **Roles are server-enforced.** Everyone starts as a customer; the role is set once (asked on the first listing, never at sign-up). Listing, company and plan-invoice creation are provider-only on the engine (admins pass) — clients only hide those actions. Admins come from `ADMIN_PHONES`; clients read `is_admin`, never the list.
+- **`req.user` is identity only.** Handlers read `id` and `phone_number` off it; anything mutable is read by the service that needs it.
+- **Editing a live listing (`pending_revision`).** An APPROVED listing never leaves browse because its owner edited it: the proposal is parked in `pending_revision`, approve writes it onto the row, reject drops it, `approval_status` stays APPROVED. A PENDING or REJECTED listing is edited in place. Revision photos are referenced only by the revision, so reclaim covers both sets; `rejection_reason` on an APPROVED listing means *the edit* was refused. A proven provider (3+ approved, zero rejections, zero upheld reports) auto-publishes edits — never new listings.
+- **Bookings / reviews.** Only `has_rental_status` categories are bookable; no self-booking; one PENDING request per customer per listing; accept refuses overlap; the contact phone is shared only after ACCEPTED; a booking outlives its listing (can be declined or cancelled, never accepted). Review eligibility: a finished booking **or** a thread the provider answered with text.
+- **Reports** (phase 9). About a listing or a review; deleting either keeps the report (owner and subject copied at filing). One OPEN report per reporter per subject. A take-down rejects the whole listing (a pending edit included) or deletes the review, closes that subject's other open reports and tells each reporter.
+- **Expiry.** Listings lapse at midnight, a warning goes out three days before, and crons that push or settle call `claimCron()` so only one worker runs them.
+- **Views.** One per viewer per listing, ever; only live listings; never the owner or an admin (recorded uncounted); anonymous viewers capped per address per day.
+- **Categories are data.** Fields, subcategories, flags, icon, colour, family and `{mn,en,zh,ru}` labels are admin-editable — never hardcode category behaviour in a client.
+- **Push permission is never requested at sign-in**; it is asked inline after posting, booking or saving a search.
+- **Numbers and dates.** ₮ after the number, hand-rolled grouping, `YYYY.MM.DD`, 24-hour time, all through `@zuuchmap/core` — no `Intl`/`toLocale*` (Android's JSC lacks full ICU and silently formats en-US).
+
 ## Deployment
 
-`.claude/skills/deploy/deploy.sh` — push → DB backup → engine pull/build/migrate/pm2 restart → web build → smoke test. Every remote step runs under `pipefail` and the smoke test exits non-zero, so a failed build or migration stops the deploy. The web is built into `dist.next` and copied over `dist` without deleting, so the previous release's chunks survive for tabs still open. Server facts, the manual nginx blocks, monitoring and the restore drill are in `.claude/skills/deploy/SKILL.md`. Credentials in `~/.zuuchmap-deploy.env`.
+"The server" means **myserver**, the home test server (192.168.1.102, `ssh server`): the engine runs there at `http://192.168.1.102:8383/api` as the user service `zuuchmap-engine` (`~/zuuchmap/apps/engine`, own `.env`, dev auth on), against system Postgres 18 + PostGIS and Redis; DB password in `~/.zuuchmap-db-password`. Update it: rsync the repo (no `node_modules`/`dist`/`.env`), `npm install`, build tokens → core → engine, `systemctl --user restart zuuchmap-engine`. The `zuuchmap` DB role lacks `CREATEDB`, so the jest suite cannot run there until `ALTER ROLE zuuchmap CREATEDB`.
 
-**App releases.** `expo-updates` is wired, so a JS-only fix ships with `eas update`. `runtimeVersion` is a bare native-ABI counter (`"1"`) and changes **only when native code does** — bumping it per release strands every installed build.
+Nothing is in production yet. At launch the new stack goes onto the existing VPS (`infra/`: nginx, pm2, backup) in place of the old site.
 
-## Backend
+- **VPS** `ubuntu@158.69.212.75` — password auth only (use paramiko; `sshpass` is not installed). Node via nvm (v24.11.1; prefix remote commands with its `PATH`), Postgres 16, nginx with letsencrypt. Credentials (`VPS_*`, `GH_*`) in `~/.zuuchmap-deploy.env`.
+- **The old site** still runs there: engine `/var/www/zuuchmap_engine` (pm2 `zuuchmap_engine`, port 8282, nginx `/engine`), web `/var/www/zuuchmap_web`. It can no longer be deployed from this repo. Its env files (R2, verify.mn and JWT keys), deploy/snapshot/restore-drill scripts and server notes are in `~/backups/zuuchmap/vps-bundle/legacy/` (chmod 700, never commit) — the R2 and verify.mn credentials are what production needs at launch.
 
-**Entry:** `src/main.ts` — port `8282`, prefix `/engine`.
-**Env:** `config/variables/<NODE_ENV>.env` (gitignored), loaded by `utils/load-env.ts` — **which must stay the first import in `main.ts`**: `ConfigModule` reads the file too late for anything evaluated at module scope or in a decorator. **`.env.example` in the engine and the web list every variable the code reads — add a variable there in the same commit that reads it.**
-**DB:** `synchronize: false`, TypeORM migrations (`src/migrations/`, `data-source.ts`). ⚠ **`migrationsRun: true`** — the dev server runs any pending migration on every (re)start. Never leave a broken migration on disk while `npm run dev` is running.
-**Uploads:** Cloudflare R2 (`src/utils/uploader.ts`), magic-byte validation, Sharp. Each post photo is stored as a 1920×1080 original plus a 640px `_thumb`; lists request the thumb. Older photos need `npm run backfill:thumbs`.
-
-Required env: `PG_*` `JWT_SECRET` `ADMIN_PHONES` `R2_*` `PROG_PORT` `PUBLIC_ENGINE_URL`. Optional, each inert when unset:
-
-- `ALLOWED_ORIGIN` — comma-separated; gates HTTP CORS and the socket's polling preflight. List every host (a bare apex blocks `www.`). A websocket upgrade is not origin-checked — both clients connect websocket-only and the handshake JWT is the gate.
-- `VERIFY_MN_API_KEY` `VERIFY_MN_BASE_URL` `VERIFY_MN_TIMEOUT_MS` · `VERIFY_TTL_MS` (5m) · `VERIFY_RATE_LIMIT` (5) + `RATE_TTL_MS` (1h) per phone.
-- `THROTTLER_TTL` / `THROTTLER_LIMIT` — global per-IP default; `auth/verify/start` is 3/min.
-- `ANALYTICS_RETENTION_DAYS` · `VIEW_KEY_SALT` (set to the current `JWT_SECRET` before rotating it) · `SENTRY_DSN` · `REDIS_URL` (required for more than one pm2 instance) · `SMTP_*` · `PUBLIC_WEB_URL`.
-- `QPAY_USERNAME` `QPAY_PASSWORD` `QPAY_INVOICE_CODE` — unset ⇒ `/payments/invoice` answers 503.
-- `PLAN_PRICE_PROVIDER_MNT` — **default is a placeholder**. `FEATURED_PRICE_PER_DAY_MNT` — **no default**; unset ⇒ placement is not for sale.
-- `VAPID_PUBLIC_KEY` `VAPID_PRIVATE_KEY` `VAPID_SUBJECT` — browser push; the public half is served by `GET /user/push/vapid-key`.
-
-**Modules:** `auth` `user` `post` `company` `likedpost` `admin` `events` `booking` `review` `analytics` `saved-search` `payment` `messaging` `report` `seo` `health`
-**Post services:** `PostService` · `CategoryService` (schemas, validation, seeding) · `PostNotificationService` (push fan-out) · `ViewedpostService`.
-**User controllers:** `UserController` + `UserAdminController`, both on the `user` prefix. **`UserAdminController` must stay last in `controllers`** or its `:id` routes shadow `/user/profile`.
-**Admin guard:** `src/admin/admin.guard.ts` reads `ADMIN_PHONES`. Clients read `is_admin` from the auth response; they never duplicate the list.
-**Entities:** User · Post · Company · Likedpost · Viewedpost · CategorySchema · Booking · Review · VerificationSession · TrustedDevice · AnalyticsEvent · PushDevice · SavedSearch · Payment · Conversation · Message · Report
-
-### Endpoints
-
-```
-POST /auth/verify/start           {phone_number,device_id?} → trusted device returns a token
-POST /auth/verify/status          {session_id} → PENDING|VERIFIED|EXPIRED (+token)
-GET  /auth/verify/callback/:id    verify.mn nudge — unauthenticated, never trusted alone
-POST /auth/logout                 JWT {device_id} — forgets that trusted device (web sign-out only)
-GET  /user/profile                JWT
-GET  /posts                       ?category&subcategory&province&district&approval_status
-                                  &q&attr.<key>[=|_min=|_max=]&page&limit → { items, total }
-                                  (every other list endpoint returns an array)
-GET  /posts/mine                  JWT
-GET  /posts/mine/stats            JWT   per-post views/saves/bookings + totals
-GET  /posts/:id                   the only route that returns `details`; carries `like_count`
-GET  /posts/:id/similar           ?limit (cached 5m)
-PUT  /posts/:id/views             optional auth; anonymous dedupe on X-Visitor-Id
-POST /posts                       multipart JWT
-PATCH /posts/:id                  multipart JWT — see "Editing a live post"
-POST /posts/:id/renew             JWT   reopens a lapsed window, no moderation, quota-checked
-GET  /posts/stats                 landing counters (cached 5m)
-GET  /posts/categories/all
-POST /like  DELETE /like/:type/:id  GET /like (?page&limit)  GET /like/ids   JWT
-GET  /admin/posts/pending         AdminGuard  PENDING or pending_revision set, FIFO
-PUT  /admin/posts/:id/approve|reject   AdminGuard  reject {reason,field_key?}
-POST /admin/broadcast             AdminGuard  {title,body,user_type?,category?}
-POST /bookings  GET /bookings/mine|received  PUT /bookings/:id/accept|decline|cancel   JWT
-POST /reviews                     JWT   {provider_id,rating,comment?} (upsert)
-GET  /reviews/provider/:id        → {average,count,reviews,own,stats}
-POST|GET /saved-searches  DELETE /saved-searches/:id   JWT, max 10
-POST /analytics/collect           batched, anonymous allowed
-GET  /analytics/summary           AdminGuard  ?days=7|30|90
-GET  /health                      liveness
-GET  /health/ready                readiness — 503 when DB/Redis is down
-GET  /payments/catalogue          plan ladder + featured{enabled,price_per_day,…}
-POST /payments/invoice            JWT   {kind:'PLAN',plan,months?} | {kind:'FEATURED',post_id,days?}
-                                  (`kind` defaults to PLAN)
-GET  /payments/:id/check          JWT   polls QPay, settles, grants
-GET  /payments/mine               JWT
-GET  /payments/callback/:id       QPay nudge — unauthenticated, never trusted alone
-GET  /conversations               JWT   50/page, ?before=<ISO>
-GET  /conversations/unread-count  JWT
-POST /conversations               JWT   {post_id, body?} → opens or returns the thread
-GET  /conversations/:id/messages  JWT   ?before&before_id, 30/page
-POST /conversations/:id/messages  JWT   {body}
-PUT  /conversations/:id/read      JWT
-GET  /reports/reasons             JWT
-POST /reports                     JWT   {post_id|review_id,reason,detail?}; a duplicate returns the existing one
-GET  /reports  GET /reports/count AdminGuard
-PUT  /reports/:id                 AdminGuard  {status,resolution?,take_down?} — OPEN only, one conditional UPDATE
-GET  /seo/sitemap.xml  GET /seo/post/:id   sitemap index; OG tags for crawlers
-```
-
-- **List items go through `listItem`** (`utils/public-user.ts`): no `details`, no moderation fields (`pending_revision` `previous_snapshot` `rejection_reason` `rejection_field`). Same on `/similar` and `GET /like`. Items carry `busy_dates[]` (14d) for `has_rental_status` categories.
-- **Likes key on `post_id` alone.** `:type` in the URL is accepted and ignored; `likedpost.post_type` is a denormalised copy of `post.category`, written from the post on insert.
-- **Views** (`viewedpost.service.ts` `countView`): one per viewer per post, ever; only live (approved, unexpired) posts; never the owner or an admin — their row is recorded uncounted so the same device signed out stays uncounted. Clients send `X-Visitor-Id` (`web/lib/visitor.js`, the app's `getAnonId()`), also on signed-in rows; without it the engine falls back to hashed IP+UA. Anonymous viewers are capped at 30 per address per post per day (`ip_key`). Keys are salted with `VIEW_KEY_SALT`, falling back to `JWT_SECRET`.
-
-### Behaviour
-
-**Bookings / reviews.** A booking outlives its post (`booking.post` is nullable, `ON DELETE SET NULL`): it can still be declined or cancelled, never accepted. Only `has_rental_status` categories are bookable; no self-booking; one PENDING request per customer per post; accept refuses overlap with an ACCEPTED booking; the contact phone is shared only after ACCEPTED. Review eligibility (`ReviewService.canReview`) is a *finished* booking (ACCEPTED, `end_date` past) **or** a conversation the provider replied to — four categories have no booking flow at all.
-
-**Reports.** About a post or a review (`report.kind`). Deleting either sets the FK null, never the report — `ownerId` and `subject` are copied at filing, so the queue and the track record survive. One OPEN report per reporter per subject is a partial unique index. `take_down` with RESOLVED rejects the whole listing (a pending edit included) or deletes the review; either way `closeOpenReports` closes that subject's other open reports and pushes each reporter the outcome — a listing rejection from the approval screen does the same. `isProvenProvider` reads `user.posts_rejected` (a counter) and upheld POST reports by `ownerId`, not anything joined through a post the owner can delete.
-
-**Editing a live post (`pending_revision`).** An APPROVED post never leaves browse because its owner edited it: the proposal is parked in `post.pending_revision`, approve writes it onto the row, reject drops it, and `approval_status` stays APPROVED throughout. A PENDING or REJECTED post is edited in place. Consequences: the owner's form hydrates from `pending_revision ?? post`; revision photos are referenced only by the revision, so reclaim must cover both sets; `rejection_reason` on an APPROVED post means *the edit* was refused. `PostService.isProvenProvider` (3+ approved, zero rejections, zero upheld reports) auto-publishes edits — never new listings.
-
-**Expiry.** 00:00 `expireOldPosts` marks lapsed posts EXPIRED and pushes `post_expired`; 01:00 `warnExpiringPosts` pushes `post_expiring` once, on the night a post is three days out, and `review_prompt` for finished bookings. Crons that push or settle call `claimCron()` (`utils/redis.ts`) so only one pm2 worker runs them.
-
-**Category system — data-driven; never hardcode category behaviour in a client.**
-- `CategorySchema` holds `FieldDef[]`, subcategories, flags (`has_rental_status` `has_availability_dates` `has_price` `default_price_unit` `emphasized` `post_expiry_days`), `icon` (Ionicons name), `color` (hex) and localized `labels` `{mn,en,zh,ru}` at category/subcategory/field level. All admin-editable: adding a vertical needs no deploy.
-- `FieldDef.filterable` exposes an attribute as a browse filter (`attr.<key>`).
-- `q` is Postgres full-text over title (weight A) + attribute *values* (B — keys and true/false/null stripped) + details/location/address (C), prefix-matching, terms AND-ed. `utils/search-terms.ts` `expandTerms` widens each term: Mongolian suffix and final-vowel strip, an elided-vowel form (тээвэр→тээвр), Cyrillic brand aliases, any category/subcategory whose name (any locale) it matches, and any province/district whose name it matches (`PROVINCE_NAMES`/`DISTRICT_NAMES` in `enums/province.ts`, held equal to the app's i18n by `check:sync`). A search that matches nothing as typed retries `fuzzy` (each term may be a pg_trgm near-spelling of a title word, `word_similarity` ≥ 0.5 — scans, so only on this path) and then, for 2+ terms, `any`; the response carries `relaxed: true` and both clients say so. Browse orders featured-*and-relevant* (every term in the title or naming the category) → `ts_rank` + category lift → newest. The saved-search matcher runs the same `expandTerms`/`matchesPost` but never relaxes. All search SQL is `searchSql` in `utils/search-terms.ts`; `npm run check:search` (CI) runs it against the JS matcher and a list of must-find queries inside a rolled-back transaction — change only the shared helper. Each OR arm must stay indexable (see `searchSql`).
-- Post has `category` + `subcategory`; legacy `secondcategory` is still accepted as a DTO alias.
-
-**Phone verification (verify.mn, Mobile-Originated).** We never send an SMS: the *user* texts a displayed code to `144773` from the number they claim, at 150₮ per verification. It runs only at signup and on a new device — `TrustedDevice` stores `sha256(device_id)` and a match returns a token directly. Web sign-out forgets the browser (shared computers); app sign-out keeps the phone trusted. A session is spent by one conditional `UPDATE`, and `user.phone_number` is unique — never reintroduce a read-then-write on either. Sessions last `SESSION_EXPIRES_IN` (`utils/session.ts`, one year) because signing in again costs the user money.
-
-**Roles are server-enforced.** `user.type` is set once (`POST /user/type` answers 409 `ROLE_ALREADY_SET` on a change; the profile DTO has no `type`). Post, company and plan-invoice creation call `assertProvider` (`enums/usertype.ts`; admins pass) — the clients only hide those actions.
-
-**`req.user` is identity only.** `JwtStrategy.validate` answers from `sessionUsers` (30s) and loads no relations. Handlers read `id` and `phone_number` off it and nothing else; anything mutable is read by the service that needs it. Account deletion calls `forgetSessionUser`.
-
-**Push permission is never requested at login.** `useNotificationSync` only registers an already-granted token; `utils/pushPrompt.js` asks later behind an in-app rationale. `UnreachableBanner` (both clients) tells a provider who declined.
-
-**Realtime.** `events/events.gateway.ts` — rooms `admin` + `user:<id>` (legacy `provider:<id>` kept for old builds). `MESSAGE_CREATED` goes to the recipient only and carries the whole message; `REPORT_CREATED` is admin-only. In the app only `useNotificationSync` subscribes to the socket.
-
-**Notification transports.** `PostNotificationService` fans out over Expo push, web push (VAPID, stored in `push_device` with `provider='WEB'`) and email (only for an account with no device). `splitTargets()` routes each row. Copy lives in `utils/push-messages.ts` in all four app locales and is resolved per device from `push_device.locale`, which the client sends with its token; null reads as `mn`. Admin pushes and broadcasts are not localised.
-
-## Web (`zuuchmap_web/`)
-
-**Entry:** `src/main.jsx` → `App.jsx`. Alias `@` → `src/`.
-**HTTP:** `src/lib/api.js` — Axios, auto-JWT, redirects to `/login` on 401.
-**State:** `useAuthStore` `useThemeStore` `useNotificationStore` (Zustand, `src/store.js`); everything else React Query. `hooks/useRealtimeSync.js` invalidates queries on socket events.
-**i18n:** `src/i18n/` — `mn en`, listed in `LANGUAGES`. A new string goes in both files.
-
-⚠ **`AdminCategories` label inputs derive from `SCHEMA_LOCALES`, not `LANGUAGES`.** The app renders all four locales and the web admin is the only place to edit them.
-
-**Category display text** always goes through `getCategoryLabel` / `getSubcategoryLabel` / `getFieldLabel` (`src/lib/utils.js`): schema `labels[locale]`, then client i18n, then the raw label. Page titles come from `meta.title` / `meta.description` via `useDocumentMeta`.
-
-```
-Public:   / /browse /login /verify /onboarding /posts/:id /privacy /terms /help /account-deletion
-Authed:   /notifications /messages /messages/:id
-Admin:    /admin /admin/posts[/:id] /admin/users[/:id] /admin/categories /admin/analytics
-          /admin/reports /admin/profile
-Provider: /provider /provider/posts[/new|/:id|/:id/edit] /provider/profile /provider/company
-          /provider/bookings /provider/billing
-Customer: /customer /customer/browse /customer/map /customer/saved /customer/saved-searches
-          /customer/profile /customer/bookings
-```
-
-## App (`zuuchmap_app/`)
-
-**Entry:** `App.js` → `Stack.Navigator`; initial route from `getInitialRoute()` in `App.js`.
-
-**Startup never waits on the network.** A stored token and role open the app at once; `userService.isAuthenticated()` runs behind it and treats only a 401 as signed out. The token is memoised in `authHelpers` (`rememberAuthToken`) — code that removes the storage key must call it.
-
-**Guest mode.** An unauthenticated launch lands on `CustomerDashboard`. Reading is open; save, message, report and book call `ensureAuth(navigation, reasonKey)` (`src/utils/requireAuth.js`). `useIsGuest()` returns `null` until the token read resolves.
-
-**Config:** `src/config/api.config.js` (`API_BASE_URL`, `ENDPOINTS`, `STORAGE_KEYS`; overridable with `EXPO_PUBLIC_API_BASE_URL` — Expo inlines only `EXPO_PUBLIC_*`, and Sentry likewise reads `EXPO_PUBLIC_SENTRY_DSN`) · `src/config/app.config.js` (`IMAGE`, `VALIDATION`, `provinces`/`districts` as bare codes; labels from i18n).
-
-**Theme (`src/design/theme.js`).** No static `colors`/`globalStyles` exports — get `{ colors, styles }` from `useAppTheme()`; per-file styles use `themedStyles((colors) => ({...}))`. The web mirrors the palette in `src/index.css`.
-- **Amber.** `colors.primary` is a fill, **never a foreground**. Amber text is `colors.text.link`, amber glyphs `colors.iconAccent`. Text on amber is `colors.onPrimary`, on semantic fills `colors.text.onColor`, on photos `colors.text.onMedia`. Web: `--color-primary-text`.
-- **Type.** Spread a role (`...typography.styles.title`), never set `fontSize`+`fontFamily` by hand. Roles: `display h1 h2 h3 title body bodyBold bodyMedium lead label labelStrong caption small micro badge price overline`.
-- **Elevation.** `...colors.elevation.sm|md|lg`, spread FIRST. Dark separates with a hairline, light with a shadow. No raw `shadows.*`.
-- **Category colours.** Anything rendering one as *text* passes it through `toneForTheme(hex, isDark)`; `withAlpha(hex, a)` builds the tint. On an elevated surface use `tintOn(hex, alpha, colors.surface)` — Android draws the shadow through a translucent fill.
-- **Switch.** `colors.switch.thumb` / `colors.switch.track`.
-- **Motion.** `<PressableScale>` for presses, `<FadeSlideIn index={i}>` for list entrances.
-- **Tablet.** `isTablet` is read once at load. Content caps: 800 (detail) / 680 (forms, lists) / 480 (auth), as `{ maxWidth, alignSelf: 'center', width: '100%' }`; sheets cap at `SHEET_MAX_WIDTH` (640). Phones are portrait-locked.
-
-**Server state.** React Query everywhere (`src/services/queryClient.js`). After a post mutation call `invalidatePostData()`; socket handlers call `invalidatePostDataSoon()`. The detail screen opens on `findListedPost(postId)` as placeholder data. `utils/cacheManager.js` is only the offline fallback inside services — never cache screen data with it.
-
-**Categories.** `useCategorySchemas()` / `useActiveCategorySchemas()`; `getPostTypeConfig(type, colors, schemas)` resolves icon and colour; forms via `formUtils.getInitialFormData/getEditFormData(schema, …)`; labels via `postUtils.getSchemaLabel/getSubcategoryLabel`.
-
-**Admin.** Tabs `Browse` `Approval` `Reports` `Profile`; `AdminUsers` and `AdminAnalytics` are stack screens reached from `AdminProfile`. Category editing is web-only. Admin is `is_admin` from `userService.isAuthenticated()`, not `userType`.
-
-**LikeButton.** Every call site gates admins and providers itself; the component's own `hidden` fallback is skipped in every list.
-
-⚠ **Stack swipe-back is iOS-only** (`gestureEnabled` in `App.js`). On Android the JS stack's pan handler swallowed every horizontal list on a pushed screen — the detail gallery would not page.
-
-⚠ **BottomSheetModal.** `PanResponder` captures closures at mount — `onClose` is mirrored into a ref; keep that pattern.
-
-**Keyboard.** Wrap anything with an input in `<KeyboardAvoider>` (`inModal` inside a Modal) — never RN's `KeyboardAvoidingView`. `ScreenLayout` and `BottomSheetModal` already include it. Android pads by the measured overlap (`useKeyboardOverlap`), right whether the window resized or not; `app.json` is `softwareKeyboardLayoutMode: "resize"` because `pan` slid the window on top of that padding.
-
-**i18n.** Locales `mn en zh ru` in `src/i18n/locales/`; locale is persisted by `AppContext.setLocale`.
+**App releases.** `expo-updates` is wired, so a JS-only fix ships with `eas update`. `runtimeVersion` is a bare native-ABI counter (`"2"`) and changes **only when native code does** — never back to `"1"`: that is the old App Store binary on the same EAS project, and an update would reach it and crash it.
 
 ## Known issues
 
 | | Issue | Location |
 |---|---|---|
-| 🔴 | `PLAN_PRICE_PROVIDER_MNT` defaults to a placeholder (49,900₮). Set the real price before QPay credentials go in | `engine/payment/payment.service.ts` |
-| 🟡 | Featured placement is unsellable until `FEATURED_PRICE_PER_DAY_MNT` is set | same |
-| 🟡 | Google Maps key ships in `app.json`; restrict it by package (`com.khashaa.zuuchmap` — do not change after store release) + SHA-1 | `zuuchmap_app/app.json` |
-| 🟡 | Prod Postgres SSL uses `rejectUnauthorized: false` | `app.module.ts` |
-| 🟡 | Web admin role is client-side routing only (endpoints are guarded) | `web/src/App.jsx` |
-| 🟡 | Static assets are uncompressed, HTTP/1.1 and uncached, and the SEO routes are unreachable, until the nginx blocks are added by hand | deploy `SKILL.md` |
-| 🟡 | The map ships every pin in one response (`MAP_PIN_LIMIT` 5000); the fix is a viewport-bounded query | `post.service.ts` `findForMap` |
-| 🟡 | `@sentry/react-native`, `expo-updates`, `expo-screen-orientation` do nothing until the next EAS rebuild; Sentry additionally needs `EXPO_PUBLIC_SENTRY_DSN` set as an EAS environment variable, which nothing in the repo does | `app/app.json` |
-| 🟡 | `migration:generate` is unusable: migrations name constraints and indexes by hand and the entities do not, so a dry run proposes ~120 renames and would drop `search_vector`, the booking exclusion constraint and the partial unique indexes. Write migrations by hand | `src/migrations/` |
-| 🟡 | `react-native-maps` 1.20.1 rasterises custom markers into 100×100 px on Android; pins are sized from `MARKER_MAX_DP` and carry no shadow | `CustomerMapView.jsx` |
-| 🟢 | Without `REDIS_URL` the engine is single-instance only | `utils/redis.ts`, `ecosystem.config.js` |
+| 🔴 | The real provider plan price and the featured price per day are undecided; phase 8 needs both | plan, phase 8 |
+| 🟡 | Google Maps key ships in `app.json`; restrict it by package (`com.khashaa.zuuchmap`) + SHA-1 | `apps/app/app.json` |
+| 🟡 | Android remote push is wired (Firebase `google-services.json`, FCM V1 key on EAS) but unverified: it needs a dev build, and there are no Android signing credentials yet | `apps/app` |
+| 🟡 | `migration:generate` is unusable: migrations name constraints and indexes by hand and the entities do not. Write migrations by hand | `apps/engine/src/migrations/` |

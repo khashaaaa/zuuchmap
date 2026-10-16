@@ -1,0 +1,90 @@
+{
+  "expo": {
+    "name": "Zuuchmap",
+    "slug": "zuuchmap_app",
+    "scheme": "zuuchmap",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "icon": "./assets/icon.png",
+    "runtimeVersion": "3",
+    "ios": {
+      "bundleIdentifier": "com.khashaa.zuuchmap",
+      "supportsTablet": true,
+      "config": {
+        "googleMapsApiKey": "AIzaSyA1YieYXcm92foRmwZB7C-aj_YDNTXTzJg"
+      }
+    },
+    "android": {
+      "package": "com.khashaa.zuuchmap",
+      "edgeToEdgeEnabled": true,
+      "softwareKeyboardLayoutMode": "resize",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "monochromeImage": "./assets/monochrome-icon.png",
+        "backgroundColor": "#0E1726"
+      },
+      "googleServicesFile": "./google-services.json",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyA1YieYXcm92foRmwZB7C-aj_YDNTXTzJg"
+        }
+      }
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "backgroundColor": "#F3F5F8",
+          "imageWidth": 200,
+          "dark": {
+            "backgroundColor": "#0E1726"
+          }
+        }
+      ],
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "../../packages/tokens/fonts/Geologica-Regular.ttf",
+            "../../packages/tokens/fonts/Geologica-Medium.ttf",
+            "../../packages/tokens/fonts/Geologica-SemiBold.ttf",
+            "../../packages/tokens/fonts/Geologica-Bold.ttf",
+            "../../packages/tokens/fonts/Geologica-ExtraBold.ttf"
+          ]
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Зарын зургийг сонгохын тулд зургийн санд хандана.",
+          "cameraPermission": "Зарын зургийг авахын тулд камер ашиглана.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#FF6A1F",
+          "defaultChannel": "default",
+          "sounds": [
+            "./assets/notify.wav"
+          ]
+        }
+      ],
+      "./plugins/withNotificationLargeIcon.js"
+    ],
+    "owner": "khashaa",
+    "extra": {
+      "eas": {
+        "projectId": "40d1a5b1-f537-4097-88f7-ffad9545f7d0"
+      }
+    },
+    "androidNavigationBar": {
+      "enforceContrast": false
+    }
+  }
+}

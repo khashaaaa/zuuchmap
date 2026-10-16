@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "491165644279",
+    "project_id": "zuuchmap",
+    "storage_bucket": "zuuchmap.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:491165644279:android:7c806174f641f815b56af2",
+        "android_client_info": {
+          "package_name": "com.khashaa.zuuchmap"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDisv4uqT5TFl2qFq9ed39Xx58cuAZ0ntE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,88 @@
+@import "tailwindcss";
+@import "@zuuchmap/tokens/tokens.css";
+@import "@zuuchmap/tokens/tailwind.css";
+
+@font-face {
+  font-family: "Geologica";
+  src: url("/fonts/Geologica.woff2") format("woff2");
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* zh: Noto Sans SC is not bundled yet; fall back to the system CJK face. */
+:lang(zh) {
+  font-family: "Geologica", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", system-ui, sans-serif;
+}
+
+html {
+  background-color: var(--color-bg-canvas);
+}
+
+body {
+  @apply bg-bg-canvas text-text-primary font-sans;
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Motion becomes a crossfade: no movement, no spinning. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+}
+
+/* Overlay and skeleton motion. Reduced motion is handled by the rule above. */
+@keyframes zm-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes zm-sheet-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes zm-pop-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes zm-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+.zm-fade-in { animation: zm-fade-in var(--duration-fast) ease-out both; }
+.zm-pop-in { animation: zm-pop-in var(--duration-normal) ease-out both; }
+.zm-sheet-in { animation: zm-sheet-in var(--duration-slow) cubic-bezier(0.22, 1, 0.36, 1) both; }
+@media (min-width: 48rem) {
+  .zm-sheet-in { animation: zm-pop-in var(--duration-normal) ease-out both; }
+}
+.zm-pulse { animation: zm-pulse 900ms ease-in-out infinite; }
+
+/* Exits: an overlay closing keeps its node for one short animation (usePresence sets data-closing). */
+@keyframes zm-fade-out { to { opacity: 0; } }
+@keyframes zm-pop-out { to { opacity: 0; transform: translateY(8px) scale(0.98); } }
+@keyframes zm-sheet-out { to { transform: translateY(100%); } }
+[data-closing] { pointer-events: none; }
+[data-closing] .zm-fade-in, .zm-fade-in[data-closing] { animation: zm-fade-out var(--duration-fast) ease-in both; }
+[data-closing] .zm-pop-in, .zm-pop-in[data-closing] { animation: zm-pop-out var(--duration-fast) ease-in both; }
+[data-closing] .zm-sheet-in { animation: zm-sheet-out var(--duration-normal) ease-in both; }
+@media (min-width: 48rem) {
+  [data-closing] .zm-sheet-in { animation: zm-pop-out var(--duration-fast) ease-in both; }
+}
+
+/* Saving: the glyph pops once (IconButton adds the class on the change, never on load). */
+@keyframes zm-save-pop { 0% { transform: scale(0.6); } 60% { transform: scale(1.18); } 100% { transform: scale(1); } }
+.zm-save-pop svg { animation: zm-save-pop var(--duration-pop) cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+/* A result list's first eight rows enter 40 ms apart; later rows (pages, scroll) just fade. */
+@keyframes zm-rise-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.zm-stagger > * { animation: zm-rise-in var(--duration-normal) ease-out both; }
+.zm-stagger > :nth-child(2) { animation-delay: 40ms; }
+.zm-stagger > :nth-child(3) { animation-delay: 80ms; }
+.zm-stagger > :nth-child(4) { animation-delay: 120ms; }
+.zm-stagger > :nth-child(5) { animation-delay: 160ms; }
+.zm-stagger > :nth-child(6) { animation-delay: 200ms; }
+.zm-stagger > :nth-child(7) { animation-delay: 240ms; }
+.zm-stagger > :nth-child(8) { animation-delay: 280ms; }
+
+/* Theme switch: the whole page cross-fades (lib/theme.ts wraps the change in a view transition). */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--duration-slow); }
+
+/* Leaflet markers are our own DOM (the kit MapPin); drop Leaflet's default white square. */
+.zm-marker { background: none; border: 0; }
+.leaflet-container { font-family: inherit; }
+
+/* Horizontal chip rows scroll without a visible bar. */
+.zm-noscroll { scrollbar-width: none; }
+.zm-noscroll::-webkit-scrollbar { display: none; }

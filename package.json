@@ -1,12 +1,16 @@
 {
   "name": "zuuchmap",
   "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
-    "check:sync": "node scripts/check-sync.js",
-    "install:all": "npm install --prefix zuuchmap_engine && npm install --prefix zuuchmap_web && npm install --prefix zuuchmap_app",
-    "dev:engine": "npm run dev --prefix zuuchmap_engine",
-    "dev:web": "npm run dev --prefix zuuchmap_web",
-    "dev:app": "npm run start --prefix zuuchmap_app",
-    "build:web": "npm run build --prefix zuuchmap_web"
+    "gate:tokens": "npm run build -w @zuuchmap/tokens",
+    "gate:core": "npm run build -w @zuuchmap/core && npm test -w @zuuchmap/core",
+    "gate:engine": "npm run typecheck -w @zuuchmap/engine && npm run lint -w @zuuchmap/engine && npm test -w @zuuchmap/engine && npm run build -w @zuuchmap/engine",
+    "gate:web": "npm run typecheck -w @zuuchmap/web && npm run lint -w @zuuchmap/web && npm run build -w @zuuchmap/web",
+    "gate:app": "npm run typecheck -w @zuuchmap/app && npm run lint -w @zuuchmap/app && npm run bundle:check -w @zuuchmap/app",
+    "gate:all": "npm run gate:tokens && npm run gate:core && npm run gate:engine && npm run gate:web && npm run gate:app"
   }
 }

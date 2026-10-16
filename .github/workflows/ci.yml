@@ -1,18 +1,5 @@
-# Continuous integration for the Zuuchmap monorepo.
-#
-# The three apps have their own package.json, node_modules and lockfile (no npm
-# workspaces), so each gets its own job and its own cache key. They are
-# independent — a web-only change should not wait on the engine's Postgres.
-#
-# What is deliberately NOT a gate: `npm run lint`. The engine's eslint config is
-# type-aware and the existing code carries ~2,100 `no-unsafe-*` findings on
-# `any`; gating on it would fail every PR for reasons that predate it. It runs
-# in a non-blocking job instead so the number can be watched, and the real gates
-# are the ones that can actually go from green to red: types, the cross-repo
-# contracts, migrations against a real Postgres, and a build that succeeds.
-#
-# Node 24 throughout: it is what the VPS runs (v24.11.1 via nvm, see the deploy
-# skill) and what the lockfiles were resolved on.
+# Continuous integration for the Zuuchmap workspace (apps/*, packages/*). Each
+# package gates on its own scripts; the root gate:* scripts proxy them.
 
 name: CI
 
@@ -28,179 +15,46 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  sync:
-    name: Cross-repo contracts
+  gates:
+    name: Tokens, core, engine, web, app
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-      # scripts/check-sync.js has zero dependencies on purpose — nothing to install.
-      - name: Verify the duplicated contracts
-        run: npm run check:sync
-
-  engine:
-    name: Engine — types, migrations, build
-    runs-on: ubuntu-latest
-
+    # The engine e2e specs need PostGIS and Redis; they use `zuuchmap_test`
+    # (test/global-setup.ts), with the rest of the env from apps/engine/.env.example.
     services:
       postgres:
-        image: postgres:16
+        image: postgis/postgis:16-3.4
         env:
           POSTGRES_USER: zuuchmap
           POSTGRES_PASSWORD: zuuchmap
-          POSTGRES_DB: zuuchmap_test
+          POSTGRES_DB: zuuchmap
         ports:
-          - 5432:5432
-        # Without a health check the first migration races the server's boot.
+          - 5433:5432
         options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
+          --health-cmd "pg_isready -U zuuchmap -d zuuchmap"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:7
+        ports:
+          - 6380:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: zuuchmap_engine/package-lock.json
-
+          cache-dependency-path: package-lock.json
       - name: Install
-        working-directory: zuuchmap_engine
         run: npm ci
-
-      # The app reads config/variables/<NODE_ENV>.env, so CI writes one rather
-      # than teaching the app a second way to be configured. Every value here is
-      # a throwaway for the ephemeral service container.
-      - name: Write the CI env file
-        working-directory: zuuchmap_engine
-        run: |
-          mkdir -p config/variables
-          cat > config/variables/development.env <<'ENV'
-          PG_HOST=localhost
-          PG_PORT=5432
-          PG_USER=zuuchmap
-          PG_PWD=zuuchmap
-          PG_NAME=zuuchmap_test
-          PROG_PORT=8282
-          JWT_SECRET=ci-secret-not-used-anywhere-real
-          ALLOWED_ORIGIN=http://localhost:5173
-          ADMIN_PHONES=99999999
-          THROTTLER_TTL=60000
-          THROTTLER_LIMIT=1000
-          PUBLIC_ENGINE_URL=http://localhost:8282
-          PUBLIC_WEB_URL=http://localhost:5173
-          ENV
-
-      - name: Typecheck
-        working-directory: zuuchmap_engine
-        run: npx tsc --noEmit
-
-      - name: Migrations
-        working-directory: zuuchmap_engine
-        run: npm run migration:run
-
-      # Browse search (SQL) against the saved-search matcher (JS), plus the
-      # queries each search rule exists for — inside a rolled-back transaction.
-      - name: Search
-        working-directory: zuuchmap_engine
-        run: npm run check:search
-
-      - name: Build
-        working-directory: zuuchmap_engine
-        run: npm run build
-
-  web:
-    name: Web — lint, build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: zuuchmap_web/package-lock.json
-
-      - name: Install
-        working-directory: zuuchmap_web
-        run: npm ci
-
-      # Advisory, like the engine's: the web app carries ~39 pre-existing
-      # findings (react-hooks/set-state-in-effect, react-refresh export rules)
-      # that predate this workflow. Gating on them would fail every PR for
-      # reasons unrelated to it.
-      - name: Lint (advisory)
-        continue-on-error: true
-        working-directory: zuuchmap_web
-        run: npm run lint
-
-      # The one lint rule that IS a gate. An identifier that is used and never
-      # imported builds and
-      # white-screens the page at runtime — `getImageUrl` took down the admin
-      # moderation list for three weeks and `formatDateTime` the report queue,
-      # both sitting in the advisory output above among forty unrelated findings.
-      - name: Undefined identifiers
-        working-directory: zuuchmap_web
-        run: npm run lint:undef
-
-      - name: Build
-        working-directory: zuuchmap_web
-        run: npm run build
-
-  app:
-    name: App — undefined names, bundle
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: zuuchmap_app/package-lock.json
-
-      - name: Install
-        working-directory: zuuchmap_app
-        run: npm ci
-
-      # The bundle below resolves imports; it does not notice a name that was
-      # never imported at all. `<Avatar>` with no import shipped that way and
-      # Edit Profile threw on render for three weeks.
-      - name: Undefined identifiers
-        working-directory: zuuchmap_app
-        run: npm run lint:undef
-
-      # The engine typechecks and the web builds; the app did neither, so a
-      # syntax error or a bad import in any screen reached EAS unchallenged.
-      # A Metro bundle is the cheapest thing that resolves every import in the
-      # graph.
-      #
-      # Android only: the JS graph is the same on both platforms, and the second
-      # export would buy nothing for the minutes it costs.
-      - name: Bundle
-        working-directory: zuuchmap_app
-        run: npx expo export --platform android --output-dir "$RUNNER_TEMP/expo-export"
-
-  engine-lint:
-    name: Engine lint (advisory)
-    runs-on: ubuntu-latest
-    # Reports the count without blocking: the existing findings predate this
-    # workflow, and a gate nobody can pass is a gate everybody learns to ignore.
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: zuuchmap_engine/package-lock.json
-      - name: Install
-        working-directory: zuuchmap_engine
-        run: npm ci
-      # --no-fix: the package script fixes in place, which is right locally and
-      # meaningless in CI, where the fixed files are thrown away.
-      - name: Lint
-        working-directory: zuuchmap_engine
-        run: npx eslint "src/**/*.ts" --no-fix
+      - name: Tokens
+        run: npm run gate:tokens
+      - name: Core — build, tests
+        run: npm run gate:core
+      - name: Engine — typecheck, lint, tests, build
+        run: npm run gate:engine
+      - name: Web — typecheck, lint, build
+        run: npm run gate:web
+      - name: App — typecheck, lint, bundle
+        run: npm run gate:app

@@ -1,0 +1,516 @@
+{
+  "$source": "Figma c9ds9j1tM48XCIvCDrIQKc, collections Primitives · Color (Light/Dark) · Spacing · Radius · Motion, type/* text styles, elevation/* and focus/ring effect styles. Exported 2026-10-15. Re-export from Figma rather than editing by hand.",
+  "font": {
+    "family": "Geologica",
+    "weights": [
+      400,
+      500,
+      600,
+      700,
+      800
+    ]
+  },
+  "primitives": {
+    "ink/50": "#f3f5f8",
+    "ink/100": "#eceff4",
+    "ink/150": "#e2e7ee",
+    "ink/200": "#d5dbe4",
+    "ink/300": "#b7c1cf",
+    "ink/400": "#97a3b6",
+    "ink/450": "#7d8ba1",
+    "ink/500": "#6b7a91",
+    "ink/550": "#5e6c84",
+    "ink/600": "#4a5a76",
+    "ink/700": "#33425e",
+    "ink/800": "#26344f",
+    "ink/850": "#1e2b44",
+    "ink/900": "#17233a",
+    "ink/950": "#0e1726",
+    "white": "#ffffff",
+    "black": "#000000",
+    "signal/500": "#ff6a1f",
+    "signal/600": "#e5540a",
+    "signal/700": "#b83f00",
+    "signal/950": "#1a0800",
+    "blue/400": "#5ea2ff",
+    "blue/500": "#3d8bfd",
+    "blue/700": "#1557b8",
+    "green/300": "#7dd29b",
+    "green/500": "#2fa968",
+    "green/700": "#1e7c46",
+    "red/300": "#f28b82",
+    "red/500": "#e5484d",
+    "red/700": "#be3b33",
+    "amber/300": "#f5c46b",
+    "amber/700": "#8f6200",
+    "alpha/signal-12": "#ff6a1f1f",
+    "alpha/signal-20": "#ff6a1f33",
+    "alpha/green-light": "#1e7c461a",
+    "alpha/green-dark": "#7dd29b29",
+    "alpha/red-light": "#be3b3314",
+    "alpha/red-dark": "#f28b8229",
+    "alpha/amber-light": "#8f62001a",
+    "alpha/amber-dark": "#f5c46b29",
+    "alpha/blue-light": "#1557b814",
+    "alpha/blue-dark": "#5ea2ff29",
+    "alpha/scrim-light": "#0e172673",
+    "alpha/scrim-dark": "#00000099",
+    "alpha/media-scrim": "#0000008c",
+    "alpha/transparent": "#ffffff00",
+    "category/vehiclerent": "#558d39",
+    "category/machineryrent": "#6a7bc2",
+    "category/toolrent": "#976cc3",
+    "category/materialstore": "#848236",
+    "category/construction": "#3d8995",
+    "category/jobvacancy": "#bc5ca9",
+    "category/factory": "#3a8e5c",
+    "category/sos": "#d25562",
+    "category/usedequipment": "#c16546",
+    "category/transport": "#4984b4",
+    "category/designservice": "#8473c3",
+    "category/miningsupport": "#967a54",
+    "category/winterservice": "#4c869e"
+  },
+  "color": {
+    "bg/canvas": {
+      "light": "@ink/50",
+      "dark": "@ink/950"
+    },
+    "bg/surface": {
+      "light": "@white",
+      "dark": "@ink/900"
+    },
+    "bg/surface-raised": {
+      "light": "@white",
+      "dark": "@ink/850"
+    },
+    "bg/surface-sunken": {
+      "light": "@ink/100",
+      "dark": "@ink/800"
+    },
+    "bg/inverse": {
+      "light": "@ink/950",
+      "dark": "@ink/50"
+    },
+    "bg/scrim": {
+      "light": "@alpha/scrim-light",
+      "dark": "@alpha/scrim-dark"
+    },
+    "bg/media-scrim": {
+      "light": "@alpha/media-scrim",
+      "dark": "@alpha/media-scrim"
+    },
+    "action/primary": {
+      "light": "@signal/500",
+      "dark": "@signal/500"
+    },
+    "action/primary-pressed": {
+      "light": "@signal/600",
+      "dark": "@signal/600"
+    },
+    "action/primary-tint": {
+      "light": "@alpha/signal-12",
+      "dark": "@alpha/signal-20"
+    },
+    "action/on-primary": {
+      "light": "@signal/950",
+      "dark": "@signal/950"
+    },
+    "action/secondary": {
+      "light": "@ink/950",
+      "dark": "@ink/100"
+    },
+    "action/on-secondary": {
+      "light": "@white",
+      "dark": "@ink/950"
+    },
+    "text/primary": {
+      "light": "@ink/950",
+      "dark": "@ink/100"
+    },
+    "text/secondary": {
+      "light": "@ink/600",
+      "dark": "@ink/400"
+    },
+    "text/tertiary": {
+      "light": "@ink/550",
+      "dark": "@ink/450"
+    },
+    "text/disabled": {
+      "light": "@ink/300",
+      "dark": "@ink/600"
+    },
+    "text/link": {
+      "light": "@blue/700",
+      "dark": "@blue/400"
+    },
+    "text/on-color": {
+      "light": "@white",
+      "dark": "@ink/950"
+    },
+    "text/on-media": {
+      "light": "@white",
+      "dark": "@white"
+    },
+    "icon/primary": {
+      "light": "@ink/950",
+      "dark": "@ink/100"
+    },
+    "icon/secondary": {
+      "light": "@ink/500",
+      "dark": "@ink/400"
+    },
+    "icon/accent": {
+      "light": "@signal/700",
+      "dark": "@signal/500"
+    },
+    "border/subtle": {
+      "light": "@ink/150",
+      "dark": "@ink/800"
+    },
+    "border/default": {
+      "light": "@ink/200",
+      "dark": "@ink/700"
+    },
+    "border/strong": {
+      "light": "@ink/300",
+      "dark": "@ink/600"
+    },
+    "border/focus": {
+      "light": "@blue/500",
+      "dark": "@blue/400"
+    },
+    "border/selected": {
+      "light": "@ink/950",
+      "dark": "@ink/100"
+    },
+    "border/elevation": {
+      "light": "@alpha/transparent",
+      "dark": "@ink/800"
+    },
+    "status/success": {
+      "light": "@green/700",
+      "dark": "@green/300"
+    },
+    "status/success-fill": {
+      "light": "@green/700",
+      "dark": "@green/500"
+    },
+    "status/success-tint": {
+      "light": "@alpha/green-light",
+      "dark": "@alpha/green-dark"
+    },
+    "status/danger": {
+      "light": "@red/700",
+      "dark": "@red/300"
+    },
+    "status/danger-fill": {
+      "light": "@red/700",
+      "dark": "@red/500"
+    },
+    "status/danger-tint": {
+      "light": "@alpha/red-light",
+      "dark": "@alpha/red-dark"
+    },
+    "status/warning": {
+      "light": "@amber/700",
+      "dark": "@amber/300"
+    },
+    "status/warning-tint": {
+      "light": "@alpha/amber-light",
+      "dark": "@alpha/amber-dark"
+    },
+    "status/info": {
+      "light": "@blue/700",
+      "dark": "@blue/400"
+    },
+    "status/info-tint": {
+      "light": "@alpha/blue-light",
+      "dark": "@alpha/blue-dark"
+    },
+    "control/track": {
+      "light": "@ink/450",
+      "dark": "@ink/500"
+    },
+    "control/thumb": {
+      "light": "@white",
+      "dark": "@ink/100"
+    },
+    "illustration/construction": {
+      "light": "@blue/500",
+      "dark": "@blue/400"
+    },
+    "brand/mark": {
+      "light": "@ink/950",
+      "dark": "@signal/500"
+    },
+    "category-text/vehiclerent": {
+      "light": "#416c2c",
+      "dark": "#63a543"
+    },
+    "category-text/machineryrent": {
+      "light": "#485baf",
+      "dark": "#8492cd"
+    },
+    "category-text/toolrent": {
+      "light": "#7b48b0",
+      "dark": "#a986ce"
+    },
+    "category-text/materialstore": {
+      "light": "#656429",
+      "dark": "#9b993f"
+    },
+    "category-text/construction": {
+      "light": "#2f6973",
+      "dark": "#48a1af"
+    },
+    "category-text/jobvacancy": {
+      "light": "#993f87",
+      "dark": "#c97bb9"
+    },
+    "category-text/factory": {
+      "light": "#2d6d47",
+      "dark": "#44a76c"
+    },
+    "category-text/sos": {
+      "light": "#b32f3d",
+      "dark": "#db7782"
+    },
+    "category-text/usedequipment": {
+      "light": "#974c33",
+      "dark": "#cd8269"
+    },
+    "category-text/transport": {
+      "light": "#38658a",
+      "dark": "#699ac2"
+    },
+    "category-text/designservice": {
+      "light": "#6651b4",
+      "dark": "#9a8cce"
+    },
+    "category-text/miningsupport": {
+      "light": "#735e41",
+      "dark": "#ac916b"
+    },
+    "category-text/winterservice": {
+      "light": "#3a6779",
+      "dark": "#649db4"
+    }
+  },
+  "spacing": {
+    "xxs": 2,
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 20,
+    "xxl": 24,
+    "xxxl": 32,
+    "xxxxl": 40,
+    "xxxxxl": 48,
+    "card-padding": 16,
+    "screen-padding": 20,
+    "section": 24,
+    "touch-min": 48
+  },
+  "radius": {
+    "none": 0,
+    "xs": 4,
+    "sm": 6,
+    "md": 8,
+    "lg": 12,
+    "xl": 16,
+    "xxl": 20,
+    "xxxl": 24,
+    "pill": 9999,
+    "button": 12,
+    "input": 12,
+    "card": 16,
+    "modal": 20,
+    "inset": 8,
+    "tag": 6
+  },
+  "motion": {
+    "duration/instant": 120,
+    "duration/fast": 180,
+    "duration/normal": 240,
+    "duration/slow": 320,
+    "duration/pop": 320,
+    "duration/stagger": 40,
+    "spring/sheet-tension": 65,
+    "spring/sheet-friction": 11,
+    "scale/press": 0.96
+  },
+  "text": {
+    "display": {
+      "weight": 800,
+      "size": 32,
+      "lineHeight": 38,
+      "letterSpacing": -0.75
+    },
+    "h1": {
+      "weight": 700,
+      "size": 28,
+      "lineHeight": 34,
+      "letterSpacing": -0.5
+    },
+    "h2": {
+      "weight": 700,
+      "size": 24,
+      "lineHeight": 30,
+      "letterSpacing": -0.4
+    },
+    "h3": {
+      "weight": 600,
+      "size": 20,
+      "lineHeight": 26,
+      "letterSpacing": -0.25
+    },
+    "title": {
+      "weight": 600,
+      "size": 18,
+      "lineHeight": 24,
+      "letterSpacing": -0.15
+    },
+    "lead": {
+      "weight": 400,
+      "size": 18,
+      "lineHeight": 26,
+      "letterSpacing": 0.0
+    },
+    "price": {
+      "weight": 700,
+      "size": 18,
+      "lineHeight": 23,
+      "letterSpacing": -0.2
+    },
+    "body": {
+      "weight": 400,
+      "size": 16,
+      "lineHeight": 24,
+      "letterSpacing": 0.0
+    },
+    "body-medium": {
+      "weight": 500,
+      "size": 16,
+      "lineHeight": 24,
+      "letterSpacing": 0.0
+    },
+    "body-bold": {
+      "weight": 600,
+      "size": 16,
+      "lineHeight": 24,
+      "letterSpacing": 0.0
+    },
+    "label": {
+      "weight": 500,
+      "size": 14,
+      "lineHeight": 20,
+      "letterSpacing": 0.1
+    },
+    "label-strong": {
+      "weight": 600,
+      "size": 14,
+      "lineHeight": 20,
+      "letterSpacing": 0.1
+    },
+    "caption": {
+      "weight": 400,
+      "size": 14,
+      "lineHeight": 20,
+      "letterSpacing": 0.0
+    },
+    "small": {
+      "weight": 400,
+      "size": 12,
+      "lineHeight": 17,
+      "letterSpacing": 0.0
+    },
+    "micro": {
+      "weight": 500,
+      "size": 12,
+      "lineHeight": 16,
+      "letterSpacing": 0.1
+    },
+    "overline": {
+      "weight": 600,
+      "size": 12,
+      "lineHeight": 16,
+      "letterSpacing": 0.2
+    },
+    "badge": {
+      "weight": 700,
+      "size": 12,
+      "lineHeight": 16,
+      "letterSpacing": 0.3
+    },
+    "numeral": {
+      "weight": 800,
+      "size": 40,
+      "lineHeight": 48,
+      "letterSpacing": -0.75
+    },
+    "hero": {
+      "weight": 800,
+      "size": 60,
+      "lineHeight": 68,
+      "letterSpacing": -0.75
+    }
+  },
+  "elevation": {
+    "sm": [
+      {
+        "color": "#0e1726",
+        "alpha": 0.1,
+        "x": 0,
+        "y": 1,
+        "blur": 2,
+        "spread": 0
+      }
+    ],
+    "md": [
+      {
+        "color": "#0e1726",
+        "alpha": 0.1,
+        "x": 0,
+        "y": 2,
+        "blur": 6,
+        "spread": 0
+      },
+      {
+        "color": "#0e1726",
+        "alpha": 0.06,
+        "x": 0,
+        "y": 1,
+        "blur": 2,
+        "spread": 0
+      }
+    ],
+    "lg": [
+      {
+        "color": "#0e1726",
+        "alpha": 0.18,
+        "x": 0,
+        "y": 8,
+        "blur": 24,
+        "spread": 0
+      },
+      {
+        "color": "#0e1726",
+        "alpha": 0.08,
+        "x": 0,
+        "y": 2,
+        "blur": 6,
+        "spread": 0
+      }
+    ]
+  },
+  "focusRing": {
+    "color": "#3d8bfd",
+    "alpha": 1,
+    "x": 0,
+    "y": 0,
+    "blur": 0,
+    "spread": 3
+  }
+}

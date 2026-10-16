@@ -10,6 +10,8 @@ export type TabParamList = {
   home: undefined;
   /** `renew`: open the renew sheet for that listing (an expiry notification). */
   myPosts: { renew?: number } | undefined; add: undefined;
+  /** Admin shell (Figma J1): `browse` is the admin search, the rest are the queues. */
+  approval: undefined; reports: undefined;
 };
 
 export type RootStackParamList = {
@@ -37,6 +39,18 @@ export type RootStackParamList = {
   Company: undefined;
   Notifications: undefined;
   NotificationSettings: undefined;
+  /** Phase 8: plan and payment history; one QPay invoice by id. */
+  Billing: undefined;
+  Payment: { id: string };
+  /** Figma L1–L4, L6. */
+  Help: undefined;
+  Privacy: undefined;
+  Terms: undefined;
+  DeleteAccount: undefined;
+  /** Phase 9 admin (Figma J2/J9 review, J6 users, J7 analytics). */
+  AdminReview: { id: number };
+  AdminUsers: undefined;
+  AdminAnalytics: undefined;
   Kit: undefined;
 };
 

@@ -6,7 +6,7 @@ import type { RequestUser } from '../auth/request-user';
 import { ulaanbaatarDate } from './availability.service';
 
 /** The provider's performance window, and the default of `GET /posts/mine/performance`. */
-export const PERFORMANCE_DAYS = 7;
+const PERFORMANCE_DAYS = 7;
 
 interface WindowRow {
   post_id: number;

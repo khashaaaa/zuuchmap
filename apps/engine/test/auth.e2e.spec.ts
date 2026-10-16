@@ -20,6 +20,7 @@ import { AllExceptionsFilter } from '../src/common/all-exceptions.filter';
 import { dataSourceOptions } from '../src/database/data-source';
 import { RedisModule } from '../src/redis/redis.module';
 import { User } from '../src/user/entities/user.entity';
+import { AdminModule } from '../src/admin/admin.module';
 import { UserModule } from '../src/user/user.module';
 import { UserService } from '../src/user/user.service';
 
@@ -49,6 +50,7 @@ beforeAll(async () => {
       RedisModule,
       AuthModule,
       UserModule,
+      AdminModule,
     ],
   })
     .overrideProvider(AUTH_CONFIG)
@@ -303,17 +305,15 @@ describe('profile and admin', () => {
   it('is_admin comes from ADMIN_PHONES in the auth response and gates the list', async () => {
     const admin = await signIn(ADMIN, device());
     expect(admin.user.is_admin).toBe(true);
-    const list = await http().get('/api/user?limit=5').set(bearer(admin)).expect(200);
+    const list = await http().get('/api/admin/users?limit=5').set(bearer(admin)).expect(200);
     const body = list.body as { items: { phone_number: string }[]; total: number };
     expect(body.items.length).toBeLessThanOrEqual(5);
     expect(body.total).toBeGreaterThan(0);
 
     const plain = await signIn(phone(), device());
     expect(plain.user.is_admin).toBe(false);
-    await http().get('/api/user').set(bearer(plain)).expect(403);
-    await http().get('/api/user').expect(401);
-    // The profile route is not shadowed by the admin list.
-    await http().get('/api/user/profile').set(bearer(plain)).expect(200);
+    await http().get('/api/admin/users').set(bearer(plain)).expect(403);
+    await http().get('/api/admin/users').expect(401);
   });
 });
 

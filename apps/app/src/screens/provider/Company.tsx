@@ -20,7 +20,7 @@ import { Icon } from '../../ui/Icon';
 import { KeyboardAvoider, useKeepFocusedVisible } from '../../ui/KeyboardAvoider';
 import { SkeletonListingRow } from '../../ui/SkeletonListingRow';
 import { TextField } from '../../ui/TextField';
-import { useToast } from '../../ui/Toast';
+import { useToast, useToastClearance } from '../../ui/Toast';
 
 const useStyles = themedStyles((t) => ({
   screen: { flex: 1, backgroundColor: t.colors.bgCanvas },
@@ -51,6 +51,7 @@ export function CompanyScreen() {
   const { t } = useTranslation();
   const nav = useNavigation<Nav>();
   const toast = useToast();
+  const clearance = useToastClearance();
   const qc = useQueryClient();
   const scroll = useRef<ScrollView>(null);
   useKeepFocusedVisible(scroll);
@@ -79,8 +80,8 @@ export function CompanyScreen() {
     if (!d.name.trim()) e.name = t('company.nameRequired');
     if (d.email.trim() && !validateEmail(d.email.trim())) e.email = t('common.invalidEmail');
     if (d.phone.trim() && !/^\d{8}$/.test(d.phone.trim())) e.phone = t('form.phoneDigits');
-    if (d.reg.trim() && !/^\d{7}$/.test(d.reg.trim())) e.reg = t('ui.emailInvalid');
-    if (d.tax.trim() && !/^\d{7,12}$/.test(d.tax.trim())) e.tax = t('ui.emailInvalid');
+    if (d.reg.trim() && !/^\d{7}$/.test(d.reg.trim())) e.reg = t('ui.invalid');
+    if (d.tax.trim() && !/^\d{7,12}$/.test(d.tax.trim())) e.tax = t('ui.invalid');
     setErrors(e);
     if (Object.keys(e).length) return;
     const body: CompanyWriteRequest = {
@@ -159,7 +160,7 @@ export function CompanyScreen() {
             <TextField label={`${t('prov.company.taxId')} · ${t('prov.company.optional')}`} value={d.tax} onChangeText={(v) => set({ tax: v.replace(/\D/g, '').slice(0, 12) })} inputMode="numeric" error={errors.tax} />
             <Text style={s.cap}>{t('prov.company.logoUnavailable')}</Text>
           </ScrollView>
-          <View style={[s.footer, { paddingBottom: 16 + insets.bottom }]}>
+          <View style={[s.footer, { paddingBottom: 16 + insets.bottom }]} onLayout={clearance}>
             <Button label={t('prov.company.save')} fullWidth loading={busy} onPress={() => void save()} />
           </View>
         </KeyboardAvoider>

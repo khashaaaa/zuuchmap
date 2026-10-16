@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Headers, Param, Put, Query, UseGuards } from '@nestjs/common';
 import { DEFAULT_LOCALE, LOCALES, type CategoriesResponse, type CategoryView, type Locale } from '@zuuchmap/core';
 import { AdminGuard } from './admin-guard';
-import { CategoryService, type CategoryUpsertInput } from './category.service';
+import { CategoryService, type CategoryUpsertInput, type CategoryUsage } from './category.service';
 import type { CategorySchema } from './category.entity';
 
 /** `?lang=` wins, then the first supported Accept-Language tag, then mn. */
@@ -49,6 +49,11 @@ export class CategoryAdminController {
   @Get(':key')
   one(@Param('key') key: string): Promise<CategorySchema> {
     return this.categories.get(key);
+  }
+
+  @Get(':key/usage')
+  usage(@Param('key') key: string): Promise<CategoryUsage> {
+    return this.categories.usage(key);
   }
 
   @Put(':key')

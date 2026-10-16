@@ -2,9 +2,9 @@ import { BadRequestException, type BeforeApplicationShutdown, Inject, Injectable
 import { InjectDataSource } from '@nestjs/typeorm';
 import type { DataSource } from 'typeorm';
 import {
-  NOTIFICATION_TOPICS, NOTIFICATIONS_PAGE, SOCKET_EVENTS, isLocale, notificationCopy, notificationTarget, notificationTopic,
+  NOTIFICATION_TOPICS, NOTIFICATIONS_PAGE, SOCKET_EVENTS, formatDate, formatPrice, isLocale, notificationCopy, notificationTarget, notificationTopic,
   notificationWebPath, type AppNotification, type Locale, type NotificationData, type NotificationKind,
-  type NotificationSettings, type NotificationSettingsUpdate, type NotificationTopic, type PushDeviceRequest,
+  type NotificationSettings, type NotificationSettingsUpdate, type NotificationTopic, type PushDeviceRequest, type BroadcastAudience,
 } from '@zuuchmap/core';
 import { translator } from '@zuuchmap/core/i18n';
 import { AUTH_CONFIG, type AuthConfig } from '../auth/auth.config';
@@ -25,6 +25,8 @@ interface Planned {
   group_key?: string;
   /** False for Чат messages: pushed, never listed (Чат keeps its own unread). */
   store: boolean;
+  /** `always`: e-mail as well as push (a receipt). `only`: e-mail and nothing else (a resent receipt). */
+  mail?: 'always' | 'only';
 }
 
 interface NotificationRow { id: string; user_id: string; kind: NotificationKind; data: NotificationData; read_at: Date | null; created_at: Date }
@@ -210,6 +212,32 @@ export class NotificationService implements OnModuleInit, BeforeApplicationShutd
         const name = await this.nameOf(e.provider_id);
         return [{ user_id: e.user_id, kind: 'REVIEW_REPLIED', data: { review_id: e.review_id, name, provider_id: e.provider_id }, store: true }];
       }
+      case 'payment.paid': {
+        const p = (await this.ds.query<Array<{ kind: 'PLAN' | 'FEATURED'; post_id: number | null; post_title: string | null; amount: number; reference: string | null; granted_until: Date | null; days: number | null; months: number }>>(
+          'SELECT kind, post_id, post_title, amount, reference, granted_until, days, months FROM payments WHERE id = $1', [e.payment_id],
+        )).at(0);
+        if (!p) return [];
+        // A grant by an admin (0₮) is announced in the centre and by push, with no receipt to send.
+        const receipt = p.amount > 0;
+        return [{
+          user_id: e.user_id, kind: 'PAYMENT_PAID', store: !e.resend,
+          mail: e.resend ? 'only' : receipt ? 'always' : undefined,
+          data: {
+            payment_id: e.payment_id, payment_kind: p.kind, post_id: p.post_id, title: p.post_title, amount: p.amount,
+            reference: p.reference, until: p.granted_until?.toISOString() ?? null, count: p.kind === 'PLAN' ? p.months : p.days,
+          },
+        }];
+      }
+      case 'report.resolved':
+        return [{ user_id: e.user_id, kind: 'REPORT_RESOLVED', store: true, data: { title: e.title, report_kind: e.report_kind } }];
+      case 'broadcast': {
+        const b = (await this.ds.query<Array<{ title: string; body: string; audience: BroadcastAudience; category: string | null }>>(
+          'SELECT title, body, audience, category FROM broadcasts WHERE id = $1', [e.broadcast_id],
+        )).at(0);
+        if (!b) return [];
+        const ids = await broadcastRecipients(this.ds, b.audience, b.category);
+        return ids.map((id) => ({ user_id: id, kind: 'BROADCAST', store: true, data: { title: b.title, body: b.body } }));
+      }
       case 'message.created': {
         // A booking step arrives as a message with no preview; its booking notification covers it.
         if (!e.preview) return [];
@@ -289,7 +317,7 @@ export class NotificationService implements OnModuleInit, BeforeApplicationShutd
 
     const target = notificationTarget(p);
     const url = notificationWebPath(target);
-    const devices = await this.ds.query<DeviceRow[]>('SELECT provider, token, keys, locale FROM push_devices WHERE user_id = $1', [p.user_id]);
+    const devices = p.mail === 'only' ? [] : await this.ds.query<DeviceRow[]>('SELECT provider, token, keys, locale FROM push_devices WHERE user_id = $1', [p.user_id]);
     if (devices.length) {
       const messages: OutboundPush[] = devices.map((d) => {
         const copy = notificationCopy(p, translator(isLocale(d.locale) ? d.locale : 'mn'));
@@ -300,7 +328,7 @@ export class NotificationService implements OnModuleInit, BeforeApplicationShutd
       });
       const { dead } = await this.transports.push(messages);
       if (dead.length) await this.ds.query('DELETE FROM push_devices WHERE token = ANY($1::text[])', [dead]);
-      return;
+      if (p.mail !== 'always') return;
     }
 
     if (!user.email || !this.transports.mailEnabled) return;
@@ -310,6 +338,10 @@ export class NotificationService implements OnModuleInit, BeforeApplicationShutd
     const t = translator(locale);
     const copy = notificationCopy(p, t);
     const link = `${env().PUBLIC_WEB_URL.replace(/\/$/, '')}${url}`;
+    if (p.kind === 'PAYMENT_PAID') {
+      await this.transports.mail({ ...receiptMail(p.data, t, link, locale), to: user.email });
+      return;
+    }
     await this.transports.mail({
       to: user.email,
       subject: copy.title,
@@ -401,6 +433,52 @@ export class NotificationService implements OnModuleInit, BeforeApplicationShutd
     await this.ds.query('DELETE FROM notification_outbox WHERE created_at < now() - make_interval(days => $1)', [days]);
     return res[1];
   }
+}
+
+/**
+ * Who a broadcast reaches: an audience by role, narrowed by a category to people who post in it
+ * (providers) or save, search or ask about it (customers). The "news" switch is honoured at delivery.
+ */
+export async function broadcastRecipients(ds: DataSource, audience: BroadcastAudience, category: string | null): Promise<string[]> {
+  const role = audience === 'ALL' ? null : audience;
+  const rows = await ds.query<Array<{ id: string }>>(
+    `SELECT u.id FROM users u
+      WHERE ($1::varchar IS NULL OR u.type = $1)
+        AND ($2::varchar IS NULL
+          OR EXISTS (SELECT 1 FROM posts p WHERE p.user_id = u.id AND p.category = $2 AND p.deleted_at IS NULL)
+          OR EXISTS (SELECT 1 FROM saved_searches s WHERE s.user_id = u.id AND s.params->>'category' = $2)
+          OR EXISTS (SELECT 1 FROM post_likes l JOIN posts p ON p.id = l.post_id WHERE l.user_id = u.id AND p.category = $2)
+          OR EXISTS (SELECT 1 FROM conversations c JOIN posts p ON p.id = c.post_id WHERE c.customer_id = u.id AND p.category = $2))`,
+    [role, category],
+  );
+  return rows.map((r) => r.id);
+}
+
+/** Figma Q4: what was bought, for how long, the amount and the reference. */
+function receiptMail(d: NotificationData, t: (key: string, o?: Record<string, unknown>) => string, link: string, locale: Locale): { to: string; subject: string; text: string; html: string } {
+  const featured = d.payment_kind === 'FEATURED';
+  const rows: Array<[string, string]> = [
+    [t('billing.receipt.service'), featured ? t('billing.featured.title') : t('billing.receipt.plan')],
+    ...(featured && d.title ? [[t('billing.receipt.listing'), d.title] as [string, string]] : []),
+    [t('billing.receipt.period'), featured ? t('billing.featured.daysValue', { count: d.count ?? 0 }) : t('billing.monthsValue', { count: d.count ?? 0 })],
+    [t('billing.receipt.amount'), formatPrice(d.amount ?? 0, 'TOTAL') ?? ''],
+    [t('billing.reference'), d.reference ?? ''],
+    [t('billing.receipt.until'), d.until ? formatDate(d.until) : ''],
+  ];
+  const title = t('billing.receipt.heading');
+  const subject = `ZuuchMap — ${t('notif.PAYMENT_PAID.title').toLowerCase()}${d.reference ? ` (${d.reference})` : ''}`;
+  const table = rows.map(([k, v]) => `<tr><td style="padding:6px 0;color:#4A5A76;font-size:14px">${esc(k)}</td><td style="padding:6px 0;font-size:14px;font-weight:600;text-align:right">${esc(v)}</td></tr>`).join('');
+  const html = `<!doctype html><html lang="${locale}"><body style="margin:0;background:#F3F5F8;font-family:Geologica,Arial,sans-serif;color:#0E1726">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px"><tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#FFFFFF;border-radius:12px;padding:32px">
+<tr><td style="font-weight:800;font-size:18px;padding-bottom:24px">Zuuch<span style="color:#FF6A1F">Map</span></td></tr>
+<tr><td style="font-weight:700;font-size:20px;line-height:1.3;padding-bottom:16px">${esc(title)}</td></tr>
+<tr><td><table role="presentation" width="100%" cellpadding="0" cellspacing="0">${table}</table></td></tr>
+<tr><td style="padding-top:24px"><a href="${esc(link)}" style="display:inline-block;background:#FF6A1F;color:#1A0800;text-decoration:none;font-weight:600;padding:12px 24px;border-radius:10px">${esc(t('notif.emailOpen'))}</a></td></tr>
+<tr><td style="font-size:13px;line-height:1.5;color:#4A5A76;padding-top:32px">${esc(t('billing.receipt.footer'))}</td></tr>
+</table></td></tr></table></body></html>`;
+  const text = `${title}\n\n${rows.map(([k, v]) => `${k}: ${v}`).join('\n')}\n\n${link}\n\n${t('billing.receipt.footer')}`;
+  return { to: '', subject, text, html };
 }
 
 /** Figma Q1–Q4 in miniature: wordmark, title, the sentence, one orange button, the footer. */

@@ -171,6 +171,23 @@ export function Profile() {
               <Icon name="chevron-right" size={20} color={colors.iconSecondary} />
             </Pressable>
           ) : null}
+          <Pressable accessibilityRole="button" style={s.row} onPress={() => nav.navigate('Help')}>
+            <Icon name="help-circle" size={22} color={colors.iconPrimary} />
+            <Text style={s.rowText}>{t('legal.helpRow')}</Text>
+            <Icon name="chevron-right" size={20} color={colors.iconSecondary} />
+          </Pressable>
+          <Pressable accessibilityRole="button" style={s.row} onPress={() => nav.navigate('Privacy')}>
+            <Icon name="shield-check" size={22} color={colors.iconPrimary} />
+            <Text style={s.rowText}>{t('legal.privacyTermsRow')}</Text>
+            <Icon name="chevron-right" size={20} color={colors.iconSecondary} />
+          </Pressable>
+          {token ? (
+            <Pressable accessibilityRole="button" style={s.row} onPress={() => nav.navigate('DeleteAccount')}>
+              <Icon name="user-x" size={22} color={colors.iconPrimary} />
+              <Text style={s.rowText}>{t('account.delete.title')}</Text>
+              <Icon name="chevron-right" size={20} color={colors.iconSecondary} />
+            </Pressable>
+          ) : null}
           <View style={s.row}>
             <Icon name="info" size={22} color={colors.iconPrimary} />
             <Text style={s.rowText}>{t('customer.profile.version')}</Text>

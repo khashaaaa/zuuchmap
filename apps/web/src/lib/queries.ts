@@ -22,7 +22,7 @@ export function useStats() {
   return useQuery({ queryKey: ['stats'], staleTime: 300000, queryFn: () => api<LandingStats>('/posts/stats') });
 }
 
-export const PAGE = 20;
+const PAGE = 20;
 
 /** Paged browse: "show more" appends the next page. */
 export function useBrowse(params: ApiQuery) {

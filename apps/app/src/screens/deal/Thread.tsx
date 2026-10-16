@@ -23,7 +23,7 @@ import { Icon } from '../../ui/Icon';
 import { IconButton } from '../../ui/IconButton';
 import { KeyboardAvoider } from '../../ui/KeyboardAvoider';
 import { MessageBubble } from '../../ui/MessageBubble';
-import { useToast } from '../../ui/Toast';
+import { useToast, useToastClearance } from '../../ui/Toast';
 import { useLocale } from '../../ui/useLocale';
 
 const useStyles = themedStyles((t) => ({
@@ -66,6 +66,7 @@ export function Thread() {
   const nav = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
   const toast = useToast();
+  const clearance = useToastClearance();
   const qc = useQueryClient();
   const { user } = useAuth();
   const { params } = useRoute<RouteProp<RootStackParamList, 'Thread'>>();
@@ -258,7 +259,7 @@ export function Thread() {
             />
           )}
         </View>
-        <View style={[s.composer, { paddingBottom: 8 + insets.bottom }]}>
+        <View style={[s.composer, { paddingBottom: 8 + insets.bottom }]} onLayout={clearance}>
           <TextInput
             value={draft}
             onChangeText={setDraftSaved}

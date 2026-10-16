@@ -80,9 +80,9 @@ export function ListingCard({
   ) : null;
 
   const priceRow = parts ? (
-    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4, flexShrink: 1 }}>
-      <Text style={[type.price, { color: colors.textPrimary }]}>{parts.amount}</Text>
-      {parts.unit ? <Text style={[type.caption, { color: colors.textSecondary }]} numberOfLines={1}>{`/ ${parts.unit}`}</Text> : null}
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 4, flexShrink: 1 }}>
+      <Text style={[type.price, { color: colors.textPrimary, flexShrink: 1 }]} numberOfLines={1} adjustsFontSizeToFit>{parts.amount}</Text>
+      {parts.unit ? <Text style={[type.caption, { color: colors.textSecondary, flexShrink: 1 }]} numberOfLines={1}>{`/ ${parts.unit}`}</Text> : null}
     </View>
   ) : null;
 

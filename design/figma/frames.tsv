@@ -1,0 +1,555 @@
+section	frame	x	y	w	h
+269-49466 1-entry phone	N1 · Phone number	80	243	390	844
+269-49466 1-entry phone	N2 · Verify — waiting for SMS	550	243	390	844
+269-49466 1-entry phone	N3 · Verify — code expired	1020	243	390	844
+269-49466 1-entry phone	N4 · Become a provider	1490	243	390	844
+269-49466 1-entry phone	N5 · Landing	1960	243	390	1730
+269-49466 1-entry phone	N6 · Verify — too many tries	2430	243	390	844
+269-49466 1-entry phone	N1 · Phone number · Dark	80	2073	390	844
+269-49466 1-entry phone	N2 · Verify — waiting for SMS · Dark	550	2073	390	844
+269-49466 1-entry phone	N3 · Verify — code expired · Dark	1020	2073	390	844
+269-49466 1-entry phone	N4 · Become a provider · Dark	1490	2073	390	844
+269-49466 1-entry phone	N5 · Landing · Dark	1960	2073	390	1730
+269-49466 1-entry phone	N6 · Verify — too many tries · Dark	2430	2073	390	844
+269-49470 1-entry desktop	N1d · Sign in	80	243	1440	1024
+269-49470 1-entry desktop	N2d · Verify — QR	1640	243	1440	1024
+269-49470 1-entry desktop	N3d · Verify — code expired	3200	243	1440	1024
+269-49470 1-entry desktop	N4d · Become a provider	4760	243	1440	1024
+269-49470 1-entry desktop	N5d · Landing	6320	243	1440	1965
+269-49470 1-entry desktop	N6d · Verify — too many tries	7880	243	1440	1024
+269-49470 1-entry desktop	N1d · Sign in · Dark	80	2308	1440	1024
+269-49470 1-entry desktop	N2d · Verify — QR · Dark	1640	2308	1440	1024
+269-49470 1-entry desktop	N3d · Verify — code expired · Dark	3200	2308	1440	1024
+269-49470 1-entry desktop	N4d · Become a provider · Dark	4760	2308	1440	1024
+269-49470 1-entry desktop	N5d · Landing · Dark	6320	2308	1440	1965
+269-49470 1-entry desktop	N6d · Verify — too many tries · Dark	7880	2308	1440	1024
+270-15423 2-customer phone	A1 · Browse	80	243	390	844
+270-15423 2-customer phone	A2 · Browse — dates applied	550	243	390	844
+270-15423 2-customer phone	A3 · Dates sheet	1020	243	390	844
+270-15423 2-customer phone	A4 · Filter sheet	1490	243	390	844
+270-15423 2-customer phone	A5 · Search suggestions	1960	243	390	844
+270-15423 2-customer phone	A6 · Category picker	2430	243	390	1248
+270-15423 2-customer phone	A7 · Subcategory picker	2900	243	390	844
+270-15423 2-customer phone	A8 · Browse — near matches	3370	243	390	844
+270-15423 2-customer phone	A1 · Browse · Dark	80	1591	390	844
+270-15423 2-customer phone	A2 · Browse — dates applied · Dark	550	1591	390	844
+270-15423 2-customer phone	A3 · Dates sheet · Dark	1020	1591	390	844
+270-15423 2-customer phone	A4 · Filter sheet · Dark	1490	1591	390	844
+270-15423 2-customer phone	A5 · Search suggestions · Dark	1960	1591	390	844
+270-15423 2-customer phone	A6 · Category picker · Dark	2430	1591	390	1248
+270-15423 2-customer phone	A7 · Subcategory picker · Dark	2900	1591	390	844
+270-15423 2-customer phone	A8 · Browse — near matches · Dark	3370	1591	390	844
+270-15423 2-customer phone	B1 · Map	80	3202	390	844
+270-15423 2-customer phone	B2 · Listing detail	550	3202	390	2363
+270-15423 2-customer phone	B3 · Booking sheet	1020	3202	390	844
+270-15423 2-customer phone	B4 · Booking sent	1490	3202	390	844
+270-15423 2-customer phone	B5 · Gallery	1960	3202	390	844
+270-15423 2-customer phone	B6 · Listing detail — job	2430	3202	390	1734
+270-15423 2-customer phone	B7 · Share a listing	2900	3202	390	844
+270-15423 2-customer phone	B8 · Booking sent — notifications ask	3370	3202	390	844
+270-15423 2-customer phone	B1 · Map · Dark	80	5665	390	844
+270-15423 2-customer phone	B2 · Listing detail · Dark	550	5665	390	2363
+270-15423 2-customer phone	B3 · Booking sheet · Dark	1020	5665	390	844
+270-15423 2-customer phone	B4 · Booking sent · Dark	1490	5665	390	844
+270-15423 2-customer phone	B5 · Gallery · Dark	1960	5665	390	844
+270-15423 2-customer phone	B6 · Listing detail — job · Dark	2430	5665	390	1734
+270-15423 2-customer phone	B7 · Share a listing · Dark	2900	5665	390	844
+270-15423 2-customer phone	B8 · Booking sent — notifications ask · Dark	3370	5665	390	844
+270-15423 2-customer phone	C1 · No results	80	8416	390	844
+270-15423 2-customer phone	C2 · No free machines	550	8416	390	844
+270-15423 2-customer phone	C3 · Loading	1020	8416	390	844
+270-15423 2-customer phone	C4 · Guest sign-in sheet	1490	8416	390	844
+270-15423 2-customer phone	C5 · Saved	1960	8416	390	844
+270-15423 2-customer phone	C6 · Offline	2430	8416	390	844
+270-15423 2-customer phone	C7 · Listing unavailable	2900	8416	390	844
+270-15423 2-customer phone	C8 · Saved — searches	3370	8416	390	844
+270-15423 2-customer phone	C9 · Map — location off	3840	8416	390	844
+270-15423 2-customer phone	C10 · Guest saved on this device	4310	8416	390	844
+270-15423 2-customer phone	C11 · Saved — removed, with undo	4780	8416	390	844
+270-15423 2-customer phone	C12 · Save this search	5250	8416	390	844
+270-15423 2-customer phone	C13 · Save this search — notifications off	80	10364	390	844
+270-15423 2-customer phone	C14 · Save this search — at the limit	550	10364	390	844
+270-15423 2-customer phone	C1 · No results · Dark	80	9360	390	844
+270-15423 2-customer phone	C2 · No free machines · Dark	550	9360	390	844
+270-15423 2-customer phone	C3 · Loading · Dark	1020	9360	390	844
+270-15423 2-customer phone	C4 · Guest sign-in sheet · Dark	1490	9360	390	844
+270-15423 2-customer phone	C5 · Saved · Dark	1960	9360	390	844
+270-15423 2-customer phone	C6 · Offline · Dark	2430	9360	390	844
+270-15423 2-customer phone	C7 · Listing unavailable · Dark	2900	9360	390	844
+270-15423 2-customer phone	C8 · Saved — searches · Dark	3370	9360	390	844
+270-15423 2-customer phone	C9 · Map — location off · Dark	3840	9360	390	844
+270-15423 2-customer phone	C10 · Guest saved on this device · Dark	4310	9360	390	844
+270-15423 2-customer phone	C11 · Saved — removed, with undo · Dark	4780	9360	390	844
+270-15423 2-customer phone	C12 · Save this search · Dark	5250	9360	390	844
+270-15423 2-customer phone	C13 · Save this search — notifications off · Dark	80	11308	390	844
+270-15423 2-customer phone	C14 · Save this search — at the limit · Dark	550	11308	390	844
+270-15423 2-customer phone	S1 · SOS — nearby help	80	12515	390	844
+270-15423 2-customer phone	S1 · SOS — nearby help · Dark	80	13459	390	844
+270-15423 2-customer phone	U1 · My bookings	80	14666	390	844
+270-15423 2-customer phone	U2 · My bookings — declined, cancelled, expired	550	14666	390	844
+270-15423 2-customer phone	U3 · Cancel a booking — confirm	1020	14666	390	844
+270-15423 2-customer phone	U4 · My bookings — empty	1490	14666	390	844
+270-15423 2-customer phone	U5 · My bookings — error	1960	14666	390	844
+270-15423 2-customer phone	U1 · My bookings · Dark	80	15610	390	844
+270-15423 2-customer phone	U2 · My bookings — declined, cancelled, expired · Dark	550	15610	390	844
+270-15423 2-customer phone	U3 · Cancel a booking — confirm · Dark	1020	15610	390	844
+270-15423 2-customer phone	U4 · My bookings — empty · Dark	1490	15610	390	844
+270-15423 2-customer phone	U5 · My bookings — error · Dark	1960	15610	390	844
+270-15423 2-customer phone	X1 · Browse — English	80	16817	390	844
+270-15423 2-customer phone	X2 · Browse — Русский	550	16817	390	844
+270-15423 2-customer phone	X3 · Browse — 中文	1020	16817	390	844
+270-15423 2-customer phone	X4 · Browse — 200% system text	1490	16817	390	844
+270-15442 2-customer desktop	A1d · Browse	80	243	1440	1076
+270-15442 2-customer desktop	A5d · Search suggestions	1640	243	1440	1024
+270-15442 2-customer desktop	A6d · All categories	3200	243	1440	1076
+270-15442 2-customer desktop	A8d · Browse — near matches	4760	243	1440	1110
+270-15442 2-customer desktop	A1d · Browse · Dark	80	1453	1440	1076
+270-15442 2-customer desktop	A5d · Search suggestions · Dark	1640	1453	1440	1024
+270-15442 2-customer desktop	A6d · All categories · Dark	3200	1453	1440	1076
+270-15442 2-customer desktop	A8d · Browse — near matches · Dark	4760	1453	1440	1110
+270-15442 2-customer desktop	B1d · Browse — map	80	2926	1440	1024
+270-15442 2-customer desktop	B2d · Listing detail	1640	2926	1440	1569
+270-15442 2-customer desktop	B3d · Booking dates	3200	2926	1440	1408
+270-15442 2-customer desktop	B4d · Booking sent	4760	2926	1440	1408
+270-15442 2-customer desktop	B5d · Gallery lightbox	6320	2926	1440	1024
+270-15442 2-customer desktop	B6d · Listing detail — job	7880	2926	1440	1827
+270-15442 2-customer desktop	B7d · Share a listing	9440	2926	1440	1024
+270-15442 2-customer desktop	B8d · Booking sent — notifications ask	11000	2926	1440	1408
+270-15442 2-customer desktop	B1d · Browse — map · Dark	80	4845	1440	1024
+270-15442 2-customer desktop	B2d · Listing detail · Dark	1640	4845	1440	1569
+270-15442 2-customer desktop	B3d · Booking dates · Dark	3200	4845	1440	1408
+270-15442 2-customer desktop	B4d · Booking sent · Dark	4760	4845	1440	1408
+270-15442 2-customer desktop	B5d · Gallery lightbox · Dark	6320	4845	1440	1024
+270-15442 2-customer desktop	B6d · Listing detail — job · Dark	7880	4845	1440	1827
+270-15442 2-customer desktop	B7d · Share a listing · Dark	9440	4845	1440	1024
+270-15442 2-customer desktop	B8d · Booking sent — notifications ask · Dark	11000	4845	1440	1408
+270-15442 2-customer desktop	C1d · Browse — no results	80	7052	1440	852
+270-15442 2-customer desktop	C2d · No free machines	1640	7052	1440	980
+270-15442 2-customer desktop	C3d · Browse — loading	3200	7052	1440	900
+270-15442 2-customer desktop	C4d · Sign in to continue	4760	7052	1440	1408
+270-15442 2-customer desktop	C5d · Saved	6320	7052	1440	1024
+270-15442 2-customer desktop	C6d · Browse — offline	7880	7052	1440	1110
+270-15442 2-customer desktop	C7d · Listing unavailable	9440	7052	1440	900
+270-15442 2-customer desktop	C8d · Saved searches	11000	7052	1440	1024
+270-15442 2-customer desktop	C9d · Map — location off	80	10128	1440	1024
+270-15442 2-customer desktop	C10d · Guest saved on this device	1640	10128	1440	1076
+270-15442 2-customer desktop	C11d · Saved — removed, with undo	3200	10128	1440	1024
+270-15442 2-customer desktop	C12d · Save this search	4760	10128	1440	1024
+270-15442 2-customer desktop	C13d · Save this search — notifications off	6320	10128	1440	1024
+270-15442 2-customer desktop	C14d · Save this search — at the limit	7880	10128	1440	1024
+270-15442 2-customer desktop	C1d · Browse — no results · Dark	80	8560	1440	852
+270-15442 2-customer desktop	C2d · No free machines · Dark	1640	8560	1440	980
+270-15442 2-customer desktop	C3d · Browse — loading · Dark	3200	8560	1440	900
+270-15442 2-customer desktop	C4d · Sign in to continue · Dark	4760	8560	1440	1408
+270-15442 2-customer desktop	C5d · Saved · Dark	6320	8560	1440	1024
+270-15442 2-customer desktop	C6d · Browse — offline · Dark	7880	8560	1440	1110
+270-15442 2-customer desktop	C7d · Listing unavailable · Dark	9440	8560	1440	900
+270-15442 2-customer desktop	C8d · Saved searches · Dark	11000	8560	1440	1024
+270-15442 2-customer desktop	C9d · Map — location off · Dark	80	11304	1440	1024
+270-15442 2-customer desktop	C10d · Guest saved on this device · Dark	1640	11304	1440	1076
+270-15442 2-customer desktop	C11d · Saved — removed, with undo · Dark	3200	11304	1440	1024
+270-15442 2-customer desktop	C12d · Save this search · Dark	4760	11304	1440	1024
+270-15442 2-customer desktop	C13d · Save this search — notifications off · Dark	6320	11304	1440	1024
+270-15442 2-customer desktop	C14d · Save this search — at the limit · Dark	7880	11304	1440	1024
+270-15442 2-customer desktop	S1d · SOS — nearby help	80	12743	1440	1024
+270-15442 2-customer desktop	S1d · SOS — nearby help · Dark	80	13867	1440	1024
+270-15442 2-customer desktop	U1d · My bookings	80	15254	1440	1024
+270-15442 2-customer desktop	U2d · My bookings — declined, cancelled, expired	1640	15254	1440	1024
+270-15442 2-customer desktop	U3d · Cancel a booking — confirm	3200	15254	1440	1024
+270-15442 2-customer desktop	U4d · My bookings — empty	4760	15254	1440	1024
+270-15442 2-customer desktop	U5d · My bookings — error	6320	15254	1440	1024
+270-15442 2-customer desktop	U1d · My bookings · Dark	80	16378	1440	1024
+270-15442 2-customer desktop	U2d · My bookings — declined, cancelled, expired · Dark	1640	16378	1440	1024
+270-15442 2-customer desktop	U3d · Cancel a booking — confirm · Dark	3200	16378	1440	1024
+270-15442 2-customer desktop	U4d · My bookings — empty · Dark	4760	16378	1440	1024
+270-15442 2-customer desktop	U5d · My bookings — error · Dark	6320	16378	1440	1024
+270-30729 3-provider phone	E1 · Home — needs your attention	80	248	390	1326
+270-30729 3-provider phone	E2 · My listings	550	248	390	844
+270-30729 3-provider phone	E3 · Booking requests	1020	248	390	844
+270-30729 3-provider phone	E4 · Block unavailable dates	1490	248	390	844
+270-30729 3-provider phone	E5 · Booking requests — empty	1960	248	390	844
+270-30729 3-provider phone	E6 · Listing performance	2430	248	390	847
+270-30729 3-provider phone	E7 · Booking requests — answered	2900	248	390	844
+270-30729 3-provider phone	E8 · Delete a listing — confirm	3370	248	390	844
+270-30729 3-provider phone	E9 · Live listing — edit under review	3840	248	390	844
+270-30729 3-provider phone	E10 · Live listing — edit refused	4310	248	390	844
+270-30729 3-provider phone	E11 · Home — notifications off	4780	248	390	1326
+270-30729 3-provider phone	E12 · Listing actions — copy as new	5250	248	390	844
+270-30729 3-provider phone	E13 · Renew from the expiry reminder	80	3160	390	844
+270-30729 3-provider phone	E14 · Decline a request — confirm	550	3160	390	844
+270-30729 3-provider phone	E15 · Booking requests — accepted	1020	3160	390	844
+270-30729 3-provider phone	E16 · Booking value	1490	3160	390	844
+270-30729 3-provider phone	E17 · My listings — first listing	1960	3160	390	844
+270-30729 3-provider phone	E1 · Home — needs your attention · Dark	80	1674	390	1326
+270-30729 3-provider phone	E2 · My listings · Dark	550	1674	390	844
+270-30729 3-provider phone	E3 · Booking requests · Dark	1020	1674	390	844
+270-30729 3-provider phone	E4 · Block unavailable dates · Dark	1490	1674	390	844
+270-30729 3-provider phone	E5 · Booking requests — empty · Dark	1960	1674	390	844
+270-30729 3-provider phone	E6 · Listing performance · Dark	2430	1674	390	847
+270-30729 3-provider phone	E7 · Booking requests — answered · Dark	2900	1674	390	844
+270-30729 3-provider phone	E8 · Delete a listing — confirm · Dark	3370	1674	390	844
+270-30729 3-provider phone	E9 · Live listing — edit under review · Dark	3840	1674	390	844
+270-30729 3-provider phone	E10 · Live listing — edit refused · Dark	4310	1674	390	844
+270-30729 3-provider phone	E11 · Home — notifications off · Dark	4780	1674	390	1326
+270-30729 3-provider phone	E12 · Listing actions — copy as new · Dark	5250	1674	390	844
+270-30729 3-provider phone	E13 · Renew from the expiry reminder · Dark	80	4104	390	844
+270-30729 3-provider phone	E14 · Decline a request — confirm · Dark	550	4104	390	844
+270-30729 3-provider phone	E15 · Booking requests — accepted · Dark	1020	4104	390	844
+270-30729 3-provider phone	E16 · Booking value · Dark	1490	4104	390	844
+270-30729 3-provider phone	E17 · My listings — first listing · Dark	1960	4104	390	844
+270-30729 3-provider phone	F1 · Wizard 1 — category and type	80	5292	390	844
+270-30729 3-provider phone	F7 · Wizard 1 — choose type	550	5292	390	844
+270-30729 3-provider phone	F2 · Wizard 2 — details with live preview	1020	5292	390	911
+270-30729 3-provider phone	F3 · Wizard 3 — price and dates	1490	5292	390	858
+270-30729 3-provider phone	F4 · Wizard 4 — location	1960	5292	390	927
+270-30729 3-provider phone	F5 · Wizard 5 — review and send	2430	5292	390	1095
+270-30729 3-provider phone	F6 · Listing sent for review	2900	5292	390	844
+270-30729 3-provider phone	F8 · Wizard 2 — field errors	3370	5292	390	911
+270-30729 3-provider phone	F9 · Wizard 2 — photo upload failed	3840	5292	390	911
+270-30729 3-provider phone	F10 · Leave the wizard — draft kept	4310	5292	390	911
+270-30729 3-provider phone	F11 · Leave an edit — discard changes	4780	5292	390	844
+270-30729 3-provider phone	F1 · Wizard 1 — category and type · Dark	80	6487	390	844
+270-30729 3-provider phone	F7 · Wizard 1 — choose type · Dark	550	6487	390	844
+270-30729 3-provider phone	F2 · Wizard 2 — details with live preview · Dark	1020	6487	390	911
+270-30729 3-provider phone	F3 · Wizard 3 — price and dates · Dark	1490	6487	390	858
+270-30729 3-provider phone	F4 · Wizard 4 — location · Dark	1960	6487	390	927
+270-30729 3-provider phone	F5 · Wizard 5 — review and send · Dark	2430	6487	390	1095
+270-30729 3-provider phone	F6 · Listing sent for review · Dark	2900	6487	390	844
+270-30729 3-provider phone	F8 · Wizard 2 — field errors · Dark	3370	6487	390	911
+270-30729 3-provider phone	F9 · Wizard 2 — photo upload failed · Dark	3840	6487	390	911
+270-30729 3-provider phone	F10 · Leave the wizard — draft kept · Dark	4310	6487	390	911
+270-30729 3-provider phone	F11 · Leave an edit — discard changes · Dark	4780	6487	390	844
+270-30729 3-provider phone	G1 · Fix a rejection	80	7926	390	844
+270-30729 3-provider phone	G2 · At the limit — add sheet	550	7926	390	844
+270-30729 3-provider phone	G3 · Plan and billing	1020	7926	390	844
+270-30729 3-provider phone	G4 · Company profile	1490	7926	390	844
+270-30729 3-provider phone	G5 · Create a company	1960	7926	390	844
+270-30729 3-provider phone	R4 · Provider account	2430	7926	390	1000
+270-30729 3-provider phone	G1 · Fix a rejection · Dark	80	8870	390	844
+270-30729 3-provider phone	G2 · At the limit — add sheet · Dark	550	8870	390	844
+270-30729 3-provider phone	G3 · Plan and billing · Dark	1020	8870	390	844
+270-30729 3-provider phone	G4 · Company profile · Dark	1490	8870	390	844
+270-30729 3-provider phone	G5 · Create a company · Dark	1960	8870	390	844
+270-30729 3-provider phone	R4 · Provider account · Dark	2430	9026	390	1000
+270-30729 3-provider phone	P1 · Feature a listing — choose days	80	10258	390	844
+270-30729 3-provider phone	P2 · Feature — days clamped to the listing	550	10258	390	844
+270-30729 3-provider phone	P3 · QPay invoice	1020	10258	390	844
+270-30729 3-provider phone	P4 · Payment confirmed — featured live	1490	10258	390	844
+270-30729 3-provider phone	P5 · Online payment unavailable	1960	10258	390	844
+270-30729 3-provider phone	P6 · QPay invoice — expired	2430	10258	390	844
+270-30729 3-provider phone	P7 · Plan active — publish the draft	2900	10258	390	844
+270-30729 3-provider phone	P8 · Payment history	3370	10258	390	844
+270-30729 3-provider phone	P1 · Feature a listing — choose days · Dark	80	11202	390	844
+270-30729 3-provider phone	P2 · Feature — days clamped to the listing · Dark	550	11202	390	844
+270-30729 3-provider phone	P3 · QPay invoice · Dark	1020	11202	390	844
+270-30729 3-provider phone	P4 · Payment confirmed — featured live · Dark	1490	11202	390	844
+270-30729 3-provider phone	P5 · Online payment unavailable · Dark	1960	11202	390	844
+270-30729 3-provider phone	P6 · QPay invoice — expired · Dark	2430	11202	390	844
+270-30729 3-provider phone	P7 · Plan active — publish the draft · Dark	2900	11202	390	844
+270-30729 3-provider phone	P8 · Payment history · Dark	3370	11202	390	844
+270-30742 3-provider desktop	E1d · Provider home	80	248	1440	1024
+270-30742 3-provider desktop	E2d · My listings	1640	248	1440	1135
+270-30742 3-provider desktop	E3d · Booking requests	3200	248	1440	1024
+270-30742 3-provider desktop	E4d · Block unavailable dates	4760	248	1440	1024
+270-30742 3-provider desktop	E5d · Booking requests — empty	6320	248	1440	1024
+270-30742 3-provider desktop	E6d · Listing performance	7880	248	1440	1024
+270-30742 3-provider desktop	E7d · Booking requests — answered	9440	248	1440	1024
+270-30742 3-provider desktop	E8d · Delete a listing — confirm	11000	248	1440	1135
+270-30742 3-provider desktop	E9d · Live listing — edit under review	80	2778	1440	1135
+270-30742 3-provider desktop	E10d · Live listing — edit refused	1640	2778	1440	1135
+270-30742 3-provider desktop	E11d · Provider home — notifications off	3200	2778	1440	1024
+270-30742 3-provider desktop	E12d · Listing actions — copy as new	4760	2778	1440	1135
+270-30742 3-provider desktop	E13d · Renew from the expiry reminder	6320	2778	1440	1135
+270-30742 3-provider desktop	E14d · Decline a request — confirm	7880	2778	1440	1024
+270-30742 3-provider desktop	E15d · Booking requests — accepted	9440	2778	1440	1024
+270-30742 3-provider desktop	E16d · Booking value	11000	2778	1440	1024
+270-30742 3-provider desktop	E17d · My listings — first listing	80	5308	1440	1024
+270-30742 3-provider desktop	E1d · Provider home · Dark	80	1483	1440	1024
+270-30742 3-provider desktop	E2d · My listings · Dark	1640	1483	1440	1135
+270-30742 3-provider desktop	E3d · Booking requests · Dark	3200	1483	1440	1024
+270-30742 3-provider desktop	E4d · Block unavailable dates · Dark	4760	1483	1440	1024
+270-30742 3-provider desktop	E5d · Booking requests — empty · Dark	6320	1483	1440	1024
+270-30742 3-provider desktop	E6d · Listing performance · Dark	7880	1483	1440	1024
+270-30742 3-provider desktop	E7d · Booking requests — answered · Dark	9440	1483	1440	1024
+270-30742 3-provider desktop	E8d · Delete a listing — confirm · Dark	11000	1483	1440	1135
+270-30742 3-provider desktop	E9d · Live listing — edit under review · Dark	80	4013	1440	1135
+270-30742 3-provider desktop	E10d · Live listing — edit refused · Dark	1640	4013	1440	1135
+270-30742 3-provider desktop	E11d · Provider home — notifications off · Dark	3200	4013	1440	1024
+270-30742 3-provider desktop	E12d · Listing actions — copy as new · Dark	4760	4013	1440	1135
+270-30742 3-provider desktop	E13d · Renew from the expiry reminder · Dark	6320	4013	1440	1135
+270-30742 3-provider desktop	E14d · Decline a request — confirm · Dark	7880	4013	1440	1024
+270-30742 3-provider desktop	E15d · Booking requests — accepted · Dark	9440	4013	1440	1024
+270-30742 3-provider desktop	E16d · Booking value · Dark	11000	4013	1440	1024
+270-30742 3-provider desktop	E17d · My listings — first listing · Dark	80	6432	1440	1024
+270-30742 3-provider desktop	F1d · Wizard 1 — category and type	80	7800	1440	1024
+270-30742 3-provider desktop	F2d · New listing with live preview	1640	7800	1440	1024
+270-30742 3-provider desktop	F3d · Wizard 3 — price and dates	3200	7800	1440	1024
+270-30742 3-provider desktop	F4d · Wizard 4 — location	4760	7800	1440	1024
+270-30742 3-provider desktop	F5d · Wizard 5 — review and send	6320	7800	1440	1024
+270-30742 3-provider desktop	F6d · Listing sent for review	7880	7800	1440	1024
+270-30742 3-provider desktop	F8d · New listing — field errors	9440	7800	1440	1024
+270-30742 3-provider desktop	F9d · New listing — photo upload failed	11000	7800	1440	1024
+270-30742 3-provider desktop	F10d · Leave the wizard — draft kept	12560	7800	1440	1024
+270-30742 3-provider desktop	F11d · Leave an edit — discard changes	14120	7800	1440	1024
+270-30742 3-provider desktop	F12d · Browser notifications explainer	15680	7800	1440	1024
+270-30742 3-provider desktop	F1d · Wizard 1 — category and type · Dark	80	8924	1440	1024
+270-30742 3-provider desktop	F2d · New listing with live preview · Dark	1640	8924	1440	1024
+270-30742 3-provider desktop	F3d · Wizard 3 — price and dates · Dark	3200	8924	1440	1024
+270-30742 3-provider desktop	F4d · Wizard 4 — location · Dark	4760	8924	1440	1024
+270-30742 3-provider desktop	F5d · Wizard 5 — review and send · Dark	6320	8924	1440	1024
+270-30742 3-provider desktop	F6d · Listing sent for review · Dark	7880	8924	1440	1024
+270-30742 3-provider desktop	F8d · New listing — field errors · Dark	9440	8924	1440	1024
+270-30742 3-provider desktop	F9d · New listing — photo upload failed · Dark	11000	8924	1440	1024
+270-30742 3-provider desktop	F10d · Leave the wizard — draft kept · Dark	12560	8924	1440	1024
+270-30742 3-provider desktop	F11d · Leave an edit — discard changes · Dark	14120	8924	1440	1024
+270-30742 3-provider desktop	F12d · Browser notifications explainer · Dark	15680	8924	1440	1024
+270-30742 3-provider desktop	G1d · Fix a rejection	80	10292	1440	1024
+270-30742 3-provider desktop	G2d · At the limit — add	1640	10292	1440	1135
+270-30742 3-provider desktop	G3d · Plan and billing	3200	10292	1440	1024
+270-30742 3-provider desktop	G4d · Company profile	4760	10292	1440	1024
+270-30742 3-provider desktop	G5d · Create a company	6320	10292	1440	1024
+270-30742 3-provider desktop	R4d · Provider account	7880	10292	1440	1024
+270-30742 3-provider desktop	G1d · Fix a rejection · Dark	80	11527	1440	1024
+270-30742 3-provider desktop	G2d · At the limit — add · Dark	1640	11527	1440	1135
+270-30742 3-provider desktop	G3d · Plan and billing · Dark	3200	11527	1440	1024
+270-30742 3-provider desktop	G4d · Company profile · Dark	4760	11527	1440	1024
+270-30742 3-provider desktop	G5d · Create a company · Dark	6320	11527	1440	1024
+270-30742 3-provider desktop	R4d · Provider account · Dark	7880	11527	1440	1024
+270-30742 3-provider desktop	P1d · Feature a listing	80	13006	1440	1135
+270-30742 3-provider desktop	P2d · Feature — days clamped	1640	13006	1440	1135
+270-30742 3-provider desktop	P3d · QPay invoice	3200	13006	1440	1024
+270-30742 3-provider desktop	P4d · Payment confirmed	4760	13006	1440	1024
+270-30742 3-provider desktop	P5d · Online payment unavailable	6320	13006	1440	1135
+270-30742 3-provider desktop	P6d · QPay invoice — expired	7880	13006	1440	1024
+270-30742 3-provider desktop	P7d · Plan active — publish the draft	9440	13006	1440	1024
+270-30742 3-provider desktop	P8d · Payment history	11000	13006	1440	1024
+270-30742 3-provider desktop	P1d · Feature a listing · Dark	80	14241	1440	1135
+270-30742 3-provider desktop	P2d · Feature — days clamped · Dark	1640	14241	1440	1135
+270-30742 3-provider desktop	P3d · QPay invoice · Dark	3200	14241	1440	1024
+270-30742 3-provider desktop	P4d · Payment confirmed · Dark	4760	14241	1440	1024
+270-30742 3-provider desktop	P5d · Online payment unavailable · Dark	6320	14241	1440	1135
+270-30742 3-provider desktop	P6d · QPay invoice — expired · Dark	7880	14241	1440	1024
+270-30742 3-provider desktop	P7d · Plan active — publish the draft · Dark	9440	14241	1440	1024
+270-30742 3-provider desktop	P8d · Payment history · Dark	11000	14241	1440	1024
+270-41969 4-shared-admin phone	I1 · Inbox	80	243	390	844
+270-41969 4-shared-admin phone	I2 · Thread	550	243	390	844
+270-41969 4-shared-admin phone	I3 · Notifications	1020	243	390	844
+270-41969 4-shared-admin phone	I5 · Profile	1490	243	390	844
+270-41969 4-shared-admin phone	I6 · Settings	1960	243	390	844
+270-41969 4-shared-admin phone	I8 · Language	2430	243	390	844
+270-41969 4-shared-admin phone	I1 · Inbox · Dark	80	1187	390	844
+270-41969 4-shared-admin phone	I2 · Thread · Dark	550	1187	390	844
+270-41969 4-shared-admin phone	I3 · Notifications · Dark	1020	1187	390	844
+270-41969 4-shared-admin phone	I5 · Profile · Dark	1490	1187	390	844
+270-41969 4-shared-admin phone	I6 · Settings · Dark	1960	1187	390	844
+270-41969 4-shared-admin phone	I8 · Language · Dark	2430	1187	390	844
+270-41969 4-shared-admin phone	J1 · Approval queue	80	2394	390	844
+270-41969 4-shared-admin phone	J2 · Review an edit	550	2394	390	844
+270-41969 4-shared-admin phone	J3 · Reject with reason	1020	2394	390	844
+270-41969 4-shared-admin phone	J4 · Reports	1490	2394	390	844
+270-41969 4-shared-admin phone	J5 · Admin browse	1960	2394	390	844
+270-41969 4-shared-admin phone	J6 · Admin users	2430	2394	390	844
+270-41969 4-shared-admin phone	J7 · Admin analytics	2900	2394	390	1180
+270-41969 4-shared-admin phone	J8 · Admin profile	3370	2394	390	844
+270-41969 4-shared-admin phone	J9 · Review a new listing	3840	2394	390	844
+270-41969 4-shared-admin phone	J1 · Approval queue · Dark	80	3674	390	844
+270-41969 4-shared-admin phone	J2 · Review an edit · Dark	550	3674	390	844
+270-41969 4-shared-admin phone	J3 · Reject with reason · Dark	1020	3674	390	844
+270-41969 4-shared-admin phone	J4 · Reports · Dark	1490	3674	390	844
+270-41969 4-shared-admin phone	J5 · Admin browse · Dark	1960	3674	390	844
+270-41969 4-shared-admin phone	J6 · Admin users · Dark	2430	3674	390	844
+270-41969 4-shared-admin phone	J7 · Admin analytics · Dark	2900	3674	390	1180
+270-41969 4-shared-admin phone	J8 · Admin profile · Dark	3370	3674	390	844
+270-41969 4-shared-admin phone	J9 · Review a new listing · Dark	3840	3674	390	844
+270-41969 4-shared-admin phone	L1 · Help	80	5217	390	844
+270-41969 4-shared-admin phone	L2 · Privacy policy	550	5217	390	985
+270-41969 4-shared-admin phone	L3 · Account deletion	1020	5217	390	844
+270-41969 4-shared-admin phone	L4 · Account deletion — confirm	1490	5217	390	844
+270-41969 4-shared-admin phone	L5 · 404 — page not found	1960	5217	390	844
+270-41969 4-shared-admin phone	L6 · Terms of service	2430	5217	390	985
+270-41969 4-shared-admin phone	L7 · Session expired — sign in again	2900	5217	390	844
+270-41969 4-shared-admin phone	L8 · Something went wrong	3370	5217	390	844
+270-41969 4-shared-admin phone	L1 · Help · Dark	80	6302	390	844
+270-41969 4-shared-admin phone	L2 · Privacy policy · Dark	550	6302	390	985
+270-41969 4-shared-admin phone	L3 · Account deletion · Dark	1020	6302	390	844
+270-41969 4-shared-admin phone	L4 · Account deletion — confirm · Dark	1490	6302	390	844
+270-41969 4-shared-admin phone	L5 · 404 — page not found · Dark	1960	6302	390	844
+270-41969 4-shared-admin phone	L6 · Terms of service · Dark	2430	6302	390	985
+270-41969 4-shared-admin phone	L7 · Session expired — sign in again · Dark	2900	6302	390	844
+270-41969 4-shared-admin phone	L8 · Something went wrong · Dark	3370	6302	390	844
+270-41969 4-shared-admin phone	M1 · Inbox — empty	80	7650	390	844
+270-41969 4-shared-admin phone	M2 · Inbox — loading	550	7650	390	844
+270-41969 4-shared-admin phone	M3 · Notifications — empty	1020	7650	390	844
+270-41969 4-shared-admin phone	M4 · Thread — first message	1490	7650	390	844
+270-41969 4-shared-admin phone	M5 · Thread — failed to load	1960	7650	390	844
+270-41969 4-shared-admin phone	M6 · Approval queue — empty	2430	7650	390	844
+270-41969 4-shared-admin phone	M7 · Reports — empty	2900	7650	390	844
+270-41969 4-shared-admin phone	M1 · Inbox — empty · Dark	80	8594	390	844
+270-41969 4-shared-admin phone	M2 · Inbox — loading · Dark	550	8594	390	844
+270-41969 4-shared-admin phone	M3 · Notifications — empty · Dark	1020	8594	390	844
+270-41969 4-shared-admin phone	M4 · Thread — first message · Dark	1490	8594	390	844
+270-41969 4-shared-admin phone	M5 · Thread — failed to load · Dark	1960	8594	390	844
+270-41969 4-shared-admin phone	M6 · Approval queue — empty · Dark	2430	8594	390	844
+270-41969 4-shared-admin phone	M7 · Reports — empty · Dark	2900	8594	390	844
+270-41969 4-shared-admin phone	R1 · Write a review	80	9801	390	844
+270-41969 4-shared-admin phone	R2 · Report a listing	550	9801	390	844
+270-41969 4-shared-admin phone	R3 · Edit profile	1020	9801	390	1110
+270-41969 4-shared-admin phone	R6 · Report a review	1960	9801	390	844
+270-41969 4-shared-admin phone	R9 · Reply to a review	2430	9801	390	844
+270-41969 4-shared-admin phone	R1 · Write a review · Dark	80	11011	390	844
+270-41969 4-shared-admin phone	R2 · Report a listing · Dark	550	11011	390	844
+270-41969 4-shared-admin phone	R3 · Edit profile · Dark	1020	11011	390	1110
+270-41969 4-shared-admin phone	R6 · Report a review · Dark	1960	11011	390	844
+270-41969 4-shared-admin phone	R9 · Reply to a review · Dark	2430	11011	390	844
+270-41969 4-shared-admin phone	V1 · Seller page	80	12484	390	1379
+270-41969 4-shared-admin phone	V2 · All reviews	550	12484	390	1029
+270-41969 4-shared-admin phone	V1 · Seller page · Dark	80	13948	390	1379
+270-41969 4-shared-admin phone	V2 · All reviews · Dark	550	13948	390	1029
+270-41988 4-shared-admin desktop	I1d · Messages	80	243	1440	1024
+270-41988 4-shared-admin desktop	I3d · Notifications	1640	243	1440	1024
+270-41988 4-shared-admin desktop	I5d · Profile and settings	3200	243	1440	1024
+270-41988 4-shared-admin desktop	I8d · Language	4760	243	1440	1024
+270-41988 4-shared-admin desktop	I10d · Notifications panel	6320	243	1440	1024
+270-41988 4-shared-admin desktop	I11d · Sign out — confirm	7880	243	1440	1024
+270-41988 4-shared-admin desktop	I1d · Messages · Dark	80	1367	1440	1024
+270-41988 4-shared-admin desktop	I3d · Notifications · Dark	1640	1367	1440	1024
+270-41988 4-shared-admin desktop	I5d · Profile and settings · Dark	3200	1367	1440	1024
+270-41988 4-shared-admin desktop	I8d · Language · Dark	4760	1367	1440	1024
+270-41988 4-shared-admin desktop	I10d · Notifications panel · Dark	6320	1367	1440	1024
+270-41988 4-shared-admin desktop	I11d · Sign out — confirm · Dark	7880	1367	1440	1024
+270-41988 4-shared-admin desktop	J1d · Approval queue	80	2779	1440	1024
+270-41988 4-shared-admin desktop	J2d · Review an edit	1640	2779	1440	1087
+270-41988 4-shared-admin desktop	J3d · Reject with reason	3200	2779	1440	1087
+270-41988 4-shared-admin desktop	J4d · Reports	4760	2779	1440	1024
+270-41988 4-shared-admin desktop	J5d · Admin — all listings	6320	2779	1440	1024
+270-41988 4-shared-admin desktop	J6d · Users	7880	2779	1440	1024
+270-41988 4-shared-admin desktop	J7d · Analytics	9440	2779	1440	1240
+270-41988 4-shared-admin desktop	J8d · Admin profile	11000	2779	1440	1180
+270-41988 4-shared-admin desktop	J9d · Review a new listing	80	5519	1440	1087
+270-41988 4-shared-admin desktop	J10d · Admin dashboard	1640	5519	1440	1024
+270-41988 4-shared-admin desktop	J11d · User detail	3200	5519	1440	1180
+270-41988 4-shared-admin desktop	J12d · Broadcast — confirm	4760	5519	1440	1024
+270-41988 4-shared-admin desktop	J13d · Company verification — grant	6320	5519	1440	1180
+270-41988 4-shared-admin desktop	J14d · Admin — categories	7880	5519	1440	1024
+270-41988 4-shared-admin desktop	J15d · Admin — edit a category field	9440	5519	1440	1024
+270-41988 4-shared-admin desktop	J16d · Admin — subcategories	11000	5519	1440	1024
+270-41988 4-shared-admin desktop	J1d · Approval queue · Dark	80	4119	1440	1024
+270-41988 4-shared-admin desktop	J2d · Review an edit · Dark	1640	4119	1440	1087
+270-41988 4-shared-admin desktop	J3d · Reject with reason · Dark	3200	4119	1440	1087
+270-41988 4-shared-admin desktop	J4d · Reports · Dark	4760	4119	1440	1024
+270-41988 4-shared-admin desktop	J5d · Admin — all listings · Dark	6320	4119	1440	1024
+270-41988 4-shared-admin desktop	J6d · Users · Dark	7880	4119	1440	1024
+270-41988 4-shared-admin desktop	J7d · Analytics · Dark	9440	4119	1440	1240
+270-41988 4-shared-admin desktop	J8d · Admin profile · Dark	11000	4119	1440	1180
+270-41988 4-shared-admin desktop	J9d · Review a new listing · Dark	80	6799	1440	1087
+270-41988 4-shared-admin desktop	J10d · Admin dashboard · Dark	1640	6799	1440	1024
+270-41988 4-shared-admin desktop	J11d · User detail · Dark	3200	6799	1440	1180
+270-41988 4-shared-admin desktop	J12d · Broadcast — confirm · Dark	4760	6799	1440	1024
+270-41988 4-shared-admin desktop	J13d · Company verification — grant · Dark	6320	6799	1440	1180
+270-41988 4-shared-admin desktop	J14d · Admin — categories · Dark	7880	6799	1440	1024
+270-41988 4-shared-admin desktop	J15d · Admin — edit a category field · Dark	9440	6799	1440	1024
+270-41988 4-shared-admin desktop	J16d · Admin — subcategories · Dark	11000	6799	1440	1024
+270-41988 4-shared-admin desktop	L1d · Help	80	8342	1440	1024
+270-41988 4-shared-admin desktop	L2d · Privacy policy	1640	8342	1440	1024
+270-41988 4-shared-admin desktop	L3d · Account deletion	3200	8342	1440	1024
+270-41988 4-shared-admin desktop	L4d · Account deletion — confirm	4760	8342	1440	1024
+270-41988 4-shared-admin desktop	L5d · 404 — page not found	6320	8342	1440	1024
+270-41988 4-shared-admin desktop	L6d · Terms of service	7880	8342	1440	1024
+270-41988 4-shared-admin desktop	L7d · Session expired — sign in again	9440	8342	1440	1024
+270-41988 4-shared-admin desktop	L8d · Something went wrong	11000	8342	1440	1024
+270-41988 4-shared-admin desktop	L1d · Help · Dark	80	9466	1440	1024
+270-41988 4-shared-admin desktop	L2d · Privacy policy · Dark	1640	9466	1440	1024
+270-41988 4-shared-admin desktop	L3d · Account deletion · Dark	3200	9466	1440	1024
+270-41988 4-shared-admin desktop	L4d · Account deletion — confirm · Dark	4760	9466	1440	1024
+270-41988 4-shared-admin desktop	L5d · 404 — page not found · Dark	6320	9466	1440	1024
+270-41988 4-shared-admin desktop	L6d · Terms of service · Dark	7880	9466	1440	1024
+270-41988 4-shared-admin desktop	L7d · Session expired — sign in again · Dark	9440	9466	1440	1024
+270-41988 4-shared-admin desktop	L8d · Something went wrong · Dark	11000	9466	1440	1024
+270-41988 4-shared-admin desktop	M1d · Messages — empty	80	10853	1440	1024
+270-41988 4-shared-admin desktop	M2d · Messages — loading	1640	10853	1440	1024
+270-41988 4-shared-admin desktop	M3d · Notifications — empty	3200	10853	1440	1024
+270-41988 4-shared-admin desktop	M4d · Thread — first message	4760	10853	1440	1024
+270-41988 4-shared-admin desktop	M5d · Thread — failed to load	6320	10853	1440	1024
+270-41988 4-shared-admin desktop	M6d · Approval queue — empty	7880	10853	1440	1024
+270-41988 4-shared-admin desktop	M7d · Reports — empty	9440	10853	1440	1024
+270-41988 4-shared-admin desktop	M1d · Messages — empty · Dark	80	11977	1440	1024
+270-41988 4-shared-admin desktop	M2d · Messages — loading · Dark	1640	11977	1440	1024
+270-41988 4-shared-admin desktop	M3d · Notifications — empty · Dark	3200	11977	1440	1024
+270-41988 4-shared-admin desktop	M4d · Thread — first message · Dark	4760	11977	1440	1024
+270-41988 4-shared-admin desktop	M5d · Thread — failed to load · Dark	6320	11977	1440	1024
+270-41988 4-shared-admin desktop	M6d · Approval queue — empty · Dark	7880	11977	1440	1024
+270-41988 4-shared-admin desktop	M7d · Reports — empty · Dark	9440	11977	1440	1024
+270-41988 4-shared-admin desktop	R1d · Write a review	80	13364	1440	1408
+270-41988 4-shared-admin desktop	R2d · Report a listing	1640	13364	1440	1408
+270-41988 4-shared-admin desktop	R3d · Edit profile	3200	13364	1440	889
+270-41988 4-shared-admin desktop	R6d · Report a review	4760	13364	1440	1408
+270-41988 4-shared-admin desktop	R9d · Reply to a review	6320	13364	1440	1024
+270-41988 4-shared-admin desktop	R1d · Write a review · Dark	80	14872	1440	1408
+270-41988 4-shared-admin desktop	R2d · Report a listing · Dark	1640	14872	1440	1408
+270-41988 4-shared-admin desktop	R3d · Edit profile · Dark	3200	14872	1440	889
+270-41988 4-shared-admin desktop	R6d · Report a review · Dark	4760	14872	1440	1408
+270-41988 4-shared-admin desktop	R9d · Reply to a review · Dark	6320	14872	1440	1024
+270-41988 4-shared-admin desktop	V1d · Seller page	80	16643	1440	1024
+270-41988 4-shared-admin desktop	V2d · All reviews	1640	16643	1440	1135
+270-41988 4-shared-admin desktop	V1d · Seller page · Dark	80	17878	1440	1024
+270-41988 4-shared-admin desktop	V2d · All reviews · Dark	1640	17878	1440	1135
+270-42007 4-shared-admin email	Q1 · Email — new booking request	80	243	680	618
+270-42007 4-shared-admin email	Q2 · Email — listing not approved	840	243	680	562
+270-42007 4-shared-admin email	Q3 · Email — listing expiring	1600	243	680	490
+270-42007 4-shared-admin email	Q4 · Email — payment receipt	2360	243	680	617
+270-42007 4-shared-admin email	Q1 · Email — new booking request · Dark	80	961	680	618
+270-42007 4-shared-admin email	Q2 · Email — listing not approved · Dark	840	961	680	562
+270-42007 4-shared-admin email	Q3 · Email — listing expiring · Dark	1600	961	680	490
+270-42007 4-shared-admin email	Q4 · Email — payment receipt · Dark	2360	961	680	617
+306-4887 6-tablet tablet	T1 · Browse	820	200	1032	1376
+306-4887 6-tablet tablet	T2 · Listing detail	1952	200	1032	1376
+306-4887 6-tablet tablet	T3 · Provider home	3084	200	1032	1376
+306-4887 6-tablet tablet	T4 · Message thread	4216	200	1032	1376
+306-4887 6-tablet tablet	T1 · Browse · Dark	820	1736	1032	1376
+306-4887 6-tablet tablet	T2 · Listing detail · Dark	1952	1736	1032	1376
+306-4887 6-tablet tablet	T3 · Provider home · Dark	3084	1736	1032	1376
+306-4887 6-tablet tablet	T4 · Message thread · Dark	4216	1736	1032	1376
+306-4887 6-tablet tablet	T5 · Saved	820	3512	1032	1376
+306-4887 6-tablet tablet	T6 · My bookings	1952	3512	1032	1376
+306-4887 6-tablet tablet	T7 · Inbox	3084	3512	1032	1376
+306-4887 6-tablet tablet	T8 · Notifications	4216	3512	1032	1376
+306-4887 6-tablet tablet	T9 · Profile	5348	3512	1032	1376
+306-4887 6-tablet tablet	T10 · Settings	6480	3512	1032	1376
+306-4887 6-tablet tablet	T5 · Saved · Dark	820	4988	1032	1376
+306-4887 6-tablet tablet	T6 · My bookings · Dark	1952	4988	1032	1376
+306-4887 6-tablet tablet	T7 · Inbox · Dark	3084	4988	1032	1376
+306-4887 6-tablet tablet	T8 · Notifications · Dark	4216	4988	1032	1376
+306-4887 6-tablet tablet	T9 · Profile · Dark	5348	4988	1032	1376
+306-4887 6-tablet tablet	T10 · Settings · Dark	6480	4988	1032	1376
+306-4887 6-tablet tablet	T11 · My listings	820	6764	1032	1376
+306-4887 6-tablet tablet	T12 · Booking requests	1952	6764	1032	1376
+306-4887 6-tablet tablet	T13 · Wizard — details	3084	6764	1032	1376
+306-4887 6-tablet tablet	T14 · Plan and billing	4216	6764	1032	1376
+306-4887 6-tablet tablet	T15 · Approval queue	5348	6764	1032	1376
+306-4887 6-tablet tablet	T16 · Reports	6480	6764	1032	1376
+306-4887 6-tablet tablet	T11 · My listings · Dark	820	8240	1032	1376
+306-4887 6-tablet tablet	T12 · Booking requests · Dark	1952	8240	1032	1376
+306-4887 6-tablet tablet	T13 · Wizard — details · Dark	3084	8240	1032	1376
+306-4887 6-tablet tablet	T14 · Plan and billing · Dark	4216	8240	1032	1376
+306-4887 6-tablet tablet	T15 · Approval queue · Dark	5348	8240	1032	1376
+306-4887 6-tablet tablet	T16 · Reports · Dark	6480	8240	1032	1376
+306-4887 6-tablet tablet	T17 · SOS — nearby help	820	10016	1032	1376
+306-4887 6-tablet tablet	T18 · Sign in	1952	10016	1032	1376
+306-4887 6-tablet tablet	T19 · Booking sheet	3084	10016	1032	1376
+306-4887 6-tablet tablet	T17 · SOS — nearby help · Dark	820	11492	1032	1376
+306-4887 6-tablet tablet	T18 · Sign in · Dark	1952	11492	1032	1376
+306-4887 6-tablet tablet	T19 · Booking sheet · Dark	3084	11492	1032	1376
+306-4887 6-tablet tablet	T20 · Wizard — price and dates	820	13100	1032	1376
+306-4887 6-tablet tablet	T21 · Wizard — location	1952	13100	1032	1376
+306-4887 6-tablet tablet	T22 · Wizard — review and send	3084	13100	1032	1376
+306-4887 6-tablet tablet	T26 · Wizard — category and type	4216	13100	1032	1376
+306-4887 6-tablet tablet	T23 · Write a review	5348	13100	1032	1376
+306-4887 6-tablet tablet	T24 · Report a listing	6480	13100	1032	1376
+306-4887 6-tablet tablet	T25 · QPay invoice — feature a listing	7612	13100	1032	1376
+306-4887 6-tablet tablet	T20 · Wizard — price and dates · Dark	820	14576	1032	1376
+306-4887 6-tablet tablet	T21 · Wizard — location · Dark	1952	14576	1032	1376
+306-4887 6-tablet tablet	T22 · Wizard — review and send · Dark	3084	14576	1032	1376
+306-4887 6-tablet tablet	T26 · Wizard — category and type · Dark	4216	14576	1032	1376
+306-4887 6-tablet tablet	T23 · Write a review · Dark	5348	14576	1032	1376
+306-4887 6-tablet tablet	T24 · Report a listing · Dark	6480	14576	1032	1376
+306-4887 6-tablet tablet	T25 · QPay invoice — feature a listing · Dark	7612	14576	1032	1376

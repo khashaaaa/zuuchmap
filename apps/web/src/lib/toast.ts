@@ -16,9 +16,9 @@ export interface ToastItem {
   closing?: boolean;
 }
 
-export const TOAST_MS = 4000;
+const TOAST_MS = 4000;
 /** An actionable toast stays long enough to be read and tapped. */
-export const TOAST_ACTION_MS = 8000;
+const TOAST_ACTION_MS = 8000;
 
 interface ToastState {
   toasts: ToastItem[];

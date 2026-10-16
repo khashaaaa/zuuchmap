@@ -102,7 +102,7 @@ export function ProviderSidebar({ active, onSelect, onAdd, quota, quotaLabel, un
   );
 }
 
-export type AdminSidebarKey = 'dashboard' | 'approval' | 'reports' | 'users' | 'categories' | 'analytics' | 'profile';
+export type AdminSidebarKey = 'dashboard' | 'listings' | 'users' | 'categories' | 'analytics' | 'reports' | 'profile';
 
 export interface AdminSidebarProps {
   active: AdminSidebarKey;
@@ -111,15 +111,15 @@ export interface AdminSidebarProps {
   className?: string;
 }
 
-export function AdminSidebar({ active, onSelect, preview, className }: AdminSidebarProps) {
+export function AdminSidebar({ active, onSelect, preview, className, counts }: AdminSidebarProps & { counts?: Partial<Record<AdminSidebarKey, number>> }) {
   const { t } = useTranslation();
   const items: { key: AdminSidebarKey; icon: string; label: string }[] = [
-    { key: 'dashboard', icon: 'layout-grid', label: t('admin.dashboard') },
-    { key: 'approval', icon: 'shield-check', label: t('admin.pendingPosts') },
-    { key: 'reports', icon: 'flag', label: t('report.queue') },
+    { key: 'dashboard', icon: 'home', label: t('admin.nav.home') },
+    { key: 'listings', icon: 'list', label: t('admin.nav.listings') },
     { key: 'users', icon: 'users', label: t('admin.users') },
-    { key: 'categories', icon: 'file-text', label: t('nav.categories') },
-    { key: 'analytics', icon: 'bar-chart-3', label: t('analytics.title') },
+    { key: 'categories', icon: 'layout-grid', label: t('admin.nav.categories') },
+    { key: 'analytics', icon: 'eye', label: t('admin.nav.analytics') },
+    { key: 'reports', icon: 'flag', label: t('report.queue') },
     { key: 'profile', icon: 'user', label: t('nav.profile') },
   ];
   return (
@@ -130,7 +130,7 @@ export function AdminSidebar({ active, onSelect, preview, className }: AdminSide
         <span className="rounded-sm bg-bg-surface-sunken px-1.5 py-0.5 text-overline text-text-secondary">{t('admin.role')}</span>
       </div>
       {items.map((i) => (
-        <SidebarItem key={i.key} icon={i.icon} label={i.label} active={active === i.key} onClick={() => onSelect?.(i.key)} />
+        <SidebarItem key={i.key} icon={i.icon} label={i.label} count={counts?.[i.key]} active={active === i.key} onClick={() => onSelect?.(i.key)} />
       ))}
     </SidebarShell>
   );

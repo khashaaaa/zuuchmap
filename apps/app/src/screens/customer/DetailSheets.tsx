@@ -21,7 +21,7 @@ import { TextField } from '../../ui/TextField';
 import { useToast } from '../../ui/Toast';
 import { useLocale } from '../../ui/useLocale';
 
-export const WEB_URL: string = process.env.EXPO_PUBLIC_WEB_URL ?? 'https://zuuchmap.com';
+const WEB_URL: string = process.env.EXPO_PUBLIC_WEB_URL ?? 'https://zuuchmap.com';
 
 const useStyles = themedStyles((t) => ({
   body: { ...t.type.body, color: t.colors.textSecondary },
@@ -234,7 +234,7 @@ export function BookingSheet({
         </View>
       ) : null}
       <TextField label={t('deal.sheet.address')} value={address} onChangeText={setAddress} placeholder={t('deal.sheet.addressPlaceholder')} />
-      <TextField label={t('deal.sheet.startTime')} value={time} onChangeText={(v) => setTime(clock(v))} placeholder="08:00" inputMode="numeric" keyboardType="number-pad" error={timeBad ? t('ui.emailInvalid') : null} />
+      <TextField label={t('deal.sheet.startTime')} value={time} onChangeText={(v) => setTime(clock(v))} placeholder="08:00" inputMode="numeric" keyboardType="number-pad" error={timeBad ? t('ui.invalid') : null} />
       <TextField label={t('deal.sheet.message')} value={message} onChangeText={setMessage} placeholder={t('booking.messagePlaceholder')} multiline maxLength={500} />
       <Text style={s.note}>{t('deal.sheet.note')}</Text>
     </BottomSheet>

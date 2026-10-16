@@ -51,6 +51,14 @@ export interface Env {
   EXPO_ACCESS_TOKEN?: string;
   /** Stored notifications older than this are deleted nightly. */
   NOTIFICATION_RETENTION_DAYS: number;
+  /** QPay merchant; all-unset => online payment answers 503 PAYMENTS_NOT_CONFIGURED. */
+  QPAY?: { username: string; password: string; invoiceCode: string; baseUrl: string; timeoutMs: number };
+  /** ₮ per month of the Provider plan. Unset => the plan is not for sale (PLAN_PRICE_NOT_SET). No default: a price nobody chose is never charged. */
+  PLAN_PRICE_PROVIDER_MNT?: number;
+  /** ₮ per day of featured placement. Unset => placement is not for sale (FEATURED_PRICE_NOT_SET). */
+  FEATURED_PRICE_PER_DAY_MNT?: number;
+  /** The number the payment-unavailable sheet offers to call (Figma P5). */
+  SUPPORT_PHONE: string;
 }
 
 type Source = Record<string, string | undefined>;
@@ -134,6 +142,19 @@ function vapid(src: Source): Env['VAPID'] {
   return { publicKey, privateKey, subject };
 }
 
+function qpay(src: Source): Env['QPAY'] {
+  const username = optional(src, 'QPAY_USERNAME');
+  const password = optional(src, 'QPAY_PASSWORD');
+  const invoiceCode = optional(src, 'QPAY_INVOICE_CODE');
+  if (!username && !password && !invoiceCode) return undefined;
+  if (!username || !password || !invoiceCode) throw new Error('Missing required environment variable QPAY_USERNAME, QPAY_PASSWORD or QPAY_INVOICE_CODE (QPay is partly configured)');
+  return {
+    username, password, invoiceCode,
+    baseUrl: (optional(src, 'QPAY_BASE_URL') ?? 'https://merchant.qpay.mn').replace(/\/$/, ''),
+    timeoutMs: posInt(src, 'QPAY_TIMEOUT_MS', 10_000),
+  };
+}
+
 function smtp(src: Source): Env['SMTP'] {
   const host = optional(src, 'SMTP_HOST');
   if (!host) return undefined;
@@ -202,6 +223,10 @@ export function parseEnv(src: Source): Env {
     SMTP: smtp(src),
     EXPO_ACCESS_TOKEN: optional(src, 'EXPO_ACCESS_TOKEN'),
     NOTIFICATION_RETENTION_DAYS: posInt(src, 'NOTIFICATION_RETENTION_DAYS', 90),
+    QPAY: qpay(src),
+    PLAN_PRICE_PROVIDER_MNT: optional(src, 'PLAN_PRICE_PROVIDER_MNT') ? posInt(src, 'PLAN_PRICE_PROVIDER_MNT', 1) : undefined,
+    FEATURED_PRICE_PER_DAY_MNT: optional(src, 'FEATURED_PRICE_PER_DAY_MNT') ? posInt(src, 'FEATURED_PRICE_PER_DAY_MNT', 1) : undefined,
+    SUPPORT_PHONE: optional(src, 'SUPPORT_PHONE') ?? '+976 8008-8253',
   };
 }
 

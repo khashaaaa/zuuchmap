@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import type {
-  BookingValue, CategoryView, ListingPerformanceDetail, MyCompanyResponse, MyListingItem, MyListingStats, MyPerformance, ProviderHome, User,
+import {
+  EXPIRY_WARNING_DAYS,
+  type BookingValue, type CategoryView, type ListingPerformanceDetail, type MyCompanyResponse, type MyListingItem, type MyListingStats, type MyPerformance, type ProviderHome, type User,
 } from '@zuuchmap/core';
 import type { TFunction } from 'i18next';
 import { useToast } from '../ui/Toast';
@@ -40,7 +41,6 @@ export function useListingAction(kind: 'renew' | 'delete') {
 // ---- Listing state ----
 
 export type ListingState = 'live' | 'pending' | 'rejected' | 'refused' | 'editing' | 'expired' | 'draft';
-export const EXPIRING_DAYS = 3;
 const DAY = 86_400_000;
 
 export const daysLeft = (expiresAt: string | null | undefined, now = Date.now()): number | null =>
@@ -59,7 +59,7 @@ export function listingState(p: MyListingItem, now = Date.now()): ListingState {
 
 export const isExpiring = (p: MyListingItem, now = Date.now()): boolean => {
   const d = daysLeft(p.expires_at, now);
-  return listingState(p, now) === 'live' && d !== null && d <= EXPIRING_DAYS;
+  return listingState(p, now) === 'live' && d !== null && d <= EXPIRY_WARNING_DAYS;
 };
 
 export type ListingFilter = 'all' | 'live' | 'attention' | 'expired' | 'draft';

@@ -7,7 +7,7 @@ import { Avatar } from './Avatar';
 import { CountBadge } from './CountBadge';
 import { IconButton } from './IconButton';
 
-export const APP_HEADER_HEIGHT = 56;
+const APP_HEADER_HEIGHT = 56;
 
 /** Pin-Z mark; `brand/mark` is ink on light, signal orange on dark. */
 export function BrandMark({ size = 26 }: { size?: number }) {

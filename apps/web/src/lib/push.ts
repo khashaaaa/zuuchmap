@@ -1,8 +1,11 @@
 import { useEffect, useSyncExternalStore } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { create } from 'zustand';
 import type { Locale, NotificationSettingsUpdate, PushDeviceRequest, PushDeviceRemoveRequest, VapidKeyResponse } from '@zuuchmap/core';
 import { api } from './api';
 import { useAuthStore } from './auth';
+import { useToast } from './toast';
 import { useFormat } from './useFormat';
 
 export type PushPermission = 'unsupported' | 'default' | 'granted' | 'denied';
@@ -12,7 +15,7 @@ const ENDPOINT_KEY = 'zm_push_endpoint';
 /** `<user id>:<locale>` last sent to the engine, so a reload sends nothing. */
 const LOCALE_SENT_KEY = 'zm_locale_sent';
 /** After "later" the ask stays away this long. */
-export const PUSH_LATER_MS = 7 * 86_400_000;
+const PUSH_LATER_MS = 7 * 86_400_000;
 
 const store = {
   get: (k: string): string | null => {
@@ -34,7 +37,7 @@ const store = {
 
 const supported = (): boolean => typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 
-export function pushPermission(): PushPermission {
+function pushPermission(): PushPermission {
   return supported() ? (Notification.permission as PushPermission) : 'unsupported';
 }
 
@@ -75,7 +78,7 @@ export function usePushPermission(): PushPermission {
  * Subscribes this browser (when the engine has a VAPID key and permission is granted) and tells the
  * engine, in `locale`, which is the language its pushes are written in. Idempotent.
  */
-export async function registerPushDevice(locale: Locale): Promise<boolean> {
+async function registerPushDevice(locale: Locale): Promise<boolean> {
   if (pushPermission() !== 'granted' || !useAuthStore.getState().token) return false;
   try {
     const key = await vapidKey();
@@ -96,7 +99,7 @@ export async function registerPushDevice(locale: Locale): Promise<boolean> {
 }
 
 /** Sign-out, before the session is cleared: the engine forgets this browser and the subscription is dropped. */
-export async function unregisterPushDevice(): Promise<void> {
+async function unregisterPushDevice(): Promise<void> {
   const endpoint = store.get(ENDPOINT_KEY);
   store.set(ENDPOINT_KEY, null);
   if (!endpoint) return;
@@ -173,4 +176,24 @@ export function usePushRegistration(): void {
   useEffect(() => {
     if (token && permission === 'granted') void registerPushDevice(locale);
   }, [token, permission, locale]);
+}
+
+/** Signing out on the web: stop this browser's pushes, forget the browser (shared computers), drop the token. */
+export function useSignOut(): () => Promise<void> {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const deviceId = useAuthStore((s) => s.deviceId);
+  const clear = useAuthStore((s) => s.clear);
+  return async () => {
+    await unregisterPushDevice();
+    try {
+      await api('/auth/logout', { method: 'POST', body: { device_id: deviceId } });
+    } catch {
+      /* the token is dropped either way */
+    }
+    clear();
+    qc.removeQueries({ queryKey: ['likes'] });
+    toast.success(t('customer.signin.signedOut'));
+  };
 }

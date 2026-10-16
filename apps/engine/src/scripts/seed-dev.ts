@@ -203,6 +203,8 @@ async function seedProviderStates(ds: DataSource, ids: number[]): Promise<void> 
   const [rejected, refused, draft, expiring] = ids.slice(-4);
   await ds.query(`UPDATE posts SET approval_status = 'REJECTED', rejection_reason = $2, rejection_field = 'price_amount', published_at = NULL WHERE id = $1`, [rejected, reason]);
   await ds.query(`UPDATE posts SET rejection_reason = $2, rejection_field = 'price_amount' WHERE id = $1`, [refused, reason]);
+  // The counter an admin rejection bumps; without it the seeded provider passes as "proven" and edits skip review.
+  await ds.query(`UPDATE users SET posts_rejected = 2 WHERE id = (SELECT user_id FROM posts WHERE id = $1)`, [rejected]);
   await ds.query(`UPDATE posts SET is_draft = true, approval_status = 'PENDING', expires_at = NULL, published_at = NULL, price_amount = NULL WHERE id = $1`, [draft]);
   await ds.query(`UPDATE posts SET expires_at = now() + interval '2 days' WHERE id = $1`, [expiring]);
   // A paid plan, so 18 live listings sit inside the quota (25) instead of reading "3-аас 18".

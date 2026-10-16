@@ -101,8 +101,24 @@ export const PriceUnit = {
 export type PriceUnit = (typeof PriceUnit)[keyof typeof PriceUnit];
 export const PRICE_UNITS = Object.values(PriceUnit) as PriceUnit[];
 
-export const REPORT_REASONS = ['SPAM', 'SCAM', 'WRONG_INFO', 'UNAVAILABLE', 'OFFENSIVE', 'OTHER'] as const;
+/** Figma R2: what can be wrong with a listing. */
+export const POST_REPORT_REASONS = ['SPAM', 'SCAM', 'WRONG_INFO', 'UNAVAILABLE', 'OFFENSIVE', 'OTHER'] as const;
+/** Figma R6: what can be wrong with a review. */
+export const REVIEW_REPORT_REASONS = ['FAKE', 'ABUSIVE', 'PRIVATE_INFO', 'UNRELATED', 'COMPETITOR', 'OTHER'] as const;
+export const REPORT_REASONS = [...new Set([...POST_REPORT_REASONS, ...REVIEW_REPORT_REASONS])] as Array<
+  (typeof POST_REPORT_REASONS)[number] | (typeof REVIEW_REPORT_REASONS)[number]
+>;
 export type ReportReason = (typeof REPORT_REASONS)[number];
+export const reportReasonsFor = (kind: 'POST' | 'REVIEW'): readonly ReportReason[] =>
+  kind === 'POST' ? POST_REPORT_REASONS : REVIEW_REPORT_REASONS;
+
+/** What an admin does with a reported subject: keep it (the reports are dismissed) or take it down. */
+export const REPORT_ACTIONS = ['KEEP', 'TAKE_DOWN'] as const;
+export type ReportAction = (typeof REPORT_ACTIONS)[number];
+
+/** Who an admin broadcast (Figma J10d) reaches. */
+export const BROADCAST_AUDIENCES = ['ALL', 'CUSTOMER', 'PROVIDER'] as const;
+export type BroadcastAudience = (typeof BROADCAST_AUDIENCES)[number];
 
 export const ReportStatus = { OPEN: 'OPEN', RESOLVED: 'RESOLVED', DISMISSED: 'DISMISSED' } as const;
 export type ReportStatus = (typeof ReportStatus)[keyof typeof ReportStatus];
@@ -158,6 +174,7 @@ export const ERROR_CODES = [
   'CANNOT_MESSAGE_SELF',
   'CANNOT_REPORT_OWN_POST',
   'CANNOT_REPORT_OWN_REVIEW',
+  'CATEGORY_KEY_IN_USE',
   'COMPANY_EXISTS',
   'COMPANY_FORBIDDEN',
   'CONVERSATION_NOT_FOUND',
@@ -173,6 +190,7 @@ export const ERROR_CODES = [
   'NOT_A_PARTICIPANT',
   'NOT_POST_OWNER',
   'PAYMENTS_NOT_CONFIGURED',
+  'PAYMENT_NOT_FOUND',
   'PAYMENT_PROVIDER_ERROR',
   'PAYMENT_PROVIDER_TIMEOUT',
   'PHOTO_NOT_UPLOADED',
@@ -191,8 +209,11 @@ export const ERROR_CODES = [
   'POST_QUOTA_EXCEEDED',
   'POST_REQUIRED',
   'PROVIDER_ONLY',
+  'REPORT_ALREADY_OPEN',
   'REPORT_ALREADY_RESOLVED',
   'REPORT_NEEDS_ONE_SUBJECT',
+  'REPORT_NOT_FOUND',
+  'REPORT_REASON_INVALID',
   'REVIEW_NEEDS_BOOKING',
   'REVIEW_NOT_FOUND',
   'REVIEW_NOT_YOURS',
@@ -201,6 +222,7 @@ export const ERROR_CODES = [
   'SAVED_SEARCH_LIMIT',
   'TOO_MANY_OPEN_REPORTS',
   'TOO_MANY_VERIFICATIONS',
+  'USER_NOT_FOUND',
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
 export const isErrorCode = (v: unknown): v is ErrorCode =>

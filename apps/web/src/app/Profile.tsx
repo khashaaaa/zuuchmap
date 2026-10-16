@@ -1,16 +1,13 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { LOCALES, isLocale } from '@zuuchmap/core';
-import { api } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth';
 import { useDocTitle } from '@/lib/meta';
 import { useNotificationUnread } from '@/lib/notifications';
-import { unregisterPushDevice } from '@/lib/push';
+import { useSignOut } from '@/lib/push';
 import { useProfile, useProviderHome } from '@/lib/provider';
 import { useFormat } from '@/lib/useFormat';
 import { useThemeStore, type Theme } from '@/lib/theme';
-import { useToast } from '@/lib/toast';
 import { AppHeader } from '@/ui/AppHeader';
 import { Avatar } from '@/ui/Avatar';
 import { Button } from '@/ui/Button';
@@ -40,7 +37,7 @@ function ProviderBlock() {
   const rows: { to?: string; icon: string; label: string; hint?: string; count?: number }[] = [
     { to: '/requests', icon: 'inbox', label: t('prov.account.requests'), count: home.data?.pending_requests.count },
     { to: me ? `/sellers/${me.id}/reviews` : undefined, icon: 'star', label: t('prov.account.replyReviews'), count: home.data?.unanswered_reviews },
-    { icon: 'credit-card', label: t('prov.account.plan'), hint: plan ? `${t('prov.account.planLine', { plan: planName, used: plan.active_posts, limit: plan.post_limit })}${plan.expires_at ? ` · ${t('prov.account.planUntil', { date: f.date(plan.expires_at) })}` : ''}` : undefined },
+    { to: '/provider/billing', icon: 'credit-card', label: t('prov.account.plan'), hint: plan ? `${t('prov.account.planLine', { plan: planName, used: plan.active_posts, limit: plan.post_limit })}${plan.expires_at ? ` · ${t('prov.account.planUntil', { date: f.date(plan.expires_at) })}` : ''}` : undefined },
     { to: '/provider/company', icon: 'building-2', label: t('prov.account.company'), hint: company?.name ?? t('prov.account.noCompany') },
   ];
   return (
@@ -92,29 +89,13 @@ function ProviderBlock() {
 export default function Profile() {
   const { t, i18n } = useTranslation();
   const nav = useNavigate();
-  const qc = useQueryClient();
-  const toast = useToast();
   const user = useAuthStore((s) => s.user);
-  const deviceId = useAuthStore((s) => s.deviceId);
-  const clear = useAuthStore((s) => s.clear);
   const bell = useNotificationUnread();
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
   useDocTitle(t('profile.title'));
 
-  const signOut = async () => {
-    // This browser stops receiving this account's pushes first, while the token still works.
-    await unregisterPushDevice();
-    // The web forgets this browser on sign-out (shared computers); the call is best effort.
-    try {
-      await api('/auth/logout', { method: 'POST', body: { device_id: deviceId } });
-    } catch {
-      /* the token is dropped either way */
-    }
-    clear();
-    qc.removeQueries({ queryKey: ['likes'] });
-    toast.success(t('customer.signin.signedOut'));
-  };
+  const signOut = useSignOut();
 
   const themes: { value: Theme; label: string }[] = [
     { value: 'light', label: t('kit.theme.light') },
@@ -171,6 +152,20 @@ export default function Profile() {
           <span className="text-label text-text-primary">{t('customer.profile.theme')}</span>
           <SegmentedControl segments={themes} value={theme} onChange={(v) => setTheme(v)} label={t('customer.profile.theme')} />
         </div>
+        <nav className="flex flex-col overflow-hidden rounded-xl border border-border-subtle bg-bg-surface">
+          {[
+            ...(user?.is_admin ? [{ to: '/admin', icon: 'shield-check', label: t('admin.role') }] : []),
+            { to: '/help', icon: 'help-circle', label: t('legal.helpRow') },
+            { to: '/privacy', icon: 'shield-check', label: t('legal.privacyTermsRow') },
+            ...(user ? [{ to: '/profile/delete', icon: 'user-x', label: t('account.delete.title') }] : []),
+          ].map((r) => (
+            <Link key={r.to} to={r.to} className="flex min-h-14 items-center gap-3 border-b border-border-subtle px-4 text-body text-text-primary last:border-b-0 focus-visible:outline-none focus-visible:shadow-focus">
+              <Icon name={r.icon} size={20} className="text-icon-secondary" />
+              <span className="flex-1">{r.label}</span>
+              <Icon name="chevron-right" size={20} className="text-icon-secondary" />
+            </Link>
+          ))}
+        </nav>
         {user && <Button variant="outline" icon="log-out" onClick={() => void signOut()}>{t('customer.signin.signOut')}</Button>}
       </div>
     </div>

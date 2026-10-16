@@ -38,7 +38,7 @@ export const toPublicCompany = (c: CompanyRow): PublicCompany => ({
   date_updated: c.date_updated.toISOString(),
 });
 
-const toCompany = (c: CompanyRow): Company => ({ ...toPublicCompany(c), registration_number: c.registration_number, tax_id: c.tax_id });
+export const toCompany = (c: CompanyRow): Company => ({ ...toPublicCompany(c), registration_number: c.registration_number, tax_id: c.tax_id });
 
 /** Fields whose change sends the company back to an admin: verification vouches for exactly these. */
 const VERIFIED_FIELDS = ['name', 'registration_number', 'tax_id'] as const;

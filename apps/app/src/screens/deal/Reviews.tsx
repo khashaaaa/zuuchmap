@@ -12,6 +12,8 @@ import { Button } from '../../ui/Button';
 import { Chip } from '../../ui/Chip';
 import { EmptyState } from '../../ui/EmptyState';
 import { Icon } from '../../ui/Icon';
+import { ReportSheet } from '../customer/ReportSheet';
+import { useRequireAuth } from '../customer/SignInFlow';
 import { ReviewCard } from '../../ui/ReviewCard';
 import { ReplySheet, ReviewSheet } from './ReviewSheets';
 
@@ -50,6 +52,8 @@ export function Reviews() {
   const [write, setWrite] = useState(false);
   const [reply, setReply] = useState<Review | null>(null);
   const [replyOpen, setReplyOpen] = useState(false);
+  const [report, setReport] = useState<Review | null>(null);
+  const requireAuth = useRequireAuth();
   const d = q.data;
   const max = Math.max(1, ...Object.values(d?.stats ?? { 1: 0 }));
   const mine = user?.id === params.id;
@@ -99,12 +103,14 @@ export function Reviews() {
                 setReply(r);
                 setReplyOpen(true);
               }}
+              onReport={r.author.id !== user?.id ? () => requireAuth('report', () => setReport(r)) : undefined}
             />
           )}
         />
       )}
       {seller.data ? <ReviewSheet visible={write} onClose={() => setWrite(false)} provider={seller.data.user} existing={d?.own ?? null} /> : null}
       <ReplySheet visible={replyOpen} onClose={() => setReplyOpen(false)} review={reply} providerName={providerName} />
+      <ReportSheet target={report ? { kind: 'REVIEW', review: report } : null} onClose={() => setReport(null)} />
     </View>
   );
 }

@@ -24,7 +24,7 @@ import { ArrayMinSize } from 'class-validator';
 import { DISTRICT_CODES, FAMILY_KEYS, PRICE_UNITS, PROVINCE_CODES, type BrowseSort, type PriceUnit, type BlockDaysRequest, type ContactRequest, type LikeRequest, type ListingWriteRequest, type MergeLikesRequest, type PhotoIntentRequest, type RejectListingRequest, type SavedSearchUpdateRequest, type SavedSearchWriteRequest } from '@zuuchmap/core';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-export const BROWSE_SORTS: BrowseSort[] = ['relevance', 'newest', 'nearby', 'price_asc', 'price_desc'];
+const BROWSE_SORTS: BrowseSort[] = ['relevance', 'newest', 'nearby', 'price_asc', 'price_desc'];
 
 /** Photos per listing. */
 export const MAX_PHOTOS = 10;
@@ -33,7 +33,7 @@ export const PHOTO_KEY_RE = /^posts\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 export const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 
 /** Fields shared by create and edit. Everything but `title` on create is optional; `null` clears. */
-export class ListingFieldsDto {
+class ListingFieldsDto {
   @IsOptional()
   @ValidateIf((_o, v) => v !== null)
   @IsString()
@@ -241,6 +241,8 @@ export class BlockDaysDto implements BlockDaysRequest {
 
 export class AdminListQueryDto {
   @IsOptional() @IsIn(['PENDING', 'APPROVED', 'REJECTED']) approval_status?: string;
+  /** Figma J5: title, owner phone or category key. */
+  @IsOptional() @IsString() @MaxLength(100) q?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100000) page?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(200) limit?: number;
 }

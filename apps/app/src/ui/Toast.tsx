@@ -1,5 +1,6 @@
-import { useEffect, useRef, useSyncExternalStore } from 'react';
-import { Animated, Pressable, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
+import { Animated, Pressable, Text, View, type LayoutChangeEvent } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { dark, elevation as elevationTokens, motion, radius, type as typeTokens } from '@zuuchmap/tokens';
 import { Icon } from './Icon';
@@ -50,6 +51,34 @@ const subscribe = (l: () => void) => {
     listeners.delete(l);
   };
 };
+
+/** Height of the focused screen's pinned bottom bar; 0 = none. The owner token keeps a blurring screen from clearing the next one's. */
+let lift = 0;
+let liftOwner: object | null = null;
+const setLift = (owner: object, h: number) => {
+  if (liftOwner !== owner && h === 0) return;
+  liftOwner = h ? owner : null;
+  if (h !== lift) { lift = h; emit(); }
+};
+
+/**
+ * A screen's pinned bottom bar (it reaches the bottom edge and pads the safe-area inset itself): pass the returned
+ * handler as the bar's `onLayout` and, while the screen has focus, toasts sit above the bar instead of over its buttons.
+ */
+export function useToastClearance(): (e: LayoutChangeEvent) => void {
+  const owner = useRef({}).current;
+  const height = useRef(0);
+  const focused = useRef(false);
+  useFocusEffect(useCallback(() => {
+    focused.current = true;
+    setLift(owner, height.current);
+    return () => { focused.current = false; setLift(owner, 0); };
+  }, [owner]));
+  return useCallback((e: LayoutChangeEvent) => {
+    height.current = e.nativeEvent.layout.height;
+    if (focused.current) setLift(owner, height.current);
+  }, [owner]);
+}
 
 /** `const toast = useToast(); toast.show({ message, kind })`. One toast at a time; a new one replaces the old. */
 export function useToast() {
@@ -115,6 +144,7 @@ const TAB_BAR_CONTENT = 62;
  */
 export function Toaster({ aboveTabBar = true, placement = 'bottom' }: { aboveTabBar?: boolean; placement?: 'bottom' | 'top' }) {
   const item = useSyncExternalStore(subscribe, () => current, () => null);
+  const bar = useSyncExternalStore(subscribe, () => lift, () => 0);
   const insets = useSafeAreaInsets();
   const reduce = useReduceMotion();
   const anim = useRef(new Animated.Value(0)).current;
@@ -131,7 +161,7 @@ export function Toaster({ aboveTabBar = true, placement = 'bottom' }: { aboveTab
       pointerEvents="box-none"
       style={{
         position: 'absolute', left: 16, right: 16,
-        ...(placement === 'top' ? { top: insets.top + 12 } : { bottom: insets.bottom + (aboveTabBar ? TAB_BAR_CONTENT : 0) + 12 }),
+        ...(placement === 'top' ? { top: insets.top + 12 } : { bottom: (bar || insets.bottom + (aboveTabBar ? TAB_BAR_CONTENT : 0)) + 12 }),
         opacity: anim, transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [placement === 'top' ? -16 : 16, 0] }) }],
       }}
     >

@@ -32,6 +32,8 @@ const RESERVED_FIELD_KEYS = [
 const LOCALES: Locale[] = ['mn', 'en', 'zh', 'ru'];
 const SNAKE = /^[a-z0-9_]+$/;
 
+export interface CategoryUsage { posts: number; fields: Record<string, number>; subcategories: Record<string, number> }
+
 export interface CategoryUpsertInput {
   family?: string;
   label?: string;
@@ -198,10 +200,31 @@ export class CategoryService implements OnApplicationBootstrap {
   }
 
   /** Admin create-or-update by key. Partial on update; family is required on create. */
+  /**
+   * Figma J15d/J16d: how many listings (drafts and pending included, deleted not) use the category,
+   * each field key and each subcategory value. A used key or value is never removed or retyped.
+   */
+  async usage(key: string): Promise<CategoryUsage> {
+    const schema = await this.get(key);
+    const keys = (schema.fields ?? []).map((f) => f.key);
+    const values = (schema.subcategories ?? []).map((s) => s.value);
+    const [row] = await this.repo.query<Array<{ posts: number; fields: Record<string, number> | null; subs: Record<string, number> | null }>>(
+      `SELECT COUNT(*)::int AS posts,
+              (SELECT jsonb_object_agg(k, n) FROM (SELECT k, COUNT(*)::int AS n FROM posts p2, unnest($2::text[]) AS k
+                 WHERE p2.category = $1 AND p2.deleted_at IS NULL AND p2.attributes ? k GROUP BY k) f) AS fields,
+              (SELECT jsonb_object_agg(subcategory, n) FROM (SELECT subcategory, COUNT(*)::int AS n FROM posts p3
+                 WHERE p3.category = $1 AND p3.deleted_at IS NULL AND p3.subcategory = ANY($3::text[]) GROUP BY subcategory) s) AS subs
+         FROM posts p WHERE p.category = $1 AND p.deleted_at IS NULL`,
+      [key, keys, values],
+    );
+    return { posts: row.posts, fields: row.fields ?? {}, subcategories: row.subs ?? {} };
+  }
+
   async upsert(key: string, input: CategoryUpsertInput): Promise<CategorySchema> {
     if (!SNAKE.test(key)) throw new BadRequestException(`Invalid category key '${key}' — use a-z, 0-9, _`);
     const existing = await this.repo.findOne({ where: { key } });
     this.validateInput(input, !existing);
+    if (existing) await this.assertKeepsUsed(existing, input);
     let row = existing;
     if (!row) {
       row = this.repo.create({
@@ -225,21 +248,47 @@ export class CategoryService implements OnApplicationBootstrap {
     return this.repo.save(row);
   }
 
+  /** A field key or subcategory value some listing stores cannot be removed, and a used field keeps its type. */
+  private async assertKeepsUsed(existing: CategorySchema, input: CategoryUpsertInput): Promise<void> {
+    if (!input.fields && !input.subcategories) return;
+    const used = await this.usage(existing.key);
+    const inUse = (message: string): never => {
+      throw new BadRequestException({ message, code: 'CATEGORY_KEY_IN_USE' });
+    };
+    if (input.fields) {
+      const next = new Map(input.fields.map((f) => [f.key, f]));
+      for (const f of existing.fields) {
+        if (!used.fields[f.key]) continue;
+        const n = next.get(f.key);
+        if (!n) inUse(`Field '${f.key}' is used by ${String(used.fields[f.key])} listings and cannot be removed`);
+        else if (n.type !== f.type) inUse(`Field '${f.key}' is used by ${String(used.fields[f.key])} listings and keeps its type`);
+      }
+    }
+    if (input.subcategories) {
+      const next = new Set(input.subcategories.map((s) => s.value));
+      for (const s of existing.subcategories) {
+        if (used.subcategories[s.value] && !next.has(s.value)) inUse(`Subcategory '${s.value}' is used by ${String(used.subcategories[s.value])} listings and cannot be removed`);
+      }
+    }
+  }
+
   validateInput(d: CategoryUpsertInput, creating: boolean): void {
     const bad = (m: string): never => {
       throw new BadRequestException(m);
     };
     if (creating) {
       if (!d.label?.trim()) bad('label is required');
-      if (!d.labels) bad('labels (mn en zh ru) are required');
+      if (!d.labels) bad('labels (at least mn) are required');
     }
     if (d.family !== undefined || creating) {
       if (!d.family || !(FAMILY_KEYS as string[]).includes(d.family)) {
         bad(`family must be one of ${FAMILY_KEYS.join(', ')}`);
       }
     }
+    // Figma J14d: only Mongolian is required; an empty translation falls back to it on read.
     if (d.labels) {
-      for (const l of LOCALES) if (!d.labels[l]?.trim()) bad(`labels.${l} is required`);
+      if (!d.labels.mn?.trim()) bad('labels.mn is required');
+      for (const [l, v] of Object.entries(d.labels)) if (!(LOCALES as readonly string[]).includes(l) || typeof v !== 'string') bad(`labels.${l} is not a locale label`);
     }
     if (d.icon !== undefined && d.icon !== null && !SHIPPED_ICON_NAMES.has(d.icon)) {
       bad(`Unknown icon '${d.icon}' — use a shipped Lucide name`);

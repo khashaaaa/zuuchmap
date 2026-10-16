@@ -5,7 +5,6 @@ import {
   Inject,
   Injectable,
   NotFoundException,
-  Optional,
 } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, type EntityManager, In, type SelectQueryBuilder } from 'typeorm';
@@ -61,16 +60,10 @@ import {
   type CategoryLabel, categoryLabelIndex, expandTerms, type SearchMode, type SearchSql, searchSql, searchTerms, type TermGroup,
 } from './search-terms';
 
-/** Whatever later modules know about a provider's record (upheld reports live in phase 9+). */
-export const UPHELD_REPORTS = Symbol('UPHELD_REPORTS');
-export interface UpheldReportCounter {
-  countUpheld(userId: string): Promise<number>;
-}
-
-export const ATTR_MAX_KEYS = 60;
-export const ATTR_MAX_BYTES = 8 * 1024;
+const ATTR_MAX_KEYS = 60;
+const ATTR_MAX_BYTES = 8 * 1024;
 /** Base wizard fields an admin may point a rejection at, besides the category's own keys. */
-export const BASE_FIELD_KEYS = [
+const BASE_FIELD_KEYS = [
   'category', 'subcategory', 'title', 'details', 'province', 'district', 'address', 'location', 'latitude',
   'longitude', 'price', 'price_amount', 'price_unit', 'contact_phone', 'contact_email', 'available_from',
   'available_until', 'website', 'images',
@@ -78,14 +71,14 @@ export const BASE_FIELD_KEYS = [
 
 const DAY_MS = 86_400_000;
 /** Map grid: listings closer than this many screen pixels at the asked zoom become one cluster. */
-export const MAP_CLUSTER_PX = 60;
+const MAP_CLUSTER_PX = 60;
 /** Cells one map response may carry; the densest come first. */
-export const MAP_MAX_CELLS = 400;
+const MAP_MAX_CELLS = 400;
 /** Widest viewport the map answers, in degrees (all of Mongolia is ~32° wide). */
-export const MAP_MAX_SPAN_DEG = 40;
+const MAP_MAX_SPAN_DEG = 40;
 /** How far past the asked dates the empty dated browse looks for free listings. */
-export const ALTERNATIVE_MAX_SHIFT_DAYS = 14;
-export const ALTERNATIVES = 3;
+const ALTERNATIVE_MAX_SHIFT_DAYS = 14;
+const ALTERNATIVES = 3;
 /** Landing counters are cached in-process this long. */
 const CACHE_MS = 5 * 60_000;
 const LIVE_SQL = `p.approval_status = 'APPROVED' AND p.is_draft = false AND p.deleted_at IS NULL
@@ -106,7 +99,6 @@ export class PostService {
     private readonly availability: AvailabilityService,
     private readonly people: PeopleService,
     private readonly contacts: ContactService,
-    @Optional() @Inject(UPHELD_REPORTS) private readonly upheld?: UpheldReportCounter,
   ) {}
 
   private get posts() {
@@ -382,15 +374,15 @@ export class PostService {
    * upheld report. Applies to edits only — a new listing always goes through review.
    */
   async isProvenProvider(userId: string): Promise<boolean> {
-    const rows = await this.ds.query<Array<{ approved: number; rejected: number }>>(
+    const rows = await this.ds.query<Array<{ approved: number; rejected: number; upheld: number }>>(
       `SELECT (SELECT COUNT(*)::int FROM posts WHERE user_id = $1 AND approval_status = 'APPROVED'
                  AND is_draft = false AND deleted_at IS NULL) AS approved,
-              (SELECT posts_rejected FROM users WHERE id = $1) AS rejected`,
+              (SELECT posts_rejected FROM users WHERE id = $1) AS rejected,
+              (SELECT COUNT(*)::int FROM reports WHERE owner_id = $1 AND action = 'TAKE_DOWN') AS upheld`,
       [userId],
     );
     const r = rows[0];
-    if (r.rejected > 0 || r.approved < env().POST_PROVEN_APPROVED) return false;
-    return ((await this.upheld?.countUpheld(userId)) ?? 0) === 0;
+    return r.rejected === 0 && r.upheld === 0 && r.approved >= env().POST_PROVEN_APPROVED;
   }
 
   /** Saves the fields; with `submit`, a draft is then sent for review in the same request. */
@@ -641,8 +633,10 @@ export class PostService {
   private order(qb: SelectQueryBuilder<Post>, sort: BrowseSort, search: SearchSql | null): void {
     switch (sort) {
       case 'nearby':
-        qb.orderBy('distance_m', 'ASC', 'NULLS LAST');
-        break;
+        // The KNN operator alone, so IDX_posts_geo walks outward from the viewer (a tie-breaker
+        // after it makes the planner compute every distance and sort). Unlocated listings come last.
+        qb.orderBy(`post.geo <-> ${PostService.POINT}`);
+        return;
       case 'price_asc':
         qb.orderBy('post.price_amount', 'ASC', 'NULLS LAST');
         break;
@@ -680,7 +674,10 @@ export class PostService {
       this.order(qb, sort, search);
       const total = await qb.getCount();
       if (total === 0 && i < modes.length - 1) continue;
-      if (total === 0) return this.emptyBrowse(q, attrs, terms, groups);
+      if (total === 0) {
+        if (page === 1) await this.recordMiss(q);
+        return this.emptyBrowse(q, attrs, terms, groups);
+      }
       const { entities, raw } = await qb
         .offset((page - 1) * limit)
         .limit(limit)
@@ -695,6 +692,17 @@ export class PostService {
       return { items, total, relaxed: mode !== 'all' };
     }
     return this.emptyBrowse(q, attrs, terms, groups);
+  }
+
+  /** Figma J7 "search gaps": a typed query that found nothing, counted per province and day. Never fails a browse. */
+  private async recordMiss(q: ListQueryDto): Promise<void> {
+    const text = (q.q ?? '').trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 120);
+    if (text.length < 2) return;
+    await this.ds.query(
+      `INSERT INTO search_misses (query, province, day) VALUES ($1, $2, (now() AT TIME ZONE 'Asia/Ulaanbaatar')::date)
+       ON CONFLICT (query, province, day) DO UPDATE SET count = search_misses.count + 1`,
+      [text, q.province ?? ''],
+    ).catch(() => undefined);
   }
 
   /** Live listings under the browse filters and one search mode; `distance_m` is selected when the viewer is located. */
@@ -960,22 +968,28 @@ export class PostService {
     const page = q.page ?? 1;
     const limit = q.limit ?? 50;
     const status = q.approval_status;
-    const where =
-      status === 'PENDING'
-        ? "(approval_status = 'PENDING' OR pending_revision IS NOT NULL)"
-        : status
-          ? 'approval_status = $3'
-          : 'TRUE';
-    const base = `FROM posts WHERE deleted_at IS NULL AND is_draft = false AND ${where}`;
-    const params: unknown[] = [limit, (page - 1) * limit];
-    if (status && status !== 'PENDING') params.push(status);
+    const filters: unknown[] = [];
+    const conds = ['deleted_at IS NULL', 'is_draft = false'];
+    if (status === 'PENDING') conds.push("(approval_status = 'PENDING' OR pending_revision IS NOT NULL)");
+    else if (status) {
+      filters.push(status);
+      conds.push(`approval_status = $${String(filters.length + 2)}`);
+    }
+    const text = q.q?.trim();
+    if (text) {
+      filters.push(`%${text.replace(/[%_\\]/g, (c) => `\\${c}`)}%`);
+      const n = `$${String(filters.length + 2)}`;
+      conds.push(`(title ILIKE ${n} OR category ILIKE ${n} OR user_id IN (SELECT id FROM users WHERE phone_number LIKE ${n}))`);
+    }
+    const base = `FROM posts WHERE ${conds.join(' AND ')}`;
+    const params: unknown[] = [limit, (page - 1) * limit, ...filters];
     const order =
       status === 'PENDING'
         ? "COALESCE((pending_revision->>'submitted_at')::timestamptz, date_created) ASC, id ASC"
         : 'date_created DESC, id DESC';
     const [ids, count] = await Promise.all([
       this.ds.query<Array<{ id: number }>>(`SELECT id ${base} ORDER BY ${order} LIMIT $1 OFFSET $2`, params),
-      this.ds.query<Array<{ n: number }>>(`SELECT COUNT(*)::int AS n ${base.replace('$3', '$1')}`, status && status !== 'PENDING' ? [status] : []),
+      this.ds.query<Array<{ n: number }>>(`SELECT COUNT(*)::int AS n ${base.replace(/\$(\d+)/g, (_, d: string) => `$${String(Number(d) - 2)}`)}`, filters),
     ]);
     const rows = await this.posts.findBy({ id: In(ids.map((r) => r.id)) });
     const byId = new Map(rows.map((p) => [p.id, p]));
@@ -1052,6 +1066,41 @@ export class PostService {
     const schema = await this.categories.get(category).catch(() => null);
     if (schema?.fields.some((f) => f.key === key)) return;
     err(BadRequestException, 'INVALID_FIELD_KEY', `Unknown field '${key}'`);
+  }
+
+  /**
+   * A report upheld (phase 9): the whole listing leaves browse, a pending edit included, and the
+   * owner is told like any rejection. Answers the title for the reporters' notices.
+   */
+  async takeDown(id: number, reason: string): Promise<{ title: string | null } | null> {
+    const reclaim: string[] = [];
+    const post = await this.ds.transaction(async (em) => {
+      const p = await em.getRepository(Post).findOne({ where: { id }, lock: { mode: 'pessimistic_write' } });
+      if (!p || p.deleted_at) return null;
+      if (p.pending_revision) reclaim.push(...p.pending_revision.images.filter((k) => !p.images.includes(k)));
+      p.pending_revision = null;
+      if (p.approval_status !== 'REJECTED' && p.user_id) {
+        await em.query('UPDATE users SET posts_rejected = posts_rejected + 1 WHERE id = $1', [p.user_id]);
+      }
+      p.approval_status = 'REJECTED';
+      p.is_featured = false;
+      p.rejection_reason = reason;
+      p.rejection_field = null;
+      p.previous_snapshot = null;
+      return em.getRepository(Post).save(p);
+    });
+    if (!post) return null;
+    await this.photos.delete(reclaim);
+    this.events.emit({ type: 'listing.rejected', post_id: post.id, user_id: post.user_id, title: post.title, revision: false, reason, field_key: null });
+    return { title: post.title };
+  }
+
+  /** List items for ids in that order (missing and deleted ids dropped). */
+  async itemsByIds(ids: number[]): Promise<Map<number, ListingListItem>> {
+    if (!ids.length) return new Map();
+    const rows = await this.posts.findBy({ id: In(ids) });
+    const items = await this.items(rows.filter((p) => !p.deleted_at));
+    return new Map(items.map((i) => [i.id, i]));
   }
 
   async reject(id: number, dto: RejectListingDto): Promise<AdminListing> {

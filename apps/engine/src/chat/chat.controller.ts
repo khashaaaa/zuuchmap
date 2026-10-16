@@ -5,20 +5,20 @@ import { CurrentUser, JwtAuthGuard } from '../auth/guards';
 import type { RequestUser } from '../auth/request-user';
 import { ChatService } from './chat.service';
 
-export class OpenConversationDto implements ConversationOpenRequest {
+class OpenConversationDto implements ConversationOpenRequest {
   @IsInt() @Min(1) post_id!: number;
   @IsOptional() @IsString() @MaxLength(MESSAGE_MAX_LENGTH) body?: string;
 }
 
-export class SendMessageDto implements MessageSendRequest {
+class SendMessageDto implements MessageSendRequest {
   @IsString() @MaxLength(MESSAGE_MAX_LENGTH) body!: string;
 }
 
-export class InboxQueryDto {
+class InboxQueryDto {
   @IsOptional() @IsISO8601() before?: string;
 }
 
-export class MessagesQueryDto {
+class MessagesQueryDto {
   @IsOptional() @IsISO8601() before?: string;
   @IsOptional() @IsUUID() before_id?: string;
 }

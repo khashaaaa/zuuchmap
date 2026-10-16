@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import type { MyListingItem } from '@zuuchmap/core';
 import { useCategoryLookup } from '@/lib/labels';
 import { useDocTitle } from '@/lib/meta';
-import { useToast } from '@/lib/toast';
 import { listingFacts, matchesFilter, useDeleteListing, useMyListings, useMyStats, type ListingFacts, type ListingFilter } from '@/lib/provider';
 import { useFormat } from '@/lib/useFormat';
 import { Banner } from '@/ui/Banner';
@@ -14,6 +13,7 @@ import { EmptyState } from '@/ui/EmptyState';
 import { Modal } from '@/ui/Modal';
 import { MyListingRow } from '@/ui/MyListingRow';
 import { QuotaMeter } from '@/ui/TabBar';
+import { FeatureFlow, type FeatureTarget } from './FeatureFlow';
 import { ListingActionsSheet, type ListingAction } from './ListingActionsSheet';
 import { PageHead, ProviderOnly } from './Page';
 import { RenewSheet, type RenewTarget } from './RenewSheet';
@@ -25,7 +25,6 @@ function Lists() {
   const { t } = useTranslation();
   const f = useFormat();
   const nav = useNavigate();
-  const toast = useToast();
   const [sp, setSp] = useSearchParams();
   const q = useMyListings();
   const stats = useMyStats();
@@ -34,6 +33,7 @@ function Lists() {
   const [menu, setMenu] = useState<MyListingItem | null>(null);
   const [confirm, setConfirm] = useState<MyListingItem | null>(null);
   const [renew, setRenew] = useState<RenewTarget | null>(null);
+  const [feature, setFeature] = useState<FeatureTarget | null>(null);
   useDocTitle(t('prov.tab.listings'));
 
   // A notification about a lapsing listing opens here with `?renew=<id>`: the renew sheet, then the query goes.
@@ -125,7 +125,7 @@ function Lists() {
             {...common}
             status="live"
             meta={[t('prov.listings.stats', { views: s?.views ?? item.views, saves: s?.saves ?? 0, contacts: s?.contacts ?? 0 }), facts.expiring && facts.daysLeft !== null ? t('prov.perf.daysLeft', { count: facts.daysLeft }) : ''].filter(Boolean).join(' · ')}
-            action={facts.expiring ? { label: t('prov.home.renew'), icon: 'refresh-cw', onClick: renewTarget } : { label: t('prov.actions.feature'), icon: 'star', onClick: () => toast.info(t('prov.actions.featureSoon')) }}
+            action={facts.expiring ? { label: t('prov.home.renew'), icon: 'refresh-cw', onClick: renewTarget } : { label: t('prov.actions.feature'), icon: 'star', onClick: () => setFeature(item) }}
           />
         );
     }
@@ -147,7 +147,7 @@ function Lists() {
     setMenu(null);
     if (a === 'edit') edit(it, facts);
     else if (a === 'copy') void nav(`/provider/new?copy=${it.id}`);
-    else if (a === 'feature') toast.info(t('prov.actions.featureSoon'));
+    else if (a === 'feature') setFeature(it);
     else if (a === 'block') void nav(`/provider/block?post=${it.id}`);
     else if (a === 'perf') void nav(`/provider/listings/${it.id}/performance`);
     else setConfirm(it);
@@ -157,7 +157,7 @@ function Lists() {
     <div className="flex flex-col gap-2.5 rounded-xl border border-border-subtle bg-bg-surface p-4">
       <div className="flex items-center gap-3">
         <p className="min-w-0 flex-1 text-label-strong text-text-primary">{t('prov.listings.plan', { plan: planName, limit: plan.post_limit, used: plan.active_posts })}</p>
-        <button type="button" onClick={() => toast.info(t('ui.prov.planSoon'))} className="inline-flex h-10 items-center text-label-strong text-text-link focus-visible:outline-none focus-visible:shadow-focus">{t('prov.listings.upgrade')}</button>
+        <button type="button" onClick={() => void nav('/provider/billing')} className="inline-flex h-10 items-center text-label-strong text-text-link focus-visible:outline-none focus-visible:shadow-focus">{t('prov.listings.upgrade')}</button>
       </div>
       <QuotaMeter used={plan.active_posts} total={plan.post_limit} />
     </div>
@@ -196,6 +196,7 @@ function Lists() {
         </aside>
       </div>
 
+      <FeatureFlow target={feature} onClose={() => setFeature(null)} />
       <ListingActionsSheet
         item={menu}
         facts={menu ? listingFacts(menu) : null}

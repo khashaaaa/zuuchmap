@@ -131,10 +131,14 @@ export function Shell() {
   };
 
   const providerMode = !!user && (user.type === 'PROVIDER' ? PROVIDER_PATHS.test(loc.pathname) : loc.pathname.startsWith('/provider'));
+  // The admin frame brings its own sidebar and tabs.
+  const adminMode = loc.pathname.startsWith('/admin');
 
   return (
     <div className="min-h-dvh">
-      {providerMode ? (
+      {adminMode ? (
+        <Outlet />
+      ) : providerMode ? (
         <ProviderFrame unread={unread} onBell={() => setPanel((o) => !o)} />
       ) : (
         <>

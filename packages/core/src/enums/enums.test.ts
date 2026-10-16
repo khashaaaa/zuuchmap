@@ -11,7 +11,7 @@ test('place names cover every code with mn and en', () => {
 
 test('price units, report reasons, error codes', () => {
   assert.equal(PRICE_UNITS.length, 11);
-  assert.equal(REPORT_REASONS.length, 6);
+  assert.equal(REPORT_REASONS.length, 11);
   assert.equal(ERROR_CODES.length, new Set(ERROR_CODES).size);
   assert.ok(ERROR_CODES.length >= 46);
   assert.ok(ERROR_CODES.every((c) => /^[A-Z][A-Z0-9]*(_[A-Z0-9]+)+$/.test(c)));

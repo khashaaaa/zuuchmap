@@ -44,7 +44,7 @@ export const flattenNotifications = (pages: AppNotification[][] | undefined): Ap
 /** The shell's counts (bell, Чат, a provider's quota) in one request; each hook selects its part of the shared entry. */
 const useBadges = <T,>(select: (b: Badges) => T) => {
   const { token } = useAuth();
-  return useQuery({ queryKey: ['badges'], queryFn: () => api<Badges>('/notifications/badges'), enabled: !!token, select });
+  return useQuery({ queryKey: ['badges', token], queryFn: () => api<Badges>('/notifications/badges'), enabled: !!token, select });
 };
 const pickNotifications = (b: Badges): number => b.notifications;
 const pickChat = (b: Badges): number => b.chat;
@@ -125,6 +125,7 @@ const ROW_TYPE: Record<NotificationKind, NotificationType> = {
   LISTING_SUBMITTED: 'approved', LISTING_APPROVED: 'approved', LISTING_REJECTED: 'rejected', LISTING_EXPIRING: 'expiring', LISTING_EXPIRED: 'expiring',
   BOOKING_REQUESTED: 'booking', BOOKING_ACCEPTED: 'booking', BOOKING_DECLINED: 'booking', BOOKING_CANCELLED: 'booking', BOOKING_EXPIRED: 'expiring', BOOKING_REMINDER: 'booking',
   REVIEW_PROMPT: 'review', REVIEW_CREATED: 'review', REVIEW_REPLIED: 'review', SAVED_SEARCH_MATCH: 'savedSearch', MESSAGE_CREATED: 'message',
+  PAYMENT_PAID: 'approved', REPORT_RESOLVED: 'report', BROADCAST: 'message',
 };
 export const rowType = (kind: NotificationKind): NotificationType => ROW_TYPE[kind] ?? 'booking';
 
@@ -149,6 +150,7 @@ export function openTarget(nav: Navigator, target: NotificationTarget): void {
       else nav.navigate('Tabs', { screen: 'saved', params: { seg: 'searches' } });
       return;
     case 'chat': nav.navigate('Thread', { id: target.conversation_id }); return;
+    case 'payments': nav.navigate(provider ? 'Billing' : 'Notifications'); return;
     case 'notifications': nav.navigate('Notifications'); return;
   }
 }

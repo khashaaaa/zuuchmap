@@ -38,7 +38,7 @@ async function locate(): Promise<void> {
 }
 
 /** Ask once per run (the system remembers a refusal); safe to call from every screen that needs a position. */
-export function requestLocation(force = false): Promise<void> {
+function requestLocation(force = false): Promise<void> {
   if (inflight) return inflight;
   if (state.asked && !force) return Promise.resolve();
   inflight = (async () => {

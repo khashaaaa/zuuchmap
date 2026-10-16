@@ -52,9 +52,9 @@ export function MyListingRow({ title, status, categoryKey, categoryIcon = 'packa
         <StatusBadge status={status} />
         <Text style={[type.bodyBold, { color: colors.textPrimary }]} numberOfLines={2}>{title}</Text>
         {parts ? (
-          <View style={{ flexDirection: 'row', alignItems: 'baseline', flexShrink: 1 }}>
-            <Text style={[type.labelStrong, { color: colors.textPrimary }]}>{parts.amount}</Text>
-            {parts.unit ? <Text style={[type.body, { color: colors.textSecondary }]} numberOfLines={1}>{` / ${parts.unit}`}</Text> : null}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', flexShrink: 1 }}>
+            <Text style={[type.labelStrong, { color: colors.textPrimary, flexShrink: 1 }]} numberOfLines={1} adjustsFontSizeToFit>{parts.amount}</Text>
+            {parts.unit ? <Text style={[type.body, { color: colors.textSecondary, flexShrink: 1 }]} numberOfLines={1}>{` / ${parts.unit}`}</Text> : null}
           </View>
         ) : null}
         {meta ? <Text style={[type.small, { color: colors.textSecondary }]}>{meta}</Text> : null}

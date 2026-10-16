@@ -6,6 +6,7 @@ import {
   ExternalLink, Eye, FileText, Filter, Flag, Heart, Home, Image, Info, LayoutGrid, List, Locate, LogOut, Map,
   MapPin, Megaphone, MessageCircle, Minus, MoreHorizontal, Package, Pencil, Phone, Plus, RefreshCw, Search, Send,
   Settings, Share2, ShieldCheck, Siren, Navigation, Globe, Lock, SlidersHorizontal, Star, Trash2, TrendingUp, Truck, User, Users, WifiOff, Wrench, X,
+  CreditCard, Sparkles, Mail, HelpCircle, UserX, Inbox,
 } from 'lucide-react-native';
 
 export interface IconGlyphProps {
@@ -28,6 +29,7 @@ const ICONS = {
   'log-out': LogOut, 'shield-check': ShieldCheck, 'trending-up': TrendingUp, 'layout-grid': LayoutGrid,
   'file-text': FileText, users: Users, 'bar-chart-3': BarChart3, megaphone: Megaphone, filter: Filter,
   'refresh-cw': RefreshCw, siren: Siren, navigation: Navigation, globe: Globe, lock: Lock, copy: Copy, 'external-link': ExternalLink, 'check-check': CheckCheck, circle: Circle,
+  'credit-card': CreditCard, sparkles: Sparkles, mail: Mail, 'help-circle': HelpCircle, 'user-x': UserX, inbox: Inbox,
 } satisfies Record<string, ComponentType<IconGlyphProps>>;
 
 export type IconName = keyof typeof ICONS;

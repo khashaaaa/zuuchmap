@@ -5,7 +5,7 @@ import { toPublicCompany, type CompanyRow } from '../company/company.service';
 import { LANDING_REPLY_MIN_THREADS, REPLY_TIME_MIN_THREADS, type PublicUser, type UserType } from '@zuuchmap/core';
 
 /** The window reply time is measured over. */
-export const REPLY_WINDOW_DAYS = 30;
+const REPLY_WINDOW_DAYS = 30;
 
 interface UserRow {
   id: string;

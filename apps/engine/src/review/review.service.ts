@@ -27,7 +27,7 @@ const ORDER: Record<ReviewSort, string> = {
 };
 
 /** Reviews shown on the seller page before "all reviews". */
-export const SELLER_PAGE_REVIEWS = 3;
+const SELLER_PAGE_REVIEWS = 3;
 
 /**
  * Reviews of providers: one per author and provider, editable (an upsert). Allowed after a
@@ -56,6 +56,19 @@ export class ReviewService {
       date_created: r.date_created.toISOString(),
       date_updated: r.date_updated.toISOString(),
     }));
+  }
+
+  /** Reviews by id (phase 9 report queue); deleted ids are absent. */
+  async byIds(ids: number[]): Promise<Map<number, Review>> {
+    if (!ids.length) return new Map();
+    const rows = await this.ds.query<ReviewRow[]>('SELECT * FROM reviews WHERE id = ANY($1::int[])', [ids]);
+    return new Map((await this.views(rows)).map((r) => [r.id, r]));
+  }
+
+  /** A report upheld: the review goes. Answers whether it existed. */
+  async takeDown(id: number): Promise<boolean> {
+    const res = await this.ds.query<[unknown, number]>('DELETE FROM reviews WHERE id = $1', [id]);
+    return res[1] > 0;
   }
 
   async canReview(authorId: string, providerId: string): Promise<boolean> {

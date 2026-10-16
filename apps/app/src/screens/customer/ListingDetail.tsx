@@ -11,7 +11,7 @@ import { themedStyles, useAppTheme } from '../../design/theme';
 import { api, errorText, isMissing } from '../../lib/api';
 import { getBrowse, placeLabel, setBrowse } from '../../lib/browse';
 import { shortDate } from '../../lib/dates';
-import { replyText, serviceAreaText, useOpenChat } from '../../lib/deal';
+import { displayName, replyText, serviceAreaText, useOpenChat } from '../../lib/deal';
 import { useAvailability, useCategories, useListing, useSaves, useSimilar } from '../../lib/queries';
 import { recordCall, track } from '../../lib/track';
 import type { Nav, RootStackParamList } from '../../nav';
@@ -23,8 +23,10 @@ import { IconButton } from '../../ui/IconButton';
 import { LISTING_ACTION_BAR_HEIGHT, ListingActionBar } from '../../ui/ListingActionBar';
 import { SellerCard } from '../../ui/SellerCard';
 import { SkeletonListingRow } from '../../ui/SkeletonListingRow';
-import { useToast } from '../../ui/Toast';
+import { useToast, useToastClearance } from '../../ui/Toast';
 import { useLocale } from '../../ui/useLocale';
+import { ReportSheet } from './ReportSheet';
+import { useAuth } from '../../lib/auth';
 import { AvailabilitySheet, BookingSheet, ShareSheet, useIsBooked } from './DetailSheets';
 import { ListingRow } from './ListingRow';
 import { useRequireAuth } from './SignInFlow';
@@ -36,11 +38,13 @@ const useStyles = themedStyles((t) => ({
   barTitle: { ...t.type.h3, color: t.colors.textPrimary, flex: 1 },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   metaText: { ...t.type.caption, color: t.colors.textSecondary },
-  price: { ...t.type.display, color: t.colors.textPrimary },
+  priceRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 6 },
+  price: { ...t.type.display, color: t.colors.textPrimary, flexShrink: 1 },
   priceUnit: { ...t.type.body, color: t.colors.textSecondary },
   avail: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: t.radius.lg },
   availText: { ...t.type.labelStrong, color: t.colors.textPrimary, flex: 1 },
   link: { ...t.type.labelStrong, color: t.colors.textLink },
+  reportText: { ...t.type.label, color: t.colors.textSecondary },
   h: { ...t.type.h3, color: t.colors.textPrimary },
   specs: { flexDirection: 'row', flexWrap: 'wrap', padding: 16, rowGap: 14, borderRadius: t.radius.card, backgroundColor: t.colors.bgSurface, borderWidth: 1, borderColor: t.colors.borderSubtle },
   spec: { width: '50%', gap: 2, paddingRight: 8 },
@@ -98,13 +102,17 @@ export function ListingDetail() {
   const scrollY = useRef(new Animated.Value(0)).current;
   const [solid, setSolid] = useState(false);
   const toast = useToast();
+  const clearance = useToastClearance();
+  // The bar grows when large text wraps it onto two lines; the content's end stays clear of it.
+  const [barHeight, setBarHeight] = useState(LISTING_ACTION_BAR_HEIGHT + insets.bottom);
   const requireAuth = useRequireAuth();
   const openChat = useOpenChat();
   const { params } = useRoute<RouteProp<RootStackParamList, 'ListingDetail'>>();
   const query = useListing(params.id);
   const categories = useCategories();
   const { isSaved, toggle } = useSaves();
-  const [sheet, setSheet] = useState<null | 'share' | 'book' | 'calendar'>(null);
+  const [sheet, setSheet] = useState<null | 'share' | 'book' | 'calendar' | 'report'>(null);
+  const me = useAuth().user?.id;
   const [heroIdx, setHeroIdx] = useState(0);
   const { width } = Dimensions.get('window');
 
@@ -199,12 +207,12 @@ export function ListingDetail() {
     .filter((x): x is { f: CategoryView['fields'][number]; v: string } => x.v !== null)
     .slice(0, 8);
   const url = directionsUrl(full ?? (listing as Listing));
-  const sellerName = listing.user?.company?.name ?? [listing.user?.parent_name, listing.user?.given_name].filter(Boolean).join(' ');
+  const sellerName = displayName(listing.user);
 
   return (
     <View style={s.screen}>
       <Animated.ScrollView
-        contentContainerStyle={{ paddingBottom: LISTING_ACTION_BAR_HEIGHT + insets.bottom + 24 }}
+        contentContainerStyle={{ paddingBottom: barHeight + 24 }}
         scrollEventThrottle={16}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
           useNativeDriver: true,
@@ -252,11 +260,12 @@ export function ListingDetail() {
             <Text style={s.metaText} accessibilityLabel={`${t('analytics.views')}: ${listing.views}`}>{String(listing.views)}</Text>
           </View>
           {parts ? (
-            <Text style={s.price}>
-              {parts.amount}
-              {parts.unit ? <Text style={s.priceUnit}>{` / ${parts.unit}`}</Text> : null}
-              {withOperator ? <Text style={s.priceUnit}>{`, ${operatorField.label.toLowerCase()}`}</Text> : null}
-            </Text>
+            <View style={s.priceRow}>
+              <Text style={s.price} numberOfLines={1} adjustsFontSizeToFit>{parts.amount}</Text>
+              {parts.unit || withOperator ? (
+                <Text style={s.priceUnit}>{`${parts.unit ? `/ ${parts.unit}` : ''}${withOperator ? `, ${operatorField.label.toLowerCase()}` : ''}`}</Text>
+              ) : null}
+            </View>
           ) : null}
 
           {rentable ? (
@@ -283,6 +292,12 @@ export function ListingDetail() {
             replyText={replyText(t, listing.user?.reply_minutes)}
             onPress={listing.user?.id ? () => nav.navigate('Seller', { id: listing.user!.id }) : undefined}
           />
+          {listing.user?.id !== me ? (
+            <Pressable accessibilityRole="button" hitSlop={8} onPress={() => requireAuth('report', () => setSheet('report'))} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', minHeight: 40 }}>
+              <Icon name="flag" size={16} color={colors.iconSecondary} />
+              <Text style={s.reportText}>{t('report.action')}</Text>
+            </Pressable>
+          ) : null}
 
           {specs.length > 0 ? (
             <View style={{ gap: 10 }}>
@@ -363,9 +378,11 @@ export function ListingDetail() {
         onCall={call}
         onMessage={chat}
         pending={pending}
+        onLayout={(e) => { clearance(e); setBarHeight(e.nativeEvent.layout.height); }}
       />
 
       <ShareSheet visible={sheet === 'share'} onClose={() => setSheet(null)} listing={{ id: listing.id, title: listing.title }} />
+      <ReportSheet target={sheet === 'report' ? { kind: 'POST', post_id: listing.id, title: listing.title } : null} onClose={() => setSheet(null)} />
       <AvailabilitySheet visible={sheet === 'calendar'} onClose={() => setSheet(null)} isBooked={isBooked} />
       {full ? <BookingSheet visible={sheet === 'book'} onClose={() => setSheet(null)} listing={full} initial={searchDates ?? undefined} onNeedsAuth={book} /> : null}
     </View>

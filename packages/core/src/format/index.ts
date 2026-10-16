@@ -179,3 +179,9 @@ export const replyTimeKey = (minutes: number): { key: 'deal.replyMinutes' | 'dea
 
 /** What a booking is worth to its provider: the per-day total, else the quoted price (one trip, one project). */
 export const bookingValue = (b: { total: number | null; price_amount: unknown }): number => b.total ?? priceValue(b.price_amount) ?? 0;
+
+/** How a person is named everywhere (the engine's notification copy agrees): the company when there is one, else "parent given", else `fallback`. */
+export const displayName = (
+  u: { company?: { name?: string | null } | null; parent_name?: string | null; given_name?: string | null } | null | undefined,
+  fallback = '',
+): string => u?.company?.name || [u?.parent_name, u?.given_name].filter(Boolean).join(' ') || fallback;

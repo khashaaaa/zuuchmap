@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next';
 import { ANALYTICS_EVENTS, countDays, formatDate, priceForDays, type Listing } from '@zuuchmap/core';
 import { api, ApiError } from '@/lib/api';
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, useAuthStore } from '@/lib/auth';
 import { displayName, useOpenChat, useReplyNote } from '@/lib/deals';
 import { useCategoryLookup, useOptionLabel, usePlace } from '@/lib/labels';
 import { recordCall } from '@/lib/provider';
@@ -27,6 +27,7 @@ import { SkeletonListingRow } from '@/ui/SkeletonListingRow';
 import { ListingRow } from './ListingRow';
 import { AvailabilitySheet } from './sheets/AvailabilitySheet';
 import { BookingSheet } from './sheets/BookingSheet';
+import { ReportSheet } from './sheets/ReportSheet';
 import { ShareSheet } from './sheets/ShareSheet';
 
 /** Consecutive `YYYY-MM-DD` days folded into ranges. */
@@ -73,7 +74,8 @@ function Detail({ listing }: { listing: Listing }) {
   const similar = useSimilar(listing.id);
   const openChat = useOpenChat();
   const replyNote = useReplyNote();
-  const [sheet, setSheet] = useState<'share' | 'book' | 'calendar' | null>(() => (sp.get('book') ? 'book' : null));
+  const [sheet, setSheet] = useState<'share' | 'book' | 'calendar' | 'report' | null>(() => (sp.get('book') ? 'book' : null));
+  const me = useAuthStore((s) => s.user?.id);
   const cat = cats.byKey.get(listing.category);
   const sub = cat?.subcategories.find((s) => s.value === listing.subcategory)?.label;
   useDocTitle(listing.title);
@@ -275,6 +277,12 @@ function Detail({ listing }: { listing: Listing }) {
             <Button variant="outline" size="medium" icon="share-2" onClick={() => setSheet('share')}>{t('customer.share.title')}</Button>
             <Button variant="outline" size="medium" icon="bookmark" className={cn(saved && "[&_svg]:fill-current")} onClick={() => saves.toggle(listing)}>{t('common.save')}</Button>
           </div>
+          {seller?.id !== me && (
+            <button type="button" onClick={() => requireAuth('generic', () => setSheet('report'))} className="inline-flex h-10 items-center gap-1.5 self-start text-label text-text-secondary hover:text-text-primary focus-visible:outline-none focus-visible:shadow-focus">
+              <Icon name="flag" size={16} />
+              {t('report.action')}
+            </button>
+          )}
         </aside>
       </div>
 
@@ -289,6 +297,7 @@ function Detail({ listing }: { listing: Listing }) {
         className="lg:hidden"
       />
       <ShareSheet open={sheet === 'share'} onClose={() => setSheet(null)} url={url} title={listing.title ?? ''} />
+      <ReportSheet target={sheet === 'report' ? { kind: 'POST', post_id: listing.id, title: listing.title } : null} onClose={() => setSheet(null)} />
       <BookingSheet open={sheet === 'book'} onClose={() => setSheet(null)} listing={listing} initial={dFrom && dTo && !clash ? { start: dFrom, end: dTo } : undefined} />
       <AvailabilitySheet open={sheet === 'calendar'} onClose={() => setSheet(null)} listing={listing} />
     </div>

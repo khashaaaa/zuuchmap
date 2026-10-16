@@ -216,6 +216,10 @@ export class Schema1760500000000 implements MigrationInterface {
     // The fuzzy retry's `:term <% lower(title)` (pg_trgm word similarity, threshold set per connection).
     await q.query('CREATE INDEX "IDX_posts_title_trgm" ON "posts" USING GIN (lower("title") gin_trgm_ops)');
     await q.query('CREATE INDEX "IDX_posts_geo" ON "posts" USING GIST ("geo")');
+    // The price sorts, in browse's exact order, over the rows that can be live.
+    const SELLABLE = `WHERE "approval_status" = 'APPROVED' AND "is_draft" = false AND "deleted_at" IS NULL`;
+    await q.query(`CREATE INDEX "IDX_posts_price_asc" ON "posts" ("price_amount" ASC NULLS LAST, "date_created" DESC, "id" DESC) ${SELLABLE}`);
+    await q.query(`CREATE INDEX "IDX_posts_price_desc" ON "posts" ("price_amount" DESC NULLS LAST, "date_created" DESC, "id" DESC) ${SELLABLE}`);
 
     // One per viewer per listing, ever; `counted` is false for the owner and admins.
     await q.query(`
@@ -236,6 +240,8 @@ export class Schema1760500000000 implements MigrationInterface {
     await q.query('CREATE INDEX "IDX_post_views_ip" ON "post_views" ("post_id", "ip_key", "date_viewed") WHERE "ip_key" IS NOT NULL');
     // The performance windows read counted views by date.
     await q.query('CREATE INDEX "IDX_post_views_post_date" ON "post_views" ("post_id", "date_viewed") WHERE "counted"');
+    // Deleting an account cascades here; the largest table must not be scanned for it.
+    await q.query('CREATE INDEX "IDX_post_views_user" ON "post_views" ("user_id") WHERE "user_id" IS NOT NULL');
 
     // An account's saved listings (guests keep theirs on the device and merge them at sign-in).
     await q.query(`
@@ -384,6 +390,8 @@ export class Schema1760500000000 implements MigrationInterface {
       )
     `);
     await q.query('CREATE INDEX "IDX_messages_conversation" ON "messages" ("conversation_id", "date_created" DESC, "id" DESC)');
+    // Deleting an account nulls its messages' sender.
+    await q.query('CREATE INDEX "IDX_messages_sender" ON "messages" ("sender_id")');
 
     // One per author and provider (an upsert), with the provider's one public reply.
     await q.query(`
@@ -403,6 +411,7 @@ export class Schema1760500000000 implements MigrationInterface {
     `);
     await q.query('CREATE UNIQUE INDEX "UQ_reviews_provider_author" ON "reviews" ("provider_id", "author_id")');
     await q.query('CREATE INDEX "IDX_reviews_provider_created" ON "reviews" ("provider_id", "date_created" DESC)');
+    await q.query('CREATE INDEX "IDX_reviews_author" ON "reviews" ("author_id")');
 
     // ── Notifications ───────────────────────────────────────────────────────────────────────
     // The centre (Figma I3). `data` holds the facts copied at the event; the words are rendered
@@ -456,11 +465,114 @@ export class Schema1760500000000 implements MigrationInterface {
     `);
     await q.query('CREATE UNIQUE INDEX "UQ_push_devices_token" ON "push_devices" ("token")');
     await q.query('CREATE INDEX "IDX_push_devices_user" ON "push_devices" ("user_id")');
+
+    // ── Payments (phase 8) ──────────────────────────────────────────────────────────────────
+    // A plan (`plan`, `months`) or a featured placement (`post_id`, `days`). The row is written
+    // before QPay is called, so an invoice that QPay created but we never heard back about can
+    // still be settled by the sweep. `granted_at` is set once, in the same UPDATE that marks it
+    // PAID, so a callback and a poll racing each other grant once. MANUAL = an admin grant.
+    await q.query(`
+      CREATE TABLE "payments" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "user_id" uuid NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+        "kind" varchar(16) NOT NULL,
+        "plan" varchar(16),
+        "months" smallint NOT NULL DEFAULT 0,
+        "post_id" integer REFERENCES "posts"("id") ON DELETE SET NULL,
+        "post_title" varchar,
+        "days" smallint,
+        "amount" integer NOT NULL,
+        "currency" varchar(3) NOT NULL DEFAULT 'MNT',
+        "provider" varchar(8) NOT NULL,
+        "status" varchar(16) NOT NULL DEFAULT 'PENDING',
+        "provider_invoice_id" varchar,
+        "reference" varchar(16),
+        "qr_text" text,
+        "qr_image" text,
+        "urls" jsonb NOT NULL DEFAULT '[]',
+        "expires_at" timestamptz,
+        "paid_at" timestamptz,
+        "granted_at" timestamptz,
+        "granted_until" timestamptz,
+        "granted_by" uuid REFERENCES "users"("id") ON DELETE SET NULL,
+        "note" varchar(300),
+        "date_created" timestamptz NOT NULL DEFAULT now(),
+        "date_updated" timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT "CHK_payments_kind" CHECK ("kind" IN ('PLAN','FEATURED')),
+        CONSTRAINT "CHK_payments_provider" CHECK ("provider" IN ('QPAY','MANUAL')),
+        CONSTRAINT "CHK_payments_status" CHECK ("status" IN ('PENDING','PAID','EXPIRED','CANCELLED')),
+        CONSTRAINT "CHK_payments_amount" CHECK ("amount" >= 0)
+      )
+    `);
+    await q.query('CREATE INDEX "IDX_payments_user_created" ON "payments" ("user_id", "date_created" DESC)');
+    await q.query(`CREATE INDEX "IDX_payments_pending" ON "payments" ("date_created") WHERE "status" = 'PENDING'`);
+    await q.query('CREATE UNIQUE INDEX "UQ_payments_reference" ON "payments" ("reference") WHERE "reference" IS NOT NULL');
+
+    // ── Reports (phase 9) ───────────────────────────────────────────────────────────────────
+    // About a listing or a review. Owner and subject text are copied at filing, so deleting the
+    // listing or review keeps the report readable. One OPEN report per reporter per subject.
+    await q.query(`
+      CREATE TABLE "reports" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "reporter_id" uuid REFERENCES "users"("id") ON DELETE SET NULL,
+        "kind" varchar(8) NOT NULL,
+        "post_id" integer REFERENCES "posts"("id") ON DELETE SET NULL,
+        "review_id" integer REFERENCES "reviews"("id") ON DELETE SET NULL,
+        "subject_key" varchar(32) NOT NULL,
+        "owner_id" uuid REFERENCES "users"("id") ON DELETE SET NULL,
+        "subject" varchar(1000),
+        "reason" varchar(16) NOT NULL,
+        "detail" varchar(1000),
+        "status" varchar(16) NOT NULL DEFAULT 'OPEN',
+        "action" varchar(16),
+        "resolution" varchar(1000),
+        "resolved_by" uuid REFERENCES "users"("id") ON DELETE SET NULL,
+        "resolved_at" timestamptz,
+        "date_created" timestamptz NOT NULL DEFAULT now(),
+        "date_updated" timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT "CHK_reports_kind" CHECK ("kind" IN ('POST','REVIEW')),
+        CONSTRAINT "CHK_reports_status" CHECK ("status" IN ('OPEN','RESOLVED','DISMISSED')),
+        CONSTRAINT "CHK_reports_action" CHECK ("action" IS NULL OR "action" IN ('KEEP','TAKE_DOWN'))
+      )
+    `);
+    await q.query(`CREATE UNIQUE INDEX "UQ_reports_open_per_reporter" ON "reports" ("reporter_id", "subject_key") WHERE "status" = 'OPEN'`);
+    await q.query('CREATE INDEX "IDX_reports_subject" ON "reports" ("subject_key", "status")');
+    await q.query('CREATE INDEX "IDX_reports_status_created" ON "reports" ("status", "date_created")');
+    await q.query('CREATE INDEX "IDX_reports_owner_action" ON "reports" ("owner_id") WHERE "action" = \'TAKE_DOWN\'');
+
+    // ── Search gaps (phase 9) ───────────────────────────────────────────────────────────────
+    // Searches that found nothing, counted per normalised query, province and Ulaanbaatar day
+    // (Figma J7 "Хайлтын дутагдал"). No user, no address: only the words.
+    await q.query(`
+      CREATE TABLE "search_misses" (
+        "query" varchar(120) NOT NULL,
+        "province" varchar(32) NOT NULL DEFAULT '',
+        "day" date NOT NULL,
+        "count" integer NOT NULL DEFAULT 1,
+        PRIMARY KEY ("query", "province", "day")
+      )
+    `);
+
+    // ── Broadcasts (phase 9) ────────────────────────────────────────────────────────────────
+    // What an admin sent, to whom and how many devices it reached (Figma J10d, J12d).
+    await q.query(`
+      CREATE TABLE "broadcasts" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "title" varchar(80) NOT NULL,
+        "body" varchar(300) NOT NULL,
+        "audience" varchar(16) NOT NULL,
+        "category" varchar,
+        "users" integer NOT NULL DEFAULT 0,
+        "devices" integer NOT NULL DEFAULT 0,
+        "sent_by" uuid REFERENCES "users"("id") ON DELETE SET NULL,
+        "date_created" timestamptz NOT NULL DEFAULT now()
+      )
+    `);
   }
 
   async down(q: QueryRunner): Promise<void> {
     for (const table of [
-      'push_devices', 'notification_outbox', 'notifications', 'reviews', 'messages', 'conversations', 'post_busy', 'bookings',
+      'broadcasts', 'search_misses', 'reports', 'payments', 'push_devices', 'notification_outbox', 'notifications', 'reviews', 'messages', 'conversations', 'post_busy', 'bookings',
       'saved_searches', 'post_contacts', 'post_likes', 'post_views', 'posts', 'category_schema',
       'companies', 'auth_sessions', 'trusted_device', 'verification_session', 'users',
     ]) {

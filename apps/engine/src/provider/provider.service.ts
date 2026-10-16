@@ -1,14 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
-import type { ProviderHome } from '@zuuchmap/core';
+import { EXPIRY_WARNING_DAYS, type ProviderHome } from '@zuuchmap/core';
 import type { RequestUser } from '../auth/request-user';
 import { BookingService } from '../booking/booking.service';
 import { CompanyService } from '../company/company.service';
 import { PeopleService } from '../people/people.service';
 import { ContactService } from '../post/contact.service';
 import { PostService } from '../post/post.service';
-import { EXPIRY_WARNING_DAYS } from '../post/post-expiry.service';
 
 /** E1 and the R4 account screen: everything a provider sees on either, in one request. */
 @Injectable()

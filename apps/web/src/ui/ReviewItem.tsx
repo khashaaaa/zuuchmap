@@ -11,11 +11,13 @@ export interface ReviewItemProps {
   providerName: string;
   /** Reply / edit-reply action (the reviewed provider only). */
   onReply?: () => void;
+  /** Anyone but the author may report a review (Figma R6). */
+  onReport?: () => void;
   /** Edit action (the author only). */
   onEdit?: () => void;
 }
 
-export function ReviewItem({ review, providerName, onReply, onEdit }: ReviewItemProps) {
+export function ReviewItem({ review, providerName, onReply, onEdit, onReport }: ReviewItemProps) {
   const { t } = useTranslation();
   const f = useFormat();
   const author = displayName(review.author) || review.author.phone_number || '';
@@ -37,10 +39,11 @@ export function ReviewItem({ review, providerName, onReply, onEdit }: ReviewItem
           <p className="whitespace-pre-wrap break-words text-caption text-text-secondary">{review.reply}</p>
         </div>
       )}
-      {(onReply || onEdit) && (
+      {(onReply || onEdit || onReport) && (
         <div className="flex gap-4">
           {onReply && <button type="button" onClick={onReply} className={link}>{review.reply ? t('deal.review.replyEdit') : t('deal.review.replyTitle')}</button>}
           {onEdit && <button type="button" onClick={onEdit} className={link}>{t('review.editRating')}</button>}
+          {onReport && <button type="button" onClick={onReport} className={link}>{t('report.action')}</button>}
         </div>
       )}
     </article>

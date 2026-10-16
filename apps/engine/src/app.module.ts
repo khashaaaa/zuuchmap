@@ -4,6 +4,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AdminModule } from './admin/admin.module';
 import { AuthModule } from './auth/auth.module';
 import { AccountThrottlerGuard } from './auth/guards';
 import { CategoryModule } from './category/category.module';
@@ -13,11 +14,13 @@ import { dataSourceOptions } from './database/data-source';
 import { EventsModule } from './events/events.module';
 import { HealthController } from './health/health.controller';
 import { NotificationModule } from './notification/notification.module';
+import { PaymentModule } from './payment/payment.module';
 import { PostModule } from './post/post.module';
 import { ProviderModule } from './provider/provider.module';
 import { BookingModule } from './booking/booking.module';
 import { ChatModule } from './chat/chat.module';
 import { CompanyModule } from './company/company.module';
+import { ReportModule } from './report/report.module';
 import { ReviewModule } from './review/review.module';
 import { RedisModule } from './redis/redis.module';
 import { UserModule } from './user/user.module';
@@ -54,6 +57,9 @@ import { UserModule } from './user/user.module';
     ReviewModule,
     ProviderModule,
     NotificationModule,
+    PaymentModule,
+    ReportModule,
+    AdminModule,
   ],
   controllers: [HealthController],
   providers: [

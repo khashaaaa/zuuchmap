@@ -19,11 +19,14 @@ import { SkeletonListingRow } from '../../ui/SkeletonListingRow';
 import { useToast } from '../../ui/Toast';
 import { useLocale } from '../../ui/useLocale';
 import { fieldLabel } from './Home';
+import { FeatureSheet, type FeatureTarget } from './FeatureSheet';
 import { RenewSheet, type RenewTarget } from './RenewSheet';
 
 const useStyles = themedStyles((t) => ({
   screen: { flex: 1, backgroundColor: t.colors.bgCanvas },
   plan: { ...t.type.caption, color: t.colors.textSecondary, paddingHorizontal: t.spacing.screenPadding, paddingBottom: 8 },
+  planRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 40, paddingHorizontal: t.spacing.screenPadding, paddingBottom: 4 },
+  planLink: { ...t.type.labelStrong, color: t.colors.textLink },
   chips: { paddingHorizontal: t.spacing.screenPadding, gap: 8, paddingBottom: 12 },
   content: { paddingHorizontal: t.spacing.screenPadding, paddingBottom: 32, gap: 12, flexGrow: 1 },
   sheetRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 14 },
@@ -50,6 +53,7 @@ export function MyListings() {
   const [actionsOpen, setActionsOpen] = useState(false);
   const [deleting, setDeleting] = useState<MyListingItem | null>(null);
   const [renew, setRenew] = useState<RenewTarget | null>(null);
+  const [feature, setFeature] = useState<FeatureTarget | null>(null);
 
   const all = useMemo(() => list.data ?? [], [list.data]);
 
@@ -100,7 +104,7 @@ export function MyListings() {
     switch (st) {
       case 'live':
         meta = [statsLine, ageLine].filter(Boolean).join(' · ');
-        action = isExpiring(p) ? { label: t('prov.home.renew'), icon: 'refresh-cw', onPress: doRenew } : { label: t('prov.actions.feature'), icon: 'trending-up', onPress: () => toast.show({ message: t('prov.actions.featureSoon'), kind: 'info' }) };
+        action = isExpiring(p) ? { label: t('prov.home.renew'), icon: 'refresh-cw', onPress: doRenew } : { label: t('prov.actions.feature'), icon: 'trending-up', onPress: () => setFeature(p) };
         break;
       case 'editing':
         meta = t('prov.listings.liveStill', { views: stat?.views ?? p.views });
@@ -167,7 +171,10 @@ export function MyListings() {
     <View style={s.screen}>
       <AppHeader variant="root" title={t('prov.tab.listings')} action={{ icon: 'plus', label: t('prov.tab.add'), onPress: () => nav.navigate('Wizard') }} />
       {plan ? (
-        <Text style={s.plan}>{t('prov.listings.plan', { plan: plan.name === 'PROVIDER' ? t('prov.listings.planProvider') : t('prov.listings.planFree'), limit: plan.post_limit, used: plan.active_posts })}</Text>
+        <Pressable accessibilityRole="button" onPress={() => nav.navigate('Billing')} style={s.planRow}>
+          <Text style={[s.plan, { paddingHorizontal: 0, paddingBottom: 0, flex: 1 }]}>{t('prov.listings.plan', { plan: plan.name === 'PROVIDER' ? t('prov.listings.planProvider') : t('prov.listings.planFree'), limit: plan.post_limit, used: plan.active_posts })}</Text>
+          <Text style={s.planLink}>{t('prov.listings.upgrade')}</Text>
+        </Pressable>
       ) : null}
       {all.length > 0 ? (
         <View>
@@ -204,7 +211,7 @@ export function MyListings() {
           <View>
             {sheetItem('pencil', t('prov.actions.edit'), () => afterSheet(() => nav.navigate('Wizard', { edit: a.id })))}
             {sheetItem('copy', t('prov.actions.copy'), () => afterSheet(() => nav.navigate('Wizard', { copyFrom: a.id })), t('prov.actions.copyHint'))}
-            {aState !== 'draft' && aState !== 'rejected' ? sheetItem('trending-up', t('prov.actions.feature'), () => afterSheet(() => toast.show({ message: t('prov.actions.featureSoon'), kind: 'info' }))) : null}
+            {aState !== 'draft' && aState !== 'rejected' ? sheetItem('trending-up', t('prov.actions.feature'), () => afterSheet(() => setFeature(a))) : null}
             {aState !== 'draft' && aCat?.has_availability_dates ? sheetItem('calendar', t('prov.actions.blockDays'), () => afterSheet(() => nav.navigate('BlockDays', { postId: a.id }))) : null}
             {aState !== 'draft' ? sheetItem('bar-chart-3', t('prov.actions.performance'), () => afterSheet(() => nav.navigate('Performance', { id: a.id }))) : null}
             {sheetItem('trash-2', t('prov.actions.delete'), () => afterSheet(() => setDeleting(a)), undefined, true)}
@@ -227,6 +234,7 @@ export function MyListings() {
         }}
       />
       <RenewSheet target={renew} onClose={() => setRenew(null)} />
+      <FeatureSheet target={feature} onClose={() => setFeature(null)} />
     </View>
   );
 }

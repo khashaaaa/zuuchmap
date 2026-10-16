@@ -64,7 +64,7 @@ const MIN_STEM = 4;
 const CYRILLIC_ONLY = /^[Ѐ-ӿ]+$/;
 
 /** A query term reduced to the stem browse should prefix-match on. Only ever applied to the query. */
-export function stripMongolianSuffix(term: string): string {
+function stripMongolianSuffix(term: string): string {
   if (term.length <= MIN_STEM || !CYRILLIC_ONLY.test(term)) return term;
   for (const suffix of MN_SUFFIXES) {
     if (term.length - suffix.length < MIN_STEM) continue;
@@ -220,7 +220,7 @@ export function expandTerms(terms: string[], labels: CategoryLabel[] = []): Term
 }
 
 /** One group's prefixes as a tsquery: `(a:* | b:*)`. Terms hold only letters and digits. */
-export function groupTsquery(g: TermGroup): string {
+function groupTsquery(g: TermGroup): string {
   return `(${g.prefixes.map((p) => `${p}:*`).join(' | ')})`;
 }
 
@@ -301,7 +301,7 @@ export function searchSql(groups: TermGroup[], terms: string[], mode: SearchMode
 }
 
 /** Document text → the lexemes the generated column stores. */
-export function documentTokens(...parts: Array<string | null | undefined>): string[] {
+function documentTokens(...parts: Array<string | null | undefined>): string[] {
   return splitTokens(parts.filter(Boolean).join(' '));
 }
 
@@ -317,7 +317,7 @@ export interface SearchableDocument {
 }
 
 /** The whole of a post as the search vector sees it. */
-export function postDocument(post: SearchableDocument): string[] {
+function postDocument(post: SearchableDocument): string[] {
   return documentTokens(
     post.title,
     post.details,

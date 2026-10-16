@@ -6,11 +6,11 @@ import type { RequestUser } from '../auth/request-user';
 import { APP_TIMEZONE } from './post-expiry.service';
 
 /** Days of busy dates a list item carries (`busy_dates`). */
-export const BUSY_DATES_DAYS = 14;
+const BUSY_DATES_DAYS = 14;
 /** Longest range one request may ask about or block. */
-export const MAX_RANGE_DAYS = 366;
+const MAX_RANGE_DAYS = 366;
 /** Default availability window a calendar asks for. */
-export const DEFAULT_WINDOW_DAYS = 90;
+const DEFAULT_WINDOW_DAYS = 90;
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const DAY_MS = 86_400_000;

@@ -2,7 +2,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
-  MESSAGES_PAGE, replyTimeKey,
+  MESSAGES_PAGE, replyTimeKey, displayName as coreDisplayName,
   type Booking, type BookingList, type Conversation, type ConversationOpenResponse, type Message, type MyBookingsTab, type ProviderReviews,
   type PublicUser, type ReceivedBookingsTab, type ReviewSort, type SellerProfile,
 } from '@zuuchmap/core';
@@ -10,13 +10,8 @@ import { api, errorKey } from './api';
 import { useAuthStore } from './auth';
 import { useToast } from './toast';
 
-/** A provider shows as its company (or the name the account carries); a customer as "Д. Ганбат". */
-export const displayName = (u?: PublicUser | null): string => {
-  if (!u) return '';
-  if (u.company?.name) return u.company.name;
-  if (u.type === 'PROVIDER') return u.parent_name ?? u.given_name ?? '';
-  return [u.parent_name, u.given_name].filter(Boolean).join(' ') || (u.phone_number ?? '');
-};
+/** Core's name, falling back to the phone number. */
+export const displayName = (u?: PublicUser | null): string => coreDisplayName(u, u?.phone_number ?? '');
 
 /** "Ихэвчлэн 2 цагт хариулдаг" when the reply time is known, else undefined. */
 export function useReplyNote(): (minutes?: number | null) => string | undefined {
@@ -68,7 +63,7 @@ export function useSeller(id: string) {
   return useQuery({ queryKey: ['seller', id], retry: false, queryFn: () => api<SellerProfile>(`/sellers/${id}`) });
 }
 
-export const REVIEWS_PAGE = 20;
+const REVIEWS_PAGE = 20;
 
 /** Sent with the token when signed in: `own` and `can_review` are the viewer's. */
 export function useProviderReviews(id: string, sort: ReviewSort = 'new') {

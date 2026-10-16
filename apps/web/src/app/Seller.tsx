@@ -14,6 +14,7 @@ import { Button } from '@/ui/Button';
 import { Chip } from '@/ui/Chip';
 import { EmptyState } from '@/ui/EmptyState';
 import { Icon } from '@/ui/Icon';
+import { ReportSheet } from './sheets/ReportSheet';
 import { ReviewItem } from '@/ui/ReviewItem';
 import { SkeletonListingRow } from '@/ui/SkeletonListingRow';
 import { ListingRow } from './ListingRow';
@@ -54,6 +55,7 @@ export default function Seller() {
   const reviews = useProviderReviews(id);
   const open = useOpenChat();
   const [sheet, setSheet] = useState<Sheet>(null);
+  const [report, setReport] = useState<Review | null>(null);
   const seller = q.data?.user;
   const name = displayName(seller);
   useDocTitle(name);
@@ -121,7 +123,7 @@ export default function Seller() {
             <p className="py-4 text-caption text-text-secondary">{t('review.empty')}</p>
           ) : (
             <div>
-              {newest.map((r) => <ReviewItem key={r.id} review={r} providerName={name} onReply={mine ? () => setSheet({ kind: 'reply', review: r }) : undefined} onEdit={r.author.id === me ? () => setSheet({ kind: 'write' }) : undefined} />)}
+              {newest.map((r) => <ReviewItem key={r.id} review={r} providerName={name} onReply={mine ? () => setSheet({ kind: 'reply', review: r }) : undefined} onEdit={r.author.id === me ? () => setSheet({ kind: 'write' }) : undefined} onReport={r.author.id !== me ? () => requireAuth('generic', () => setReport(r)) : undefined} />)}
             </div>
           )}
           {count > newest.length && (
@@ -132,6 +134,7 @@ export default function Seller() {
         </section>
         <p className="text-small text-text-secondary">{t('deal.review.rules')}</p>
       </div>
+      <ReportSheet target={report ? { kind: 'REVIEW', review: report, providerName: name } : null} onClose={() => setReport(null)} />
       <ReviewSheets sheet={sheet} onClose={() => setSheet(null)} sellerId={id} sellerName={name} own={own} />
     </div>
   );
@@ -149,6 +152,7 @@ export function SellerReviews() {
   const [sort, setSort] = useState<ReviewSort>('new');
   const q = useProviderReviews(id, sort);
   const [sheet, setSheet] = useState<Sheet>(null);
+  const [report, setReport] = useState<Review | null>(null);
   const name = displayName(seller.data?.user);
   useDocTitle(t('deal.review.allTitle', { name }));
 
@@ -198,13 +202,14 @@ export function SellerReviews() {
             <p className="py-4 text-caption text-text-secondary">{t('review.empty')}</p>
           ) : (
             <div>
-              {items.map((r) => <ReviewItem key={r.id} review={r} providerName={name} onReply={mine ? () => setSheet({ kind: 'reply', review: r }) : undefined} onEdit={r.author.id === me ? () => setSheet({ kind: 'write' }) : undefined} />)}
+              {items.map((r) => <ReviewItem key={r.id} review={r} providerName={name} onReply={mine ? () => setSheet({ kind: 'reply', review: r }) : undefined} onEdit={r.author.id === me ? () => setSheet({ kind: 'write' }) : undefined} onReport={r.author.id !== me ? () => requireAuth('generic', () => setReport(r)) : undefined} />)}
             </div>
           )}
           {q.hasNextPage && <Button variant="outline" size="medium" className="self-center" loading={q.isFetchingNextPage} onClick={() => void q.fetchNextPage()}>{t('customer.landing.seeAll')}</Button>}
           <p className="text-small text-text-secondary">{t('deal.review.rules')}</p>
         </div>
       )}
+      <ReportSheet target={report ? { kind: 'REVIEW', review: report, providerName: name } : null} onClose={() => setReport(null)} />
       <ReviewSheets sheet={sheet} onClose={() => setSheet(null)} sellerId={id} sellerName={name} own={first?.own ?? null} />
     </div>
   );

@@ -23,7 +23,7 @@ export interface SearchState {
 const PLAIN = ['q', 'family', 'category', 'subcategory', 'province', 'district', 'date_from', 'date_to', 'price_min', 'price_max', 'price_unit'] as const;
 const SORTS: readonly string[] = ['relevance', 'newest', 'nearby', 'price_asc', 'price_desc'];
 
-export function parseSearch(sp: URLSearchParams): SearchState {
+function parseSearch(sp: URLSearchParams): SearchState {
   const s: SearchState = { attrs: {}, view: sp.get('view') === 'map' ? 'map' : 'list' };
   for (const k of PLAIN) {
     const v = sp.get(k);
@@ -39,7 +39,7 @@ export function parseSearch(sp: URLSearchParams): SearchState {
   return s;
 }
 
-export function serializeSearch(s: SearchState): URLSearchParams {
+function serializeSearch(s: SearchState): URLSearchParams {
   const p = new URLSearchParams();
   for (const k of PLAIN) if (s[k]) p.set(k, s[k]);
   if (s.sort) p.set('sort', s.sort);
@@ -118,7 +118,7 @@ export const searchHref = (s: SearchState): string => {
 // --- calendar-day keys (`YYYY-MM-DD`, local) ---
 
 const pad = (n: number) => String(n).padStart(2, '0');
-export const dayKey = (d: Date): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const dayKey = (d: Date): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 export const todayKey = (): string => dayKey(new Date());
 export const addDaysKey = (k: string, n: number): string => {
   const d = new Date(+k.slice(0, 4), +k.slice(5, 7) - 1, +k.slice(8, 10) + n);

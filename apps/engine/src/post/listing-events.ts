@@ -14,7 +14,12 @@ export type ListingEvent =
   | { type: 'message.created'; conversation_id: string; message_id: string; user_id: string; preview: string }
   | { type: 'review.created'; review_id: number; user_id: string; rating: number }
   // To the review's author, the first time the provider replies.
-  | { type: 'review.replied'; review_id: number; user_id: string; provider_id: string };
+  | { type: 'review.replied'; review_id: number; user_id: string; provider_id: string }
+  // Phase 8: a settled payment (push + receipt e-mail); `resend` = the receipt e-mail alone (Figma P8).
+  | { type: 'payment.paid'; payment_id: string; user_id: string; resend?: boolean }
+  // Phase 9: to each reporter once their subject is taken down; an admin broadcast (recipients resolved when sent).
+  | { type: 'report.resolved'; user_id: string; report_kind: 'POST' | 'REVIEW'; title: string | null }
+  | { type: 'broadcast'; broadcast_id: string };
 
 /** Outbound port for listing, booking, message and review events. `NotificationService` (phase 7) subscribes here and does the pushing. */
 export interface ListingEventPort {

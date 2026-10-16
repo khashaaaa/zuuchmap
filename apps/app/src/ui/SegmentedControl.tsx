@@ -61,7 +61,7 @@ export function SegmentedControl<V extends string>({ segments, value, onChange }
             style={{ flex: 1, minHeight: 36, paddingHorizontal: 16, gap: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 9999 }}
           >
             {s.icon ? <Icon name={s.icon} size={18} color={on ? colors.textPrimary : colors.textSecondary} /> : null}
-            {s.label ? <Text style={[type.labelStrong, { color: on ? colors.textPrimary : colors.textSecondary }]} numberOfLines={1}>{s.label}</Text> : null}
+            {s.label ? <Text numberOfLines={1} adjustsFontSizeToFit style={[type.labelStrong, { flexShrink: 1, color: on ? colors.textPrimary : colors.textSecondary }]}>{s.label}</Text> : null}
           </Pressable>
         );
       })}

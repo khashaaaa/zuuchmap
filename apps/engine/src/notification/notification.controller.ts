@@ -10,12 +10,12 @@ import { ChatService } from '../chat/chat.service';
 import { PostService } from '../post/post.service';
 import { NotificationService } from './notification.service';
 
-export class ListQueryDto {
+class ListQueryDto {
   @IsOptional() @IsISO8601() before?: string;
   @IsOptional() @IsNumberString() before_id?: string;
 }
 
-export class ReadDto implements NotificationsReadRequest {
+class ReadDto implements NotificationsReadRequest {
   @IsOptional() @IsArray() @ArrayMaxSize(200) @IsNumberString({}, { each: true }) ids?: string[];
 }
 
@@ -26,7 +26,7 @@ class TopicsDto {
   @IsOptional() @IsBoolean() news?: boolean;
 }
 
-export class SettingsDto {
+class SettingsDto {
   @IsOptional() @ValidateNested() @Type(() => TopicsDto) topics?: TopicsDto;
   @IsOptional() @IsIn(LOCALES) locale?: Locale;
 }
@@ -36,7 +36,7 @@ class KeysDto {
   @IsString() @MaxLength(100) auth!: string;
 }
 
-export class DeviceDto implements PushDeviceRequest {
+class DeviceDto implements PushDeviceRequest {
   @IsIn(['EXPO', 'WEB']) provider!: PushProvider;
   /** An Expo token (`ExponentPushToken[…]`) or a browser push endpoint (https). */
   @IsString() @MaxLength(1000) @Matches(/^(Expo(nent)?PushToken\[[^\]]+\]|https:\/\/\S+)$/) token!: string;
@@ -45,7 +45,7 @@ export class DeviceDto implements PushDeviceRequest {
   @IsOptional() @IsString() @MaxLength(16) platform?: string;
 }
 
-export class RemoveDeviceDto implements PushDeviceRemoveRequest {
+class RemoveDeviceDto implements PushDeviceRemoveRequest {
   @IsString() @MaxLength(1000) token!: string;
 }
 

@@ -4,11 +4,11 @@ import sharp, { type Sharp } from 'sharp';
 /** Largest upload accepted. */
 export const MAX_PHOTO_BYTES = 15 * 1024 * 1024;
 /** Decompression-bomb guard: sharp refuses to decode anything with more pixels than this (~50 MP). */
-export const MAX_INPUT_PIXELS = 50_000_000;
-export const ORIGINAL_MAX_WIDTH = 1920;
-export const ORIGINAL_MAX_HEIGHT = 1080;
-export const THUMB_WIDTH = 640;
-export const THUMB_SUFFIX = '_thumb';
+const MAX_INPUT_PIXELS = 50_000_000;
+const ORIGINAL_MAX_WIDTH = 1920;
+const ORIGINAL_MAX_HEIGHT = 1080;
+const THUMB_WIDTH = 640;
+const THUMB_SUFFIX = '_thumb';
 
 export type PhotoExt = 'jpg' | 'png' | 'webp';
 export const CONTENT_TYPE: Record<PhotoExt, string> = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
@@ -24,7 +24,7 @@ function reject(code: string, message: string): never {
 }
 
 /** Detects the real format from the first bytes; Content-Type and filename are never consulted. */
-export function sniffImage(buf: Buffer): PhotoExt | null {
+function sniffImage(buf: Buffer): PhotoExt | null {
   if (buf.length < 12) return null;
   if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpg';
   if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return 'png';

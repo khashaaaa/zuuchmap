@@ -34,7 +34,7 @@ const subscribe = (l: () => void) => {
 export const usePermission = (): PermissionState => useSyncExternalStore(subscribe, () => permission, () => permission);
 
 /** The current OS permission, also stored for `usePermission`. */
-export async function refreshPermission(): Promise<PermissionState> {
+async function refreshPermission(): Promise<PermissionState> {
   try {
     const p = await Notifications.getPermissionsAsync();
     // Android 13+ reports `denied` before the first ask; it is a refusal only once the system will not ask again.
@@ -99,7 +99,7 @@ async function expoToken(): Promise<string | null> {
 }
 
 /** POST the device whenever signed in and the permission is already granted. Idempotent per (user, token, language). */
-export async function registerDevice(): Promise<void> {
+async function registerDevice(): Promise<void> {
   const { token: jwt, user } = getAuth();
   if (!jwt || !user) return;
   if ((await refreshPermission()) !== 'granted') return;
@@ -213,6 +213,8 @@ export interface TapPayload { notification_id: string | null; kind: Notification
 
 /** A system notification for an event that arrived over the socket while the app is open (or lingering in the background). */
 export async function presentLocal(n: { id: string; kind: NotificationKind; data: NotificationData }): Promise<void> {
+  // In the background a registered device gets the engine's remote push for the same event: one notification, one sound.
+  if (AppState.currentState !== 'active' && sentKey) return;
   if (permission !== 'granted' && (await refreshPermission()) !== 'granted') return;
   const { title, body } = notificationCopy(n, (k, o) => i18n.t(k, o) as string);
   await ensureChannel();

@@ -233,7 +233,7 @@ function Body({ editId, listing, copy, fix, startStep }: BodyProps) {
   const errCount = Object.keys(errors).filter((k) => stepOfError(k) === step).length;
   const fieldHere = rejectedField && stepForField(rejectedField) === step;
   const last = step === 5;
-  const nextName = !last ? t(`prov.wizard.s${step + 1}`) : '';
+  const nextName = !last ? t(`kit.wizard.s${step + 1}`) : '';
 
   const body = (() => {
     switch (step) {
@@ -309,7 +309,7 @@ function Body({ editId, listing, copy, fix, startStep }: BodyProps) {
         <p className="text-body text-text-secondary">{t('prov.limit.body')}</p>
         <ul className="flex flex-col">
           {[
-            { icon: 'sparkles', label: t('prov.limit.plan'), go: () => toast.info(t('ui.prov.planSoon')) },
+            { icon: 'sparkles', label: t('prov.limit.plan'), go: () => void nav('/provider/billing') },
             { icon: 'circle-check', label: t('prov.limit.finishOne'), hint: undefined, go: () => void nav('/provider/listings?filter=live') },
             { icon: 'trash-2', label: t('prov.limit.deleteOld'), hint: t('prov.limit.deleteOldHint'), go: () => void nav('/provider/listings') },
           ].map((r) => (

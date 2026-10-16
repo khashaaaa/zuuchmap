@@ -255,7 +255,7 @@ export function SignInFlow({ onDone, fill, header }: SignInFlowProps) {
 
 // ---- C4: the sheet any "needs an account" action opens, and resumes after VERIFIED ----
 
-export type AuthReason = 'message' | 'book' | 'search' | 'become';
+export type AuthReason = 'message' | 'book' | 'search' | 'become' | 'report';
 type Require = (reason: AuthReason, resume: () => void) => void;
 const AuthCtx = createContext<Require>(() => undefined);
 export const useRequireAuth = (): Require => useContext(AuthCtx);
@@ -265,6 +265,7 @@ const REASON_KEY: Record<AuthReason, string> = {
   book: 'customer.signin.sheetBook',
   search: 'customer.signin.sheetSearch',
   become: 'customer.signin.sheetTitle',
+  report: 'auth.loginRequired',
 };
 
 export function AuthSheetProvider({ children }: { children: ReactNode }) {

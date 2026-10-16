@@ -9,7 +9,7 @@ import { PostService } from './post.service';
 import { type CategoryLabel, categoryLabelIndex, expandTerms, matchesPost, type SearchablePost, searchTerms } from './search-terms';
 
 /** Highest "N new" a list item reports; past it the number stops meaning anything. */
-export const NEW_COUNT_CAP = 99;
+const NEW_COUNT_CAP = 99;
 const ATTR_KEY = /^[a-z0-9_]{1,64}$/;
 const MAX_ATTRS = 10;
 
@@ -25,7 +25,7 @@ interface Row {
 }
 
 /** What a saved search is allowed to remember of a browse query; anything else is dropped. */
-export function normaliseParams(p: SavedSearchParamsDto): SavedSearchParams {
+function normaliseParams(p: SavedSearchParamsDto): SavedSearchParams {
   const out: SavedSearchParams = {};
   const str = (k: 'q' | 'family' | 'category' | 'subcategory' | 'province' | 'district'): void => {
     const v = p[k]?.trim();
@@ -76,7 +76,7 @@ const updatedRow = (res: unknown): Row => {
  * Pure matcher, the JS twin of `PostService.applyFilters` + `searchSql` (never relaxed): the
  * alerts (phase 7) fire for a freshly approved listing exactly when browse would list it.
  */
-export function matchesSavedSearch(post: MatchableListing, params: SavedSearchParams, labels: CategoryLabel[], familyKeys: Map<string, string[]>): boolean {
+function matchesSavedSearch(post: MatchableListing, params: SavedSearchParams, labels: CategoryLabel[], familyKeys: Map<string, string[]>): boolean {
   for (const key of ['category', 'subcategory', 'province', 'district'] as const) {
     const want = params[key];
     if (!isBlank(want) && post[key] !== want) return false;

@@ -56,9 +56,9 @@ export const useGuestSaves = create<GuestState>((set, get) => ({
   tell: () => set({ told: true }),
 }));
 
-export const likeKeys = { ids: ['likes', 'ids'] as const, list: ['likes', 'list'] as const };
+const likeKeys = { ids: ['likes', 'ids'] as const, list: ['likes', 'list'] as const };
 
-export function useLikeIds() {
+function useLikeIds() {
   const token = useAuthStore((s) => s.token);
   return useQuery({
     queryKey: [...likeKeys.ids, token],

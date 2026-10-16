@@ -16,6 +16,7 @@ import { Modal } from '../../ui/Modal';
 import { SkeletonListingRow } from '../../ui/SkeletonListingRow';
 import { StatTile } from '../../ui/StatTile';
 import { useToast } from '../../ui/Toast';
+import { FeatureSheet } from './FeatureSheet';
 import { RenewSheet } from './RenewSheet';
 
 const useStyles = themedStyles((t) => ({
@@ -44,6 +45,7 @@ export function Performance() {
   const mineItem = useMyListings().data?.find((x) => x.id === params.id);
   const del = useListingAction('delete');
   const [renew, setRenew] = useState(false);
+  const [feature, setFeature] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const p = perf.data;
   const l = listing.data;
@@ -99,11 +101,12 @@ export function Performance() {
           <View style={s.card}>
             {action('pencil', t('prov.actions.edit'), t('prov.perf.editNote'), () => nav.navigate('Wizard', { edit: p.id }))}
             {action('refresh-cw', t('prov.home.renew'), t('prov.perf.renewHint', { days: mineItem?.renew_days ?? 60 }), () => setRenew(true))}
-            {action('trending-up', t('prov.actions.feature'), t('prov.perf.featureHint'), () => toast.show({ message: t('prov.actions.featureSoon'), kind: 'info' }))}
+            {l && l.approval_status === 'APPROVED' ? action('trending-up', t('prov.actions.feature'), t('prov.perf.featureHint'), () => setFeature(true)) : null}
             {action('trash-2', t('prov.perf.deleteListing'), undefined, () => setConfirm(true), true)}
           </View>
         </ScrollView>
       )}
+      <FeatureSheet target={feature && l ? l : null} onClose={() => setFeature(false)} />
       <RenewSheet target={renew && p ? { id: p.id, title: p.title, category: l?.category, expires_at: l?.expires_at ?? null } : null} onClose={() => setRenew(false)} />
       <Modal
         visible={confirm}

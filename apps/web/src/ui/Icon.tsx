@@ -5,7 +5,7 @@ import {
   ExternalLink, Eye, FileText, Filter, Flag, Heart, Home, Image, Info, LayoutGrid, List, Loader2, Locate,
   LogOut, Map as MapIcon, MapPin, Megaphone, MessageCircle, MessageSquare, Minus, MoreHorizontal, Package, Pencil, Phone,
   Plus, RefreshCw, Search, Send, Settings, Share2, ShieldCheck, SlidersHorizontal, Star, Trash2, TrendingUp,
-  Truck, User, Users, Wifi, WifiOff, Wrench, X, CalendarX, CreditCard, Inbox, Sparkles, Upload,
+  Truck, User, Users, Wifi, WifiOff, Wrench, X, CalendarX, CreditCard, Inbox, Sparkles, Upload, Mail, HelpCircle, UserX,
 } from 'lucide-react';
 import { categoryIconFallback } from '@zuuchmap/core';
 import { cn } from '@/lib/cn';
@@ -26,6 +26,7 @@ const ICONS = {
   filter: Filter, 'refresh-cw': RefreshCw, copy: Copy, 'external-link': ExternalLink, 'check-check': CheckCheck,
   circle: Circle, 'loader-2': Loader2, 'calendar-range': CalendarRange, 'message-square': MessageSquare,
   'calendar-x': CalendarX, 'credit-card': CreditCard, inbox: Inbox, sparkles: Sparkles, upload: Upload,
+  mail: Mail, 'help-circle': HelpCircle, 'user-x': UserX,
 } satisfies Record<string, LucideComponent>;
 
 export type IconName = keyof typeof ICONS;

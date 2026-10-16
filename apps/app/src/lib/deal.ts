@@ -11,9 +11,7 @@ import type { Nav } from '../nav';
 import { api, errorText } from './api';
 import { useAuth } from './auth';
 
-/** Company name when the account has one, else the person. */
-export const displayName = (u: Pick<PublicUser, 'company' | 'parent_name' | 'given_name'> | null | undefined, fallback = ''): string =>
-  u?.company?.name || [u?.parent_name, u?.given_name].filter(Boolean).join(' ') || fallback;
+export { displayName } from '@zuuchmap/core';
 
 /** "Үйлчлэх бүс: Улаанбаатар, Төв" for a company with a service area; undefined otherwise. */
 export function serviceAreaText(t: TFunction, user: Pick<PublicUser, 'company'> | null | undefined): string | undefined {

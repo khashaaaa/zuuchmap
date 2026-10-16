@@ -1,8 +1,31 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import type { EntityManager, Repository } from 'typeorm';
+import type { DataSource, EntityManager, Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import type { UpdateProfileDto } from './dto/user.dto';
+
+/** Days a deleted account's live listings stay up before they lapse (Figma L3). */
+const DELETED_LISTINGS_DAYS = 14;
+
+/**
+ * Deletes an account (Figma L3, or an admin in J11d). Its live listings stay up DELETED_LISTINGS_DAYS
+ * more and then lapse; sessions, trusted devices, saves, searches, company and push devices go
+ * with the row. Signing up again costs a fresh phone verification. Answers false for an unknown id.
+ */
+export async function deleteAccount(ds: DataSource, userId: string): Promise<boolean> {
+  return ds.transaction(async (em) => {
+    await em.query(
+      `UPDATE posts SET expires_at = LEAST(COALESCE(expires_at, now() + make_interval(days => $2)), now() + make_interval(days => $2)),
+              is_featured = false, date_updated = now()
+        WHERE user_id = $1 AND deleted_at IS NULL`,
+      [userId, DELETED_LISTINGS_DAYS],
+    );
+    // Drafts and listings never published have nobody to answer for them.
+    await em.query(`UPDATE posts SET deleted_at = now() WHERE user_id = $1 AND deleted_at IS NULL AND (is_draft OR approval_status <> 'APPROVED')`, [userId]);
+    const res = await em.query<[unknown, number]>('DELETE FROM users WHERE id = $1', [userId]);
+    return res[1] > 0;
+  });
+}
 
 @Injectable()
 export class UserService {

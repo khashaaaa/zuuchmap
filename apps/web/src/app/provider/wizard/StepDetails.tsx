@@ -192,7 +192,7 @@ export function StepDetails(step: StepProps) {
       <div className="flex min-w-0 flex-col gap-4">
         <Photos form={form} set={set} />
         <section className="flex flex-col gap-4 rounded-xl border border-border-subtle bg-bg-surface p-4">
-          <h3 className="text-title text-text-primary">{t('prov.wizard.s2')}</h3>
+          <h3 className="text-title text-text-primary">{t('kit.wizard.s2')}</h3>
           <TextField
             label={t('prov.wizard.titleLabel')}
             value={form.title}

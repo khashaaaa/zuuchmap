@@ -1,5 +1,3 @@
-.superpowers/
-
 # Claude Code local (per-machine) settings
 .claude/settings.local.json
 

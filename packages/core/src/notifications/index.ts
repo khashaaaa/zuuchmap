@@ -1,6 +1,7 @@
 // One renderer for a notification's words and destination: the engine uses it for push and
 // e-mail copy (through `translator`), both clients for the notification centre (through i18next).
 import type { NotificationData, NotificationKind } from '../api/index.js';
+import { formatDate, formatPrice } from '../format/index.js';
 
 /** i18next's `t` with interpolation options. */
 export type NotifyT = (key: string, options?: Record<string, unknown>) => string;
@@ -33,6 +34,8 @@ export function notificationCopy(n: { kind: NotificationKind; data: Notification
     days: d.days_left ?? 0,
     rating: d.rating ?? '',
     query: d.query ?? '',
+    amount: d.amount ? formatPrice(d.amount, 'TOTAL') ?? '' : '',
+    until: d.until ? formatDate(d.until) : '',
   };
   switch (n.kind) {
     case 'MESSAGE_CREATED':
@@ -42,6 +45,12 @@ export function notificationCopy(n: { kind: NotificationKind; data: Notification
       return { title: t(`${k}.title`), body: t(d.revision ? `${k}.bodyRevision` : `${k}.body`, vars) };
     case 'BOOKING_REMINDER':
       return { title: t(`${k}.title`), body: t(d.start_time ? `${k}.body` : `${k}.bodyNoTime`, vars) };
+    case 'PAYMENT_PAID':
+      return { title: t(`${k}.title`), body: t(d.payment_kind === 'FEATURED' ? `${k}.bodyFeatured` : `${k}.bodyPlan`, vars) };
+    case 'REPORT_RESOLVED':
+      return { title: t(`${k}.title`), body: t(d.report_kind === 'REVIEW' ? `${k}.bodyReview` : `${k}.body`, vars) };
+    case 'BROADCAST':
+      return { title: d.title ?? '', body: d.body ?? '' };
     default:
       return { title: t(`${k}.title`, vars), body: t(`${k}.body`, vars) };
   }
@@ -57,6 +66,7 @@ export type NotificationTarget =
   | { to: 'reviews'; provider_id: string }
   | { to: 'savedSearches'; saved_search_id: string | null }
   | { to: 'chat'; conversation_id: string }
+  | { to: 'payments' }
   | { to: 'notifications' };
 
 export function notificationTarget(n: { kind: NotificationKind; data: NotificationData }): NotificationTarget {
@@ -89,6 +99,11 @@ export function notificationTarget(n: { kind: NotificationKind; data: Notificati
       return { to: 'savedSearches', saved_search_id: d.saved_search_id ?? null };
     case 'MESSAGE_CREATED':
       return d.conversation_id ? { to: 'chat', conversation_id: d.conversation_id } : { to: 'notifications' };
+    case 'PAYMENT_PAID':
+      return d.payment_kind === 'FEATURED' && post ? { to: 'listing', post_id: post } : { to: 'payments' };
+    case 'REPORT_RESOLVED':
+    case 'BROADCAST':
+      return { to: 'notifications' };
   }
 }
 
@@ -103,6 +118,7 @@ export function notificationWebPath(target: NotificationTarget): string {
     case 'reviews': return `/sellers/${target.provider_id}/reviews`;
     case 'savedSearches': return '/saved/searches';
     case 'chat': return `/messages/${target.conversation_id}`;
+    case 'payments': return '/provider/billing';
     case 'notifications': return '/notifications';
   }
 }

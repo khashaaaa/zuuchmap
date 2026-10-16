@@ -7,7 +7,7 @@ import { CompanyService } from './company.service';
 
 const nullable = ValidateIf((_o, v) => v !== null && v !== '');
 
-export class CompanyUpdateDto {
+class CompanyUpdateDto {
   @IsOptional() @IsString() @Matches(/\S/) @MaxLength(120) name?: string;
   @IsOptional() @nullable @IsString() @MaxLength(1000) description?: string | null;
   @IsOptional() @nullable @IsString() @MaxLength(200) website?: string | null;
@@ -19,7 +19,7 @@ export class CompanyUpdateDto {
   @IsOptional() @IsArray() @ArrayMaxSize(22) @IsIn(PROVINCE_CODES, { each: true }) service_area?: string[];
 }
 
-export class CompanyCreateDto extends CompanyUpdateDto implements CompanyWriteRequest {
+class CompanyCreateDto extends CompanyUpdateDto implements CompanyWriteRequest {
   @IsString() @Matches(/\S/) @MaxLength(120) declare name: string;
 }
 

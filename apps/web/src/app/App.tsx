@@ -25,6 +25,20 @@ const BlockDays = lazy(() => import('./provider/BlockDays'));
 const Performance = lazy(() => import('./provider/Performance'));
 const BookingValue = lazy(() => import('./provider/BookingValue'));
 const CompanyPage = lazy(() => import('./provider/Company'));
+const Billing = lazy(() => import('./provider/Billing'));
+const Help = lazy(() => import('./Legal').then((m) => ({ default: m.Help })));
+const Privacy = lazy(() => import('./Legal').then((m) => ({ default: m.Privacy })));
+const Terms = lazy(() => import('./Legal').then((m) => ({ default: m.Terms })));
+const DeleteAccount = lazy(() => import('./Legal').then((m) => ({ default: m.DeleteAccount })));
+const AdminFrame = lazy(() => import('./admin/Frame').then((m) => ({ default: m.AdminFrame })));
+const AdminDashboard = lazy(() => import('./admin/Dashboard'));
+const AdminListings = lazy(() => import('./admin/Listings'));
+const AdminUsers = lazy(() => import('./admin/Users'));
+const AdminUser = lazy(() => import('./admin/Users').then((m) => ({ default: m.UserDetail })));
+const AdminCategories = lazy(() => import('./admin/Categories'));
+const AdminAnalytics = lazy(() => import('./admin/Analytics'));
+const AdminReports = lazy(() => import('./admin/Reports'));
+const AdminProfile = lazy(() => import('./admin/AdminProfile'));
 const NotFound = lazy(() => import('./NotFound'));
 const Kit = lazy(() => import('./Kit').then((m) => ({ default: m.Kit })));
 
@@ -39,6 +53,17 @@ export function App() {
       <Routes>
         <Route path="/kit" element={<Kit />} />
         <Route element={<Shell />}>
+          <Route path="admin" element={<AdminFrame />}>
+            <Route index element={<AdminDashboard />} />
+            <Route path="listings" element={<AdminListings />} />
+            <Route path="users" element={<AdminUsers />} />
+            <Route path="users/:id" element={<AdminUser />} />
+            <Route path="categories" element={<AdminCategories />} />
+            <Route path="categories/:key" element={<AdminCategories />} />
+            <Route path="analytics" element={<AdminAnalytics />} />
+            <Route path="reports" element={<AdminReports />} />
+            <Route path="profile" element={<AdminProfile />} />
+          </Route>
           <Route index element={<Landing />} />
           <Route path="browse" element={<Browse />} />
           <Route path="posts/:id" element={<ListingPage />} />
@@ -56,6 +81,10 @@ export function App() {
           <Route path="sellers/:id/reviews" element={<SellerReviews />} />
           <Route path="notifications" element={<Notifications />} />
           <Route path="profile" element={<Profile />} />
+          <Route path="profile/delete" element={<DeleteAccount />} />
+          <Route path="help" element={<Help />} />
+          <Route path="privacy" element={<Privacy />} />
+          <Route path="terms" element={<Terms />} />
           <Route path="become-provider" element={<BecomeProvider />} />
           <Route path="provider" element={<ProviderHome />} />
           <Route path="provider/listings" element={<ProviderListings />} />
@@ -65,6 +94,7 @@ export function App() {
           <Route path="provider/block" element={<BlockDays />} />
           <Route path="provider/value" element={<BookingValue />} />
           <Route path="provider/company" element={<CompanyPage />} />
+          <Route path="provider/billing" element={<Billing />} />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>

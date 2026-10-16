@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BackHandler, ScrollView, Text, View } from 'react-native';
+import { BackHandler, Pressable, ScrollView, Text, View } from 'react-native';
 import { useFocusEffect, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import type { Listing } from '@zuuchmap/core';
+import { useCatalogue } from '../../lib/billing';
 import { themedStyles, useAppTheme } from '../../design/theme';
 import { api, ApiError, errorText } from '../../lib/api';
 import { MAX_PHOTOS, itemFromAsset, newPhotoId, pickPhotos, uploadPhoto, type PhotoItem } from '../../lib/photos';
@@ -28,7 +29,7 @@ import { Icon } from '../../ui/Icon';
 import { KeyboardAvoider, useKeepFocusedVisible } from '../../ui/KeyboardAvoider';
 import { Modal } from '../../ui/Modal';
 import { SkeletonListingRow } from '../../ui/SkeletonListingRow';
-import { useToast } from '../../ui/Toast';
+import { useToast, useToastClearance } from '../../ui/Toast';
 import { WizardSteps } from '../../ui/WizardSteps';
 import { fieldLabel } from './Home';
 import { StepCategory, StepDetails, StepLocation, StepPrice, StepReview } from './StepBodies';
@@ -54,6 +55,7 @@ export function Wizard() {
   const { t } = useTranslation();
   const nav = useNavigation<Nav>();
   const toast = useToast();
+  const clearance = useToastClearance();
   const qc = useQueryClient();
   const { user } = useAuth();
   const ask = usePushAsk();
@@ -291,13 +293,14 @@ export function Wizard() {
     }, []),
   );
 
-  const stepNames = [1, 2, 3, 4, 5].map((n) => t(`prov.wizard.s${n}`));
+  const stepNames = [1, 2, 3, 4, 5].map((n) => t(`kit.wizard.s${n}`));
   const title = editId ? t('prov.wizard.editTitle') : t('prov.wizard.title');
   const fixKey = editId ? src.data?.rejection_field ?? null : null;
   const fixOn = !!(editId && src.data?.rejection_reason);
   // Only this step's errors: going back a step must not carry the next step's banner.
   const errCount = Object.keys(errors).filter((k) => stepForField(k, cat) === step).length;
   const plan = stats.data?.plan;
+  const providerPosts = useCatalogue().data?.plans.find((x) => x.plan === 'PROVIDER')?.posts ?? 0;
 
   // ---- F6: sent ----
   if (sent) {
@@ -362,7 +365,7 @@ export function Wizard() {
             {step === 4 ? <StepLocation form={form} set={set} errors={errors} cat={cat} locked={!!editId} /> : null}
             {step === 5 ? <StepReview form={form} cat={cat} photoCount={photos.filter((p) => p.state === 'done').length} onEdit={goTo} /> : null}
           </ScrollView>
-          <View style={[s.footer, { paddingBottom: 12 + insets.bottom }]}>
+          <View style={[s.footer, { paddingBottom: 12 + insets.bottom }]} onLayout={clearance}>
             {last && !editId ? <Button label={t('prov.wizard.saveDraft')} variant="outline" disabled={busy} style={{ flex: 0 }} onPress={() => void saveDraft().then((ok) => { if (ok) { toast.show({ message: t('prov.wizard.draftSaved', { age: t('prov.wizard.justNow') }), kind: 'success' }); done(); } })} /> : null}
             {editId && !last ? <Button label={t('prov.wizard.next')} variant="outline" onPress={next} /> : null}
             <View style={{ flex: 1 }}>
@@ -416,13 +419,14 @@ export function Wizard() {
         }}
       >
         <Text style={s.body}>{t('prov.limit.body')}</Text>
-        <View style={s.sheetRow}>
-          <Icon name="star" size={22} color={colors.iconSecondary} />
+        <Pressable accessibilityRole="button" style={s.sheetRow} onPress={() => { setQuota(false); nav.navigate('Billing'); }}>
+          <Icon name="sparkles" size={22} color={colors.iconPrimary} />
           <View style={{ flex: 1 }}>
-            <Text style={[s.label, { color: colors.textDisabled }]}>{t('prov.limit.plan')}</Text>
-            <Text style={s.hint}>{t('prov.limit.planHint', { count: plan?.post_limit ?? 0 })}</Text>
+            <Text style={s.label}>{t('prov.limit.plan')}</Text>
+            <Text style={s.hint}>{t('prov.limit.planHint', { count: providerPosts })}</Text>
           </View>
-        </View>
+          <Icon name="chevron-right" size={20} color={colors.iconSecondary} />
+        </Pressable>
         <Button label={t('prov.limit.finishOne')} variant="outline" icon="list" onPress={() => { setQuota(false); done(); }} />
         <Button label={t('prov.limit.deleteOld')} variant="outline" icon="trash-2" onPress={() => { setQuota(false); done(); }} />
       </BottomSheet>

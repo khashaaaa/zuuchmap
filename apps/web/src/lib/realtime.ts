@@ -29,6 +29,7 @@ export function useRealtime(): void {
         d && !d.pages.some((p) => p.some((m) => m.id === message.id)) ? { ...d, pages: [[message, ...(d.pages[0] ?? [])], ...d.pages.slice(1)] } : d,
       );
       refresh('conversations', 'conversation', 'badges');
+      void qc.invalidateQueries({ queryKey: ['provider', 'home'] });
     });
     socket.on(SOCKET_EVENTS.CONVERSATION_READ, ({ conversation_id, read_at }: ConversationReadPayload) => {
       const me = useAuthStore.getState().user?.id;
@@ -37,10 +38,16 @@ export function useRealtime(): void {
       );
       refresh('conversations');
     });
-    socket.on(SOCKET_EVENTS.BOOKING_UPDATED, () => refresh('bookings', 'availability', 'reviews'));
+    socket.on(SOCKET_EVENTS.BOOKING_UPDATED, () => {
+      refresh('bookings', 'availability', 'reviews');
+      void qc.invalidateQueries({ queryKey: ['provider', 'home'] });
+    });
     socket.on(SOCKET_EVENTS.NOTIFICATION_CREATED, (n: AppNotification) => {
       qc.setQueryData<InfiniteData<AppNotification[], unknown>>(['notifications', 'list', token], (d) => upsertNotification(d, n));
       refresh('notifications', 'badges');
+      // A provider's home tasks and listing states follow approvals, rejections, reviews and payments.
+      void qc.invalidateQueries({ queryKey: ['provider', 'home'] });
+      void qc.invalidateQueries({ queryKey: ['provider', 'mine'] });
       // Only what matters while a page is open: a booking asked for or answered. Чат shows its own messages.
       if (n.kind === 'BOOKING_REQUESTED' || n.kind === 'BOOKING_ACCEPTED') toast.info(notificationCopy(n, (k, o) => i18n.t(k, o) as string).body);
     });

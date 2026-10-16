@@ -5,7 +5,7 @@ const p2 = (n: number) => String(n).padStart(2, '0');
 /** Local calendar day as `YYYY-MM-DD` (what the engine takes). */
 export const toYmd = (d: Date): string => `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
 export const fromYmd = (s: string): Date => new Date(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10));
-export const addDays = (d: Date, n: number): Date => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+const addDays = (d: Date, n: number): Date => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 
 /** "10.12" from the core formatter's `2026.10.12`. */
 export const shortDate = (ymd: string, locale: Locale): string => formatDate(fromYmd(ymd), locale).slice(5);

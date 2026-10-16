@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  replyTimeKey,
+  replyTimeKey, displayName,
   groupThousands, formatPrice, formatPriceParts, formatDate, formatTime,
   formatDateRange, formatRelativeAge, formatInboxStamp, formatNotificationStamp, formatDistance, estimateEtaMinutes, countDays, priceForDays, type TFn,
 } from './index.js';
@@ -151,4 +151,12 @@ test('formatRelativeAge reads ISO strings as dates, not as just now', () => {
   assert.equal(formatRelativeAge('2026-10-15T10:00:00.000Z', t, now), 'provider.draftHoursAgo:2');
   assert.equal(formatRelativeAge(String(now - 5 * 60000), t, now), 'provider.draftMinutesAgo:5');
   assert.equal(formatRelativeAge('not a date', t, now), 'provider.draftJustNow:');
+});
+
+test('displayName: company, else "parent given" (a provider too), else the fallback', () => {
+  assert.equal(displayName({ company: { name: 'Хүнд Техник ХХК' }, parent_name: 'Д.', given_name: 'Ганбат' }), 'Хүнд Техник ХХК');
+  assert.equal(displayName({ company: null, parent_name: 'Дорж', given_name: 'Ганбат' }), 'Дорж Ганбат');
+  assert.equal(displayName({ parent_name: null, given_name: 'Ганбат' }), 'Ганбат');
+  assert.equal(displayName({ parent_name: null, given_name: null }, '99120000'), '99120000');
+  assert.equal(displayName(null), '');
 });

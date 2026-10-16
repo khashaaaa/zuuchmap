@@ -1,0 +1,1550 @@
+[
+ {
+  "file": "web-desktop/N5d.webp",
+  "frame": "N5d",
+  "theme": "light",
+  "who": "guest",
+  "route": "/",
+  "w": 1440,
+  "h": 1563
+ },
+ {
+  "file": "web-desktop/A1d.webp",
+  "frame": "A1d",
+  "theme": "light",
+  "who": "guest",
+  "route": "/browse",
+  "w": 1440,
+  "h": 3072
+ },
+ {
+  "file": "web-desktop/B1d.webp",
+  "frame": "B1d",
+  "theme": "light",
+  "who": "guest",
+  "route": "/browse/view/map",
+  "w": 1440,
+  "h": 1114
+ },
+ {
+  "file": "web-desktop/B2d.webp",
+  "frame": "B2d",
+  "theme": "light",
+  "who": "guest",
+  "route": "/posts/1",
+  "w": 1440,
+  "h": 1476
+ },
+ {
+  "file": "web-desktop/B6d.webp",
+  "frame": "B6d",
+  "theme": "light",
+  "who": "guest",
+  "route": "/posts/14",
+  "w": 1440,
+  "h": 1394
+ },
+ {
+  "file": "web-desktop/B5d.webp",
+  "frame": "B5d",
+  "theme": "light",
+  "who": "guest",
+  "route": "/posts/1/photos",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/C10d.webp",
+  "frame": "C10d",
+  "theme": "light",
+  "who": "guest",
+  "route": "/saved",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/S1d.webp",
+  "frame": "S1d",
+  "theme": "light",
+  "who": "guest",
+  "route": "/sos",
+  "w": 1440,
+  "h": 4000
+ },
+ {
+  "file": "web-desktop/N1d.webp",
+  "frame": "N1d",
+  "theme": "light",
+  "who": "guest",
+  "route": "/login",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/L1d.webp",
+  "frame": "L1d",
+  "theme": "light",
+  "who": "guest",
+  "route": "/help",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/L2d.webp",
+  "frame": "L2d",
+  "theme": "light",
+  "who": "guest",
+  "route": "/privacy",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/L6d.webp",
+  "frame": "L6d",
+  "theme": "light",
+  "who": "guest",
+  "route": "/terms",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/L5d.webp",
+  "frame": "L5d",
+  "theme": "light",
+  "who": "guest",
+  "route": "/nope-404",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/V1d.webp",
+  "frame": "V1d",
+  "theme": "light",
+  "who": "guest",
+  "route": "/sellers/2a1e0cd5-e495-4375-87c1-aebe3d3436d4",
+  "w": 1440,
+  "h": 2425
+ },
+ {
+  "file": "web-desktop/V2d.webp",
+  "frame": "V2d",
+  "theme": "light",
+  "who": "guest",
+  "route": "/sellers/2a1e0cd5-e495-4375-87c1-aebe3d3436d4/reviews",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/N4d.webp",
+  "frame": "N4d",
+  "theme": "light",
+  "who": "guest",
+  "route": "/become-provider",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/C5d.webp",
+  "frame": "C5d",
+  "theme": "light",
+  "who": "cust",
+  "route": "/saved",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/C8d.webp",
+  "frame": "C8d",
+  "theme": "light",
+  "who": "cust",
+  "route": "/saved/searches",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/M1d.webp",
+  "frame": "M1d",
+  "theme": "light",
+  "who": "cust",
+  "route": "/messages",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/I1d.webp",
+  "frame": "I1d",
+  "theme": "light",
+  "who": "cust",
+  "route": "/messages/d0aaacd9-cd6c-4c59-8549-d3a88b175786",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/U1d.webp",
+  "frame": "U1d",
+  "theme": "light",
+  "who": "cust",
+  "route": "/bookings",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/I3d.webp",
+  "frame": "I3d",
+  "theme": "light",
+  "who": "cust",
+  "route": "/notifications",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/I5d.webp",
+  "frame": "I5d",
+  "theme": "light",
+  "who": "cust",
+  "route": "/profile",
+  "w": 1440,
+  "h": 1225
+ },
+ {
+  "file": "web-desktop/L3d.webp",
+  "frame": "L3d",
+  "theme": "light",
+  "who": "cust",
+  "route": "/profile/delete",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/E1d.webp",
+  "frame": "E1d",
+  "theme": "light",
+  "who": "prov",
+  "route": "/provider",
+  "w": 1440,
+  "h": 1114
+ },
+ {
+  "file": "web-desktop/E2d.webp",
+  "frame": "E2d",
+  "theme": "light",
+  "who": "prov",
+  "route": "/provider/listings",
+  "w": 1440,
+  "h": 3660
+ },
+ {
+  "file": "web-desktop/E6d.webp",
+  "frame": "E6d",
+  "theme": "light",
+  "who": "prov",
+  "route": "/provider/listings/1/performance",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/F1d.webp",
+  "frame": "F1d",
+  "theme": "light",
+  "who": "prov",
+  "route": "/provider/new",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/F2d.webp",
+  "frame": "F2d",
+  "theme": "light",
+  "who": "prov",
+  "route": "/provider/listings/1/edit",
+  "w": 1440,
+  "h": 1464
+ },
+ {
+  "file": "web-desktop/E4d.webp",
+  "frame": "E4d",
+  "theme": "light",
+  "who": "prov",
+  "route": "/provider/block",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/E16d.webp",
+  "frame": "E16d",
+  "theme": "light",
+  "who": "prov",
+  "route": "/provider/value",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/G4d.webp",
+  "frame": "G4d",
+  "theme": "light",
+  "who": "prov",
+  "route": "/provider/company",
+  "w": 1440,
+  "h": 1618
+ },
+ {
+  "file": "web-desktop/G3d.webp",
+  "frame": "G3d",
+  "theme": "light",
+  "who": "prov",
+  "route": "/provider/billing",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/E3d.webp",
+  "frame": "E3d",
+  "theme": "light",
+  "who": "prov",
+  "route": "/requests",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/J10d.webp",
+  "frame": "J10d",
+  "theme": "light",
+  "who": "admin",
+  "route": "/admin",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/J5d.webp",
+  "frame": "J5d",
+  "theme": "light",
+  "who": "admin",
+  "route": "/admin/listings",
+  "w": 1440,
+  "h": 4000
+ },
+ {
+  "file": "web-desktop/J6d.webp",
+  "frame": "J6d",
+  "theme": "light",
+  "who": "admin",
+  "route": "/admin/users",
+  "w": 1440,
+  "h": 3510
+ },
+ {
+  "file": "web-desktop/J11d.webp",
+  "frame": "J11d",
+  "theme": "light",
+  "who": "admin",
+  "route": "/admin/users/2a1e0cd5-e495-4375-87c1-aebe3d3436d4",
+  "w": 1440,
+  "h": 1671
+ },
+ {
+  "file": "web-desktop/J14d.webp",
+  "frame": "J14d",
+  "theme": "light",
+  "who": "admin",
+  "route": "/admin/categories",
+  "w": 1440,
+  "h": 2129
+ },
+ {
+  "file": "web-desktop/J16d.webp",
+  "frame": "J16d",
+  "theme": "light",
+  "who": "admin",
+  "route": "/admin/categories/machineryrent",
+  "w": 1440,
+  "h": 2580
+ },
+ {
+  "file": "web-desktop/J7d.webp",
+  "frame": "J7d",
+  "theme": "light",
+  "who": "admin",
+  "route": "/admin/analytics",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/J4d.webp",
+  "frame": "J4d",
+  "theme": "light",
+  "who": "admin",
+  "route": "/admin/reports",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/J8d.webp",
+  "frame": "J8d",
+  "theme": "light",
+  "who": "admin",
+  "route": "/admin/profile",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/N5d-dark.webp",
+  "frame": "N5d",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/",
+  "w": 1440,
+  "h": 1563
+ },
+ {
+  "file": "web-desktop/A1d-dark.webp",
+  "frame": "A1d",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/browse",
+  "w": 1440,
+  "h": 3072
+ },
+ {
+  "file": "web-desktop/B1d-dark.webp",
+  "frame": "B1d",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/browse/view/map",
+  "w": 1440,
+  "h": 1114
+ },
+ {
+  "file": "web-desktop/B2d-dark.webp",
+  "frame": "B2d",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/posts/1",
+  "w": 1440,
+  "h": 1476
+ },
+ {
+  "file": "web-desktop/B6d-dark.webp",
+  "frame": "B6d",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/posts/14",
+  "w": 1440,
+  "h": 1394
+ },
+ {
+  "file": "web-desktop/B5d-dark.webp",
+  "frame": "B5d",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/posts/1/photos",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/C10d-dark.webp",
+  "frame": "C10d",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/saved",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/S1d-dark.webp",
+  "frame": "S1d",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/sos",
+  "w": 1440,
+  "h": 4000
+ },
+ {
+  "file": "web-desktop/N1d-dark.webp",
+  "frame": "N1d",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/login",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/L1d-dark.webp",
+  "frame": "L1d",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/help",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/L2d-dark.webp",
+  "frame": "L2d",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/privacy",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/L6d-dark.webp",
+  "frame": "L6d",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/terms",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/L5d-dark.webp",
+  "frame": "L5d",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/nope-404",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/V1d-dark.webp",
+  "frame": "V1d",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/sellers/2a1e0cd5-e495-4375-87c1-aebe3d3436d4",
+  "w": 1440,
+  "h": 2425
+ },
+ {
+  "file": "web-desktop/V2d-dark.webp",
+  "frame": "V2d",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/sellers/2a1e0cd5-e495-4375-87c1-aebe3d3436d4/reviews",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/N4d-dark.webp",
+  "frame": "N4d",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/become-provider",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/C5d-dark.webp",
+  "frame": "C5d",
+  "theme": "dark",
+  "who": "cust",
+  "route": "/saved",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/C8d-dark.webp",
+  "frame": "C8d",
+  "theme": "dark",
+  "who": "cust",
+  "route": "/saved/searches",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/M1d-dark.webp",
+  "frame": "M1d",
+  "theme": "dark",
+  "who": "cust",
+  "route": "/messages",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/I1d-dark.webp",
+  "frame": "I1d",
+  "theme": "dark",
+  "who": "cust",
+  "route": "/messages/d0aaacd9-cd6c-4c59-8549-d3a88b175786",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/U1d-dark.webp",
+  "frame": "U1d",
+  "theme": "dark",
+  "who": "cust",
+  "route": "/bookings",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/I3d-dark.webp",
+  "frame": "I3d",
+  "theme": "dark",
+  "who": "cust",
+  "route": "/notifications",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/I5d-dark.webp",
+  "frame": "I5d",
+  "theme": "dark",
+  "who": "cust",
+  "route": "/profile",
+  "w": 1440,
+  "h": 1225
+ },
+ {
+  "file": "web-desktop/L3d-dark.webp",
+  "frame": "L3d",
+  "theme": "dark",
+  "who": "cust",
+  "route": "/profile/delete",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/E1d-dark.webp",
+  "frame": "E1d",
+  "theme": "dark",
+  "who": "prov",
+  "route": "/provider",
+  "w": 1440,
+  "h": 1114
+ },
+ {
+  "file": "web-desktop/E2d-dark.webp",
+  "frame": "E2d",
+  "theme": "dark",
+  "who": "prov",
+  "route": "/provider/listings",
+  "w": 1440,
+  "h": 3660
+ },
+ {
+  "file": "web-desktop/E6d-dark.webp",
+  "frame": "E6d",
+  "theme": "dark",
+  "who": "prov",
+  "route": "/provider/listings/1/performance",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/F1d-dark.webp",
+  "frame": "F1d",
+  "theme": "dark",
+  "who": "prov",
+  "route": "/provider/new",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/F2d-dark.webp",
+  "frame": "F2d",
+  "theme": "dark",
+  "who": "prov",
+  "route": "/provider/listings/1/edit",
+  "w": 1440,
+  "h": 1464
+ },
+ {
+  "file": "web-desktop/E4d-dark.webp",
+  "frame": "E4d",
+  "theme": "dark",
+  "who": "prov",
+  "route": "/provider/block",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/E16d-dark.webp",
+  "frame": "E16d",
+  "theme": "dark",
+  "who": "prov",
+  "route": "/provider/value",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/G4d-dark.webp",
+  "frame": "G4d",
+  "theme": "dark",
+  "who": "prov",
+  "route": "/provider/company",
+  "w": 1440,
+  "h": 1618
+ },
+ {
+  "file": "web-desktop/G3d-dark.webp",
+  "frame": "G3d",
+  "theme": "dark",
+  "who": "prov",
+  "route": "/provider/billing",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/E3d-dark.webp",
+  "frame": "E3d",
+  "theme": "dark",
+  "who": "prov",
+  "route": "/requests",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/J10d-dark.webp",
+  "frame": "J10d",
+  "theme": "dark",
+  "who": "admin",
+  "route": "/admin",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/J5d-dark.webp",
+  "frame": "J5d",
+  "theme": "dark",
+  "who": "admin",
+  "route": "/admin/listings",
+  "w": 1440,
+  "h": 4000
+ },
+ {
+  "file": "web-desktop/J6d-dark.webp",
+  "frame": "J6d",
+  "theme": "dark",
+  "who": "admin",
+  "route": "/admin/users",
+  "w": 1440,
+  "h": 3510
+ },
+ {
+  "file": "web-desktop/J11d-dark.webp",
+  "frame": "J11d",
+  "theme": "dark",
+  "who": "admin",
+  "route": "/admin/users/2a1e0cd5-e495-4375-87c1-aebe3d3436d4",
+  "w": 1440,
+  "h": 1671
+ },
+ {
+  "file": "web-desktop/J14d-dark.webp",
+  "frame": "J14d",
+  "theme": "dark",
+  "who": "admin",
+  "route": "/admin/categories",
+  "w": 1440,
+  "h": 2129
+ },
+ {
+  "file": "web-desktop/J16d-dark.webp",
+  "frame": "J16d",
+  "theme": "dark",
+  "who": "admin",
+  "route": "/admin/categories/machineryrent",
+  "w": 1440,
+  "h": 2580
+ },
+ {
+  "file": "web-desktop/J7d-dark.webp",
+  "frame": "J7d",
+  "theme": "dark",
+  "who": "admin",
+  "route": "/admin/analytics",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/J4d-dark.webp",
+  "frame": "J4d",
+  "theme": "dark",
+  "who": "admin",
+  "route": "/admin/reports",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-desktop/J8d-dark.webp",
+  "frame": "J8d",
+  "theme": "dark",
+  "who": "admin",
+  "route": "/admin/profile",
+  "w": 1440,
+  "h": 1024
+ },
+ {
+  "file": "web-phone/N5.webp",
+  "frame": "N5",
+  "theme": "light",
+  "who": "guest",
+  "route": "/",
+  "w": 390,
+  "h": 3061
+ },
+ {
+  "file": "web-phone/A1.webp",
+  "frame": "A1",
+  "theme": "light",
+  "who": "guest",
+  "route": "/browse",
+  "w": 390,
+  "h": 3822
+ },
+ {
+  "file": "web-phone/B1.webp",
+  "frame": "B1",
+  "theme": "light",
+  "who": "guest",
+  "route": "/browse/view/map",
+  "w": 390,
+  "h": 986
+ },
+ {
+  "file": "web-phone/B2.webp",
+  "frame": "B2",
+  "theme": "light",
+  "who": "guest",
+  "route": "/posts/1",
+  "w": 390,
+  "h": 1966
+ },
+ {
+  "file": "web-phone/B6.webp",
+  "frame": "B6",
+  "theme": "light",
+  "who": "guest",
+  "route": "/posts/14",
+  "w": 390,
+  "h": 1577
+ },
+ {
+  "file": "web-phone/B5.webp",
+  "frame": "B5",
+  "theme": "light",
+  "who": "guest",
+  "route": "/posts/1/photos",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/C10.webp",
+  "frame": "C10",
+  "theme": "light",
+  "who": "guest",
+  "route": "/saved",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/S1.webp",
+  "frame": "S1",
+  "theme": "light",
+  "who": "guest",
+  "route": "/sos",
+  "w": 390,
+  "h": 4000
+ },
+ {
+  "file": "web-phone/N1.webp",
+  "frame": "N1",
+  "theme": "light",
+  "who": "guest",
+  "route": "/login",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/L1.webp",
+  "frame": "L1",
+  "theme": "light",
+  "who": "guest",
+  "route": "/help",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/L2.webp",
+  "frame": "L2",
+  "theme": "light",
+  "who": "guest",
+  "route": "/privacy",
+  "w": 390,
+  "h": 929
+ },
+ {
+  "file": "web-phone/L6.webp",
+  "frame": "L6",
+  "theme": "light",
+  "who": "guest",
+  "route": "/terms",
+  "w": 390,
+  "h": 929
+ },
+ {
+  "file": "web-phone/L5.webp",
+  "frame": "L5",
+  "theme": "light",
+  "who": "guest",
+  "route": "/nope-404",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/V1.webp",
+  "frame": "V1",
+  "theme": "light",
+  "who": "guest",
+  "route": "/sellers/2a1e0cd5-e495-4375-87c1-aebe3d3436d4",
+  "w": 390,
+  "h": 4000
+ },
+ {
+  "file": "web-phone/V2.webp",
+  "frame": "V2",
+  "theme": "light",
+  "who": "guest",
+  "route": "/sellers/2a1e0cd5-e495-4375-87c1-aebe3d3436d4/reviews",
+  "w": 390,
+  "h": 852
+ },
+ {
+  "file": "web-phone/N4.webp",
+  "frame": "N4",
+  "theme": "light",
+  "who": "guest",
+  "route": "/become-provider",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/C5.webp",
+  "frame": "C5",
+  "theme": "light",
+  "who": "cust",
+  "route": "/saved",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/C8.webp",
+  "frame": "C8",
+  "theme": "light",
+  "who": "cust",
+  "route": "/saved/searches",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/M1.webp",
+  "frame": "M1",
+  "theme": "light",
+  "who": "cust",
+  "route": "/messages",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/I2.webp",
+  "frame": "I2",
+  "theme": "light",
+  "who": "cust",
+  "route": "/messages/d0aaacd9-cd6c-4c59-8549-d3a88b175786",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/U1.webp",
+  "frame": "U1",
+  "theme": "light",
+  "who": "cust",
+  "route": "/bookings",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/I3.webp",
+  "frame": "I3",
+  "theme": "light",
+  "who": "cust",
+  "route": "/notifications",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/I5.webp",
+  "frame": "I5",
+  "theme": "light",
+  "who": "cust",
+  "route": "/profile",
+  "w": 390,
+  "h": 1227
+ },
+ {
+  "file": "web-phone/L3.webp",
+  "frame": "L3",
+  "theme": "light",
+  "who": "cust",
+  "route": "/profile/delete",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/E1.webp",
+  "frame": "E1",
+  "theme": "light",
+  "who": "prov",
+  "route": "/provider",
+  "w": 390,
+  "h": 1802
+ },
+ {
+  "file": "web-phone/E2.webp",
+  "frame": "E2",
+  "theme": "light",
+  "who": "prov",
+  "route": "/provider/listings",
+  "w": 390,
+  "h": 4000
+ },
+ {
+  "file": "web-phone/E6.webp",
+  "frame": "E6",
+  "theme": "light",
+  "who": "prov",
+  "route": "/provider/listings/1/performance",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/F1.webp",
+  "frame": "F1",
+  "theme": "light",
+  "who": "prov",
+  "route": "/provider/new",
+  "w": 390,
+  "h": 1376
+ },
+ {
+  "file": "web-phone/F2.webp",
+  "frame": "F2",
+  "theme": "light",
+  "who": "prov",
+  "route": "/provider/listings/1/edit",
+  "w": 390,
+  "h": 2446
+ },
+ {
+  "file": "web-phone/E4.webp",
+  "frame": "E4",
+  "theme": "light",
+  "who": "prov",
+  "route": "/provider/block",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/E16.webp",
+  "frame": "E16",
+  "theme": "light",
+  "who": "prov",
+  "route": "/provider/value",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/G4.webp",
+  "frame": "G4",
+  "theme": "light",
+  "who": "prov",
+  "route": "/provider/company",
+  "w": 390,
+  "h": 1678
+ },
+ {
+  "file": "web-phone/G3.webp",
+  "frame": "G3",
+  "theme": "light",
+  "who": "prov",
+  "route": "/provider/billing",
+  "w": 390,
+  "h": 1098
+ },
+ {
+  "file": "web-phone/E3.webp",
+  "frame": "E3",
+  "theme": "light",
+  "who": "prov",
+  "route": "/requests",
+  "w": 390,
+  "h": 988
+ },
+ {
+  "file": "web-phone/J10.webp",
+  "frame": "J10",
+  "theme": "light",
+  "who": "admin",
+  "route": "/admin",
+  "w": 390,
+  "h": 1827
+ },
+ {
+  "file": "web-phone/J5.webp",
+  "frame": "J5",
+  "theme": "light",
+  "who": "admin",
+  "route": "/admin/listings",
+  "w": 390,
+  "h": 4000
+ },
+ {
+  "file": "web-phone/J6.webp",
+  "frame": "J6",
+  "theme": "light",
+  "who": "admin",
+  "route": "/admin/users",
+  "w": 390,
+  "h": 3638
+ },
+ {
+  "file": "web-phone/J11.webp",
+  "frame": "J11",
+  "theme": "light",
+  "who": "admin",
+  "route": "/admin/users/2a1e0cd5-e495-4375-87c1-aebe3d3436d4",
+  "w": 390,
+  "h": 2590
+ },
+ {
+  "file": "web-phone/J14.webp",
+  "frame": "J14",
+  "theme": "light",
+  "who": "admin",
+  "route": "/admin/categories",
+  "w": 390,
+  "h": 876
+ },
+ {
+  "file": "web-phone/J16.webp",
+  "frame": "J16",
+  "theme": "light",
+  "who": "admin",
+  "route": "/admin/categories/machineryrent",
+  "w": 390,
+  "h": 3193
+ },
+ {
+  "file": "web-phone/J7.webp",
+  "frame": "J7",
+  "theme": "light",
+  "who": "admin",
+  "route": "/admin/analytics",
+  "w": 390,
+  "h": 1239
+ },
+ {
+  "file": "web-phone/J4.webp",
+  "frame": "J4",
+  "theme": "light",
+  "who": "admin",
+  "route": "/admin/reports",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/J8.webp",
+  "frame": "J8",
+  "theme": "light",
+  "who": "admin",
+  "route": "/admin/profile",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/N5-dark.webp",
+  "frame": "N5",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/",
+  "w": 390,
+  "h": 3061
+ },
+ {
+  "file": "web-phone/A1-dark.webp",
+  "frame": "A1",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/browse",
+  "w": 390,
+  "h": 3822
+ },
+ {
+  "file": "web-phone/B1-dark.webp",
+  "frame": "B1",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/browse/view/map",
+  "w": 390,
+  "h": 986
+ },
+ {
+  "file": "web-phone/B2-dark.webp",
+  "frame": "B2",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/posts/1",
+  "w": 390,
+  "h": 1966
+ },
+ {
+  "file": "web-phone/B6-dark.webp",
+  "frame": "B6",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/posts/14",
+  "w": 390,
+  "h": 1577
+ },
+ {
+  "file": "web-phone/B5-dark.webp",
+  "frame": "B5",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/posts/1/photos",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/C10-dark.webp",
+  "frame": "C10",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/saved",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/S1-dark.webp",
+  "frame": "S1",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/sos",
+  "w": 390,
+  "h": 4000
+ },
+ {
+  "file": "web-phone/N1-dark.webp",
+  "frame": "N1",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/login",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/L1-dark.webp",
+  "frame": "L1",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/help",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/L2-dark.webp",
+  "frame": "L2",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/privacy",
+  "w": 390,
+  "h": 929
+ },
+ {
+  "file": "web-phone/L6-dark.webp",
+  "frame": "L6",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/terms",
+  "w": 390,
+  "h": 929
+ },
+ {
+  "file": "web-phone/L5-dark.webp",
+  "frame": "L5",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/nope-404",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/V1-dark.webp",
+  "frame": "V1",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/sellers/2a1e0cd5-e495-4375-87c1-aebe3d3436d4",
+  "w": 390,
+  "h": 4000
+ },
+ {
+  "file": "web-phone/V2-dark.webp",
+  "frame": "V2",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/sellers/2a1e0cd5-e495-4375-87c1-aebe3d3436d4/reviews",
+  "w": 390,
+  "h": 852
+ },
+ {
+  "file": "web-phone/N4-dark.webp",
+  "frame": "N4",
+  "theme": "dark",
+  "who": "guest",
+  "route": "/become-provider",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/C5-dark.webp",
+  "frame": "C5",
+  "theme": "dark",
+  "who": "cust",
+  "route": "/saved",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/C8-dark.webp",
+  "frame": "C8",
+  "theme": "dark",
+  "who": "cust",
+  "route": "/saved/searches",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/M1-dark.webp",
+  "frame": "M1",
+  "theme": "dark",
+  "who": "cust",
+  "route": "/messages",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/I2-dark.webp",
+  "frame": "I2",
+  "theme": "dark",
+  "who": "cust",
+  "route": "/messages/d0aaacd9-cd6c-4c59-8549-d3a88b175786",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/U1-dark.webp",
+  "frame": "U1",
+  "theme": "dark",
+  "who": "cust",
+  "route": "/bookings",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/I3-dark.webp",
+  "frame": "I3",
+  "theme": "dark",
+  "who": "cust",
+  "route": "/notifications",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/I5-dark.webp",
+  "frame": "I5",
+  "theme": "dark",
+  "who": "cust",
+  "route": "/profile",
+  "w": 390,
+  "h": 1227
+ },
+ {
+  "file": "web-phone/L3-dark.webp",
+  "frame": "L3",
+  "theme": "dark",
+  "who": "cust",
+  "route": "/profile/delete",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/E1-dark.webp",
+  "frame": "E1",
+  "theme": "dark",
+  "who": "prov",
+  "route": "/provider",
+  "w": 390,
+  "h": 1802
+ },
+ {
+  "file": "web-phone/E2-dark.webp",
+  "frame": "E2",
+  "theme": "dark",
+  "who": "prov",
+  "route": "/provider/listings",
+  "w": 390,
+  "h": 4000
+ },
+ {
+  "file": "web-phone/E6-dark.webp",
+  "frame": "E6",
+  "theme": "dark",
+  "who": "prov",
+  "route": "/provider/listings/1/performance",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/F1-dark.webp",
+  "frame": "F1",
+  "theme": "dark",
+  "who": "prov",
+  "route": "/provider/new",
+  "w": 390,
+  "h": 1376
+ },
+ {
+  "file": "web-phone/F2-dark.webp",
+  "frame": "F2",
+  "theme": "dark",
+  "who": "prov",
+  "route": "/provider/listings/1/edit",
+  "w": 390,
+  "h": 2446
+ },
+ {
+  "file": "web-phone/E4-dark.webp",
+  "frame": "E4",
+  "theme": "dark",
+  "who": "prov",
+  "route": "/provider/block",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/E16-dark.webp",
+  "frame": "E16",
+  "theme": "dark",
+  "who": "prov",
+  "route": "/provider/value",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/G4-dark.webp",
+  "frame": "G4",
+  "theme": "dark",
+  "who": "prov",
+  "route": "/provider/company",
+  "w": 390,
+  "h": 1678
+ },
+ {
+  "file": "web-phone/G3-dark.webp",
+  "frame": "G3",
+  "theme": "dark",
+  "who": "prov",
+  "route": "/provider/billing",
+  "w": 390,
+  "h": 1098
+ },
+ {
+  "file": "web-phone/E3-dark.webp",
+  "frame": "E3",
+  "theme": "dark",
+  "who": "prov",
+  "route": "/requests",
+  "w": 390,
+  "h": 988
+ },
+ {
+  "file": "web-phone/J10-dark.webp",
+  "frame": "J10",
+  "theme": "dark",
+  "who": "admin",
+  "route": "/admin",
+  "w": 390,
+  "h": 1827
+ },
+ {
+  "file": "web-phone/J5-dark.webp",
+  "frame": "J5",
+  "theme": "dark",
+  "who": "admin",
+  "route": "/admin/listings",
+  "w": 390,
+  "h": 4000
+ },
+ {
+  "file": "web-phone/J6-dark.webp",
+  "frame": "J6",
+  "theme": "dark",
+  "who": "admin",
+  "route": "/admin/users",
+  "w": 390,
+  "h": 3638
+ },
+ {
+  "file": "web-phone/J11-dark.webp",
+  "frame": "J11",
+  "theme": "dark",
+  "who": "admin",
+  "route": "/admin/users/2a1e0cd5-e495-4375-87c1-aebe3d3436d4",
+  "w": 390,
+  "h": 2590
+ },
+ {
+  "file": "web-phone/J14-dark.webp",
+  "frame": "J14",
+  "theme": "dark",
+  "who": "admin",
+  "route": "/admin/categories",
+  "w": 390,
+  "h": 876
+ },
+ {
+  "file": "web-phone/J16-dark.webp",
+  "frame": "J16",
+  "theme": "dark",
+  "who": "admin",
+  "route": "/admin/categories/machineryrent",
+  "w": 390,
+  "h": 3193
+ },
+ {
+  "file": "web-phone/J7-dark.webp",
+  "frame": "J7",
+  "theme": "dark",
+  "who": "admin",
+  "route": "/admin/analytics",
+  "w": 390,
+  "h": 1239
+ },
+ {
+  "file": "web-phone/J4-dark.webp",
+  "frame": "J4",
+  "theme": "dark",
+  "who": "admin",
+  "route": "/admin/reports",
+  "w": 390,
+  "h": 844
+ },
+ {
+  "file": "web-phone/J8-dark.webp",
+  "frame": "J8",
+  "theme": "dark",
+  "who": "admin",
+  "route": "/admin/profile",
+  "w": 390,
+  "h": 844
+ }
+]

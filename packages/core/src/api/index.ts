@@ -2,7 +2,7 @@
 // arrive as ISO strings over JSON; Postgres decimals as strings.
 import type {
   ApprovalStatus, BookingStatus, ErrorCode, PaymentKind, PaymentProvider, PaymentStatus,
-  Plan, PriceUnit, ReportKind, ReportReason, ReportStatus, Status, UserType,
+  Plan, PriceUnit, ReportAction, ReportKind, ReportReason, ReportStatus, Status, UserType, BroadcastAudience,
 } from '../enums/index.js';
 import type { Locale } from '../i18n/meta.js';
 
@@ -33,6 +33,8 @@ export interface PublicUser {
 
 /** Threads a provider must have answered in 30 days before a reply time is shown. */
 export const REPLY_TIME_MIN_THREADS = 3;
+/** A live listing this many days or fewer from lapsing is "expiring": the engine warns its owner, both clients flag it. */
+export const EXPIRY_WARNING_DAYS = 3;
 
 export interface User extends PublicUser {
   address: string | null;
@@ -642,23 +644,6 @@ export interface ConversationReadPayload { conversation_id: string; read_at: ISO
 export type NotificationCreatedPayload = AppNotification;
 export interface BookingUpdatedPayload { booking_id: number; status: BookingStatus; role: DealRole }
 
-export interface Report {
-  id: string;
-  reporter: PublicUser | null;
-  post: ListingListItem | null;
-  review: Review | null;
-  kind: ReportKind;
-  owner: PublicUser | null;
-  subject: string | null;
-  reason: ReportReason;
-  detail: string | null;
-  status: ReportStatus;
-  resolution: string | null;
-  resolved_at: ISODate | null;
-  date_created: ISODate;
-  date_updated: ISODate;
-}
-
 /** What a saved search remembers of `GET /posts`: no dates, no viewer location, no paging. */
 export interface SavedSearchParams {
   q?: string;
@@ -711,25 +696,166 @@ export interface LandingStats {
   families: Array<{ key: string; count: number }>;
   categories: Array<{ key: string; count: number }>;
 }
+// ---- Payments (phase 8) ----
+
+/** Featured placement, sold per listing by the day, separately from the plan (Figma P1). */
+export const FEATURED_PACKS = [7, 14, 30] as const;
+export const FEATURED_MAX_DAYS = 30;
+/** Plan lengths on sale (Figma P3d). */
+export const PLAN_MONTHS = [1, 3, 6, 12] as const;
+/** An unpaid QPay invoice stays payable this long (Figma P3d: "нэхэмжлэх 30 мин хүчинтэй"). */
+export const INVOICE_TTL_MINUTES = 30;
+
 export interface Payment {
   id: string;
   kind: PaymentKind;
   plan: Plan | null;
   months: number;
-  post: ListingListItem | null;
+  post_id: number | null;
+  /** Copied at the invoice, so history reads right after the listing changes or goes. */
+  post_title: string | null;
   days: number | null;
   amount: number;
-  currency: string;
+  currency: 'MNT';
   provider: PaymentProvider;
   status: PaymentStatus;
-  provider_invoice_id: string | null;
+  /** `ZM-…`, the line on the bank statement. */
   reference: string | null;
+  /** When an unpaid invoice stops being payable. */
+  expires_at: ISODate | null;
   paid_at: ISODate | null;
-  granted_at: ISODate | null;
-  note: string | null;
+  /** What the payment granted: the plan's or the placement's new end. */
+  granted_until: ISODate | null;
   date_created: ISODate;
-  date_updated: ISODate;
 }
+
+/** `GET /payments/catalogue`: prices are null until set on the server (then that item is not for sale). */
+export interface PaymentCatalogue {
+  currency: 'MNT';
+  /** QPay is configured. */
+  enabled: boolean;
+  support_phone: string;
+  plans: Array<{ plan: Plan; monthly_price: number | null; posts: number }>;
+  featured: { price_per_day: number | null; packs: number[]; max_days: number };
+}
+
+/** `POST /payments/invoice`: a plan (`plan`, `months`) or a placement (`post_id`, `days`). */
+export interface InvoiceCreateRequest {
+  kind: PaymentKind;
+  plan?: Plan;
+  months?: number;
+  post_id?: number;
+  days?: number;
+}
+
+export interface QPayLink { name: string; description: string; logo: string; link: string }
+
+/** The invoice to pay: a QR for a phone's bank app, deep links for this phone's bank apps. */
+export interface PaymentInvoice {
+  payment: Payment;
+  qr_text: string | null;
+  /** Base64 PNG. */
+  qr_image: string | null;
+  urls: QPayLink[];
+}
+
+// ---- Reports (phase 9) ----
+
+/** `POST /reports`: one of `post_id` / `review_id`; the reason must belong to that kind. */
+export interface ReportCreateRequest {
+  kind: ReportKind;
+  post_id?: number;
+  review_id?: number;
+  reason: ReportReason;
+  detail?: string;
+}
+
+/** `GET /admin/reports?status`: open reports grouped by what they are about (Figma J4). */
+export interface ReportGroup {
+  /** The newest report's id; resolving it resolves the subject's other open reports too. */
+  id: string;
+  kind: ReportKind;
+  post_id: number | null;
+  review_id: number | null;
+  /** Copied at filing: the listing title or the review text. Survives the subject's deletion. */
+  subject: string | null;
+  owner: PublicUser | null;
+  /** Live subject details, null once deleted. */
+  post: ListingListItem | null;
+  review: Review | null;
+  reasons: ReportReason[];
+  reporters: number;
+  /** The newest non-empty detail. */
+  detail: string | null;
+  status: ReportStatus;
+  action: ReportAction | null;
+  resolution: string | null;
+  first_at: ISODate;
+  resolved_at: ISODate | null;
+}
+
+/** `POST /admin/reports/:id/resolve`. */
+export interface ReportResolveRequest { action: ReportAction; resolution?: string }
+
+// ---- Admin (phase 9) ----
+
+export interface AdminUser extends User {
+  is_admin: boolean;
+  active_posts: number;
+  total_posts: number;
+}
+
+export interface AdminUserListing {
+  id: number;
+  title: string | null;
+  category: string;
+  approval_status: ApprovalStatus;
+  status: Status;
+  is_live: boolean;
+  has_pending_edit: boolean;
+  views: number;
+  expires_at: ISODate | null;
+  featured_until: ISODate | null;
+}
+
+/** `GET /admin/users/:id` (Figma J11d). */
+export interface AdminUserDetail extends AdminUser {
+  posts: AdminUserListing[];
+  payments: Payment[];
+}
+
+/** `GET /admin/users?q&type&page`. `ADMIN` filters to the admin phone list. */
+export type AdminUserFilter = UserType | 'ADMIN';
+
+export interface AdminPlanGrantRequest { months: number }
+export interface AdminFeatureGrantRequest { days: number }
+export interface AdminCompanyVerifyRequest { verified: boolean }
+
+/** `GET /admin/overview` (Figma J10d, J8). */
+export interface AdminOverview {
+  posts: { total: number; new_7d: number; pending: number; oldest_pending_at: ISODate | null; approved: number; rejected: number };
+  users: { total: number; new_7d: number; providers: number; customers: number };
+  reports_open: number;
+  by_category: Array<{ key: string; count: number }>;
+}
+
+/** `GET /admin/analytics?days=7|30|90` (Figma J7, J7d): each count with the window before for comparison. */
+export interface AdminAnalytics {
+  days: number;
+  users: { total: number; new: number };
+  live: { total: number; new: number };
+  pending: { count: number; oldest_at: ISODate | null };
+  bookings_accepted: { count: number; previous: number };
+  /** People who reached each step in the window. */
+  funnel: { viewed: number; contacted: number; requested: number; accepted: number };
+  by_category: Array<{ key: string; count: number }>;
+  /** Searches that found nothing: where supply is missing. */
+  search_gaps: Array<{ query: string; province: string | null; count: number }>;
+}
+
+/** `POST /admin/broadcast` and `/admin/broadcast/estimate`. `category` narrows to people who post, save or search in it. */
+export interface BroadcastRequest { title: string; body: string; audience: BroadcastAudience; category?: string | null }
+export interface BroadcastEstimate { devices: number; users: number }
 
 // ---- Notifications (phase 7) ----
 
@@ -738,6 +864,7 @@ export const NOTIFICATION_KINDS = [
   'LISTING_SUBMITTED', 'LISTING_APPROVED', 'LISTING_REJECTED', 'LISTING_EXPIRING', 'LISTING_EXPIRED',
   'BOOKING_REQUESTED', 'BOOKING_ACCEPTED', 'BOOKING_DECLINED', 'BOOKING_CANCELLED', 'BOOKING_EXPIRED', 'BOOKING_REMINDER',
   'REVIEW_PROMPT', 'REVIEW_CREATED', 'REVIEW_REPLIED', 'SAVED_SEARCH_MATCH', 'MESSAGE_CREATED',
+  'PAYMENT_PAID', 'REPORT_RESOLVED', 'BROADCAST',
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
@@ -748,6 +875,7 @@ export type NotificationTopic = (typeof NOTIFICATION_TOPICS)[number];
 export const notificationTopic = (kind: NotificationKind): NotificationTopic | null => {
   if (kind === 'MESSAGE_CREATED') return 'chat';
   if (kind === 'SAVED_SEARCH_MATCH') return 'saved_search';
+  if (kind === 'BROADCAST') return 'news';
   if (kind.startsWith('BOOKING_')) return 'booking';
   return null;
 };
@@ -778,6 +906,16 @@ export interface NotificationData {
   preview?: string | null;
   /** The recipient's side of a booking. */
   role?: DealRole | null;
+  /** PAYMENT_PAID: what was bought, its amount, its reference and what it runs until. */
+  payment_id?: string | null;
+  payment_kind?: PaymentKind | null;
+  amount?: number | null;
+  reference?: string | null;
+  until?: string | null;
+  /** BROADCAST: the admin's words (`title` holds the heading). */
+  body?: string | null;
+  /** REPORT_RESOLVED: whether the subject was a listing or a review. */
+  report_kind?: ReportKind | null;
 }
 
 export interface AppNotification {

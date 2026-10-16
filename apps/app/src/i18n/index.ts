@@ -4,7 +4,6 @@ import { DEFAULT_LOCALE, LOCALES } from '@zuuchmap/core';
 import { resources } from '@zuuchmap/core/i18n';
 import { extra } from './extra';
 
-export { LOCALES };
 
 void i18n.use(initReactI18next).init({
   resources,

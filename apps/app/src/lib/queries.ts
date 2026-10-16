@@ -79,7 +79,7 @@ export const useAvailability = (id: number, enabled: boolean) =>
 
 // ---- Saves (likes): guests on the device, signed-in on the engine ----
 
-export const useLikedIds = () => {
+const useLikedIds = () => {
   const { token } = useAuth();
   return useQuery({ queryKey: ['like-ids', !!token], queryFn: () => api<LikeIdsResponse>('/likes/ids'), enabled: !!token, staleTime: 60_000 });
 };

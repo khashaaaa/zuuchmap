@@ -6,17 +6,17 @@ import { CurrentUser, JwtAuthGuard, OptionalJwtAuthGuard } from '../auth/guards'
 import type { RequestUser } from '../auth/request-user';
 import { ReviewService } from './review.service';
 
-export class WriteReviewDto implements ReviewWriteRequest {
+class WriteReviewDto implements ReviewWriteRequest {
   @IsUUID() provider_id!: string;
   @IsInt() @Min(1) @Max(5) rating!: number;
   @IsOptional() @ValidateIf((_o, v) => v !== null) @IsString() @MaxLength(1000) comment?: string | null;
 }
 
-export class ReplyReviewDto implements ReviewReplyRequest {
+class ReplyReviewDto implements ReviewReplyRequest {
   @IsString() @MaxLength(1000) reply!: string;
 }
 
-export class ProviderReviewsQueryDto {
+class ProviderReviewsQueryDto {
   @IsOptional() @IsIn(['new', 'high', 'low']) sort?: ReviewSort;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(50) limit?: number;

@@ -19,7 +19,7 @@ export interface AuthConfig {
   production: boolean;
 }
 
-export const SESSION_TTL_SECONDS = 365 * 24 * 60 * 60;
+const SESSION_TTL_SECONDS = 365 * 24 * 60 * 60;
 
 export function authConfigFromEnv(): AuthConfig {
   const e = env();

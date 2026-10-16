@@ -31,7 +31,7 @@ const todayYmd = () => {
 };
 
 /** True while the first day has not started: an ACCEPTED booking can still be cancelled. */
-export const beforeFirstDay = (b: Booking): boolean => b.start_date.slice(0, 10) > todayYmd();
+const beforeFirstDay = (b: Booking): boolean => b.start_date.slice(0, 10) > todayYmd();
 
 function mapUrl(b: Booking): string | null {
   const p = b.post;

@@ -42,7 +42,7 @@ export interface TabBarProps {
 }
 
 /** The items' own markers are hidden; one marker slides to the active item (no slide on first paint). */
-export function TabBar({ children, preview = false, className, label }: TabBarProps) {
+function TabBar({ children, preview = false, className, label }: TabBarProps) {
   const { t } = useTranslation();
   const nav = useRef<HTMLElement>(null);
   const [x, setX] = useState<{ left: number; animate: boolean } | null>(null);
@@ -148,18 +148,18 @@ export function ProviderTabBar({
 
 export type AdminTab = 'browse' | 'approval' | 'reports' | 'profile';
 
-export function AdminTabBar({ active, onSelect, preview, className }: PresetProps<AdminTab>) {
+export function AdminTabBar({ active, onSelect, preview, className, counts }: PresetProps<AdminTab> & { counts?: Partial<Record<AdminTab, number>> }) {
   const { t } = useTranslation();
-  const items: { key: AdminTab; icon: string; label: string }[] = [
-    { key: 'browse', icon: 'search', label: t('nav.browse') },
-    { key: 'approval', icon: 'shield-check', label: t('admin.pendingPostsShort') },
-    { key: 'reports', icon: 'flag', label: t('report.queue') },
-    { key: 'profile', icon: 'user', label: t('nav.profile') },
+  const items: { key: AdminTab; icon: string; label: string; count?: number }[] = [
+    { key: 'browse', icon: 'search', label: t('admin.tab.search') },
+    { key: 'approval', icon: 'shield-check', label: t('admin.tab.queue'), count: counts?.approval },
+    { key: 'reports', icon: 'flag', label: t('admin.tab.reports'), count: counts?.reports },
+    { key: 'profile', icon: 'user', label: t('admin.tab.profile') },
   ];
   return (
     <TabBar preview={preview} className={cn('px-[19px]', className)}>
       {items.map((i) => (
-        <TabBarItem key={i.key} icon={i.icon} label={i.label} active={active === i.key} onClick={() => onSelect?.(i.key)} />
+        <TabBarItem key={i.key} icon={i.icon} label={i.label} count={i.count} active={active === i.key} onClick={() => onSelect?.(i.key)} />
       ))}
     </TabBar>
   );

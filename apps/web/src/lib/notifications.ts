@@ -73,7 +73,7 @@ export function useMarkRead() {
 }
 
 /** Where a notification goes on the web. The fix flow and the renew sheet are opened with a query the pages read. */
-export function notificationHref(target: NotificationTarget): string {
+function notificationHref(target: NotificationTarget): string {
   if (target.to === 'editListing') return `/provider/listings/${target.post_id}/edit?fix=1${target.field_key ? `&field=${encodeURIComponent(target.field_key)}` : ''}`;
   if (target.to === 'myListings' && target.post_id) return `/provider/listings?renew=${target.post_id}`;
   return notificationWebPath(target);
@@ -114,7 +114,10 @@ export const notificationLook = (kind: AppNotification['kind']): NotificationTyp
     case 'REVIEW_CREATED':
     case 'REVIEW_REPLIED': return 'review';
     case 'SAVED_SEARCH_MATCH': return 'savedSearch';
-    case 'MESSAGE_CREATED': return 'message';
+    case 'MESSAGE_CREATED':
+    case 'BROADCAST': return 'message';
+    case 'PAYMENT_PAID': return 'approved';
+    case 'REPORT_RESOLVED': return 'report';
   }
 };
 

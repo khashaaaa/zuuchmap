@@ -34,7 +34,7 @@ export interface ApiOptions {
 
 const TIMEOUT_MS = 15000;
 
-export function queryString(params?: Record<string, Primitive>): string {
+function queryString(params?: Record<string, Primitive>): string {
   if (!params) return '';
   const parts: string[] = [];
   for (const [k, v] of Object.entries(params)) {

@@ -21,7 +21,7 @@ interface TabDef {
 }
 
 /** Route names must equal these keys when the bar is used as a navigator's `tabBar`. */
-export const TAB_PRESETS: Record<TabPreset, TabDef[]> = {
+const TAB_PRESETS: Record<TabPreset, TabDef[]> = {
   customer: [
     { key: 'browse', icon: 'search', label: 'nav.search' },
     { key: 'saved', icon: 'bookmark', label: 'nav.saved' },
@@ -36,18 +36,20 @@ export const TAB_PRESETS: Record<TabPreset, TabDef[]> = {
     { key: 'profile', icon: 'user', label: 'nav.profile' },
   ],
   admin: [
-    { key: 'browse', icon: 'search', label: 'nav.browse' },
-    { key: 'approval', icon: 'shield-check', label: 'admin.pendingPostsShort' },
+    { key: 'browse', icon: 'search', label: 'admin.tab.search' },
+    { key: 'approval', icon: 'shield-check', label: 'admin.tab.queue' },
     { key: 'reports', icon: 'flag', label: 'report.queue' },
     { key: 'profile', icon: 'user', label: 'nav.profile' },
   ],
 };
 
 /** Item height; the bar adds 6 above and the safe-area inset below. */
-export const TAB_ITEM_HEIGHT = 56;
-export const TAB_BAR_PAD_TOP = 6;
+const TAB_ITEM_HEIGHT = 56;
+const TAB_BAR_PAD_TOP = 6;
 /** Sibling labels end 6 px above the item bottom (24 icon + 4 gap + 16 label centred in 56). */
 const CENTER_LABEL_BOTTOM = 6;
+/** The bar is a fixed height (toasts and sheets clear it by a constant): labels grow with system text only this far. */
+const TAB_LABEL_MAX_SCALE = 1.3;
 
 export interface TabBarItemProps {
   icon: string;
@@ -60,7 +62,7 @@ export interface TabBarItemProps {
 }
 
 /** 24 px icon, label, 3 px indicator on top when active. Active and default labels share one size. */
-export function TabBarItem({ icon, label, active, count, onPress, hideIndicator }: TabBarItemProps) {
+function TabBarItem({ icon, label, active, count, onPress, hideIndicator }: TabBarItemProps) {
   const { colors, type } = useAppTheme();
   return (
     <Pressable
@@ -79,7 +81,7 @@ export function TabBarItem({ icon, label, active, count, onPress, hideIndicator 
           </View>
         ) : null}
       </View>
-      <Text style={[active ? type.overline : type.micro, { color: active ? colors.textPrimary : colors.textSecondary }]} numberOfLines={1}>{label}</Text>
+      <Text style={[active ? type.overline : type.micro, { color: active ? colors.textPrimary : colors.textSecondary }]} numberOfLines={1} maxFontSizeMultiplier={TAB_LABEL_MAX_SCALE}>{label}</Text>
     </Pressable>
   );
 }
@@ -157,7 +159,7 @@ export function TabBar({ preset, activeKey, onSelect, counts, quota }: TabBarPro
                 ))}
               </View>
             ) : null}
-            <Text style={[type.micro, { position: 'absolute', alignSelf: 'center', bottom: CENTER_LABEL_BOTTOM, color: colors.textSecondary }]} numberOfLines={1}>{label}</Text>
+            <Text style={[type.micro, { position: 'absolute', alignSelf: 'center', bottom: CENTER_LABEL_BOTTOM, color: colors.textSecondary }]} numberOfLines={1} maxFontSizeMultiplier={TAB_LABEL_MAX_SCALE}>{label}</Text>
           </Pressable>
         );
       })}

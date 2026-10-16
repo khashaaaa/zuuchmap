@@ -341,7 +341,7 @@ export function Kit() {
         <div className="flex w-72 flex-col gap-1"><SidebarItem icon="home" label="Нүүр" active /><SidebarItem icon="message-circle" label="Чат" count={4} /><SidebarItem icon="user" label="Профайл" /></div>
         <div className="flex flex-wrap items-start gap-4">
           <ProviderSidebar preview active="home" quota={{ used: 2, total: 3 }} unread={2} onAdd={NOOP} />
-          <AdminSidebar preview active="approval" />
+          <AdminSidebar preview active="listings" />
         </div>
       </Section>
 

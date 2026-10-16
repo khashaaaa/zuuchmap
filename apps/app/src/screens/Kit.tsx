@@ -199,7 +199,7 @@ export function Kit() {
           <TextField label="Name" value={name} onChangeText={setName} placeholder="Placeholder" helper="Helper text" icon="user" validate={(v) => (v.trim() ? null : t('ui.required'))} />
           <TextField label="Phone" value={phone} onChangeText={setPhone} inputMode="tel" placeholder="8000 0000" />
           <TextField label="Focused" value="Value" onChangeText={() => undefined} forceFocused />
-          <TextField label="Error" value="Value" onChangeText={() => undefined} error={t('ui.emailInvalid')} />
+          <TextField label="Error" value="Value" onChangeText={() => undefined} error={t('ui.invalid')} />
           <TextField label="Disabled" value="Value" onChangeText={() => undefined} helper="Helper text" disabled />
         </View>
       </Section>

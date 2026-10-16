@@ -19,13 +19,17 @@ test('Figma I3 sentences render from data', () => {
     '“экскаватор · Хан-Уул” хайлтад 3 шинэ зар.',
   );
   assert.equal(notificationCopy({ kind: 'LISTING_REJECTED', data: { reason: 'үнээ засна уу.' } }, t).body, 'Зар татгалзсан: үнээ засна уу.');
+  assert.equal(
+    notificationCopy({ kind: 'PAYMENT_PAID', data: { payment_kind: 'FEATURED', title: 'Komatsu PC200', until: '2026-10-15T10:00:00Z' } }, t).body,
+    '“Komatsu PC200” 2026.10.15 хүртэл онцлогдоно.',
+  );
 });
 
 test('every kind renders a title and body in every locale, with no key or placeholder left', () => {
   for (const l of LOCALES) {
     const t = translator(l);
     for (const kind of NOTIFICATION_KINDS) {
-      const c = notificationCopy({ kind, data: { title: 'X', name: 'N', preview: 'p', reason: 'r', start_date: '2026-01-02', start_time: '09:00', query: 'q', count: 2, days_left: 3, rating: 5 } }, t);
+      const c = notificationCopy({ kind, data: { title: 'X', name: 'N', preview: 'p', reason: 'r', start_date: '2026-01-02', start_time: '09:00', query: 'q', count: 2, days_left: 3, rating: 5, body: 'b', amount: 35000, until: '2026-10-15' } }, t);
       for (const s of [c.title, c.body]) {
         assert.ok(s && !s.startsWith('notif.') && !s.includes('{{'), `${l} ${kind}: ${s}`);
       }

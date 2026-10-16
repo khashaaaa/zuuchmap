@@ -10,7 +10,7 @@ import { ProviderService } from './provider.service';
 
 @Controller('provider')
 @UseGuards(JwtAuthGuard)
-export class ProviderController {
+class ProviderController {
   constructor(private readonly provider: ProviderService) {}
 
   @Get('home')

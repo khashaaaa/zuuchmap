@@ -111,13 +111,16 @@ export function ProviderProfile() {
           {row(
             'badge-check',
             t('prov.account.plan'),
-            undefined,
+            () => nav.navigate('Billing'),
             undefined,
             plan ? [t('prov.account.planLine', { plan: plan.name === 'PROVIDER' ? t('prov.listings.planProvider') : t('prov.listings.planFree'), used: plan.active_posts, limit: plan.post_limit }), plan.expires_at ? t('prov.account.planUntil', { date: formatDate(plan.expires_at, locale) }) : null].filter(Boolean).join(' · ') : undefined,
           )}
           {row('bell', t('notif.title'), () => nav.navigate('Notifications'), <CountBadge count={unread} />)}
           {row('settings', t('prov.account.settings'), () => nav.navigate('NotificationSettings'), undefined, t('prov.account.settingsHint'))}
           {row('building-2', c ? t('prov.account.company') : t('prov.account.noCompany'), () => nav.navigate('Company'), undefined, c?.name)}
+          {row('help-circle', t('legal.helpRow'), () => nav.navigate('Help'))}
+          {row('shield-check', t('legal.privacyTermsRow'), () => nav.navigate('Privacy'))}
+          {row('user-x', t('account.delete.title'), () => nav.navigate('DeleteAccount'))}
         </View>
 
         <View style={{ gap: 8 }}>

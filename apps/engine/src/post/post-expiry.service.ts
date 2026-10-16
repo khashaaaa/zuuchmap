@@ -2,11 +2,11 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { EXPIRY_WARNING_DAYS } from '@zuuchmap/core';
 import { RedisService } from '../redis/redis.service';
 import { LISTING_EVENTS, type ListingEventPort } from './listing-events';
 
 export const APP_TIMEZONE = 'Asia/Ulaanbaatar';
-export const EXPIRY_WARNING_DAYS = 3;
 const CLAIM_TTL_MS = 6 * 60 * 60 * 1000;
 
 interface Row {

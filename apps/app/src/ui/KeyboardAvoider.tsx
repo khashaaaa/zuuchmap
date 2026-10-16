@@ -5,7 +5,7 @@ import { Keyboard, Platform, TextInput, View, type ScrollView, type StyleProp, t
  * Pixels of the keyboard covering the bottom of `ref`'s view, measured: right whether the window
  * resized (overlap 0) or not. Never RN's KeyboardAvoidingView.
  */
-export function useKeyboardOverlap(ref: RefObject<View | null>, inModal = false): { overlap: number; remeasure: () => void } {
+function useKeyboardOverlap(ref: RefObject<View | null>, inModal = false): { overlap: number; remeasure: () => void } {
   const [overlap, setOverlap] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const keyboardTop = useRef<number | null>(null);

@@ -4,13 +4,12 @@ import type {
   BlockDaysRequest, BlockDaysResponse, BookingValue, CategoryView, FieldIssue, Company, CompanyWriteRequest, Listing, ListingPerformanceDetail,
   ListingWriteRequest, MyCompanyResponse, MyListingItem, MyListingStats, MyPerformance, ProviderHome, User,
 } from '@zuuchmap/core';
+import { EXPIRY_WARNING_DAYS } from '@zuuchmap/core';
 import { api, errorKey } from './api';
 import { useAuthStore } from './auth';
 import { useToast } from './toast';
 
 const DAY_MS = 86_400_000;
-/** Mirrors the engine's EXPIRY_WARNING_DAYS. */
-export const EXPIRY_WARNING_DAYS = 3;
 export const TITLE_MIN = 10;
 export const TITLE_MAX = 80;
 export const MAX_PHOTOS = 10;
@@ -248,7 +247,7 @@ export function formFromListing(l: Listing, withPhotos = true): WizardForm {
 const filled = (v: unknown): boolean => v !== undefined && v !== null && v !== '' && !(Array.isArray(v) && v.length === 0);
 
 /** Drops empty attribute values so the engine never sees blanks. */
-export function cleanAttributes(attrs: Record<string, unknown>): Record<string, unknown> {
+function cleanAttributes(attrs: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(attrs).filter(([, v]) => filled(v)));
 }
 

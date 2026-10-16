@@ -14,6 +14,7 @@ import { AppHeader } from '../../ui/AppHeader';
 import { Button } from '../../ui/Button';
 import { EmptyState } from '../../ui/EmptyState';
 import { Icon } from '../../ui/Icon';
+import { ReportSheet } from '../customer/ReportSheet';
 import { ReviewCard } from '../../ui/ReviewCard';
 import { SellerCard } from '../../ui/SellerCard';
 import { SkeletonListingRow } from '../../ui/SkeletonListingRow';
@@ -51,6 +52,7 @@ export function Seller() {
   const [write, setWrite] = useState(false);
   const [reply, setReply] = useState<Review | null>(null);
   const [replyOpen, setReplyOpen] = useState(false);
+  const [report, setReport] = useState<Review | null>(null);
   const mine = me?.id === params.id;
 
   if (q.isError || !q.data) {
@@ -117,6 +119,7 @@ export function Seller() {
                 setReply(r);
                 setReplyOpen(true);
               }}
+              onReport={r.author.id !== me?.id ? () => requireAuth('report', () => setReport(r)) : undefined}
             />
           ))}
           <View style={s.note}>
@@ -127,6 +130,7 @@ export function Seller() {
       </ScrollView>
       <ReviewSheet visible={write} onClose={() => setWrite(false)} provider={user} existing={rv?.own ?? null} />
       <ReplySheet visible={replyOpen} onClose={() => setReplyOpen(false)} review={reply} providerName={name} />
+      <ReportSheet target={report ? { kind: 'REVIEW', review: report } : null} onClose={() => setReport(null)} />
     </View>
   );
 }

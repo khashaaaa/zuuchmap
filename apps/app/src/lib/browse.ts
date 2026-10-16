@@ -23,7 +23,7 @@ export interface BrowseState {
   view: 'list' | 'map';
 }
 
-export const INITIAL_BROWSE: BrowseState = { q: '', attrs: {}, sort: 'relevance', view: 'list' };
+const INITIAL_BROWSE: BrowseState = { q: '', attrs: {}, sort: 'relevance', view: 'list' };
 
 let state: BrowseState = INITIAL_BROWSE;
 const listeners = new Set<() => void>();

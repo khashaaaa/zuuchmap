@@ -6,7 +6,6 @@ import { ApiError } from '@/lib/api';
 import { useCategoryLookup } from '@/lib/labels';
 import { useDocTitle } from '@/lib/meta';
 import { useDeleteListing, useListingPerformance, useMyListings, useOwnListing } from '@/lib/provider';
-import { useToast } from '@/lib/toast';
 import { Button } from '@/ui/Button';
 import { EmptyState } from '@/ui/EmptyState';
 import { Icon } from '@/ui/Icon';
@@ -14,6 +13,7 @@ import { ListingHealthRing } from '@/ui/ListingHealthRing';
 import { Modal } from '@/ui/Modal';
 import { StatTile } from '@/ui/StatTile';
 import { PageHead, ProviderOnly } from './Page';
+import { FeatureFlow } from './FeatureFlow';
 import { RenewSheet } from './RenewSheet';
 
 const delta = (cur: number, prev: number, t: (k: string, o?: Record<string, unknown>) => string) => {
@@ -25,7 +25,6 @@ const delta = (cur: number, prev: number, t: (k: string, o?: Record<string, unkn
 function Perf() {
   const { t } = useTranslation();
   const nav = useNavigate();
-  const toast = useToast();
   const id = Number(useParams().id);
   const perf = useListingPerformance(id);
   const own = useOwnListing(id);
@@ -33,6 +32,7 @@ function Perf() {
   const mineItem = useMyListings().data?.find((p) => p.id === id);
   const del = useDeleteListing();
   const [renew, setRenew] = useState(false);
+  const [feature, setFeature] = useState(false);
   const [confirm, setConfirm] = useState(false);
   useDocTitle(t('prov.perf.title'));
 
@@ -93,11 +93,12 @@ function Perf() {
         <ul className="flex flex-col rounded-xl border border-border-subtle bg-bg-surface p-1">
           {action('pencil', t('prov.actions.edit'), live ? t('prov.perf.editNote') : undefined, () => void nav(`/provider/listings/${id}/edit`))}
           {expiring && l && action('refresh-cw', t('prov.home.renew'), t('prov.perf.renewHint', { days: mineItem?.renew_days ?? cat?.post_expiry_days ?? 60 }), () => setRenew(true))}
-          {action('star', t('prov.actions.feature'), t('prov.perf.featureHint'), () => toast.info(t('prov.actions.featureSoon')))}
+          {live && l && action('star', t('prov.actions.feature'), t('prov.perf.featureHint'), () => setFeature(true))}
           {action('trash-2', t('prov.perf.deleteListing'), undefined, () => setConfirm(true), true)}
         </ul>
         <Button variant="outline" onClick={() => void nav(`/posts/${id}`)}>{t('ui.prov.viewListing')}</Button>
       </div>
+      <FeatureFlow target={feature && l ? l : null} onClose={() => setFeature(false)} />
       <RenewSheet target={renew && l ? { id, title: p.title, category: l.category, expires_at: l.expires_at, renew_days: mineItem?.renew_days } : null} onClose={() => setRenew(false)} />
       <Modal
         open={confirm}

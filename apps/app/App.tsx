@@ -24,10 +24,16 @@ import { api, ApiError } from './src/lib/api';
 import { loadRecent } from './src/lib/browse';
 import { loadLocale } from './src/lib/locale';
 import { openTarget, usePlanUsage, useUnreadCount } from './src/lib/notifications';
+import { useAdminListings, useReports } from './src/lib/admin';
 import { usePushSync } from './src/lib/push';
 import { useRealtime } from './src/lib/realtime';
 import { loadGuestSaved } from './src/lib/saved';
 import type { RootStackParamList, TabParamList } from './src/nav';
+import { AdminAnalytics, AdminBrowse, AdminProfile, AdminReports, AdminUsers } from './src/screens/admin/Admin';
+import { AdminReview, Queue } from './src/screens/admin/Queue';
+import { Billing } from './src/screens/provider/Billing';
+import { Payment } from './src/screens/provider/Payment';
+import { DeleteAccount, Help, Privacy, Terms } from './src/screens/shared/Legal';
 import { BlockDays } from './src/screens/provider/BlockDays';
 import { BookingValueScreen } from './src/screens/provider/BookingValue';
 import { CompanyScreen } from './src/screens/provider/Company';
@@ -72,7 +78,7 @@ const queryClient = new QueryClient({
 });
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
-const TAB_ROUTES: readonly string[] = ['browse', 'saved', 'messages', 'profile', 'home', 'myPosts', 'add'];
+const TAB_ROUTES: readonly string[] = ['browse', 'saved', 'messages', 'profile', 'home', 'myPosts', 'add', 'approval', 'reports'];
 const Nothing = () => null;
 
 /** Tab screens cross-fade; none under reduce-motion. */
@@ -122,9 +128,26 @@ function ProviderTabs() {
   );
 }
 
-/** Providers get their own shell; everyone else (guests included) keeps the customer tabs. */
+/** Figma J1: the admin's queues on the phone; configuration is on the web. */
+function AdminTabs() {
+  const options = useTabOptions();
+  const pending = useAdminListings('PENDING', '', 1).data?.total ?? 0;
+  const reports = useReports('OPEN').data?.total ?? 0;
+  return (
+    <Tab.Navigator tabBar={(p) => <NavigationTabBar {...p} preset="admin" counts={{ approval: pending, reports }} />} screenOptions={options}>
+      <Tab.Screen name="browse" component={AdminBrowse} />
+      <Tab.Screen name="approval" component={Queue} />
+      <Tab.Screen name="reports" component={AdminReports} />
+      <Tab.Screen name="profile" component={AdminProfile} />
+    </Tab.Navigator>
+  );
+}
+
+/** Admins get the queues, providers their own shell; everyone else (guests included) keeps the customer tabs. */
 function RoleTabs() {
-  return useAuth().user?.type === 'PROVIDER' ? <ProviderTabs /> : <CustomerTabs />;
+  const user = useAuth().user;
+  if (user?.is_admin) return <AdminTabs />;
+  return user?.type === 'PROVIDER' ? <ProviderTabs /> : <CustomerTabs />;
 }
 
 const FONTS = {
@@ -218,6 +241,15 @@ function Root() {
           <Stack.Screen name="Notifications" component={NotificationCentre} />
           <Stack.Screen name="NotificationSettings" component={NotificationSettings} />
           <Stack.Screen name="Kit" component={Kit} />
+          <Stack.Screen name="Billing" component={Billing} />
+          <Stack.Screen name="Payment" component={Payment} />
+          <Stack.Screen name="Help" component={Help} />
+          <Stack.Screen name="Privacy" component={Privacy} />
+          <Stack.Screen name="Terms" component={Terms} />
+          <Stack.Screen name="DeleteAccount" component={DeleteAccount} />
+          <Stack.Screen name="AdminReview" component={AdminReview} />
+          <Stack.Screen name="AdminUsers" component={AdminUsers} />
+          <Stack.Screen name="AdminAnalytics" component={AdminAnalytics} />
         </Stack.Navigator>
       </NavigationContainer>
       </AuthSheetProvider>

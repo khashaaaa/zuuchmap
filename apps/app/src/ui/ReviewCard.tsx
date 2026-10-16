@@ -14,10 +14,12 @@ export interface ReviewCardProps {
   /** The viewer is the reviewed provider: offers reply / edit reply. */
   canReply?: boolean;
   onReply?: () => void;
+  /** Anyone but the author may report a review (Figma R6). */
+  onReport?: () => void;
 }
 
 /** A review with the provider's reply under it. */
-export function ReviewCard({ review, providerName, canReply, onReply }: ReviewCardProps) {
+export function ReviewCard({ review, providerName, canReply, onReply, onReport }: ReviewCardProps) {
   const { colors, type, radius } = useAppTheme();
   const { t } = useTranslation();
   const locale = useLocale();
@@ -43,10 +45,19 @@ export function ReviewCard({ review, providerName, canReply, onReply }: ReviewCa
           <Text style={[type.caption, { color: colors.textPrimary }]}>{review.reply}</Text>
         </View>
       ) : null}
-      {canReply ? (
-        <Pressable accessibilityRole="button" hitSlop={10} onPress={onReply} style={{ alignSelf: 'flex-start' }}>
-          <Text style={[type.labelStrong, { color: colors.textLink }]}>{review.reply ? t('deal.review.replyEdit') : t('deal.review.replyTitle')}</Text>
-        </Pressable>
+      {canReply || onReport ? (
+        <View style={{ flexDirection: 'row', gap: 20 }}>
+          {canReply ? (
+            <Pressable accessibilityRole="button" hitSlop={10} onPress={onReply}>
+              <Text style={[type.labelStrong, { color: colors.textLink }]}>{review.reply ? t('deal.review.replyEdit') : t('deal.review.replyTitle')}</Text>
+            </Pressable>
+          ) : null}
+          {onReport ? (
+            <Pressable accessibilityRole="button" hitSlop={10} onPress={onReport}>
+              <Text style={[type.labelStrong, { color: colors.textSecondary }]}>{t('report.action')}</Text>
+            </Pressable>
+          ) : null}
+        </View>
       ) : null}
     </View>
   );

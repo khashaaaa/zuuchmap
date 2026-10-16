@@ -23,7 +23,7 @@ export const EMPTY_FORM: WizardForm = {
   province: null, district: null, address: '', lat: null, lng: null, images: [],
 };
 
-export const TITLE_MIN = 10;
+const TITLE_MIN = 10;
 export const TITLE_MAX = 80;
 export const DETAILS_MAX = 5000;
 export const STEP_COUNT = 5;
@@ -34,7 +34,7 @@ type Source = Pick<Listing, 'category' | 'subcategory' | 'title' | 'province' | 
 
 /** The form for an existing listing. A pending proposal wins over the live row (the owner edits what they proposed). */
 /** `posts/<owner>/<id>.jpg` out of a photo URL (or a bare key). */
-export const photoKey = (urlOrKey: string): string | null => urlOrKey.match(/posts\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(?:jpg|png|webp)/)?.[0] ?? null;
+const photoKey = (urlOrKey: string): string | null => urlOrKey.match(/posts\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(?:jpg|png|webp)/)?.[0] ?? null;
 
 export function formFromListing(l: Source & Partial<Pick<MyListingItem, 'pending_revision'>> & { images?: string[] | null }, cat?: CategoryView, copy = false): WizardForm {
   const r = l.pending_revision ?? null;
@@ -109,7 +109,7 @@ export function validateStep(step: number, f: WizardForm, cat: CategoryView | un
       else if (fd.type === 'boolean' && fd.required && typeof v !== 'boolean') e[fd.key] = t('form.fieldRequired', { field: fd.label });
       else if (fd.type === 'number' && !empty(v)) {
         const num = Number(v);
-        if (!Number.isFinite(num) || (fd.min !== undefined && num < fd.min) || (fd.max !== undefined && num > fd.max)) e[fd.key] = t('ui.emailInvalid');
+        if (!Number.isFinite(num) || (fd.min !== undefined && num < fd.min) || (fd.max !== undefined && num > fd.max)) e[fd.key] = t('ui.invalid');
       }
     }
   }
